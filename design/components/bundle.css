@@ -1,0 +1,172 @@
+@import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600;700&display=swap');
+
+/* CLUB OS — component styles. Every colour, space and radius is a token; nothing here names a club. */
+
+body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font-text); font-size: 15px; line-height: 22px; -webkit-font-smoothing: antialiased; }
+* { box-sizing: border-box; }
+.cos-stage { padding: var(--space-4); display: flex; flex-wrap: wrap; gap: var(--space-4); align-items: flex-start; }
+.cos-col { display: flex; flex-direction: column; gap: var(--space-3); width: 343px; }
+.cos-row { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
+.cos-ico { width: 20px; height: 20px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
+.cos-ico--sm { width: 16px; height: 16px; }
+.cos-ico--lg { width: 28px; height: 28px; }
+.cos-tnum { font-variant-numeric: tabular-nums; }
+
+/* type helpers */
+.cos-label { font-family: var(--font-text); font-size: 12px; line-height: 16px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-2); margin: 0; }
+.cos-meta { font-size: 13px; line-height: 18px; color: var(--ink-3); margin: 0; }
+.cos-title { font-family: var(--font-display); font-size: 18px; line-height: 22px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; margin: 0; }
+.cos-display-m { font-family: var(--font-display); font-size: 26px; line-height: 28px; font-weight: 700; text-transform: uppercase; margin: 0; }
+.cos-numeral { font-family: var(--font-display); font-size: 28px; line-height: 28px; font-weight: 700; font-variant-numeric: tabular-nums; }
+
+/* CTAButton */
+.cos-btn { display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2); min-height: var(--target-min); padding: 0 var(--space-5); border-radius: var(--radius-md); border: 1px solid transparent; font-family: var(--font-display); font-size: 17px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; cursor: pointer; text-decoration: none; }
+.cos-btn--primary { background: var(--brand-accent); color: var(--brand-on-accent); }
+.cos-btn--primary:active { background: var(--brand-accent-pressed); }
+.cos-btn--secondary { background: transparent; color: var(--ink); border-color: var(--line-strong); }
+.cos-btn--ghost { background: transparent; color: var(--brand-accent); padding: 0 var(--space-2); }
+.cos-btn--on-spotlight { background: var(--on-spotlight); color: var(--brand-accent); }
+.cos-btn--block { width: 100%; }
+.cos-btn--live { min-height: var(--target-live); font-size: 20px; border-radius: var(--radius-lg); }
+.cos-btn:disabled { background: var(--surface-2); color: var(--ink-3); border-color: transparent; cursor: default; }
+.cos-btn:focus-visible, .cos-chip:focus-visible, .cos-search input:focus-visible, .cos-nav__item:focus-visible, .cos-iconbtn:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.cos-iconbtn { width: var(--target-min); height: var(--target-min); display: inline-flex; align-items: center; justify-content: center; border-radius: var(--radius-pill); background: transparent; border: 0; color: var(--ink); cursor: pointer; }
+
+/* Card */
+.cos-card { background: var(--surface-1); border: 1px solid var(--line); border-radius: var(--radius-lg); padding: var(--space-4); display: flex; flex-direction: column; gap: var(--space-3); }
+.cos-card--spotlight { background: var(--spotlight); color: var(--on-spotlight); border-color: transparent; border-radius: var(--radius-xl); }
+.cos-card--spotlight .cos-label, .cos-card--spotlight .cos-meta { color: var(--on-spotlight-2); }
+.cos-card--flush { padding: 0; gap: 0; overflow: hidden; }
+
+/* SectionHeader */
+.cos-sh { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-3); }
+.cos-sh__action { font-size: 13px; line-height: 18px; font-weight: 600; color: var(--brand-accent); text-decoration: none; }
+
+/* ListRow */
+.cos-lrow { display: flex; align-items: center; gap: var(--space-3); min-height: 56px; padding: var(--space-2) var(--space-4); border-top: 1px solid var(--line); color: var(--ink); text-decoration: none; }
+.cos-lrow:first-child { border-top: 0; }
+.cos-lrow__lead { width: 44px; flex: none; color: var(--brand-accent); }
+.cos-lrow__main { flex: 1; min-width: 0; }
+.cos-lrow__main p { margin: 0; }
+.cos-lrow__name { font-weight: 600; }
+.cos-lrow__trail { color: var(--ink-3); display: flex; align-items: center; gap: var(--space-2); font-size: 13px; }
+.cos-date { width: 44px; flex: none; text-align: center; }
+.cos-date__dow { display: block; font-size: 11px; line-height: 14px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3); }
+.cos-date__day { display: block; font-family: var(--font-display); font-size: 24px; line-height: 24px; font-weight: 700; font-variant-numeric: tabular-nums; }
+
+/* Chips (Filter) */
+.cos-chips { display: flex; gap: var(--space-2); overflow-x: auto; scrollbar-width: none; }
+.cos-chip { display: inline-flex; align-items: center; gap: var(--space-1); min-height: 36px; padding: 0 var(--space-3); border-radius: var(--radius-pill); border: 1px solid var(--line); background: var(--surface-2); color: var(--ink-2); font-size: 13px; font-weight: 600; white-space: nowrap; cursor: pointer; font-family: var(--font-text); }
+.cos-chip[aria-pressed="true"] { background: var(--brand-accent-soft); color: var(--brand-accent); border-color: var(--brand-accent); }
+.cos-chip--tag { min-height: 24px; padding: 0 var(--space-2); border-radius: var(--radius-xs); cursor: default; font-size: 12px; }
+
+/* Search */
+.cos-search { position: relative; display: block; }
+.cos-search .cos-ico { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: var(--ink-3); }
+.cos-search input { width: 100%; height: var(--target-min); padding: 0 var(--space-4) 0 44px; border-radius: var(--radius-md); border: 1px solid var(--line-strong); background: var(--surface-2); color: var(--ink); font: inherit; }
+.cos-search input::placeholder { color: var(--ink-3); }
+
+/* Avatar */
+.cos-avatar { display: inline-flex; align-items: center; justify-content: center; flex: none; width: 40px; height: 40px; border-radius: var(--radius-pill); background: var(--surface-2); border: 1px solid var(--line); color: var(--ink); font-family: var(--font-display); font-weight: 700; font-size: 16px; letter-spacing: .02em; }
+.cos-avatar--sm { width: 32px; height: 32px; font-size: 13px; }
+.cos-avatar--lg { width: 64px; height: 64px; font-size: 26px; }
+.cos-avatar--number { color: var(--brand-accent); }
+
+/* PlayerCard */
+.cos-player { color: var(--ink); text-decoration: none; display: flex; align-items: center; gap: var(--space-3); min-height: 60px; padding: var(--space-2) var(--space-4); border-top: 1px solid var(--line); }
+.cos-player:first-child { border-top: 0; }
+.cos-player__num { width: 36px; flex: none; color: var(--brand-accent); font-family: var(--font-display); font-size: 24px; font-weight: 700; font-variant-numeric: tabular-nums; text-align: right; }
+.cos-player__main { flex: 1; min-width: 0; }
+.cos-player__main p { margin: 0; }
+
+/* DrillCard */
+.cos-drill { color: var(--ink); display: flex; gap: var(--space-3); align-items: center; padding: var(--space-3) var(--space-4); border-top: 1px solid var(--line); }
+.cos-drill:first-child { border-top: 0; }
+.cos-drill__thumb { width: 80px; height: 60px; flex: none; border-radius: var(--radius-sm); background: var(--surface-2); }
+.cos-drill__main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.cos-drill__main p { margin: 0; }
+.cos-drill__name { color: var(--ink); text-decoration: none; font-family: var(--font-display); font-size: 18px; line-height: 22px; font-weight: 700; text-transform: uppercase; }
+.cos-court { fill: none; stroke: var(--ink-3); stroke-width: 1.2; }
+.cos-court-play { fill: none; stroke: var(--brand-accent); stroke-width: 1.6; stroke-linecap: round; }
+.cos-court-o { fill: none; stroke: var(--ink); stroke-width: 1.6; }
+.cos-court-x { stroke: var(--brand-accent); stroke-width: 1.8; stroke-linecap: round; }
+
+/* StandardBadge */
+.cos-std { display: inline-flex; align-items: center; gap: var(--space-2); min-height: 32px; padding: 0 var(--space-3) 0 var(--space-2); border-radius: var(--radius-sm); background: var(--brand-accent-soft); color: var(--ink); font-family: var(--font-display); font-size: 15px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; }
+.cos-std__code { color: var(--brand-accent); font-weight: 700; font-variant-numeric: tabular-nums; }
+.cos-std-block { display: flex; gap: var(--space-3); padding: var(--space-4); background: var(--surface-1); border: 1px solid var(--line); border-radius: var(--radius-lg); }
+.cos-std-block__num { font-family: var(--font-display); font-size: 40px; line-height: 40px; font-weight: 700; color: var(--brand-accent); font-variant-numeric: tabular-nums; }
+.cos-std-block p { margin: 0; }
+
+/* PracticeCard / GameCard */
+.cos-pc__when { font-weight: 600; margin: 0; }
+.cos-pc__chips { display: flex; gap: var(--space-2); flex-wrap: wrap; }
+.cos-card--spotlight .cos-chip--tag { background: transparent; border-color: var(--on-spotlight-2); color: var(--on-spotlight); }
+.cos-game__teams { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: var(--space-3); text-align: center; }
+.cos-game__team { display: flex; flex-direction: column; align-items: center; gap: var(--space-2); }
+.cos-game__name { font-family: var(--font-display); font-size: 18px; line-height: 22px; font-weight: 700; text-transform: uppercase; }
+.cos-game__vs { font-family: var(--font-display); font-size: 15px; font-weight: 600; color: var(--ink-3); text-transform: uppercase; }
+
+/* PracticeItem (builder) */
+.cos-pi { display: flex; align-items: center; gap: var(--space-2); min-height: 72px; padding: var(--space-2) var(--space-2) var(--space-2) 0; border-top: 1px solid var(--line); background: var(--surface-1); }
+.cos-pi:first-child { border-top: 0; }
+.cos-pi__handle { width: 32px; height: var(--target-min); flex: none; display: flex; align-items: center; justify-content: center; color: var(--ink-3); cursor: grab; }
+.cos-pi__num { width: 36px; flex: none; color: var(--brand-accent); }
+.cos-pi__main { flex: 1; min-width: 0; }
+.cos-pi__main p { margin: 0; }
+.cos-pi__dur { display: flex; align-items: center; gap: 2px; }
+.cos-pi__dur .cos-iconbtn { width: 36px; height: 36px; background: var(--surface-2); color: var(--ink-2); }
+.cos-pi__mins { width: 40px; text-align: center; font-family: var(--font-display); font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.cos-pi-total { display: flex; justify-content: space-between; align-items: center; padding: var(--space-3) var(--space-4); border-top: 1px solid var(--line-strong); }
+.cos-pi--dragging { background: var(--surface-3); box-shadow: var(--shadow-sheet); }
+
+/* Timer (Live Practice) */
+.cos-live { width: 375px; display: flex; flex-direction: column; background: var(--bg); }
+.cos-live__top { display: flex; align-items: center; justify-content: space-between; padding: var(--space-3) var(--space-4); }
+.cos-live__dot { display: inline-flex; align-items: center; gap: var(--space-2); }
+.cos-live__dot::before { content: ""; width: 8px; height: 8px; border-radius: var(--radius-pill); background: var(--danger); }
+.cos-live__progress { height: 4px; margin: 0 var(--space-4); border-radius: var(--radius-xs); background: var(--surface-2); overflow: hidden; }
+.cos-live__progress span { display: block; height: 100%; background: var(--brand-accent); }
+.cos-live__body { padding: var(--space-6) var(--space-4) var(--space-4); text-align: center; display: flex; flex-direction: column; gap: var(--space-2); align-items: center; }
+.cos-timer { font-family: var(--font-display); font-size: 112px; line-height: 100px; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -.01em; margin: var(--space-2) 0; }
+.cos-timer--paused { color: var(--ink-3); }
+.cos-live__points { list-style: none; margin: 0; padding: 0 var(--space-4); display: flex; flex-direction: column; gap: var(--space-2); }
+.cos-live__points li { display: flex; align-items: center; gap: var(--space-3); font-size: 17px; line-height: 24px; }
+.cos-live__points .cos-ico { color: var(--brand-accent); }
+.cos-live__controls { display: grid; grid-template-columns: 72px 1fr 72px; gap: var(--space-3); padding: var(--space-4); background: var(--surface-1); box-shadow: var(--shadow-sheet); border-radius: var(--radius-xl) var(--radius-xl) 0 0; margin-top: var(--space-6); }
+.cos-live__ctl { height: var(--target-live); border-radius: var(--radius-lg); border: 1px solid var(--line-strong); background: var(--surface-2); color: var(--ink); display: flex; align-items: center; justify-content: center; }
+.cos-live__next { text-align: center; padding: 0 var(--space-4) var(--space-4); background: var(--surface-1); }
+
+/* Navigation */
+.cos-topnav { display: flex; align-items: center; justify-content: space-between; min-height: 56px; padding: 0 var(--space-2) 0 var(--space-4); background: var(--bg); }
+.cos-topnav--detail { padding: 0 var(--space-2); }
+.cos-topnav__title { flex: 1; text-align: center; }
+.cos-wordmark { font-family: var(--font-display); text-transform: uppercase; line-height: 1; }
+.cos-wordmark b { display: block; font-size: 24px; font-weight: 700; letter-spacing: .02em; }
+.cos-wordmark span { display: block; font-size: 11px; font-weight: 600; letter-spacing: .32em; color: var(--ink-2); margin-top: 2px; }
+.cos-nav { display: grid; grid-template-columns: repeat(5, 1fr); height: var(--nav-height); background: var(--surface-1); border-top: 1px solid var(--line); }
+.cos-nav__item { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; color: var(--ink-3); font-size: 11px; line-height: 14px; font-weight: 500; text-decoration: none; }
+.cos-nav__item[aria-current="page"] { color: var(--brand-accent); font-weight: 600; }
+.cos-nav__item[aria-current="page"] .cos-ico { stroke-width: 2.25; }
+
+/* Hero */
+.cos-hero { position: relative; overflow: hidden; background: var(--surface-1); min-height: 220px; display: flex; flex-direction: column; justify-content: flex-end; padding: var(--space-4); }
+.cos-hero__photo { position: absolute; inset: 0; width: 100%; height: 100%; }
+.cos-hero__scrim { position: absolute; inset: 0; background: var(--scrim); }
+.cos-hero__content { position: relative; display: flex; flex-direction: column; gap: var(--space-2); }
+.cos-hero__kicker { color: var(--brand-accent); }
+.cos-hero__title { font-family: var(--font-display); font-size: 44px; line-height: 44px; font-weight: 700; margin: 0; }
+
+/* States */
+.cos-state { display: flex; flex-direction: column; align-items: center; text-align: center; gap: var(--space-3); padding: var(--space-12) var(--space-6); }
+.cos-state p { margin: 0; max-width: 280px; }
+.cos-state__icon { width: 56px; height: 56px; border-radius: var(--radius-pill); background: var(--surface-2); color: var(--ink-2); display: flex; align-items: center; justify-content: center; }
+.cos-state--error .cos-state__icon { background: var(--danger-soft); color: var(--danger); }
+.cos-skel { background: var(--surface-2); border-radius: var(--radius-sm); }
+@media (prefers-reduced-motion: no-preference) { .cos-skel { animation: cos-pulse 1.4s ease-in-out infinite; } }
+@keyframes cos-pulse { 50% { opacity: .55; } }
+
+/* AppShell */
+.cos-shell { width: 375px; height: 760px; display: flex; flex-direction: column; background: var(--bg); border: 1px solid var(--line); border-radius: var(--radius-xl); overflow: hidden; }
+.cos-shell__main { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: var(--space-6); padding-bottom: var(--space-6); }
+.cos-shell__pad { padding: 0 var(--space-4); display: flex; flex-direction: column; gap: var(--space-3); }
