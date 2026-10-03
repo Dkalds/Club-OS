@@ -25,7 +25,8 @@ create type public.content_status as enum ('draft', 'published');
 -- `updated_at` no tiene trigger a propósito: solo lo cambia `update_way_section`, que es
 -- lo que invalida la copia de quien edita; reordenar o cambiar `status` lo deja como está.
 -- `updated_by` toma por defecto el usuario de la sesión; el seed, que escribe con la clave
--- de servicio y sin sesión, lo deja a null.
+-- de servicio y sin sesión, lo deja a null. Si se borra a ese usuario, la sección se queda y
+-- `updated_by` pasa a null: quien guardó una sección no puede quedar atado a ella.
 create table public.way_sections (
   id uuid primary key default gen_random_uuid(),
   organization_id uuid not null references public.organizations (id) on delete cascade,
@@ -44,7 +45,7 @@ create table public.way_sections (
   status public.content_status not null default 'draft',
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
-  updated_by uuid default auth.uid() references auth.users (id),
+  updated_by uuid default auth.uid() references auth.users (id) on delete set null,
   unique (organization_id, slug)
 );
 
@@ -62,6 +63,9 @@ create table public.club_values (
   status public.content_status not null default 'draft',
   created_at timestamptz not null default now()
 );
+
+create index club_values_organization_id_sort_idx
+  on public.club_values (organization_id, sort);
 
 -- Los principios de juego del club. Sus puntos cuelgan de `(organization_id, id)`.
 create table public.game_principles (
@@ -107,6 +111,11 @@ create table public.principle_points (
 
 create index principle_points_principle_id_sort_idx
   on public.principle_points (principle_id, sort);
+
+-- La clave foránea compuesta `(organization_id, principle_id)` necesita un índice que empiece
+-- por ahí: sin él, borrar o cambiar un principio recorre los puntos de todos los clubes.
+create index principle_points_organization_id_principle_id_idx
+  on public.principle_points (organization_id, principle_id);
 
 -- ── RLS y privilegios ────────────────────────────────────────────────────────────────
 alter table public.way_sections enable row level security;

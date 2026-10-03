@@ -12,7 +12,7 @@
 -- chocan con los de `pnpm seed` ni con los de los otros tests.
 begin;
 
-select plan(108);
+select plan(114);
 
 -- ── Fixtures (como postgres) ─────────────────────────────────────────────────────────
 -- Club A: adminA (admin) y coachA (coach, sin equipo ni persona enlazada).
@@ -871,6 +871,27 @@ select is_empty(
   'borrar un club borra su metodología en las cinco tablas'
 );
 
+-- ── Borrar a un usuario que guardó una sección ───────────────────────────────────────
+-- `updated_by` apunta a `auth.users`. Sin `on delete set null`, borrar a quien guardó una
+-- sección fallaba con 23503: la sección se queda y su autor pasa a null. Es lo último que
+-- hace el test con adminA: al borrarlo se va también su membresía.
+select results_eq(
+  $$select updated_by from way_sections where slug = 'nueva-a'$$,
+  $$values (current_setting('fx.admin_a')::uuid)$$,
+  'control: adminA, que creó «nueva-a», figura como su autor'
+);
+
+select lives_ok(
+  $$delete from auth.users where id = current_setting('fx.admin_a')::uuid$$,
+  'borrar a un usuario que guardó una sección no falla'
+);
+
+select results_eq(
+  $$select updated_by from way_sections where slug = 'nueva-a'$$,
+  $$values (null::uuid)$$,
+  'la sección se queda y su autor pasa a null'
+);
+
 -- ── Tipo e índices ───────────────────────────────────────────────────────────────────
 select enum_has_labels(
   'public', 'content_status', array['draft', 'published'],
@@ -887,6 +908,44 @@ select has_index(
   'public'::name, 'principle_points'::name, 'principle_points_principle_id_sort_idx'::name,
   array['principle_id', 'sort']::name[],
   'principle_points tiene índice por principio y orden'::text
+);
+
+select has_index(
+  'public'::name, 'club_values'::name, 'club_values_organization_id_sort_idx'::name,
+  array['organization_id', 'sort']::name[],
+  'club_values tiene índice por club y orden'::text
+);
+
+-- La clave foránea compuesta de los puntos es `(organization_id, principle_id)`: sin un índice
+-- que empiece por ahí, borrar o cambiar un principio recorre todos los puntos de todos los clubes.
+select has_index(
+  'public'::name, 'principle_points'::name, 'principle_points_organization_id_principle_id_idx'::name,
+  array['organization_id', 'principle_id']::name[],
+  'principle_points tiene índice por club y principio'::text
+);
+
+-- La spec (§9) pide índices por `organization_id`: cada tabla tiene alguno que empieza por esa
+-- columna, sea el de una clave única o uno propio. (El nombre de tabla del catálogo lleva la
+-- collation "C": se pasa a la de por defecto para compararlo con el array.)
+select results_eq(
+  $$select c.relname::text collate "default"
+    from pg_class as c
+    where c.relnamespace = 'public'::regnamespace
+      and c.relname in (
+        'way_sections', 'club_values', 'game_principles', 'principle_points', 'standards'
+      )
+      and exists (
+        select 1
+        from pg_index as i
+        where i.indrelid = c.oid
+          and i.indkey[0] = (
+            select a.attnum from pg_attribute as a
+            where a.attrelid = c.oid and a.attname = 'organization_id'
+          )
+      )
+    order by 1$$,
+  array['club_values', 'game_principles', 'principle_points', 'standards', 'way_sections'],
+  'las cinco tablas tienen un índice que empieza por organization_id'
 );
 
 -- ── RLS, privilegios y políticas de las cinco tablas ─────────────────────────────────
