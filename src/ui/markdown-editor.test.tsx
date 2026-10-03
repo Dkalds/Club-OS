@@ -122,6 +122,19 @@ describe("MarkdownEditor", () => {
     expect(screen.getByText("12.345 / 20.000")).toBeInTheDocument();
   });
 
+  // `es-ES` no agrupa por defecto las cifras de cuatro dígitos («1500»), y sí las de cinco: el
+  // contador no puede leerse «1500 / 20.000» y «12.345 / 20.000» a la vez.
+  it.each([
+    [999, "999 / 20.000"],
+    [1000, "1.000 / 20.000"],
+    [1500, "1.500 / 20.000"],
+    [9999, "9.999 / 20.000"],
+  ])("agrupa igual las cifras de tres y cuatro dígitos: %i caracteres", (length, expected) => {
+    render(<Harness initial={"a".repeat(length)} />);
+
+    expect(screen.getByText(expected)).toBeInTheDocument();
+  });
+
   it("el límite exacto todavía cabe", () => {
     render(<Harness initial={"a".repeat(MAX)} />);
 

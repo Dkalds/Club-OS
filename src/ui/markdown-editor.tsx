@@ -5,7 +5,9 @@ import { FIELD_CONTROL_CLASS, FIELD_LABEL_CLASS, FieldError } from "./form-field
 import { AlertIcon } from "./icons";
 import { MarkdownBody } from "./markdown-body";
 
-const COUNT = new Intl.NumberFormat("es-ES");
+// `always`: `es-ES` no agrupa por defecto las cifras de cuatro dígitos («1500») pero sí las de
+// cinco («12.345»), y el contador no puede leerse de las dos maneras.
+const COUNT = new Intl.NumberFormat("es-ES", { useGrouping: "always" });
 
 type Mode = "write" | "preview";
 
