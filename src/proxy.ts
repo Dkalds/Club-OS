@@ -11,7 +11,8 @@ export const config = {
     "/c/:path*",
     "/select-club/:path*",
     // El resto, salvo los estáticos de Next, el favicon y las imágenes: ahí solo se
-    // refresca la sesión.
-    "/((?!_next/static|_next/image|favicon.ico|.*\.(?:svg|png|jpg|jpeg|gif|webp|avif|ico)$).*)",
+    // refresca la sesión. El punto va escapado dos veces (cadena y expresión regular):
+    // con una sola barra sería «cualquier carácter» y /musico se libraría del proxy.
+    "/((?!_next/static|_next/image|favicon\\.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|avif|ico)$).*)",
   ],
 };

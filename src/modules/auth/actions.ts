@@ -1,7 +1,9 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { after } from "next/server";
 import { z } from "zod";
+import { logError } from "@/lib/log";
 import { createAnonClient, createClient } from "@/lib/supabase/server";
 
 export type LoginState = {
@@ -23,10 +25,13 @@ const codeSchema = z.string().trim().regex(/^\d{6}$/);
 /**
  * Paso 1: pide un código de un solo uso para un email ya invitado.
  *
- * Acceso solo por invitación: nunca crea usuarios. La respuesta para un email bien
- * escrito es siempre la misma, exista o no la cuenta, haya límite de frecuencia o falle
- * Supabase. Quien pide el código no puede saber si ese email tiene acceso: ni por el
- * texto ni por las cookies (por eso el cliente sin sesión, que no escribe ninguna).
+ * Acceso solo por invitación: nunca crea usuarios. Quien pide el código no puede saber
+ * si ese email tiene acceso, porque la respuesta no depende de Auth en nada:
+ * - el texto es el mismo para cualquier email bien escrito;
+ * - no se escribe ninguna cookie (el cliente sin sesión no abre flujo PKCE);
+ * - la petición a Auth se hace con `after()`, cuando la respuesta ya ha salido. Auth
+ *   tarda más con un email invitado (envía un correo) que con uno desconocido o con uno
+ *   que repite demasiado pronto; esperar aquí convertiría esa diferencia en una pista.
  */
 export async function requestLoginCode(
   _prev: LoginState,
@@ -36,17 +41,25 @@ export async function requestLoginCode(
   if (!email.success) return { step: "email", error: INVALID_EMAIL };
 
   try {
-    const supabase = createAnonClient();
-    // El error se ignora a propósito: distinguirlo revelaría si la cuenta existe.
-    await supabase.auth.signInWithOtp({
-      email: email.data,
-      options: { shouldCreateUser: false },
-    });
-  } catch {
-    // Misma respuesta que si hubiera ido bien.
+    after(() => sendLoginCode(email.data));
+  } catch (error) {
+    logError("auth.request-code", error);
   }
 
   return { step: "code", email: email.data, info: CODE_SENT };
+}
+
+/** Se ejecuta con la respuesta ya enviada. Nunca lanza: lo que falle va al log. */
+async function sendLoginCode(email: string): Promise<void> {
+  try {
+    const { error } = await createAnonClient().auth.signInWithOtp({
+      email,
+      options: { shouldCreateUser: false },
+    });
+    if (error) logError("auth.request-code", error);
+  } catch (error) {
+    logError("auth.request-code", error);
+  }
 }
 
 /**
@@ -75,8 +88,10 @@ export async function verifyLoginCode(
       token: code.data,
       type: "email",
     });
+    if (error) logError("auth.verify-code", error);
     verified = !error;
-  } catch {
+  } catch (error) {
+    logError("auth.verify-code", error);
     verified = false;
   }
   if (!verified) return rejected;

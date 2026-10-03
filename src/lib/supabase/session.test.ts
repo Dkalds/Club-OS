@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { SESSION_COOKIE_OPTIONS } from "./cookie-options";
 
 type CookieToSet = { name: string; value: string; options: Record<string, unknown> };
 type CookieMethods = {
@@ -22,6 +23,8 @@ const SIGNED_OUT = { data: null, error: null };
 
 /** Métodos de cookies que `updateSession` le pasa al cliente de Supabase. */
 let cookieMethods: CookieMethods;
+/** Líneas escritas en el log del servidor. */
+let logged: string[];
 
 function request(path: string, init?: { method?: string; cookie?: string }): NextRequest {
   return new NextRequest(`${ORIGIN}${path}`, {
@@ -36,6 +39,10 @@ function isPassThrough(response: Response): boolean {
 
 beforeEach(() => {
   vi.resetAllMocks();
+  logged = [];
+  vi.spyOn(console, "error").mockImplementation((...args: unknown[]) => {
+    logged.push(args.map(String).join(" "));
+  });
   mocks.createServerClient.mockImplementation(
     (_url: string, _key: string, options: { cookies: CookieMethods }) => {
       cookieMethods = options.cookies;
@@ -43,6 +50,10 @@ beforeEach(() => {
     },
   );
   mocks.getClaims.mockResolvedValue(SIGNED_OUT);
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
 });
 
 describe("updateSession sin sesión", () => {
@@ -103,6 +114,14 @@ describe("updateSession valida al usuario", () => {
 
     expect(mocks.getClaims).toHaveBeenCalledTimes(1);
     expect(cookieMethods.getAll()).toEqual([{ name: "sb-test-auth-token", value: "abc" }]);
+  });
+
+  it("las cookies de sesión que escriba llevan los atributos de SESSION_COOKIE_OPTIONS", async () => {
+    await updateSession(request("/c/club-a"));
+
+    expect(mocks.createServerClient.mock.calls[0][2]).toMatchObject({
+      cookieOptions: SESSION_COOKIE_OPTIONS,
+    });
   });
 
   it.each([
@@ -171,6 +190,58 @@ describe("updateSession valida al usuario", () => {
     const response = await updateSession(request("/select-club"));
 
     expect(response.headers.get("location")).toBe(`${ORIGIN}/login`);
+  });
+});
+
+describe("updateSession deja rastro en el log sin datos personales", () => {
+  const COOKIE = "sb-test-auth-token=token-secreto";
+
+  it("sin sesión no hay nada que registrar", async () => {
+    await updateSession(request("/c/club-a"));
+    mocks.getClaims.mockResolvedValue(SIGNED_IN);
+    await updateSession(request("/c/club-a", { cookie: COOKIE }));
+
+    expect(logged).toEqual([]);
+  });
+
+  it("un error de Auth: nombre, estado y código, sin el mensaje ni la cookie", async () => {
+    mocks.getClaims.mockResolvedValue({
+      data: null,
+      error: Object.assign(new Error("Invalid Refresh Token: token-secreto"), {
+        name: "AuthApiError",
+        status: 400,
+        code: "refresh_token_not_found",
+      }),
+    });
+
+    await updateSession(request("/c/club-a", { cookie: COOKIE }));
+
+    expect(logged).toEqual(["[auth.session] AuthApiError status=400 code=refresh_token_not_found"]);
+  });
+
+  it("una excepción de red", async () => {
+    mocks.getClaims.mockRejectedValue(
+      new TypeError("fetch failed", { cause: { code: "ECONNREFUSED" } }),
+    );
+
+    await updateSession(request("/c/club-a", { cookie: COOKIE }));
+
+    expect(logged).toEqual(["[auth.session] TypeError cause=ECONNREFUSED"]);
+  });
+
+  it("el tope de tiempo", async () => {
+    vi.useFakeTimers();
+    try {
+      mocks.getClaims.mockReturnValue(new Promise(() => {}));
+      const pending = updateSession(request("/c/club-a", { cookie: COOKIE }));
+
+      await vi.advanceTimersByTimeAsync(5_000);
+      await pending;
+
+      expect(logged).toEqual(["[auth.session] AuthCheckTimeout"]);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

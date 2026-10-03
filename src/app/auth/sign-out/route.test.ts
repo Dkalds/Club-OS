@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock("@/lib/supabase/server", () => ({ createClient: mocks.createClient }));
 vi.mock("next/headers", () => ({ cookies: mocks.cookies }));
 
+import { SESSION_COOKIE_OPTIONS } from "@/lib/supabase/cookie-options";
 import { POST } from "./route";
 
 const ORIGIN = "http://localhost:3000";
@@ -21,7 +22,12 @@ const BROWSER_COOKIES = [
   { name: "otra-cookie", value: "e" },
 ];
 
-let deleted: string[];
+/** Cookies que la ruta deja caducadas a mano: nombre → valor y atributos. */
+let cleared: Map<string, { value: string; options: unknown }>;
+/** Líneas escritas en el log del servidor. */
+let logged: string[];
+
+const CLEARED = { value: "", options: { ...SESSION_COOKIE_OPTIONS, maxAge: 0 } };
 
 function post(): NextRequest {
   return new NextRequest(`${ORIGIN}/auth/sign-out`, { method: "POST" });
@@ -29,10 +35,14 @@ function post(): NextRequest {
 
 beforeEach(() => {
   vi.resetAllMocks();
-  deleted = [];
+  cleared = new Map();
+  logged = [];
+  vi.spyOn(console, "error").mockImplementation((...args: unknown[]) => {
+    logged.push(args.map(String).join(" "));
+  });
   mocks.cookies.mockResolvedValue({
     getAll: () => BROWSER_COOKIES,
-    delete: (name: string) => deleted.push(name),
+    set: (name: string, value: string, options: unknown) => cleared.set(name, { value, options }),
   });
   mocks.createClient.mockResolvedValue({ auth: { signOut: mocks.signOut } });
   mocks.signOut.mockResolvedValue({ error: null });
@@ -40,6 +50,7 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.useRealTimers();
+  vi.restoreAllMocks();
 });
 
 describe("POST /auth/sign-out", () => {
@@ -51,7 +62,8 @@ describe("POST /auth/sign-out", () => {
     expect(response.status).toBe(303);
     expect(response.headers.get("location")).toBe(`${ORIGIN}/login`);
     // Si Supabase ha cerrado la sesión, ya ha borrado él sus cookies.
-    expect(deleted).toEqual([]);
+    expect(cleared.size).toBe(0);
+    expect(logged).toEqual([]);
   });
 
   it.each([
@@ -63,12 +75,14 @@ describe("POST /auth/sign-out", () => {
 
     const response = await POST(post());
 
-    expect(deleted).toEqual([
-      "sb-test-auth-token",
-      "sb-test-auth-token.0",
-      "sb-test-auth-token.1",
-      "sb-test-auth-token-code-verifier",
-    ]);
+    // Con los mismos atributos con los que se escribieron, y caducadas.
+    expect(Object.fromEntries(cleared)).toEqual({
+      "sb-test-auth-token": CLEARED,
+      "sb-test-auth-token.0": CLEARED,
+      "sb-test-auth-token.1": CLEARED,
+      "sb-test-auth-token-code-verifier": CLEARED,
+    });
+    expect(CLEARED.options).toMatchObject({ httpOnly: true, sameSite: "lax", path: "/" });
     expect(response.status).toBe(303);
     expect(response.headers.get("location")).toBe(`${ORIGIN}/login`);
   });
@@ -88,7 +102,22 @@ describe("POST /auth/sign-out", () => {
 
     expect(response?.status).toBe(303);
     expect(response?.headers.get("location")).toBe(`${ORIGIN}/login`);
-    expect(deleted).toContain("sb-test-auth-token");
-    expect(deleted).not.toContain("otra-cookie");
+    expect(cleared.get("sb-test-auth-token")).toEqual(CLEARED);
+    expect(cleared.has("otra-cookie")).toBe(false);
+    expect(logged).toEqual(["[auth.sign-out] SignOutTimeout"]);
+  });
+
+  it("deja el fallo en el log sin el mensaje del error", async () => {
+    mocks.signOut.mockResolvedValue({
+      error: Object.assign(new Error("session a1b2 of coach@club-a.test not found"), {
+        name: "AuthApiError",
+        status: 500,
+        code: "unexpected_failure",
+      }),
+    });
+
+    await POST(post());
+
+    expect(logged).toEqual(["[auth.sign-out] AuthApiError status=500 code=unexpected_failure"]);
   });
 });

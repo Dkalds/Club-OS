@@ -10,6 +10,7 @@ vi.mock("@supabase/supabase-js", () => ({ createClient: mocks.createSupabaseClie
 vi.mock("@supabase/ssr", () => ({ createServerClient: mocks.createServerClient }));
 vi.mock("next/headers", () => ({ cookies: mocks.cookies }));
 
+import { SESSION_COOKIE_OPTIONS } from "./cookie-options";
 import { createAnonClient, createClient } from "./server";
 
 type CookieToSet = { name: string; value: string; options: Record<string, unknown> };
@@ -65,6 +66,17 @@ describe("createClient", () => {
       expect.anything(),
     );
     expect(cookieMethods().getAll()).toEqual(stored);
+  });
+
+  it("las cookies de sesión que escriba llevan los atributos de SESSION_COOKIE_OPTIONS", async () => {
+    mocks.cookies.mockResolvedValue({ getAll: () => [], set: vi.fn() });
+
+    await createClient();
+
+    expect(mocks.createServerClient.mock.calls[0][2]).toMatchObject({
+      cookieOptions: SESSION_COOKIE_OPTIONS,
+    });
+    expect(SESSION_COOKIE_OPTIONS).toMatchObject({ httpOnly: true, sameSite: "lax", path: "/" });
   });
 
   it("escribe en las cookies la sesión nueva", async () => {

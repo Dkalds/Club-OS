@@ -1,6 +1,8 @@
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import type { Database } from "@/lib/database.types";
+import { logError } from "@/lib/log";
+import { SESSION_COOKIE_OPTIONS } from "./cookie-options";
 
 type CookieToSet = { name: string; value: string; options: CookieOptions };
 
@@ -23,10 +25,14 @@ function requiresSession(pathname: string): boolean {
   );
 }
 
+class AuthCheckTimeout extends Error {
+  override name = "AuthCheckTimeout";
+}
+
 function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   const timeout = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => reject(new Error("timeout")), ms);
+    timer = setTimeout(() => reject(new AuthCheckTimeout()), ms);
   });
   return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
 }
@@ -57,6 +63,7 @@ export async function updateSession(request: NextRequest): Promise<NextResponse>
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
       {
+        cookieOptions: SESSION_COOKIE_OPTIONS,
         cookies: {
           getAll() {
             return request.cookies.getAll();
@@ -77,11 +84,13 @@ export async function updateSession(request: NextRequest): Promise<NextResponse>
     // `getClaims()` verifica el token (firma o consulta a Auth) y lo refresca si ha
     // caducado. `getSession()` solo lee la cookie: no sirve para autorizar.
     const { data, error } = await withTimeout(supabase.auth.getClaims(), AUTH_CHECK_TIMEOUT_MS);
+    if (error) logError("auth.session", error);
     const userId: unknown = data?.claims?.sub;
     signedIn = !error && typeof userId === "string" && userId.length > 0;
-  } catch {
+  } catch (error) {
     // Supabase inalcanzable, lento o mal configurado: sin sesión, nunca un 500 del proxy.
     // No se borra ninguna cookie: cuando Supabase vuelva, la sesión sigue ahí.
+    logError("auth.session", error);
     signedIn = false;
   }
 

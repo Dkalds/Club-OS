@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { createAdminClient } from "../scripts/lib/admin-client";
-import { loginAs, requestCodeFor } from "./helpers/auth";
+import { lastCodeSentAt, loginAs, requestCodeFor } from "./helpers/auth";
 
 // Necesita Supabase local con `pnpm seed` (usuarios y clubes de ejemplo).
 
@@ -53,9 +53,10 @@ test("un email sin invitación ve lo mismo que uno invitado y no crea usuario", 
 }) => {
   const invited = "irene@arcangel.test";
   const stranger = "nadie@clubos.test";
+  const startedAt = Date.now();
 
   const screens: string[] = [];
-  for (const email of [invited, stranger]) {
+  for (const email of [stranger, invited]) {
     await requestCodeFor(page, email);
 
     await expect(
@@ -67,6 +68,13 @@ test("un email sin invitación ve lo mismo que uno invitado y no crea usuario", 
   }
   expect(screens[1]).toBe(screens[0]);
 
+  // La app pide el código a Auth después de responder (`after()`). Para la invitada, esa
+  // petición tiene que llegar: `loginAs` genera sus propios códigos y no lo notaría.
+  await expect
+    .poll(async () => (await lastCodeSentAt(invited)) ?? 0, { timeout: 10_000 })
+    .toBeGreaterThanOrEqual(startedAt - 1_000);
+
+  // La del email sin invitación salió antes; a estas alturas Auth ya la ha rechazado.
   const { data, error } = await createAdminClient().auth.admin.listUsers({ perPage: 200 });
   expect(error).toBeNull();
   expect(data.users.map((user) => user.email)).not.toContain(stranger);

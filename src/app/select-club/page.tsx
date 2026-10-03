@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { logError } from "@/lib/log";
 import { createClient } from "@/lib/supabase/server";
 
 // Depende de la sesión: nunca se prerenderiza ni se comparte entre usuarios.
@@ -22,7 +23,8 @@ type Club = { slug: string; name: string };
 async function listClubs(): Promise<Club[]> {
   const supabase = await createClient();
 
-  const { data: auth } = await supabase.auth.getClaims();
+  const { data: auth, error: authError } = await supabase.auth.getClaims();
+  if (authError) logError("select-club.session", authError);
   const userId = auth?.claims.sub;
   if (!userId) redirect("/login");
 
@@ -31,7 +33,10 @@ async function listClubs(): Promise<Club[]> {
     .select("organization:organizations!inner(slug, name)")
     .eq("user_id", userId)
     .eq("status", "active");
-  if (error) throw new Error("No se han podido leer los clubes de la cuenta.");
+  if (error) {
+    logError("select-club.memberships", error);
+    throw new Error("No se han podido leer los clubes de la cuenta.");
+  }
 
   return data
     .flatMap(({ organization }) =>
