@@ -37,6 +37,26 @@ describe("EmptyState", () => {
 
     expect(container.querySelector("[aria-hidden='true']")).toBeNull();
   });
+
+  it("el título es un <h2> si no se dice otra cosa: la pantalla pone su <h1>", () => {
+    render(<EmptyState title="Aún no hay sesiones" body="Crea la primera sesión." />);
+
+    expect(screen.getByRole("heading", { level: 2, name: "Aún no hay sesiones" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { level: 1 })).not.toBeInTheDocument();
+  });
+
+  it("con headingLevel 1 el título es el <h1> de la pantalla, con el mismo aspecto", () => {
+    const { rerender } = render(<EmptyState title="Aún no hay sesiones" body="Crea la primera sesión." />);
+    const asSection = screen.getByRole("heading", { level: 2 }).className;
+
+    rerender(
+      <EmptyState headingLevel={1} title="Aún no hay sesiones" body="Crea la primera sesión." />,
+    );
+
+    const heading = screen.getByRole("heading", { level: 1, name: "Aún no hay sesiones" });
+    expect(heading.className).toBe(asSection);
+    expect(screen.getAllByRole("heading")).toHaveLength(1);
+  });
 });
 
 describe("LoadingState", () => {
@@ -92,5 +112,24 @@ describe("ErrorState", () => {
     render(<ErrorState title="No se pudo cargar" body="Revisa la conexión." />);
 
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
+  });
+
+  it("el título es un <h2> si no se dice otra cosa", () => {
+    render(<ErrorState title="No se pudo cargar" body="Revisa la conexión." />);
+
+    expect(screen.getByRole("heading", { level: 2, name: "No se pudo cargar" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { level: 1 })).not.toBeInTheDocument();
+  });
+
+  it("con headingLevel 1 el título es el <h1> de la pantalla, dentro del aviso", () => {
+    const { rerender } = render(<ErrorState title="No se pudo cargar" body="Revisa la conexión." />);
+    const asSection = screen.getByRole("heading", { level: 2 }).className;
+
+    rerender(<ErrorState headingLevel={1} title="No se pudo cargar" body="Revisa la conexión." />);
+
+    const heading = screen.getByRole("heading", { level: 1, name: "No se pudo cargar" });
+    expect(heading.className).toBe(asSection);
+    expect(screen.getByRole("alert")).toContainElement(heading);
+    expect(screen.getAllByRole("heading")).toHaveLength(1);
   });
 });

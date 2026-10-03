@@ -72,27 +72,66 @@ function toBranding(orgName: string, row: BrandingRow | null): Branding {
   };
 }
 
+const TAG = "tenancy.club-context";
+
+/**
+ * Una avería (Supabase caído, sin red, una consulta que falla) no es «ese club no existe»:
+ * se registra sin datos personales (ver `logError`) y se lanza, para que la recoja una
+ * página de error con reintento y no el 404. El error original no viaja como `cause`: su
+ * mensaje puede llevar un email o el contenido de una fila.
+ */
+function fail(error: unknown): never {
+  logError(TAG, error);
+  throw new Error(`${TAG}: no se pudo comprobar el acceso al club`);
+}
+
+/** Una llamada a Supabase. Si ni siquiera responde (lanza), es una avería. */
+async function reach<T>(call: () => PromiseLike<T>): Promise<T> {
+  try {
+    return await call();
+  } catch (error) {
+    fail(error);
+  }
+}
+
+/**
+ * Estados con los que Auth contesta «esta sesión no vale»: falta, el token es inválido, se
+ * cerró o la cuenta ya no existe. Cualquier otro error (sin red, 5xx, límite de peticiones,
+ * uno sin estado) significa que no se ha podido comprobar: avería.
+ */
+const SESSION_REJECTED = new Set([400, 401, 403, 404]);
+
+function isSessionRejection(error: unknown): boolean {
+  const status: unknown = (error as { status?: unknown }).status;
+  return typeof status === "number" && SESSION_REJECTED.has(status);
+}
+
 async function loadClubContext(slug: string): Promise<ClubContext | null> {
   // El slug llega de la URL. Lo que no tenga la forma de un slug no puede ser un club:
   // ni se consulta.
   if (!SLUG.test(slug)) return null;
 
-  // Fuera del try: `cookies()` avisa a Next lanzando, y ese aviso tiene que subir.
+  // Fuera de `reach`: `cookies()` avisa a Next lanzando, y ese aviso tiene que subir tal cual.
   const supabase = await createClient();
 
-  try {
-    // Comprobación verificada (firma o servidor de Auth), no la cookie tal cual.
-    const { data: auth, error: authError } = await supabase.auth.getClaims();
-    if (authError) logError("tenancy.club-context", authError);
-    const userId = auth?.claims.sub;
-    if (!userId) return null;
+  // Comprobación verificada (firma o servidor de Auth), no la cookie tal cual.
+  const { data: auth, error: authError } = await reach(() => supabase.auth.getClaims());
+  if (authError) {
+    if (!isSessionRejection(authError)) fail(authError);
+    // Auth ha contestado, y esa sesión no vale: no hay usuario, igual que sin sesión.
+    logError(TAG, authError);
+    return null;
+  }
+  const userId = auth?.claims.sub;
+  if (!userId) return null;
 
-    // Una sola consulta, la misma para un club ajeno y para uno que no existe: los dos
-    // devuelven cero filas. RLS ya esconde la organización a quien no es miembro, pero
-    // deja a quien administra un club leer todas sus membresías, y a cualquiera leer la
-    // suya aunque esté revocada: por eso se filtra por usuario y por estado.
-    // `!inner` + el filtro sobre `organizations.slug` dejan solo la membresía de ese club.
-    const { data, error } = await supabase
+  // Una sola consulta, la misma para un club ajeno y para uno que no existe: los dos
+  // devuelven cero filas. RLS ya esconde la organización a quien no es miembro, pero
+  // deja a quien administra un club leer todas sus membresías, y a cualquiera leer la
+  // suya aunque esté revocada: por eso se filtra por usuario y por estado.
+  // `!inner` + el filtro sobre `organizations.slug` dejan solo la membresía de ese club.
+  const { data, error } = await reach(() =>
+    supabase
       .from("memberships")
       .select(
         `role, person_id,
@@ -108,33 +147,36 @@ async function loadClubContext(slug: string): Promise<ClubContext | null> {
       .eq("user_id", userId)
       .eq("status", "active")
       .eq("organizations.slug", slug)
-      .maybeSingle();
-    if (error) {
-      logError("tenancy.club-context", error);
-      return null;
-    }
+      .maybeSingle(),
+  );
+  // La consulta ha fallado: no se sabe si el club es de esta persona. Eso no depende del
+  // club pedido, así que el propio, uno ajeno y uno que no existe fallan igual.
+  if (error) fail(error);
 
-    const org = one(data?.organizations);
-    if (!data || !org) return null;
+  const org = one(data?.organizations);
+  if (!data || !org) return null;
 
-    return {
-      org: { id: org.id, slug: org.slug, name: org.name, timezone: org.timezone },
-      branding: toBranding(org.name, one(org.organization_branding)),
-      membership: { role: data.role, personId: data.person_id },
-    };
-  } catch (error) {
-    logError("tenancy.club-context", error);
-    return null;
-  }
+  return {
+    org: { id: org.id, slug: org.slug, name: org.name, timezone: org.timezone },
+    branding: toBranding(org.name, one(org.organization_branding)),
+    membership: { role: data.role, personId: data.person_id },
+  };
 }
 
 /**
  * El club de una URL `/c/{slug}` visto por quien tiene la sesión: organización, marca y
  * su membresía.
  *
- * Devuelve `null` si el club no existe o si la persona no es miembro activo, sin
- * distinguir un caso del otro: quien llama responde con el mismo 404. También si Supabase
- * falla (queda en el log). Con `cache()`, el layout y las páginas de una misma petición
- * comparten una sola consulta.
+ * Devuelve `null` solo cuando Supabase ha contestado y la respuesta es «no»: el slug no
+ * tiene forma de slug, no hay una sesión válida, o el club no existe o la persona no es
+ * miembro activo (cero filas, sin distinguir un caso del otro). Quien llama responde con
+ * el mismo 404.
+ *
+ * Si Supabase falla (Auth o la base de datos caídos, sin red, una consulta con error),
+ * LANZA: quien llama no lo recoge, y Next pinta la página de error más cercana
+ * (`error.tsx`). Una avería no es un 404, y es la misma para cualquier club.
+ *
+ * Con `cache()`, el layout y las páginas de una misma petición comparten una sola
+ * consulta (y, si falla, un solo error).
  */
 export const getClubContext = cache(loadClubContext);

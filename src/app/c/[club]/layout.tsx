@@ -15,6 +15,11 @@ export const dynamic = "force-dynamic";
  * Si el club no existe o la persona no es miembro, `notFound()`: el mismo 404 en los dos
  * casos, pintado por `src/app/not-found.tsx`, fuera de este marco y sin nada del club.
  *
+ * Si no se puede saber (Supabase no responde), `getClubContext` lanza y lo recoge
+ * `src/app/error.tsx`, también fuera de este marco: lo que lanza un layout sube al límite
+ * del segmento de arriba, no al `error.tsx` de su carpeta. Es la misma página de error para
+ * cualquier club, sea de quien sea.
+ *
  * Un layout no protege a sus páginas (Next puede pintar una página sin volver a ejecutar
  * su layout): cada página bajo `/c/[club]` pide también el contexto, que con `cache()`
  * es la misma consulta, y los datos los protege RLS.
