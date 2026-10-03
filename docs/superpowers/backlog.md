@@ -90,3 +90,83 @@ Pendiente (paneles y primera ejecución):
 - Con Auth caído, el proxy lleva a `/login` en vez de mostrar la pantalla de error. Con la base o PostgREST caídos sí se ve la pantalla de error.
 - Las cookies de sesión son `httpOnly` y `Secure`. La app no tiene cliente de Supabase en el navegador y la Fase 5 debe sincronizar por `POST /api/live-progress`.
 - En tests de `src/` quedan nombres de persona y títulos de sesión de las vistas previas del diseño («Álex Prieto», «Transición + rebote defensivo»). La guarda cubre la identidad de los clubes, no esos ejemplos.
+
+# CLUB OS · Pendientes que deja la Fase 2
+
+Lo que las revisiones de la Fase 2 dejaron para más adelante, ordenado por cuándo conviene recogerlo. Nada de esto bloquea la Fase 2: ninguno afecta al aislamiento entre clubes, a los permisos ni a los datos.
+
+Estado de la Fase 2: tareas 1–11 hechas y revisadas, revisión final de toda la rama y una tanda de arreglos re-revisada. Verificado contra Supabase local real y desde una base vacía: `test:db` 407/407, `test:int` 15/15 antes y después de los e2e, unidad 1435/1435, `test:e2e` 35/35, `supabase db lint` sin errores y tipos sin deriva. Pendiente: revisión en un móvil real.
+
+## Del bloque que la Fase 1 dejó para la Fase 2
+
+El plan de la Fase 2 se ejecutó tal como estaba escrito, sin incorporar ese bloque. De sus once puntos:
+
+- Hecho: menú de cuenta con «Salir» dentro del club (sigue sin haber «cambiar de club»).
+- A medias: la etiqueta «The Way» por defecto está en `wayLabel` (`tenancy/navigation.ts`), pero el nombre por defecto de la metodología sigue aparte en `tenancy/queries.ts:51`.
+- Sigue pendiente el resto. En concreto, Inicio y las pestañas vacías (`(app)/page.tsx`, `(app)/coming-soon.tsx`) aún usan `getClubContext` + `notFound()` en lugar de `requireClub`; Inicio no tiene test propio; `(app)/error.tsx` no usa `useSelectedLayoutSegment`.
+
+## Antes de empezar la Fase 3
+
+Piezas de la Fase 2 que las fases siguientes van a copiar o reutilizar. Más barato moverlas ahora que después de cuatro copias.
+
+- `useAction()` vive en `src/app/c/[club]/admin/_components/use-action.ts` y es genérico: llevarlo a `src/lib/`. El formulario de ejercicios de la Fase 3 cuelga de `(app)/` y lo necesita.
+- Extraer a `src/lib/` la parte genérica de `mutate` (`methodology/actions.ts`: Zod, `requireClub`, permiso, registro de errores inesperados, revalidación), parametrizada por permiso y rutas.
+- Un `limits.ts` sin Zod que importen `schema.ts` y los editores: hoy `MAX_POINTS` y los `maxLength` (40, 80, 200, 300, 500) están escritos dos veces y cada capa fija su propio literal en sus tests.
+- Argumentos opcionales de las funciones SQL: al final y con `default null`. Así el generador de tipos los marca opcionales y sobra el cast de `p_summary` (`actions.ts`). Afecta a las funciones de las fases 4 y 6.
+- Fixture de `ClubContext` para tests en un solo sitio: `tenancy/test-support.ts` ya lo ofrece, pero siguen teniendo el suyo `lib/guards.test.ts`, `lib/permissions.test.ts`, `methodology/actions.test.ts`, `tenancy/queries.test.ts`, `home/queries.test.ts` y `(app)/coming-soon.test.tsx`. Lo mismo para los fixtures de pgTAP: unas 90 líneas repetidas entre `methodology.test.sql` y `methodology_functions.test.sql`; un helper en `supabase/seed.sql` ahorra la copia a cada fase.
+- E2E del proyecto `admin`: `e2e/admin.spec.ts` tiene unas 790 líneas y sus helpers (`hydrated`, `field`, `title`, `openList`, `itemCard`) son locales. Moverlos a `e2e/helpers/` y partir el spec por pantalla, sumando los nuevos a `ADMIN_SPECS`. `hydrated()` lee el marcador interno `__reactProps$` de React: una subida de versión rompería todos los tests de Gestión a la vez.
+- `throwReadError` (`methodology/map-rows.ts`) y el `fail` privado de `home/queries.ts:16` son la misma función: una sola, junto a `src/lib/log.ts`.
+- El seed tiene su propio `slugify` (`scripts/seed/data.ts`) y el módulo otro (`methodology/slug.ts`). Coinciden en los títulos de hoy; difieren en el tope de 60 caracteres y en el slug reservado `standards`.
+
+## Fase 3 · Biblioteca de ejercicios
+
+- `MarkdownBody` se reutiliza: un ítem de lista, un `###` o una cita que solo contengan una imagen dejan un `li`, `h3` o `blockquote` vacío (los párrafos y los enlaces ya no). Un párrafo con solo `&nbsp;` ha dejado de pintarse (`markdown-body.tsx:38` usa `trim()`).
+- Cuando haya enlaces con ancla dentro de la app (`StandardBadge` hacia `/way/standards#standard-NN`), comprobar que una navegación de cliente cae en el ancla: los e2e solo prueban la carga completa, y el router puede hacer su desplazamiento mientras se ve el `loading.tsx`.
+- `safeHref` deja pasar `https:foo` y `https:/ruta`, que el navegador resuelve como relativas al propio origen.
+
+## Fase 4 · Practice Builder
+
+- Con `ConfirmDialog`, sustituir el `window.confirm` del editor de sección. De paso: el enlace «Ir a los valores / principios / Standards» de ese editor sale sin preguntar con cambios sin guardar (`section-editor.tsx`), y «Volver» pregunta también con Ctrl/Cmd+clic.
+- `SectionEditor` lleva su propio estado de «guardado» y su región de estado, al lado de `useConfirmation` y `EditorForm` (`editor-shell.tsx`), que hacen lo mismo para los otros tres editores. El margen `empty:-mt-(--space-5)` de esa región tiene que coincidir a mano con el `gap` del formulario.
+
+## Fase 7 · Gestión y cierre
+
+- **Pasada de accesibilidad.** Las pestañas «Escribir / Vista previa» son medio patrón de pestañas: sin `tabIndex` itinerante ni flechas, y el panel de vista previa no recibe foco. El botón del menú de cuenta se llama «Abrir menú de cuenta» también cuando está abierto. La pestaña activa de Gestión no se desplaza a la vista por debajo de `lg`. Los errores de campo siguen pintados después de editar. Al reordenar, el cambio de número no se anuncia. Con un error en una fila de punto, a partir de `lg` los botones se alinean con el error y no con el campo. Los enlaces dentro de un texto en Markdown miden 24 px de alto.
+- **Asesor de seguridad de Supabase.** El cierre de la Fase 2 pasó `supabase db lint`, no el asesor que nombra la tarea 12. Pasarlo contra el proyecto remoto cuando tenga las migraciones de metodología.
+- **Orden y numeración no atómicos.** `reorder_methodology` no se serializa frente a un alta: una fila creada entre la comprobación y el update conserva su `sort` y su `number` hasta el siguiente reordenado. Dos altas simultáneas pueden duplicar número, o chocar en el slug y devolver `INVALID` sin campo marcado. Dos reordenados a la vez: gana el último. Un movimiento sin efecto también revalida. Se corrige solo al reordenar; aceptable con una sola persona en dirección.
+- **Rastro de errores.** `fromDbError` no registra nada; lo hacen las acciones en el punto de llamada, solo para lo inesperado. El `catch` general de `mutate` convierte cualquier excepción en `SAVE_FAILED` y `logError` solo imprime el nombre del error: un fallo de programación queda como `[methodology.x] TypeError`. Si Supabase no responde, `requireClub` lanza dentro de la acción y el formulario muestra «No se pudo guardar».
+- Los mensajes por defecto de Zod, en inglés, pueden llegar a `fieldErrors` con un cliente manipulado (enums, `expectedUpdatedAt`, nulos). Los tests usan `toMatchObject` y no fijan el texto.
+- Los formularios de Gestión no tienen `method`: un envío antes de que React hidrate es un GET nativo, con los campos en la URL y los cambios perdidos.
+- `(app)/layout.tsx` espera el nombre de quien entra antes del primer byte, y al pasar de la app a Gestión no hay estado de carga hasta que resuelve el layout de destino.
+- `delete` está concedido a `authenticated` en las cuatro tablas de metodología con `status`, sin política que lo abra (lo pide el plan: «0 filas»). Un `.delete()` perdido en la app no falla, simplemente no borra. La alternativa es no conceder el permiso y que dé `42501`.
+- `reorder_methodology` tiene cuatro ramas casi iguales, una por tabla, para no usar SQL dinámico. Si llega una quinta tabla ordenable, es otra rama.
+- `toContentKind` convierte en silencio un `content_kind` desconocido en «texto». `sectionSubtitle` devuelve `''` y no `null` para un resumen vacío. `listSectionsForAdmin` trae el cuerpo entero de cada sección solo para pintar la lista. El número propuesto para un Standard nuevo puede ser 100 si ya existe el 99.
+
+## Tests
+
+- Tres literales del club piloto en tests nuevos de `src/`: «RESPECT», «EFFORT» y «FINISH» (`methodology/queries.test.ts`, `admin-queries.test.ts`). El guard no los detecta. Es un renombrado.
+- `section-editor.test.tsx`, «guardar sin tocar nada otra vez también avisa»: no puede fallar por lo que dice su nombre, y ningún test protege el `setSaved(false)` del editor de sección. Los otros tres editores ya tienen ese test.
+- El atajo de «Recargar» tras una copia obsoleta solo lo fija el test de unidad: Playwright acepta los `beforeunload` por defecto, así que el e2e «dos pestañas editan a la vez» pasaría también sin él.
+- `restoreSeed` (`e2e/helpers/seed.ts`) comprueba que el Supabase es local mirando la URL del entorno, no la del cliente que recibe. Hoy solo el test de unidad le pasa un cliente.
+- `scripts/check-guards.sh`: el `|| true` de la comprobación de Gestión se traga un error de lectura de `grep`, al contrario que `check_absent`.
+- Los patrones de `revalidatePath` (`/c/[club]/(app)/way`, `/c/[club]/admin`) solo están fijados como cadenas. Todo bajo `/c/[club]` es dinámico, así que un patrón equivocado no se notaría hoy. Un test que compruebe que las dos carpetas existen lo ataría.
+- Tests que obligan a tocarlos en cada fase: `action-result.test.ts` fija toda la tabla de copy con `toStrictEqual` y `permissions.test.ts` escribe a mano la lista de acciones.
+- pgTAP de las funciones: sin aserción para `p_expected_updated_at` nulo (da `STALE_COPY`) ni para un elemento nulo en `p_points` (da `23502`, fuera del contrato). Las aserciones «nada cambió tras una llamada rechazada» no pueden fallar por sí solas.
+- Seed: `standards` hace upsert por `id` pero `(organization_id, number)` es único; intercambiar a mano dos números y volver a sembrar puede chocar. El test de integración de puntos deja la base sucia si falla antes de `runSeed`. `scripts/seed/data.ts` ronda las 810 líneas.
+- `e2e/admin.spec.ts`: un caso depende de la longitud de las etiquetas del seed para que las pestañas desborden; hay capturas sin aserción; ningún e2e comprueba el nombre real del avatar.
+- `src/lib/database.types.ts` es la salida cruda del generador, sin formatear. Un paso de formato en `db:types` haría legibles sus diffs; va con el formateador que ya pide el bloque de la Fase 1.
+
+## Decisiones de producto a confirmar
+
+- `#` y `##` se pintan como texto plano (solo `###` es un título) y los saltos de línea simples se juntan en un párrafo. Las dos cosas salen de la lista blanca del plan. Quien pegue un texto verá las líneas unidas. Opciones sin plugins: pintar `#`/`##` como `h3` y conservar los saltos con `white-space: pre-line`.
+- Los tres valores de Arcángel están sembrados sin título: el plan da para cada uno solo código y descripción.
+- Gestión no tiene menú de cuenta ni «Salir»: su marco solo ofrece «Volver a la app».
+- Un slug no cambia nunca y no hay borrado: una sección creada por error conserva su URL para siempre (se puede dejar en borrador).
+- Un Standard tiene el número que elige dirección y, aparte, su orden: el entrenador puede ver 01, 03, 02.
+- La terminología del club se aplica a la navegación, los títulos y los enlaces de vuelta. Los recuentos («5 Standards»), el rótulo «Standard» de cada bloque y los textos de Gestión son literales.
+- Valores, principios y Standards no tienen copia obsoleta: si dos personas editan el mismo, gana la última. Solo las secciones la tienen.
+- Publicar y pasar a borrador no guardan quién ni cuándo.
+- Las cuentas de jugador y de tutor, si entran, leen The Way: el contexto de club admite a cualquier miembro activo.
+- Un borrador o una sección que no existe muestran «No encontramos esta página» con código HTTP 200 (la respuesta ya está en curso); un club ajeno sigue dando un 404 real.
+- El token `header-height` (56px) entró en `design/tokens.json` sin pasar por diseño, y los componentes nuevos de la Fase 2 no tienen vista previa en `design/components/`. Dos medidas siguen fuera de tokens (el número de 40 px del bloque de Standard y el interletrado del chip): van con la convención que ya pide el bloque de la Fase 1.
+- Salir del editor de sección con cambios sin guardar avisa en «Volver», al recargar y al cerrar la pestaña, pero no al navegar por las pestañas de Gestión ni con «Volver a la app».
