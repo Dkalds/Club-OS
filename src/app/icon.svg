@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- Icono neutro de plataforma: CLUB OS aún no tiene logo y aquí no va la marca de ningún
+       club. El color es `bg` de design/tokens.json. -->
+  <rect width="32" height="32" rx="7" fill="#0a0a0b" />
+</svg>

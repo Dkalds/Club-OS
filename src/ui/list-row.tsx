@@ -11,6 +11,10 @@ import { ChevronRightIcon } from "./icons";
  * (un `DateChip`, un número, un `Avatar`) y `trail` un dato corto a la derecha, antes del
  * chevron. El separador es el borde superior, salvo en la primera fila de la card. El foco
  * va por dentro: la card recorta lo que sobresale.
+ *
+ * Pulsada, la fila pasa a `surface-3`, y `ink-3` no va sobre `surface-3` (design/README.md,
+ * Color): mientras dura la pulsación, lo que va en `ink-3` (subtítulo, trail y el día de la
+ * semana del `DateChip`) sube a `ink-2`. La fila es el `group` que se lo dice.
  */
 export function ListRow({
   href,
@@ -30,14 +34,18 @@ export function ListRow({
       href={href}
       // Sin prefetch: el destino es una ruta dinámica detrás del proxy de sesión.
       prefetch={false}
-      className="flex min-h-14 items-center gap-(--space-3) border-t border-line px-(--space-4) py-(--space-2) text-ink first:border-t-0 active:bg-surface-3 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus-ring"
+      className="group flex min-h-14 items-center gap-(--space-3) border-t border-line px-(--space-4) py-(--space-2) text-ink first:border-t-0 active:bg-surface-3 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus-ring"
     >
       <span className="flex w-11 shrink-0 items-center justify-center text-brand-accent">{lead}</span>
       <span className="min-w-0 flex-1">
         <span className="block truncate text-body-strong">{title}</span>
-        {subtitle ? <span className="block truncate text-body-s text-ink-3">{subtitle}</span> : null}
+        {subtitle ? (
+          <span className="block truncate text-body-s text-ink-3 group-active:text-ink-2">
+            {subtitle}
+          </span>
+        ) : null}
       </span>
-      <span className="flex shrink-0 items-center gap-(--space-2) text-body-s text-ink-3 tabular-nums">
+      <span className="flex shrink-0 items-center gap-(--space-2) text-body-s text-ink-3 tabular-nums group-active:text-ink-2">
         {trail}
         <ChevronRightIcon size={16} />
       </span>
@@ -52,7 +60,7 @@ export function ListRow({
 export function DateChip({ dow, day }: { dow: string; day: string }) {
   return (
     <span className="block w-11 shrink-0 text-center">
-      <span className="block text-caption font-semibold tracking-[0.08em] text-ink-3 uppercase">
+      <span className="block text-caption font-semibold tracking-[0.08em] text-ink-3 uppercase group-active:text-ink-2">
         {dow}
       </span>
       <span className="block font-display text-[24px] leading-6 font-bold text-ink tabular-nums">

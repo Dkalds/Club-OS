@@ -50,6 +50,45 @@ describe("ListRow", () => {
     // `min-h-14` son 56 px (design/components/ListRow).
     expect(screen.getByRole("link")).toHaveClass("min-h-14");
   });
+
+  it("pulsada, lo que va en ink-3 pasa a ink-2: ink-3 no va sobre surface-3", () => {
+    render(
+      <ListRow
+        href="/x"
+        lead={<DateChip dow="Mar" day="6" />}
+        title="Entrenamiento"
+        subtitle="Sesión de la tarde"
+        trail="18:00"
+      />,
+    );
+
+    const link = screen.getByRole("link");
+    // El fondo de pulsado es `surface-3` (design/README.md, Color) y la fila es el grupo
+    // que avisa a su contenido.
+    expect(link).toHaveClass("group", "active:bg-surface-3");
+
+    // Todo lo que la fila pinta en `ink-3`: el día de la semana, el subtítulo y el trail
+    // (con su chevron, que hereda el color).
+    const muted = Array.from(link.querySelectorAll(".text-ink-3"));
+    expect(muted.map((element) => element.textContent)).toEqual([
+      "Mar",
+      "Sesión de la tarde",
+      "18:00",
+    ]);
+    for (const element of muted) {
+      expect(element).toHaveClass("group-active:text-ink-2");
+    }
+  });
+
+  it("conserva el anillo de foco, por dentro de la card", () => {
+    render(<ListRow href="/x" lead={<span>01</span>} title="Fila" />);
+
+    expect(screen.getByRole("link")).toHaveClass(
+      "focus-visible:outline-2",
+      "focus-visible:-outline-offset-2",
+      "focus-visible:outline-focus-ring",
+    );
+  });
 });
 
 describe("DateChip", () => {
