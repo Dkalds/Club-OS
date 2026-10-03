@@ -1,12 +1,17 @@
 import path from "node:path";
 import react from "@vitejs/plugin-react";
-import { defineConfig } from "vitest/config";
+import { configDefaults, defineConfig } from "vitest/config";
 
 // Tres proyectos:
 //  - node: unidad (src/** salvo src/ui/**, scripts/**)
 //  - ui:   componentes (src/ui/**) en jsdom
 //  - int:  integración contra Supabase local (**/*.int.test.ts)
 // `pnpm test` ejecuta node + ui; `pnpm test:int` ejecuta solo int.
+
+// Carpetas de agentes y worktrees: copias del repo que no son código del proyecto. Sus
+// tests (por ejemplo `**/*.int.test.ts`) no deben ejecutarse desde la raíz.
+const AGENT_DIRS = [".claude/**", ".worktrees/**", ".superpowers/**"];
+
 export default defineConfig({
   plugins: [react()],
   resolve: {
@@ -20,7 +25,7 @@ export default defineConfig({
           name: "node",
           environment: "node",
           include: ["src/**/*.test.{ts,tsx}", "scripts/**/*.test.ts"],
-          exclude: ["**/node_modules/**", "**/*.int.test.ts", "src/ui/**"],
+          exclude: [...configDefaults.exclude, ...AGENT_DIRS, "**/*.int.test.ts", "src/ui/**"],
         },
       },
       {
@@ -29,7 +34,7 @@ export default defineConfig({
           name: "ui",
           environment: "jsdom",
           include: ["src/ui/**/*.test.{ts,tsx}"],
-          exclude: ["**/node_modules/**", "**/*.int.test.ts"],
+          exclude: [...configDefaults.exclude, ...AGENT_DIRS, "**/*.int.test.ts"],
           setupFiles: ["./vitest.setup.ts"],
         },
       },
@@ -39,7 +44,7 @@ export default defineConfig({
           name: "int",
           environment: "node",
           include: ["**/*.int.test.ts"],
-          exclude: ["**/node_modules/**"],
+          exclude: [...configDefaults.exclude, ...AGENT_DIRS],
         },
       },
     ],

@@ -21,6 +21,10 @@ const eslintConfig = defineConfig([
     "coverage/**",
     "playwright-report/**",
     "test-results/**",
+    // Carpetas de agentes y worktrees: no son código del proyecto.
+    ".claude/**",
+    ".worktrees/**",
+    ".superpowers/**",
   ]),
 ]);
 
