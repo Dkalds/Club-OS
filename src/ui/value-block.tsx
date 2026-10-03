@@ -3,7 +3,7 @@ import { Card } from "./card";
 
 /**
  * Un valor del club en la sección de valores de The Way: su código en grande, su título si
- * lo tiene y su descripción. El código es un `<h2>`: el `<h1>` de la pantalla es su `Hero`.
+ * lo tiene y su descripción. El código es un `<h2>`: el `<h1>` es el de la pantalla que lo contiene.
  * Sin título no se pinta un párrafo vacío.
  */
 export function ValueBlock({ value }: { value: ClubValue }) {

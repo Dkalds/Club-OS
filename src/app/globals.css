@@ -69,3 +69,12 @@
     border-bottom-color: var(--line);
   }
 }
+
+/*
+ * Destino de un ancla (`#standard-03`, `#principle-defensa`): al saltar a él, la cabecera
+ * fija (`TopNavigation`) no lo tapa. Deja libre la altura de la cabecera (`header-height`),
+ * el área segura del dispositivo y un margen de `space-4`.
+ */
+@utility anchor-below-header {
+  scroll-margin-top: calc(var(--header-height) + env(safe-area-inset-top) + var(--space-4));
+}

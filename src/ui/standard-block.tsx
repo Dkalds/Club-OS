@@ -7,13 +7,14 @@ import { Card } from "./card";
  * el bloque): su número grande en el acento, el kicker «Standard», el título y la descripción.
  *
  * El `id` es `standard-NN` (con dos cifras): es el destino del chip `StandardBadge` que enlaza
- * desde un ejercicio o una sesión. El título es un `<h2>`: el `<h1>` de la pantalla es su `Hero`.
+ * desde un ejercicio o una sesión, y `anchor-below-header` hace que al saltar a él la cabecera
+ * fija no lo tape. El título es un `<h2>`: el `<h1>` es el de la pantalla que lo contiene.
  */
 export function StandardBlock({ standard }: { standard: Standard }) {
   const number = formatStandardNumber(standard.number);
 
   return (
-    <article id={`standard-${number}`}>
+    <article id={`standard-${number}`} className="anchor-below-header">
       <Card>
         <div className="flex gap-(--space-3)">
           {/* 40px y su interlineado: `.cos-std-block__num` de design/components/bundle.css; no

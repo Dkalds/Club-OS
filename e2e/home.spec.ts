@@ -265,17 +265,15 @@ test("sin errores de consola", async ({ page, browserErrors }) => {
   // Cada pestaña, y de vuelta a Inicio.
   const tabs = mainNav(page).getByRole("link");
   await expect(tabs).toHaveText(["Inicio", "Nuestra forma", "Entrenar", "Partidos", "Equipo"]);
-  for (const [label, path] of [
-    ["Nuestra forma", "/way"],
-    ["Entrenar", "/train"],
-    ["Partidos", "/games"],
-    ["Equipo", "/team"],
+  for (const [label, path, heading] of [
+    ["Nuestra forma", "/way", "The Demo Way"],
+    ["Entrenar", "/train", "Entrenar llega en una próxima fase"],
+    ["Partidos", "/games", "Partidos llega en una próxima fase"],
+    ["Equipo", "/team", "Equipo llega en una próxima fase"],
   ]) {
     await tabs.filter({ hasText: label }).click();
     await expect(page).toHaveURL(new RegExp(`${DEMO}${path}$`));
-    await expect(
-      page.getByRole("heading", { level: 1, name: `${label} llega en una próxima fase` }),
-    ).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: heading })).toBeVisible();
     await expect(tabs.filter({ hasText: label })).toHaveAttribute("aria-current", "page");
   }
 

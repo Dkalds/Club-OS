@@ -5,12 +5,13 @@ import { Card } from "./card";
  * Un principio de juego del club con sus puntos, en la sección de principios de The Way.
  *
  * El `id` es `principle-{slug}`: es el destino de los enlaces que llegan desde un ejercicio o
- * un objetivo. El título es un `<h2>`: el `<h1>` de la pantalla es su `Hero`. Lo que el principio
- * no tiene (resumen, puntos) no se pinta: ni un párrafo ni una lista vacíos.
+ * un objetivo, y `anchor-below-header` hace que al saltar a él la cabecera fija no lo tape. El
+ * título es un `<h2>`: el `<h1>` es el de la pantalla que lo contiene. Lo que el principio no
+ * tiene (resumen, puntos) no se pinta: ni un párrafo ni una lista vacíos.
  */
 export function PrincipleCard({ principle }: { principle: GamePrinciple }) {
   return (
-    <article id={`principle-${principle.slug}`}>
+    <article id={`principle-${principle.slug}`} className="anchor-below-header">
       <Card>
         <h2 className="font-display text-title wrap-break-word uppercase">{principle.title}</h2>
         {principle.summary ? <p className="text-body-l text-ink-2">{principle.summary}</p> : null}

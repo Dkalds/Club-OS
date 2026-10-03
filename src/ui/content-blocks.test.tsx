@@ -49,6 +49,13 @@ describe("StandardBlock", () => {
     expect(article).toHaveAttribute("id", "standard-03");
   });
 
+  it("al saltar a su ancla, la cabecera fija no lo tapa", () => {
+    const { container } = render(<StandardBlock standard={STANDARD} />);
+
+    // `anchor-below-header` (globals.css) le deja `header-height` + área segura + `space-4`.
+    expect(container.querySelector("article")).toHaveClass("anchor-below-header");
+  });
+
   it("un número de dos cifras se queda como está", () => {
     const { container } = render(<StandardBlock standard={{ ...STANDARD, number: 12 }} />);
 
@@ -83,6 +90,12 @@ describe("PrincipleCard", () => {
     const { container } = render(<PrincipleCard principle={PRINCIPLE} />);
 
     expect(container.querySelector("article")).toHaveAttribute("id", "principle-ataque");
+  });
+
+  it("al saltar a su ancla, la cabecera fija no lo tapa", () => {
+    const { container } = render(<PrincipleCard principle={PRINCIPLE} />);
+
+    expect(container.querySelector("article")).toHaveClass("anchor-below-header");
   });
 
   it("pinta el título y el resumen", () => {

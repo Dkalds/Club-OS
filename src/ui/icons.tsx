@@ -97,6 +97,15 @@ export function ChevronRightIcon(props: IconProps) {
   );
 }
 
+/** Flecha a la izquierda: volver a la pantalla de la que se viene. */
+export function ChevronLeftIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="m15 6-6 6 6 6" />
+    </Icon>
+  );
+}
+
 /** Aviso: triángulo con exclamación, para un fallo que impide mostrar el contenido. */
 export function AlertIcon(props: IconProps) {
   return (
