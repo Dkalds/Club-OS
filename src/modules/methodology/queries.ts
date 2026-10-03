@@ -1,17 +1,24 @@
-import type { Database } from "@/lib/database.types";
-import { logError } from "@/lib/log";
 import { createClient } from "@/lib/supabase/server";
 import type { ClubContext } from "@/modules/tenancy/queries";
 import { sectionSubtitle } from "./format";
 import {
-  CONTENT_KIND_LABELS,
-  type ClubValue,
-  type ContentKind,
-  type GamePrinciple,
-  type Standard,
-  type WayIndexEntry,
-  type WaySection,
-  type WaySectionView,
+  PRINCIPLE_COLUMNS,
+  SECTION_COLUMNS,
+  STANDARD_COLUMNS,
+  throwReadError,
+  toClubValue,
+  toContentKind,
+  toGamePrinciple,
+  toStandard,
+  toWaySection,
+  VALUE_COLUMNS,
+} from "./map-rows";
+import type {
+  ClubValue,
+  GamePrinciple,
+  Standard,
+  WayIndexEntry,
+  WaySectionView,
 } from "./types";
 
 // Lecturas de la metodología para quien entrena: solo lo publicado.
@@ -21,114 +28,8 @@ import {
 // también ve sus borradores con RLS, y no deben salir en The Way. El orden es siempre
 // `sort`, `created_at` y, para no depender del azar con filas empatadas, `id`.
 //
-// Lo que va marcado como compartido lo reutiliza `admin-queries.ts`: las mismas columnas y
-// el mismo paso de fila a tipo, para que Gestión y The Way no se desincronicen.
-
-type Tables = Database["public"]["Tables"];
-
-/** Compartido con `admin-queries.ts`. */
-export type SectionRow = Pick<
-  Tables["way_sections"]["Row"],
-  | "id"
-  | "number"
-  | "slug"
-  | "title"
-  | "summary"
-  | "body_md"
-  | "content_kind"
-  | "status"
-  | "updated_at"
->;
-/** Compartido con `admin-queries.ts`. */
-export type ValueRow = Pick<
-  Tables["club_values"]["Row"],
-  "id" | "code" | "title" | "description" | "status"
->;
-/** Compartido con `admin-queries.ts`. */
-export type PrincipleRow = Pick<
-  Tables["game_principles"]["Row"],
-  "id" | "slug" | "title" | "summary" | "status"
-> & { principle_points: Array<Pick<Tables["principle_points"]["Row"], "id" | "text">> | null };
-/** Compartido con `admin-queries.ts`. */
-export type StandardRow = Pick<
-  Tables["standards"]["Row"],
-  "id" | "number" | "title" | "description" | "status"
->;
-
-/** Compartido con `admin-queries.ts`. */
-export const SECTION_COLUMNS =
-  "id, number, slug, title, summary, body_md, content_kind, status, updated_at";
-/** Compartido con `admin-queries.ts`. */
-export const VALUE_COLUMNS = "id, code, title, description, status";
-/**
- * Compartido con `admin-queries.ts`. Los puntos van embebidos; quien lee tiene que filtrarlos
- * por club y ordenarlos (`principle_points.organization_id`, `sort`, `created_at`, `id`).
- */
-export const PRINCIPLE_COLUMNS =
-  "id, slug, title, summary, status, principle_points(id, text)";
-/** Compartido con `admin-queries.ts`. */
-export const STANDARD_COLUMNS = "id, number, title, description, status";
-
-/**
- * Un error de Supabase no se traga ni se convierte en datos vacíos: se registra (sin datos
- * personales, ver `logError`) y se lanza para que lo recoja el error de la página. No se
- * adjunta como `cause`: su mensaje puede llevar el contenido de una fila.
- *
- * Compartido con `admin-queries.ts`.
- */
-export function fail(tag: string, error: unknown): never {
-  logError(tag, error);
-  throw new Error(`${tag}: no se pudo leer de la base de datos`);
-}
-
-/** La columna es un texto libre con un CHECK; lo que no se reconozca se pinta como texto. */
-function toContentKind(value: string): ContentKind {
-  const kinds = Object.keys(CONTENT_KIND_LABELS) as ContentKind[];
-  return kinds.find((kind) => kind === value) ?? "text";
-}
-
-/** Compartido con `admin-queries.ts`. `updatedAt` queda tal cual lo da PostgREST. */
-export function toWaySection(row: SectionRow): WaySection {
-  return {
-    id: row.id,
-    number: row.number,
-    slug: row.slug,
-    title: row.title,
-    summary: row.summary,
-    bodyMd: row.body_md,
-    contentKind: toContentKind(row.content_kind),
-    status: row.status,
-    updatedAt: row.updated_at,
-  };
-}
-
-/** Compartido con `admin-queries.ts`. */
-export function toClubValue(row: ValueRow): ClubValue {
-  return {
-    id: row.id,
-    code: row.code,
-    title: row.title,
-    description: row.description,
-    status: row.status,
-  };
-}
-
-/** Compartido con `admin-queries.ts`. Los puntos ya vienen ordenados de la consulta. */
-export function toGamePrinciple(row: PrincipleRow): GamePrinciple {
-  return {
-    id: row.id,
-    slug: row.slug,
-    title: row.title,
-    summary: row.summary,
-    status: row.status,
-    points: (row.principle_points ?? []).map((point) => ({ id: point.id, text: point.text })),
-  };
-}
-
-/** Compartido con `admin-queries.ts`. */
-export function toStandard(row: StandardRow): Standard {
-  return { id: row.id, number: row.number, title: row.title, description: row.description };
-}
+// Las columnas, el paso de fila a tipo y el error de lectura son de `map-rows.ts`, que
+// comparte con `admin-queries.ts` para que Gestión y The Way no se desincronicen.
 
 /**
  * El índice de The Way: las secciones publicadas del club en su orden, cada una con la
@@ -166,10 +67,10 @@ export async function getWayIndex(ctx: ClubContext): Promise<WayIndexEntry[]> {
       .eq("organization_id", orgId)
       .eq("status", "published"),
   ]);
-  if (sections.error) fail("methodology.index", sections.error);
-  if (values.error) fail("methodology.index.values", values.error);
-  if (principles.error) fail("methodology.index.principles", principles.error);
-  if (standards.error) fail("methodology.index.standards", standards.error);
+  if (sections.error) throwReadError("methodology.index", sections.error);
+  if (values.error) throwReadError("methodology.index.values", values.error);
+  if (principles.error) throwReadError("methodology.index.principles", principles.error);
+  if (standards.error) throwReadError("methodology.index.standards", standards.error);
 
   const counts = {
     values: values.count ?? 0,
@@ -204,7 +105,7 @@ export async function getWaySection(
     .eq("status", "published")
     .eq("slug", slug)
     .maybeSingle();
-  if (error) fail("methodology.section", error);
+  if (error) throwReadError("methodology.section", error);
   if (!data) return null;
 
   const section = toWaySection(data);
@@ -229,7 +130,7 @@ export async function getStandards(ctx: ClubContext): Promise<Standard[]> {
     .order("sort", { ascending: true })
     .order("created_at", { ascending: true })
     .order("id", { ascending: true });
-  if (error) fail("methodology.standards", error);
+  if (error) throwReadError("methodology.standards", error);
 
   return data.map(toStandard);
 }
@@ -254,7 +155,7 @@ export async function getPrinciples(ctx: ClubContext): Promise<GamePrinciple[]> 
     .order("sort", { referencedTable: "principle_points", ascending: true })
     .order("created_at", { referencedTable: "principle_points", ascending: true })
     .order("id", { referencedTable: "principle_points", ascending: true });
-  if (error) fail("methodology.principles", error);
+  if (error) throwReadError("methodology.principles", error);
 
   return data.map(toGamePrinciple);
 }
@@ -271,7 +172,7 @@ export async function getValues(ctx: ClubContext): Promise<ClubValue[]> {
     .order("sort", { ascending: true })
     .order("created_at", { ascending: true })
     .order("id", { ascending: true });
-  if (error) fail("methodology.values", error);
+  if (error) throwReadError("methodology.values", error);
 
   return data.map(toClubValue);
 }

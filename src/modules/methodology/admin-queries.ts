@@ -1,16 +1,16 @@
 import { createClient } from "@/lib/supabase/server";
 import type { ClubContext } from "@/modules/tenancy/queries";
 import {
-  fail,
   PRINCIPLE_COLUMNS,
   SECTION_COLUMNS,
   STANDARD_COLUMNS,
+  throwReadError,
   toClubValue,
   toGamePrinciple,
   toStandard,
   toWaySection,
   VALUE_COLUMNS,
-} from "./queries";
+} from "./map-rows";
 import type { AdminStandard, ClubValue, GamePrinciple, WaySection } from "./types";
 
 // Lecturas de la metodología para Gestión: todo lo del club, borradores incluidos.
@@ -34,7 +34,7 @@ export async function listSectionsForAdmin(ctx: ClubContext): Promise<WaySection
     .order("sort", { ascending: true })
     .order("created_at", { ascending: true })
     .order("id", { ascending: true });
-  if (error) fail("methodology.admin.sections", error);
+  if (error) throwReadError("methodology.admin.sections", error);
 
   return data.map(toWaySection);
 }
@@ -54,7 +54,7 @@ export async function getSectionForAdmin(ctx: ClubContext, id: string): Promise<
     .eq("organization_id", ctx.org.id)
     .eq("id", id)
     .maybeSingle();
-  if (error) fail("methodology.admin.section", error);
+  if (error) throwReadError("methodology.admin.section", error);
 
   return data ? toWaySection(data) : null;
 }
@@ -70,7 +70,7 @@ export async function listValuesForAdmin(ctx: ClubContext): Promise<ClubValue[]>
     .order("sort", { ascending: true })
     .order("created_at", { ascending: true })
     .order("id", { ascending: true });
-  if (error) fail("methodology.admin.values", error);
+  if (error) throwReadError("methodology.admin.values", error);
 
   return data.map(toClubValue);
 }
@@ -91,7 +91,7 @@ export async function listPrinciplesForAdmin(ctx: ClubContext): Promise<GamePrin
     .order("sort", { referencedTable: "principle_points", ascending: true })
     .order("created_at", { referencedTable: "principle_points", ascending: true })
     .order("id", { referencedTable: "principle_points", ascending: true });
-  if (error) fail("methodology.admin.principles", error);
+  if (error) throwReadError("methodology.admin.principles", error);
 
   return data.map(toGamePrinciple);
 }
@@ -107,7 +107,7 @@ export async function listStandardsForAdmin(ctx: ClubContext): Promise<AdminStan
     .order("sort", { ascending: true })
     .order("created_at", { ascending: true })
     .order("id", { ascending: true });
-  if (error) fail("methodology.admin.standards", error);
+  if (error) throwReadError("methodology.admin.standards", error);
 
   return data.map((row) => ({ ...toStandard(row), status: row.status }));
 }
