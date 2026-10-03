@@ -87,3 +87,22 @@ export function TeamIcon(props: IconProps) {
     </Icon>
   );
 }
+
+/** Flecha a la derecha: lo que se abre al tocar una fila o un botón de avance. */
+export function ChevronRightIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="m9 6 6 6-6 6" />
+    </Icon>
+  );
+}
+
+/** Aviso: triángulo con exclamación, para un fallo que impide mostrar el contenido. */
+export function AlertIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M12 3 2 20h20z" />
+      <path d="M12 10v4M12 17v.5" />
+    </Icon>
+  );
+}
