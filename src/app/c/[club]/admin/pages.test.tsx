@@ -2,9 +2,18 @@ import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { clubContext } from "@/modules/tenancy/test-support";
 
-const mocks = vi.hoisted(() => ({ getClubContext: vi.fn() }));
+const mocks = vi.hoisted(() => ({ getClubContext: vi.fn(), listSectionsForAdmin: vi.fn() }));
 
 vi.mock("@/modules/tenancy/queries", () => ({ getClubContext: mocks.getClubContext }));
+vi.mock("@/modules/methodology/admin-queries", () => ({
+  listSectionsForAdmin: mocks.listSectionsForAdmin,
+}));
+// La lista de The Way lleva formularios que llaman a estas acciones; aquí solo se pintan.
+vi.mock("@/modules/methodology/actions", () => ({
+  createWaySection: vi.fn(),
+  moveMethodologyItem: vi.fn(),
+  setMethodologyStatus: vi.fn(),
+}));
 // Como los de verdad: `notFound()` y `redirect()` cortan el render lanzando.
 vi.mock("next/navigation", () => ({
   notFound: () => {
@@ -13,6 +22,7 @@ vi.mock("next/navigation", () => ({
   redirect: (destination: string) => {
     throw new Error(`REDIRECT ${destination}`);
   },
+  useRouter: () => ({ push: vi.fn() }),
 }));
 
 import AdminPage from "./page";
@@ -36,6 +46,7 @@ const PAGES: Array<[string, (props: typeof PARAMS) => Promise<unknown>]> = [
 
 beforeEach(() => {
   vi.resetAllMocks();
+  mocks.listSectionsForAdmin.mockResolvedValue([]);
 });
 
 describe("páginas de Gestión", () => {

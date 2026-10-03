@@ -17,6 +17,11 @@ export const CONTENT_KIND_LABELS: Record<ContentKind, string> = {
   standards: "Standards",
 };
 
+/** Los tipos con su etiqueta, en el orden del selector de Gestión. */
+export const CONTENT_KIND_OPTIONS: ReadonlyArray<{ value: ContentKind; label: string }> = (
+  ["text", "values", "principles", "standards"] as const satisfies readonly ContentKind[]
+).map((value) => ({ value, label: CONTENT_KIND_LABELS[value] }));
+
 /**
  * Una sección de The Way. `number` es su posición en Gestión. `updatedAt` es el texto tal
  * cual lo devuelve PostgREST (con microsegundos): sirve de `expectedUpdatedAt` al guardar y

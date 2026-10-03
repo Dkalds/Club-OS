@@ -115,3 +115,22 @@ export function AlertIcon(props: IconProps) {
     </Icon>
   );
 }
+
+/** Hecho o guardado: una marca de verificación, siempre junto a la palabra que lo dice. */
+export function CheckIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="m5 12.5 4.5 4.5L19 7.5" />
+    </Icon>
+  );
+}
+
+/** Borrador: un lápiz sobre su línea, para lo que aún se está escribiendo. */
+export function DraftIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="m4 20 1-4L16.5 4.5a2.1 2.1 0 0 1 3 3L8 19z" />
+      <path d="m14.5 6.5 3 3" />
+    </Icon>
+  );
+}

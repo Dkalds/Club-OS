@@ -5,8 +5,10 @@ import { PageNotFound } from "@/ui/page-not-found";
  * `(app)`). Se pinta dentro de su marco, que ya pone el `<main>`.
  *
  * Lo que lanzan el layout de `/c/[club]` (club ajeno o inexistente) y Gestión no llega
- * aquí: lo primero lo recoge `src/app/not-found.tsx`, fuera del marco, y lo segundo, que
- * no cuelga de este marco, `../not-found.tsx`. Los tres pintan el mismo contenido.
+ * aquí: lo primero lo recoge `src/app/not-found.tsx`, fuera del marco; lo que lanza una
+ * página de Gestión, `../admin/not-found.tsx`, dentro del marco de Gestión; y lo que lanza
+ * el layout de Gestión (quien no administra), `../not-found.tsx`. Los cuatro pintan el mismo
+ * contenido.
  */
 export default function AppNotFound() {
   return (
