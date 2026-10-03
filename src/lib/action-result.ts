@@ -30,7 +30,9 @@ export function fail(error: ActionError, fieldErrors?: Record<string, string>): 
 /**
  * Entrada inválida según Zod. De cada campo se queda con el primer mensaje; el campo
  * anidado se nombra con su ruta (`section.title`, `points.1`). Un error de la entrada
- * entera, sin campo, no se puede señalar en ningún sitio: queda el `INVALID` a secas.
+ * entera, sin campo, no se puede señalar en ningún sitio: queda el `INVALID` a secas. Es el
+ * caso de un `.refine()` sin `path`: su mensaje se pierde (no hay campo donde ponerlo), así que
+ * hay que darle el `path` del campo que corrige.
  */
 export function fromZodError(error: ZodError): ActionResult<never> {
   const fieldErrors: Record<string, string> = {};

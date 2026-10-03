@@ -21,8 +21,9 @@ const ITEM =
  * sale con el teclado. El nombre accesible del botón es siempre el mismo; el nombre de la
  * persona es el del avatar.
  *
- * «Salir» es un `<form method="post">`: cerrar sesión es un POST, y funciona sin JavaScript.
- * El panel no tiene vista previa en `design/`: usa los tokens de una card elevada
+ * «Salir» es un `<form method="post">`: cerrar sesión es un POST. No funciona sin JavaScript
+ * porque no se llega a él: el panel solo se pinta tras abrirlo, un cambio de estado en el
+ * cliente. El panel no tiene vista previa en `design/`: usa los tokens de una card elevada
  * (`surface-2`, borde `line`, `radius-lg`), sin sombra.
  */
 export function AccountMenu({ name, adminHref }: { name: string; adminHref: string | null }) {

@@ -5,6 +5,9 @@ import { can } from "./permissions";
 /**
  * El club de la URL, o el 404 opaco: el mismo si el club no existe y si la persona no es
  * miembro. Para páginas y Server Actions (`notFound()` lanza, así que no devuelve `null`).
+ *
+ * Los dos guards de este archivo se llaman fuera de cualquier `try`: como lanzan, un `catch`
+ * se tragaría el 404 y la página seguiría adelante con lo que no debe.
  */
 export async function requireClub(slug: string): Promise<ClubContext> {
   const ctx = await getClubContext(slug);

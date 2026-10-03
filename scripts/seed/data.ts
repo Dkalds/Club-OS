@@ -545,9 +545,14 @@ function emptySeedData(): SeedData {
 }
 
 // La metodología se escribe toda publicada. `number` y `sort` son la posición (desde 1) en
-// la lista del fixture y el slug sale del título. Los ids salen de la clave de cada fila
-// (slug, código, número, y el slug del principio más la posición para sus puntos): cambiar
-// el texto de una fila la actualiza en un nuevo `pnpm seed` en vez de duplicarla.
+// la lista del fixture y el slug sale del título. Los ids salen de la clave de cada fila: el
+// slug de la sección o del principio (que sale de su título), el código del valor, el número
+// del Standard, y el slug del principio más la posición para sus puntos.
+//
+// Cambiar el resto del texto de una fila (resumen, cuerpo, descripción, el texto de un punto,
+// el título de un Standard) la actualiza en un nuevo `pnpm seed`. Cambiar el título de una
+// sección o de un principio, o el código de un valor, cambia su id: crea una fila nueva y deja
+// la vieja, que `runSeed` no borra (solo quita los puntos que sobran de un principio del seed).
 function addMethodology(
   data: SeedData,
   organizationId: string,
