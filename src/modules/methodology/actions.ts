@@ -2,6 +2,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { revalidatePath } from "next/cache";
+import { unstable_rethrow } from "next/navigation";
 import type { z } from "zod";
 import { fail, fromDbError, fromZodError, ok, type ActionResult } from "@/lib/action-result";
 import type { Database } from "@/lib/database.types";
@@ -85,7 +86,9 @@ type Write<D> = {
  * El esqueleto común: valida, autoriza, escribe y revalida. Cada acción aporta su escritura.
  *
  * Una escritura que lanza (el cliente no se puede crear, la red cae) se registra y vuelve
- * como `SAVE_FAILED`: una acción siempre devuelve un `ActionResult`.
+ * como `SAVE_FAILED`: una acción siempre devuelve un `ActionResult`. Salvo lo que lanza el
+ * propio Next para dirigir el flujo (`notFound()`, `redirect()`): eso lo recoge Next, no es un
+ * fallo (`unstable_rethrow`).
  */
 async function mutate<D, T>(
   name: string,
@@ -115,6 +118,7 @@ async function mutate<D, T>(
   try {
     result = await write({ db: await createClient(), ctx, data: parsed.data, fromDb });
   } catch (error) {
+    unstable_rethrow(error);
     logError(tag, error);
     return fail("SAVE_FAILED");
   }

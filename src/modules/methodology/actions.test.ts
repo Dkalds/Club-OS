@@ -1,3 +1,4 @@
+import { notFound, redirect } from "next/navigation";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ActionResult } from "@/lib/action-result";
 import { PLATFORM_BRAND_COLORS } from "@/modules/tenancy/branding";
@@ -359,6 +360,29 @@ describe("errores de la base de datos", () => {
 
     expect(result).toEqual({ ok: false, error: "SAVE_FAILED" });
     expect(logged).toEqual(["[methodology.create-value] TypeError"]);
+    expect(mocks.revalidatePath).not.toHaveBeenCalled();
+  });
+
+  // `notFound()` y `redirect()` funcionan lanzando: si la acción los tragara como un fallo
+  // cualquiera, la página no daría su 404 ni redirigiría, y quedaría un SAVE_FAILED. Hoy
+  // ninguna escritura los lanza, pero las acciones de las fases siguientes copiarán el esqueleto.
+  it.each([
+    ["notFound()", () => notFound()],
+    ["redirect()", () => redirect("/select-club")],
+  ])("lo que lanza %s lo recoge Next: no se convierte en SAVE_FAILED ni se registra", async (_, control) => {
+    const thrown = (() => {
+      try {
+        control();
+      } catch (error) {
+        return error;
+      }
+      throw new Error("el control de flujo de Next tenía que lanzar");
+    })();
+    mocks.createClient.mockRejectedValue(thrown);
+
+    await expect(createValue("club-a", { code: "UNO", ...valueText })).rejects.toBe(thrown);
+
+    expect(logged).toEqual([]);
     expect(mocks.revalidatePath).not.toHaveBeenCalled();
   });
 });
