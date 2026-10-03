@@ -1,0 +1,98 @@
+import Markdown, { type Components } from "react-markdown";
+
+// Sin `"use client"`: el `Markdown` síncrono de react-markdown no usa hooks (solo
+// `MarkdownHooks`, que aquí no se importa). Así funciona igual en un componente de servidor
+// (las páginas de The Way) que dentro de uno de cliente (la vista previa del editor de Gestión).
+
+/**
+ * Los únicos elementos que se pintan. Lo demás (HTML crudo, imágenes, h1, h2, código…) se
+ * descarta; con `unwrapDisallowed` un elemento fuera de la lista deja su texto y no su
+ * etiqueta. Este renderizador es una frontera de seguridad: lo escribe la dirección de un
+ * club y lo lee cada miembro, así que no lleva `rehype-raw` ni más plugins.
+ */
+const ALLOWED_ELEMENTS = ["p", "strong", "em", "ul", "ol", "li", "h3", "blockquote", "a"];
+
+const SAFE_PROTOCOLS = new Set(["http:", "https:", "mailto:"]);
+
+/**
+ * La URL tal cual, solo si su protocolo es `http:`, `https:` o `mailto:`; `null` en cualquier
+ * otro caso: `javascript:`, `data:`, rutas relativas, anclas y URLs que no se pueden leer.
+ *
+ * Lo lee el analizador de URLs del estándar, que es el que usa el navegador: ignora los
+ * espacios de delante y los tabuladores o saltos de línea de dentro, y no distingue
+ * mayúsculas, así que `JAVASCRIPT:` y `java<tab>script:` salen como `javascript:`.
+ */
+export function safeHref(url: string): string | null {
+  try {
+    return SAFE_PROTOCOLS.has(new URL(url).protocol) ? url : null;
+  } catch {
+    // Sin protocolo (`/ruta`, `#ancla`) o ilegible: `new URL` lanza.
+    return null;
+  }
+}
+
+// Las etiquetas no heredan nada del navegador (el preflight de Tailwind lo reinicia todo):
+// cada una lleva aquí su estilo. Los bloques de primer nivel se separan con el `gap` del
+// contenedor. El sangrado deja sitio al número de una lista de dos cifras.
+const LIST = "flex flex-col gap-(--space-1) pl-(--space-6) marker:text-ink-3";
+
+/**
+ * Los componentes de `a`, `ul`, `ol`, `h3` y `blockquote` pintan solo `children` y, donde hace
+ * falta, una propiedad concreta (`href`, `start`): nada más de lo que trae el árbol del
+ * Markdown se vuelca en esas etiquetas.
+ */
+const COMPONENTS: Components = {
+  h3: ({ children }) => <h3 className="font-display text-title text-ink uppercase">{children}</h3>,
+  ul: ({ children }) => <ul className={`${LIST} list-disc`}>{children}</ul>,
+  ol: ({ children, start }) => (
+    <ol start={start} className={`${LIST} list-decimal`}>
+      {children}
+    </ol>
+  ),
+  blockquote: ({ children }) => (
+    <blockquote className="flex flex-col gap-(--space-2) border-l-2 border-line-strong pl-(--space-3) text-ink-2">
+      {children}
+    </blockquote>
+  ),
+  a: ({ href, children }) => {
+    const safe = href === undefined ? null : safeHref(href);
+
+    // Un enlace que no es seguro se queda en su texto: el contenido no se pierde.
+    if (safe === null) return <>{children}</>;
+
+    return (
+      <a
+        href={safe}
+        rel="noopener noreferrer"
+        // `mailto:` abre el cliente de correo; solo las páginas web se abren aparte. `safe`
+        // ya se ha leído como URL: aquí no lanza.
+        target={new URL(safe).protocol === "mailto:" ? undefined : "_blank"}
+        className="text-brand-accent underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+      >
+        {children}
+      </a>
+    );
+  },
+};
+
+/**
+ * El texto largo de una sección de The Way, escrito en Markdown por la dirección del club.
+ *
+ * Pinta solo párrafos, negrita, cursiva, listas, `###`, citas y enlaces `http(s)` o `mailto`
+ * (`ALLOWED_ELEMENTS`). El HTML crudo se descarta: un bloque entero (lo que empieza una línea con
+ * `<script>`, `<div>`…) se va con su texto; el texto de los demás elementos que se quitan se queda.
+ */
+export function MarkdownBody({ markdown }: { markdown: string }) {
+  return (
+    <div className="flex flex-col gap-(--space-3) text-body-l wrap-break-word">
+      <Markdown
+        skipHtml
+        allowedElements={ALLOWED_ELEMENTS}
+        unwrapDisallowed
+        components={COMPONENTS}
+      >
+        {markdown}
+      </Markdown>
+    </div>
+  );
+}
