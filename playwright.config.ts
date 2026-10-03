@@ -1,6 +1,11 @@
 import { defineConfig } from "@playwright/test";
+import { readE2eTarget } from "./scripts/lib/e2e-target";
 
-const baseURL = "http://localhost:3000";
+// Sin `BASE_URL`, los e2e construyen y arrancan la app en localhost:3000. Con ella, prueban
+// esa URL ya desplegada (la preview) y no arrancan nada. Qué cambia entonces (sin traza ni
+// vídeo contra un remoto, la cabecera de la protección de Vercel) y qué se exige al
+// Supabase del runner está en `scripts/lib/e2e-target.ts`; ver «Entorno remoto» en el README.
+const target = readE2eTarget(process.env);
 
 export default defineConfig({
   testDir: "./e2e",
@@ -11,10 +16,7 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
   reporter: process.env.CI ? [["github"], ["html", { open: "never" }]] : "list",
-  use: {
-    baseURL,
-    trace: "retain-on-failure",
-  },
+  use: target.use,
   projects: [
     {
       name: "mobile",
@@ -24,10 +26,12 @@ export default defineConfig({
       },
     },
   ],
-  webServer: {
-    command: "pnpm build && pnpm start",
-    url: baseURL,
-    reuseExistingServer: !process.env.CI,
-    timeout: 240_000,
-  },
+  webServer: target.startServer
+    ? {
+        command: "pnpm build && pnpm start",
+        url: target.baseURL,
+        reuseExistingServer: !process.env.CI,
+        timeout: 240_000,
+      }
+    : undefined,
 });

@@ -2,7 +2,7 @@
 
 Lo que las revisiones de la Fase 1 dejaron para más adelante, ordenado por la fase que debe recogerlo. Nada de esto bloquea la Fase 1. Cada plan de fase debería incorporar su bloque antes de empezar.
 
-Estado de la Fase 1: tareas 1–11 hechas y revisadas. Verificado contra Supabase local real y desde una base vacía: `test:db` 208/208, `seed` dos veces, `test:int` 9/9, unidad 577/577, `test:e2e` 16/16. Pendiente: Task 12 (entorno remoto), abrir el PR, primera ejecución real de CI y revisión en un móvil real.
+Estado de la Fase 1: tareas 1–11 hechas y revisadas. Verificado contra Supabase local real y desde una base vacía: `test:db` 208/208, `seed` dos veces, `test:int` 9/9, unidad 577/577, `test:e2e` 16/16. Task 12 (entorno remoto): la parte del repositorio está hecha (con ella, unidad 607/607 y `test:int` 11/11). Pendiente: lo que queda en los paneles (lista de abajo), primera ejecución real de CI y revisión en un móvil real.
 
 ## Correcciones al texto de los planes
 
@@ -11,6 +11,7 @@ Estado de la Fase 1: tareas 1–11 hechas y revisadas. Verificado contra Supabas
 - **E2E.** Los specs importan `test` de `e2e/helpers/test` y entran con `openAs` (sesión guardada por usuario). `loginAs` queda para probar el propio login. El `globalSetup` siembra y solo en local: el proyecto `admin` de la Fase 2 y cualquier `afterAll → runSeed` deben convivir con él.
 - **Cada página bajo `/c/[club]` se protege sola.** Un layout no protege a sus páginas en una navegación parcial. Hoy cada página hace `getClubContext` + `notFound()`. El `requireClub` de la Fase 2 debe sustituir esa convención en todas.
 - **Error frente a 404.** Una avería de Supabase lanza y llega a un límite de error; `null` y 404 quedan solo para «no existe o no eres miembro activo».
+- **Región.** La especificación aprobada (`docs/spec/club-os-primera-entrega.md`, fila «Región» de la tabla) dice Fráncfort. La decisión del 3 oct 2026 es Irlanda para Supabase y Dublín para las funciones de Vercel. La especificación no se ha editado.
 
 ## Fase 2 · The Way
 
@@ -55,14 +56,24 @@ Estado de la Fase 1: tareas 1–11 hechas y revisadas. Verificado contra Supabas
 
 ## Lista para la Task 12 (entorno remoto)
 
-- `supabase/seed.sql` (esquema `tests`) no debe llegar al remoto: nada de `db push --include-seed` ni `db reset --linked`.
-- `ALLOW_REMOTE_SEED` solo desde la shell, nunca en `.env.local`. El e2e nunca siembra un destino remoto.
-- `config.toml` local tiene `max_frequency = "1s"` y límites de Auth de desarrollo: no deben copiarse al proyecto remoto.
-- `playwright.config.ts` no admite todavía `BASE_URL` para apuntar a la preview.
-- SMTP real, claves, registro abierto desactivado y plantilla del código en el panel.
+Hecho (todo en el repo; el detalle operativo está en el README, «Entorno remoto»):
+
+- Región decidida: Supabase en `eu-west-1` (Irlanda) y funciones de Vercel en `dub1` (Dublín), fijadas en `vercel.json`.
+- Las tres migraciones de la Fase 1 están aplicadas en el remoto con las mismas versiones que `supabase/migrations/`. `supabase/seed.sql` (esquema `tests`) no se aplicó y no debe llegar al remoto: nada de `db push --include-seed` ni `db reset --linked`.
+- `playwright.config.ts` admite `BASE_URL`: con ella no arranca la app. Si `BASE_URL` es remoto y el Supabase del runner es local o falta, el arranque global falla antes de que corra ningún test. `VERCEL_AUTOMATION_BYPASS_SECRET` es opcional, para previews protegidas.
+- Comprobado: `auth.admin.generateLink` crea el usuario cuando no existe. `loginAs` comprueba ahora que el usuario existe antes de generar el código y, si no, falla pidiendo sembrar ese entorno. Ningún e2e crea cuentas, tampoco en local.
+- Contra un remoto, los e2e no guardan traza ni vídeo: la traza de un test fallido lleva la cookie de sesión de esa ejecución.
+- `ALLOW_REMOTE_SEED` solo desde la shell, nunca en `.env.local` (documentado en `.env.example`). El e2e nunca siembra un destino remoto.
+
+Pendiente (paneles y primera ejecución):
+
+- Las dos variables públicas en Vercel (Production y Preview) y un despliegue nuevo.
+- Auth en Supabase: desactivar el registro abierto, subir la plantilla del código y su asunto, y poner la URL del sitio. No copiar `max_frequency = "1s"` ni los límites de Auth de desarrollo del `config.toml` local.
+- SMTP real: el correo integrado de Supabase solo envía a miembros de la organización.
+- Seed del demo con `ALLOW_REMOTE_SEED=true pnpm seed` desde la shell.
+- Primera ejecución de `e2e/tenancy.spec.ts` contra la URL desplegada.
+- Revisión en un móvil real.
 - Una ejecución de CI en verde forma parte del cierre de la fase. Ahora sube los informes de Playwright si falla.
-- Antes de lanzar e2e contra la preview: comprobar si `auth.admin.generateLink` (lo usa `loginAs`) crea el usuario cuando no existe. Si lo hace, un remoto sin sembrar recibiría usuarios creados por los tests.
-- Las trazas de Playwright de un test fallido llevan la cookie de sesión de esa ejecución. Inocuo en CI contra 127.0.0.1; no subir artefactos de una ejecución contra un remoto.
 
 ## Notas menores del último repaso
 
