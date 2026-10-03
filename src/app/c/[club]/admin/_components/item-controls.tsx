@@ -86,12 +86,17 @@ export function ItemControls({
   const publish = () => setMethodologyStatus(clubSlug, { kind, id, status: "published" });
   const archive = () => setMethodologyStatus(clubSlug, { kind, id, status: "draft" });
 
+  // Con un error, los botones lo describen: un lector de pantalla lo lee tras el nombre del que se
+  // enfoca (el error se anuncia al aparecer, `role="alert"`, pero el foco vuelve a un botón).
+  const describedBy = failure ? errorId : undefined;
+
   return (
     <div ref={root} className="flex flex-wrap items-center gap-(--space-2)">
       <CTAButton
         variant="ghost"
         data-control="up"
         aria-label={`Subir ${title}`}
+        aria-describedby={describedBy}
         disabled={isFirst || pending}
         onClick={() => press("up", moveUp)}
       >
@@ -101,6 +106,7 @@ export function ItemControls({
         variant="ghost"
         data-control="down"
         aria-label={`Bajar ${title}`}
+        aria-describedby={describedBy}
         disabled={isLast || pending}
         onClick={() => press("down", moveDown)}
       >
@@ -111,6 +117,7 @@ export function ItemControls({
           variant="secondary"
           data-control="status"
           aria-label={`Pasar a borrador ${title}`}
+          aria-describedby={describedBy}
           disabled={pending}
           onClick={() => press("status", archive)}
         >
@@ -121,6 +128,7 @@ export function ItemControls({
           variant="secondary"
           data-control="status"
           aria-label={`Publicar ${title}`}
+          aria-describedby={describedBy}
           disabled={pending}
           onClick={() => press("status", publish)}
         >

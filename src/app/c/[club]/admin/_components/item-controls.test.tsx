@@ -176,6 +176,29 @@ describe("ItemControls", () => {
     expect(screen.getByRole("button", { name: "Publicar Una sección" })).toBeEnabled();
   });
 
+  it("el error describe a los botones: todos lo llevan en aria-describedby mientras está, y ninguno sin él", async () => {
+    mocks.setMethodologyStatus.mockResolvedValueOnce(fail("SAVE_FAILED"));
+    renderControls({ status: "draft" });
+    for (const button of screen.getAllByRole("button")) {
+      expect(button).not.toHaveAttribute("aria-describedby");
+    }
+
+    fireEvent.click(screen.getByRole("button", { name: "Publicar Una sección" }));
+
+    const alert = await screen.findByRole("alert");
+    expect(alert.id).not.toBe("");
+    const buttons = screen.getAllByRole("button");
+    expect(buttons).toHaveLength(3);
+    for (const button of buttons) expect(button).toHaveAttribute("aria-describedby", alert.id);
+
+    // Al volver a intentarlo el error se quita, y con él lo que los enlazaba.
+    fireEvent.click(screen.getByRole("button", { name: "Publicar Una sección" }));
+    await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument());
+    for (const button of screen.getAllByRole("button")) {
+      expect(button).not.toHaveAttribute("aria-describedby");
+    }
+  });
+
   it("un error de orden con copia obsoleta enseña su propio texto", async () => {
     mocks.moveMethodologyItem.mockResolvedValue(fail("STALE_COPY"));
     renderControls();
