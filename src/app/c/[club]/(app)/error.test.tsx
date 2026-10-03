@@ -22,7 +22,7 @@ beforeEach(() => {
   navigation.pathname = "/c/club-a";
 });
 
-describe("error dentro de un club (src/app/c/[club]/error.tsx)", () => {
+describe("error dentro de la app móvil del club (src/app/c/[club]/(app)/error.tsx)", () => {
   it("en Inicio dice que no se pudo cargar tu inicio", () => {
     renderError();
 

@@ -1,8 +1,9 @@
 import { LoadingState } from "@/ui/states";
 
 /**
- * Lo que se ve mientras llega una pantalla del club (Inicio y, al colgar del mismo
- * segmento, también las pestañas): el esqueleto, dentro del marco del club.
+ * Lo que se ve mientras llega una pantalla de la app móvil del club (Inicio y, al colgar
+ * del mismo segmento, también las pestañas): el esqueleto, dentro de su marco. Gestión
+ * tiene el suyo (`admin/loading.tsx`).
  *
  * Next lo pinta en cuanto el layout ha resuelto el club, así que un club ajeno o que no
  * existe sigue respondiendo 404 antes de que salga nada.
