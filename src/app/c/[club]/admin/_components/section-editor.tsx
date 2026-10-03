@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useTransition, type FormEvent } from "react";
-import { ACTION_ERROR_COPY, fail, type ActionError, type ActionResult } from "@/lib/action-result";
+import { useState, type FormEvent } from "react";
+import { ACTION_ERROR_COPY } from "@/lib/action-result";
 import { updateWaySection } from "@/modules/methodology/actions";
 import {
   CONTENT_KIND_OPTIONS,
@@ -12,8 +12,7 @@ import { CTAButton } from "@/ui/cta-button";
 import { FormAlert, SelectField, TextAreaField, TextField } from "@/ui/form-field";
 import { CheckIcon } from "@/ui/icons";
 import { MarkdownEditor } from "@/ui/markdown-editor";
-
-type Failure = { error: ActionError; fieldErrors: Record<string, string> };
+import { useAction } from "./use-action";
 
 /** Lo que enseña una sección que no es de texto y dónde se edita: su lista y su página. */
 const LIST_PAGES = {
@@ -38,14 +37,13 @@ const LIST_PAGES = {
  * escribiendo.
  */
 export function SectionEditor({ clubSlug, section }: { clubSlug: string; section: WaySection }) {
-  const [pending, startTransition] = useTransition();
+  const { pending, failure, run } = useAction();
   const [title, setTitle] = useState(section.title);
   const [summary, setSummary] = useState(section.summary ?? "");
   const [contentKind, setContentKind] = useState<ContentKind>(section.contentKind);
   const [bodyMd, setBodyMd] = useState(section.bodyMd);
   const [expectedUpdatedAt, setExpectedUpdatedAt] = useState(section.updatedAt);
   const [saved, setSaved] = useState(false);
-  const [failure, setFailure] = useState<Failure | null>(null);
 
   /** Tocar cualquier campo deja sin efecto el «Cambios guardados.» del guardado anterior. */
   function edit<V>(setValue: (value: V) => void) {
@@ -58,33 +56,21 @@ export function SectionEditor({ clubSlug, section }: { clubSlug: string; section
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setSaved(false);
-    setFailure(null);
-    startTransition(async () => {
-      let result: ActionResult<{ updatedAt: string }>;
-      try {
-        result = await updateWaySection(clubSlug, {
+    run(
+      () =>
+        updateWaySection(clubSlug, {
           id: section.id,
           expectedUpdatedAt,
           title,
           summary,
           contentKind,
           bodyMd,
-        });
-      } catch {
-        // La red se cae a medias o el servidor no responde: la acción lanza en vez de devolver.
-        result = fail("SAVE_FAILED");
-      }
-      // Tras un `await`, el estado se vuelve a envolver en la transición (ver `ItemControls`):
-      // el aviso de guardado y el botón activo llegan en la misma pintura.
-      startTransition(() => {
-        if (result.ok) {
-          setExpectedUpdatedAt(result.data.updatedAt);
-          setSaved(true);
-        } else {
-          setFailure({ error: result.error, fieldErrors: result.fieldErrors ?? {} });
-        }
-      });
-    });
+        }),
+      ({ updatedAt }) => {
+        setExpectedUpdatedAt(updatedAt);
+        setSaved(true);
+      },
+    );
   }
 
   const errors = failure?.fieldErrors ?? {};
@@ -152,8 +138,13 @@ export function SectionEditor({ clubSlug, section }: { clubSlug: string; section
         error={errors.bodyMd}
       />
 
-      {/* Siempre montado, para que el lector de pantalla lo anuncie cuando aparece el aviso. */}
-      <div role="status" className="empty:hidden">
+      {/*
+        La región de estado está siempre en el árbol de accesibilidad, vacía hasta que se guarda: un
+        lector de pantalla solo anuncia el texto que cambia dentro de una región que ya existía, y
+        no la que aparece con su texto (por eso nunca `display: none` ni `sr-only` aparte). Vacía
+        no ocupa nada: el margen negativo anula el hueco del `gap` del formulario.
+      */}
+      <div role="status" className="empty:-mt-(--space-5)">
         {saved ? (
           <p className="flex items-center gap-(--space-2) text-body-strong text-success">
             <CheckIcon size={16} />

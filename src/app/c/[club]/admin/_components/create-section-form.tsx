@@ -1,15 +1,14 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, useTransition, type FormEvent } from "react";
-import { ACTION_ERROR_COPY, fail, type ActionError, type ActionResult } from "@/lib/action-result";
+import { useState, type FormEvent } from "react";
+import { ACTION_ERROR_COPY } from "@/lib/action-result";
 import { createWaySection } from "@/modules/methodology/actions";
 import { CONTENT_KIND_OPTIONS, type ContentKind } from "@/modules/methodology/types";
 import { Card } from "@/ui/card";
 import { CTAButton } from "@/ui/cta-button";
 import { FormAlert, SelectField, TextField } from "@/ui/form-field";
-
-type Failure = { error: ActionError; fieldErrors: Record<string, string> };
+import { useAction } from "./use-action";
 
 /**
  * Alta de una sección: el título y el tipo. Todo lo demás (su número, su orden y su slug) lo
@@ -21,33 +20,20 @@ type Failure = { error: ActionError; fieldErrors: Record<string, string> };
  */
 export function CreateSectionForm({ clubSlug }: { clubSlug: string }) {
   const router = useRouter();
-  const [pending, startTransition] = useTransition();
+  const { pending, failure, run } = useAction();
   const [title, setTitle] = useState("");
   const [contentKind, setContentKind] = useState<ContentKind>("text");
-  const [failure, setFailure] = useState<Failure | null>(null);
   const [created, setCreated] = useState(false);
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setFailure(null);
-    startTransition(async () => {
-      let result: ActionResult<{ id: string }>;
-      try {
-        result = await createWaySection(clubSlug, { title, contentKind });
-      } catch {
-        // La red se cae a medias o el servidor no responde: la acción lanza en vez de devolver.
-        result = fail("SAVE_FAILED");
-      }
-      // Tras un `await`, el estado se vuelve a envolver en la transición (ver `ItemControls`).
-      startTransition(() => {
-        if (result.ok) {
-          setCreated(true);
-          router.push(`/c/${clubSlug}/admin/way/${result.data.id}`);
-        } else {
-          setFailure({ error: result.error, fieldErrors: result.fieldErrors ?? {} });
-        }
-      });
-    });
+    run(
+      () => createWaySection(clubSlug, { title, contentKind }),
+      ({ id }) => {
+        setCreated(true);
+        router.push(`/c/${clubSlug}/admin/way/${id}`);
+      },
+    );
   }
 
   return (

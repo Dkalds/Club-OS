@@ -171,6 +171,28 @@ describe("SectionEditor", () => {
     expect(saved.closest('[role="status"]')).not.toBeNull();
   });
 
+  // Un lector de pantalla anuncia el texto que CAMBIA dentro de una región `status` que ya
+  // estaba en el árbol de accesibilidad; una región que aparece (`display: none` → visible) con su
+  // texto en la misma pintura no se anuncia. Así que la región existe antes de guardar, vacía, y es
+  // la misma después, y nada la oculta con CSS (jsdom no aplica CSS: se mira la clase `hidden`).
+  it("la región de estado ya está ahí antes de guardar, vacía y sin ocultarse, y es la misma después", async () => {
+    renderEditor();
+
+    const region = screen.getByRole("status");
+    expect(region).toBeEmptyDOMElement();
+    expect(region.className).not.toMatch(/hidden|empty:hidden|sr-only/);
+
+    save();
+    await screen.findByText("Cambios guardados.");
+
+    expect(screen.getByRole("status")).toBe(region);
+    expect(region).toHaveTextContent("Cambios guardados.");
+
+    fireEvent.change(body(), { target: { value: "Otro texto." } });
+    expect(screen.getByRole("status")).toBe(region);
+    expect(region).toBeEmptyDOMElement();
+  });
+
   it("copia obsoleta: dice el copy del contrato, ofrece «Recargar» y no pisa lo escrito", async () => {
     mocks.updateWaySection.mockResolvedValue(fail("STALE_COPY"));
     renderEditor();

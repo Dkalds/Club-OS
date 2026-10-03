@@ -390,9 +390,22 @@ test("un borrador no llega al entrenador hasta publicarlo", async ({ page }) => 
   // guardado anterior se quita, así que el segundo «Cambios guardados.» es del segundo guardado.
   const saved = page.getByText("Cambios guardados.");
   const body = field(page, "Contenido");
+
+  // La confirmación se anuncia: un lector de pantalla solo lee lo que cambia dentro de una región
+  // `status` que ya estaba en el árbol de accesibilidad. Antes de guardar tiene que estar ahí, vacía
+  // y sin `display: none` (no cuenta cuánto mida), y seguir siendo la misma región al guardar.
+  const status = page.getByRole("status");
+  await expect(status).toBeAttached();
+  await expect(status).toBeEmpty();
+  expect(await status.evaluate((element) => getComputedStyle(element).display)).not.toBe("none");
+  expect(await status.evaluate((element) => getComputedStyle(element).visibility)).toBe("visible");
+  const region = await status.elementHandle();
+
   await body.fill("Primera versión del plan.");
   await page.getByRole("button", { name: "Guardar cambios" }).click();
   await expect(saved).toBeVisible();
+  await expect(status).toContainText("Cambios guardados.");
+  expect(await region!.evaluate((element, current) => element === current, await status.elementHandle())).toBe(true);
 
   await body.fill("Segunda versión del plan.");
   await expect(saved).toBeHidden();

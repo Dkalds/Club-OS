@@ -1,16 +1,12 @@
 "use client";
 
-import { useEffect, useId, useRef, useState, useTransition } from "react";
-import {
-  ACTION_ERROR_COPY,
-  fail,
-  type ActionError,
-  type ActionResult,
-} from "@/lib/action-result";
+import { useEffect, useId, useRef } from "react";
+import { ACTION_ERROR_COPY, type ActionResult } from "@/lib/action-result";
 import { moveMethodologyItem, setMethodologyStatus } from "@/modules/methodology/actions";
 import type { ContentStatus, MethodologyKind } from "@/modules/methodology/types";
 import { CTAButton } from "@/ui/cta-button";
 import { FieldError } from "@/ui/form-field";
+import { useAction } from "./use-action";
 
 type Control = "up" | "down" | "status";
 
@@ -55,8 +51,7 @@ export function ItemControls({
   isFirst: boolean;
   isLast: boolean;
 }) {
-  const [pending, startTransition] = useTransition();
-  const [error, setError] = useState<ActionError | null>(null);
+  const { pending, failure, run } = useAction();
   const errorId = useId();
   const root = useRef<HTMLDivElement>(null);
   const refocus = useRef<Control | null>(null);
@@ -79,24 +74,12 @@ export function ItemControls({
     }
   }, [pending]);
 
-  function run(control: Control, action: () => Promise<ActionResult<null>>) {
+  function press(control: Control, action: () => Promise<ActionResult<null>>) {
     refocus.current = control;
-    setError(null);
-    startTransition(async () => {
-      let result: ActionResult<null>;
-      try {
-        result = await action();
-      } catch {
-        // La red se cae a medias o el servidor no responde: la acción lanza en vez de devolver.
-        result = fail("SAVE_FAILED");
-      }
-      // Tras un `await`, el estado se vuelve a envolver en la transición: así el aviso y los
-      // botones activos llegan en la misma pintura, y no hay un rato con el aviso y el botón parado.
-      startTransition(() => setError(result.ok ? null : result.error));
-    });
+    run(action);
   }
 
-  // Solo las acciones: `run` las lanza desde el manejador de cada botón, que es donde se
+  // Solo las acciones: `press` las lanza desde el manejador de cada botón, que es donde se
   // toca el foco pendiente (un ref no se lee ni se escribe al pintar).
   const moveUp = () => moveMethodologyItem(clubSlug, { kind, id, direction: "up" });
   const moveDown = () => moveMethodologyItem(clubSlug, { kind, id, direction: "down" });
@@ -110,7 +93,7 @@ export function ItemControls({
         data-control="up"
         aria-label={`Subir ${title}`}
         disabled={isFirst || pending}
-        onClick={() => run("up", moveUp)}
+        onClick={() => press("up", moveUp)}
       >
         Subir
       </CTAButton>
@@ -119,7 +102,7 @@ export function ItemControls({
         data-control="down"
         aria-label={`Bajar ${title}`}
         disabled={isLast || pending}
-        onClick={() => run("down", moveDown)}
+        onClick={() => press("down", moveDown)}
       >
         Bajar
       </CTAButton>
@@ -129,7 +112,7 @@ export function ItemControls({
           data-control="status"
           aria-label={`Pasar a borrador ${title}`}
           disabled={pending}
-          onClick={() => run("status", archive)}
+          onClick={() => press("status", archive)}
         >
           Pasar a borrador
         </CTAButton>
@@ -139,14 +122,14 @@ export function ItemControls({
           data-control="status"
           aria-label={`Publicar ${title}`}
           disabled={pending}
-          onClick={() => run("status", publish)}
+          onClick={() => press("status", publish)}
         >
           Publicar
         </CTAButton>
       )}
-      {error ? (
+      {failure ? (
         <div className="w-full">
-          <FieldError id={errorId}>{ACTION_ERROR_COPY[error]}</FieldError>
+          <FieldError id={errorId}>{ACTION_ERROR_COPY[failure.error]}</FieldError>
         </div>
       ) : null}
     </div>
