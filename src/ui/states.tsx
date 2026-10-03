@@ -15,21 +15,36 @@ const STATE_TEXT = "max-w-[280px]";
 const ICON_CIRCLE = "flex size-14 items-center justify-center rounded-pill";
 
 /**
+ * Nivel del título de un estado. Por defecto 2: la pantalla ya tiene su `<h1>`. Con 1, el
+ * estado es el contenido principal de la pantalla (una pestaña vacía, una página de error) y
+ * su título es el `<h1>`. Solo cambia la etiqueta; el aspecto es el mismo.
+ */
+export type StateHeadingLevel = 1 | 2;
+
+function StateTitle({ level, children }: { level: StateHeadingLevel; children: string }) {
+  const Heading = level === 1 ? "h1" : "h2";
+
+  return <Heading className={`${STATE_TEXT} font-display text-title uppercase`}>{children}</Heading>;
+}
+
+/**
  * Lo que se ve cuando una lista o pantalla aún no tiene contenido (design/components/EmptyState).
  *
  * Siempre con una salida: `action` es un enlace (crear, quitar filtros, volver). Sin `icon` no
- * hay círculo. El título es un `<h2>`: la pantalla pone su `<h1>`.
+ * hay círculo. El título es un `<h2>` salvo que el estado sea toda la pantalla (`headingLevel`).
  */
 export function EmptyState({
   icon,
   title,
   body,
   action,
+  headingLevel = 2,
 }: {
   icon?: ReactNode;
   title: string;
   body: string;
   action?: { label: string; href: string };
+  headingLevel?: StateHeadingLevel;
 }) {
   return (
     <Card className={STATE_CARD}>
@@ -38,7 +53,7 @@ export function EmptyState({
           {icon}
         </span>
       ) : null}
-      <h2 className={`${STATE_TEXT} font-display text-title uppercase`}>{title}</h2>
+      <StateTitle level={headingLevel}>{title}</StateTitle>
       <p className={`${STATE_TEXT} text-ink-2`}>{body}</p>
       {action ? (
         <CTAButton variant="primary" href={action.href}>
@@ -85,16 +100,19 @@ export function LoadingState({ rows = 3 }: { rows?: number }) {
  * Un fallo que impide mostrar el contenido (design/components/ErrorState).
  *
  * `role="alert"`, y el icono va en `danger` pero con texto: el color no basta. Nada de códigos
- * técnicos en el mensaje. «Reintentar» solo sale si hay algo que reintentar (`onRetry`).
+ * técnicos en el mensaje. «Reintentar» solo sale si hay algo que reintentar (`onRetry`). El
+ * título es un `<h2>` salvo que el error sea toda la pantalla (`headingLevel`).
  */
 export function ErrorState({
   title,
   body,
   onRetry,
+  headingLevel = 2,
 }: {
   title: string;
   body: string;
   onRetry?: () => void;
+  headingLevel?: StateHeadingLevel;
 }) {
   return (
     <div role="alert">
@@ -102,7 +120,7 @@ export function ErrorState({
         <span aria-hidden="true" className={`${ICON_CIRCLE} bg-danger-soft text-danger`}>
           <AlertIcon size={28} />
         </span>
-        <h2 className={`${STATE_TEXT} font-display text-title uppercase`}>{title}</h2>
+        <StateTitle level={headingLevel}>{title}</StateTitle>
         <p className={`${STATE_TEXT} text-ink-2`}>{body}</p>
         {onRetry ? (
           <CTAButton variant="secondary" onClick={onRetry}>

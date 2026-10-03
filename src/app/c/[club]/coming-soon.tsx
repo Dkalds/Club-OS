@@ -1,20 +1,30 @@
 import { notFound } from "next/navigation";
+import type { ComponentType } from "react";
 import { navItems, type NavKey } from "@/modules/tenancy/navigation";
 import { getClubContext } from "@/modules/tenancy/queries";
+import { GamesIcon, TeamIcon, TrainIcon, WayIcon, type IconProps } from "@/ui/icons";
+import { EmptyState } from "@/ui/states";
+
+type Tab = Exclude<NavKey, "home">;
+
+/** El mismo icono que la pestaña lleva en la navegación. */
+const ICONS: Record<Tab, ComponentType<IconProps>> = {
+  way: WayIcon,
+  train: TrainIcon,
+  games: GamesIcon,
+  team: TeamIcon,
+};
 
 /**
  * Contenido provisional de una pestaña que todavía no tiene pantalla.
  *
- * El título usa la etiqueta de la pestaña, que sale de la terminología del club. La
- * Task 10 trae `EmptyState`; hasta entonces es texto plano con la misma composición.
+ * El título usa la etiqueta de la pestaña, que sale de la terminología del club, y es el
+ * `<h1>` de la pantalla: aquí el estado vacío es todo el contenido. No lleva acción: no hay
+ * nada que crear todavía, y la salida es la navegación del club.
+ *
+ * Pide el contexto ella misma antes de pintar nada: un layout no protege a sus páginas.
  */
-export async function ComingSoon({
-  clubSlug,
-  tab,
-}: {
-  clubSlug: string;
-  tab: Exclude<NavKey, "home">;
-}) {
+export async function ComingSoon({ clubSlug, tab }: { clubSlug: string; tab: Tab }) {
   const context = await getClubContext(clubSlug);
   if (!context) notFound();
 
@@ -23,10 +33,16 @@ export async function ComingSoon({
   );
   if (!item) notFound();
 
+  const TabIcon = ICONS[tab];
+
   return (
-    <div className="flex flex-col items-center gap-(--space-3) px-(--space-6) py-(--space-12) text-center">
-      <h1 className="font-display text-title uppercase">{item.label} llega en una próxima fase</h1>
-      <p className="text-ink-2">Estamos preparando esta sección.</p>
+    <div className="px-(--space-4) pt-(--space-6)">
+      <EmptyState
+        headingLevel={1}
+        icon={<TabIcon size={28} />}
+        title={`${item.label} llega en una próxima fase`}
+        body="Estamos preparando esta sección."
+      />
     </div>
   );
 }

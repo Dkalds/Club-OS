@@ -1,8 +1,12 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { logError } from "@/lib/log";
 import { createClient } from "@/lib/supabase/server";
+import { Avatar } from "@/ui/avatar";
+import { Card } from "@/ui/card";
+import { CTAButton } from "@/ui/cta-button";
+import { ListRow } from "@/ui/list-row";
+import { EmptyState } from "@/ui/states";
 
 // Depende de la sesión: nunca se prerenderiza ni se comparte entre usuarios.
 export const dynamic = "force-dynamic";
@@ -48,6 +52,15 @@ async function listClubs(): Promise<Club[]> {
 const mainClass =
   "mx-auto flex w-full max-w-(--content-max) flex-1 flex-col gap-(--space-6) px-(--space-4) py-(--space-12)";
 
+/**
+ * El selector de club: adónde llega quien entra.
+ *
+ * Con un solo club salta a él. Con varios, una fila por club. Sin ninguno, el aviso y la
+ * salida. Está fuera de cualquier club: la marca es la de plataforma y las filas no llevan
+ * colores de ningún club, solo sus iniciales.
+ *
+ * Si no se pueden leer los clubes, `listClubs` lanza y lo recoge `src/app/error.tsx`.
+ */
 export default async function SelectClubPage() {
   const clubs = await listClubs();
 
@@ -57,21 +70,17 @@ export default async function SelectClubPage() {
     return (
       <main className={mainClass}>
         <p className="font-display text-title uppercase text-ink-2">CLUB OS</p>
-        <div className="flex flex-col gap-(--space-3)">
-          <h1 className="font-display text-display-m uppercase">
-            Tu cuenta no tiene acceso a ningún club
-          </h1>
-          <p className="text-ink-2">
-            Si crees que es un error, pide una nueva invitación a tu club.
-          </p>
-        </div>
+        {/* El estado vacío es toda la pantalla: su título es el `<h1>`. */}
+        <EmptyState
+          headingLevel={1}
+          title="Tu cuenta no tiene acceso a ningún club"
+          body="Si crees que es un error, pide una nueva invitación a tu club."
+        />
+        {/* La salida no es un enlace: cerrar sesión es un POST. */}
         <form action="/auth/sign-out" method="post">
-          <button
-            type="submit"
-            className="flex min-h-(--target-min) w-full items-center justify-center rounded-md bg-brand-accent px-(--space-5) font-display text-body-l font-bold uppercase tracking-[0.04em] text-brand-on-accent active:bg-brand-accent-pressed focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
-          >
+          <CTAButton variant="primary" block type="submit">
             Salir
-          </button>
+          </CTAButton>
         </form>
       </main>
     );
@@ -81,19 +90,22 @@ export default async function SelectClubPage() {
     <main className={mainClass}>
       <p className="font-display text-title uppercase text-ink-2">CLUB OS</p>
       <h1 className="font-display text-display-l uppercase">Tus clubes</h1>
-      <ul className="flex flex-col divide-y divide-line overflow-hidden rounded-lg border border-line bg-surface-1">
+      <Card variant="flush">
+        {/* Las filas van directas dentro de la card: así pinta sus separadores. */}
         {clubs.map((club) => (
-          <li key={club.slug}>
-            {/* El foco va por dentro: la card recorta lo que sobresale. */}
-            <Link
-              href={`/c/${club.slug}`}
-              className="flex min-h-(--target-min) items-center px-(--space-4) py-(--space-4) text-body-strong active:bg-surface-3 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus-ring"
-            >
-              {club.name}
-            </Link>
-          </li>
+          <ListRow
+            key={club.slug}
+            href={`/c/${club.slug}`}
+            // Decorativas: el nombre ya está escrito al lado.
+            lead={
+              <span aria-hidden="true" className="flex">
+                <Avatar name={club.name} />
+              </span>
+            }
+            title={club.name}
+          />
         ))}
-      </ul>
+      </Card>
     </main>
   );
 }

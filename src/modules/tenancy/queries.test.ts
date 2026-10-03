@@ -66,6 +66,8 @@ function membership(overrides: Partial<MembershipRow> = {}): MembershipRow {
 let visible: MembershipRow[];
 /** Lo que responde la consulta si se fuerza un fallo. */
 let queryError: Record<string, unknown> | null;
+/** Lo que lanza la consulta si ni siquiera llega a responder. */
+let queryThrows: Error | null;
 /** Tablas consultadas. */
 let queried: string[];
 /** Líneas escritas en el log del servidor. */
@@ -87,6 +89,7 @@ function fakeQuery() {
       return query;
     },
     async maybeSingle() {
+      if (queryThrows) throw queryThrows;
       if (queryError) return { data: null, error: queryError };
       const rows = visible.filter((row) =>
         filters.every(([column, value]) => valueAt(row, column) === value),
@@ -115,10 +118,37 @@ function signedInAs(userId: string | null, error: unknown = null) {
   return getClaims;
 }
 
+/** Un error con la forma de los de auth-js: nombre, estado HTTP y código. */
+function authError(name: string, status: number | undefined, code?: string): Error {
+  // El mensaje lleva un dato personal a propósito: no puede acabar en el log ni en lo que se lanza.
+  return Object.assign(new Error(`fallo de Auth para ${ME}`), { name, status, code });
+}
+
+/** Lo que lanza una promesa. Si no lanza, el test falla aquí. */
+async function failureOf(promise: Promise<unknown>): Promise<Error> {
+  const outcome = await promise.then(
+    (value) => ({ resolved: value }),
+    (error: unknown) => error,
+  );
+  if (!(outcome instanceof Error)) {
+    throw new Error(`Se esperaba un error y llegó ${JSON.stringify(outcome)}`);
+  }
+  return outcome;
+}
+
+/** Todo lo que viaja en un error: mensaje, pila, causa y cualquier otra propiedad. */
+function everythingIn(error: Error): string {
+  return JSON.stringify(error, Object.getOwnPropertyNames(error));
+}
+
+const FAILURE = "tenancy.club-context: no se pudo comprobar el acceso al club";
+const PERSONAL_DATA = [ME, "coach@club-a.test"];
+
 beforeEach(() => {
   vi.resetAllMocks();
   visible = [membership()];
   queryError = null;
+  queryThrows = null;
   queried = [];
   logged = [];
   vi.spyOn(console, "error").mockImplementation((...args: unknown[]) => {
@@ -343,40 +373,128 @@ describe("getClubContext", () => {
     expect(await getClubContext("club-a")).toBeNull();
   });
 
-  it("si la consulta falla, deja rastro sin datos personales y responde null", async () => {
+  // ── Averías ──────────────────────────────────────────────────────────────────────────
+  // Que Supabase falle no es lo mismo que «ese club no existe»: se lanza, para que lo recoja
+  // una página de error con reintento, y no el 404. `null` queda para cuando Supabase ha
+  // contestado: ese club no está entre los tuyos, o esa sesión no vale.
+
+  it("si la consulta falla, deja rastro sin datos personales y lanza", async () => {
     queryError = {
       code: "PGRST301",
       message: `JWT expired for ${ME} asking for club-a`,
       details: "coach@club-a.test",
     };
 
-    expect(await getClubContext("club-a")).toBeNull();
+    const failure = await failureOf(getClubContext("club-a"));
 
+    expect(failure.message).toBe(FAILURE);
+    // Lo que dijo la base de datos no viaja con el error: ni en el mensaje ni como causa.
+    expect(failure.cause).toBeUndefined();
+    for (const secret of PERSONAL_DATA) expect(everythingIn(failure)).not.toContain(secret);
     expect(logged).toEqual(["[tenancy.club-context] error code=PGRST301"]);
   });
 
-  it("si la sesión no se puede comprobar, deja rastro y responde null", async () => {
-    const authError = Object.assign(new Error(`token de ${ME} inválido`), {
-      name: "AuthApiError",
-      status: 403,
-      code: "bad_jwt",
-    });
-    signedInAs(null, authError);
+  it("si la consulta ni siquiera responde, deja rastro y lanza", async () => {
+    queryThrows = new TypeError(`fetch failed for ${ME}`);
 
-    expect(await getClubContext("club-a")).toBeNull();
+    const failure = await failureOf(getClubContext("club-a"));
 
-    expect(logged).toEqual(["[tenancy.club-context] AuthApiError status=403 code=bad_jwt"]);
-    expect(queried).toEqual([]);
+    expect(failure.message).toBe(FAILURE);
+    expect(failure.cause).toBeUndefined();
+    for (const secret of PERSONAL_DATA) expect(everythingIn(failure)).not.toContain(secret);
+    expect(logged).toEqual(["[tenancy.club-context] TypeError"]);
   });
 
-  it("si Supabase lanza una excepción, deja rastro y responde null", async () => {
+  it("una avería no depende del club: el propio, uno ajeno y uno que no existe lanzan lo mismo", async () => {
+    // Si el club ajeno diera 404 y el propio un error, la avería diría qué clubes existen.
+    visible = [membership({ organizations: CLUB_A }), membership({ user_id: OTHER_COACH, organizations: CLUB_B })];
+    queryError = { code: "PGRST000", message: "db down" };
+
+    const messages: string[] = [];
+    for (const slug of ["club-a", "club-b", "no-existe"]) {
+      messages.push((await failureOf(getClubContext(slug))).message);
+    }
+
+    expect(messages).toEqual([FAILURE, FAILURE, FAILURE]);
+    expect(logged).toEqual([
+      "[tenancy.club-context] error code=PGRST000",
+      "[tenancy.club-context] error code=PGRST000",
+      "[tenancy.club-context] error code=PGRST000",
+    ]);
+  });
+
+  it.each([
+    ["sin conexión con Auth", authError("AuthRetryableFetchError", 0), "AuthRetryableFetchError status=0"],
+    ["Auth caído", authError("AuthRetryableFetchError", 503), "AuthRetryableFetchError status=503"],
+    [
+      "error interno de Auth",
+      authError("AuthApiError", 500, "unexpected_failure"),
+      "AuthApiError status=500 code=unexpected_failure",
+    ],
+    [
+      "límite de peticiones",
+      authError("AuthApiError", 429, "over_request_rate_limit"),
+      "AuthApiError status=429 code=over_request_rate_limit",
+    ],
+    ["error sin estado", authError("AuthUnknownError", undefined), "AuthUnknownError"],
+  ])(
+    "si la sesión no se puede comprobar (%s), deja rastro y lanza sin consultar nada",
+    async (_case, error, trace) => {
+      signedInAs(null, error);
+
+      const failure = await failureOf(getClubContext("club-a"));
+
+      expect(failure.message).toBe(FAILURE);
+      expect(failure.cause).toBeUndefined();
+      for (const secret of PERSONAL_DATA) expect(everythingIn(failure)).not.toContain(secret);
+      expect(logged).toEqual([`[tenancy.club-context] ${trace}`]);
+      expect(queried).toEqual([]);
+    },
+  );
+
+  it.each([
+    ["token inválido", authError("AuthApiError", 403, "bad_jwt"), "AuthApiError status=403 code=bad_jwt"],
+    [
+      "sesión cerrada",
+      authError("AuthApiError", 403, "session_not_found"),
+      "AuthApiError status=403 code=session_not_found",
+    ],
+    [
+      "sin autorización",
+      authError("AuthApiError", 401, "no_authorization"),
+      "AuthApiError status=401 code=no_authorization",
+    ],
+    ["sesión que falta", authError("AuthSessionMissingError", 400), "AuthSessionMissingError status=400"],
+    [
+      "cuenta borrada",
+      authError("AuthApiError", 404, "user_not_found"),
+      "AuthApiError status=404 code=user_not_found",
+    ],
+  ])(
+    "si Auth rechaza la sesión (%s) no hay usuario: null, con rastro y sin consultar nada",
+    async (_case, error, trace) => {
+      // No es una avería: Auth ha contestado, y ha dicho que esa sesión no vale.
+      signedInAs(null, error);
+
+      expect(await getClubContext("club-a")).toBeNull();
+
+      expect(logged).toEqual([`[tenancy.club-context] ${trace}`]);
+      expect(queried).toEqual([]);
+    },
+  );
+
+  it("si Supabase lanza una excepción al comprobar la sesión, deja rastro y lanza", async () => {
     mocks.createClient.mockResolvedValue({
       auth: { getClaims: vi.fn().mockRejectedValue(new TypeError(`fetch failed for ${ME}`)) },
       from: () => fakeQuery(),
     });
 
-    expect(await getClubContext("club-a")).toBeNull();
+    const failure = await failureOf(getClubContext("club-a"));
 
+    expect(failure.message).toBe(FAILURE);
+    expect(failure.cause).toBeUndefined();
+    for (const secret of PERSONAL_DATA) expect(everythingIn(failure)).not.toContain(secret);
     expect(logged).toEqual(["[tenancy.club-context] TypeError"]);
+    expect(queried).toEqual([]);
   });
 });

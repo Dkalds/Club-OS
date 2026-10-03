@@ -3,8 +3,9 @@ import react from "@vitejs/plugin-react";
 import { configDefaults, defineConfig } from "vitest/config";
 
 // Tres proyectos:
-//  - node: unidad (src/** salvo src/ui/**, scripts/**)
-//  - ui:   componentes (src/ui/**) en jsdom
+//  - node: unidad (`*.test.ts` de src/** salvo src/ui/**, y de scripts/**)
+//  - ui:   componentes en jsdom: todo src/ui/** y cualquier `*.test.tsx` de src/** (las
+//          pantallas de los módulos y los `error.tsx` de la app)
 //  - int:  integración contra Supabase local (**/*.int.test.ts)
 // `pnpm test` ejecuta node + ui; `pnpm test:int` ejecuta solo int.
 
@@ -24,7 +25,7 @@ export default defineConfig({
         test: {
           name: "node",
           environment: "node",
-          include: ["src/**/*.test.{ts,tsx}", "scripts/**/*.test.ts"],
+          include: ["src/**/*.test.ts", "scripts/**/*.test.ts"],
           exclude: [...configDefaults.exclude, ...AGENT_DIRS, "**/*.int.test.ts", "src/ui/**"],
         },
       },
@@ -33,7 +34,7 @@ export default defineConfig({
         test: {
           name: "ui",
           environment: "jsdom",
-          include: ["src/ui/**/*.test.{ts,tsx}"],
+          include: ["src/ui/**/*.test.{ts,tsx}", "src/**/*.test.tsx"],
           exclude: [...configDefaults.exclude, ...AGENT_DIRS, "**/*.int.test.ts"],
           setupFiles: ["./vitest.setup.ts"],
         },
