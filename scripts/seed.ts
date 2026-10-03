@@ -4,6 +4,8 @@
 // Se niega a correr contra un Supabase remoto salvo `ALLOW_REMOTE_SEED=true`. Es idempotente:
 // puede ejecutarse las veces que haga falta, y las horas se recalculan respecto a hoy.
 
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { readSupabaseEnv } from "./lib/admin-client";
 import { buildSeedData } from "./seed/data";
 import { assertSeedTarget } from "./seed/guard";
@@ -23,7 +25,14 @@ async function main(): Promise<void> {
   console.log(`Usuarios de prueba: ${data.users.map((user) => user.email).join(", ")}.`);
 }
 
-main().catch((error: unknown) => {
-  console.error(error instanceof Error ? error.message : error);
-  process.exit(1);
-});
+// Solo como CLI (`pnpm seed`). Un `import "…/scripts/seed"` resuelve a este archivo, no a
+// la carpeta `scripts/seed/`: importado no siembra nada.
+if (
+  process.argv[1] !== undefined &&
+  path.resolve(process.argv[1]).toLowerCase() === fileURLToPath(import.meta.url).toLowerCase()
+) {
+  main().catch((error: unknown) => {
+    console.error(error instanceof Error ? error.message : error);
+    process.exit(1);
+  });
+}

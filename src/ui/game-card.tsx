@@ -4,7 +4,7 @@ import { Card } from "./card";
 
 /**
  * La abreviatura de un equipo rival para su avatar: las tres primeras letras de la última
- * palabra, en mayúsculas y sin acentos (`'CB Ribera'` → `'RIB'`, `'Ávila'` → `'AVI'`). Solo
+ * palabra, en mayúsculas y sin acentos (`'CB Rival'` → `'RIV'`, `'Ávila'` → `'AVI'`). Solo
  * cuentan letras y cifras; un texto sin ninguna devuelve `'?'`.
  */
 export function teamAbbr(name: string): string {

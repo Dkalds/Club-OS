@@ -8,14 +8,14 @@ const GAME: HomeGame = {
   eventId: "g1",
   teamName: "Equipo A",
   slotLabel: "Sábado 10 oct · 10:30 · Local",
-  opponent: "CB Ribera",
+  opponent: "CB Rival",
   competition: "Liga",
 };
 
 describe("teamAbbr", () => {
   it("son las tres primeras letras de la última palabra, en mayúsculas", () => {
-    expect(teamAbbr("CB Ribera")).toBe("RIB");
-    expect(teamAbbr("Club Demo")).toBe("DEM");
+    expect(teamAbbr("CB Rival")).toBe("RIV");
+    expect(teamAbbr("Club Norte")).toBe("NOR");
   });
 
   it("quita los acentos", () => {
@@ -28,8 +28,8 @@ describe("teamAbbr", () => {
   });
 
   it("ignora espacios de más y signos sueltos", () => {
-    expect(teamAbbr("  CB   Ribera  ")).toBe("RIB");
-    expect(teamAbbr("CB Ribera -")).toBe("RIB");
+    expect(teamAbbr("  CB   Rival  ")).toBe("RIV");
+    expect(teamAbbr("CB Rival -")).toBe("RIV");
   });
 
   it("un texto en blanco o sin letras devuelve «?»", () => {
@@ -52,10 +52,10 @@ describe("GameCard", () => {
     render(<GameCard game={GAME} ownShortName="CLB" />);
 
     expect(screen.getByRole("img", { name: "Equipo A" })).toHaveTextContent("CLB");
-    expect(screen.getByRole("img", { name: "CB Ribera" })).toHaveTextContent("RIB");
+    expect(screen.getByRole("img", { name: "CB Rival" })).toHaveTextContent("RIV");
     // El nombre de cada lado se ve también bajo su avatar.
     expect(screen.getAllByText("Equipo A")).toHaveLength(1);
-    expect(screen.getAllByText("CB Ribera")).toHaveLength(1);
+    expect(screen.getAllByText("CB Rival")).toHaveLength(1);
   });
 
   it("muestra la competición cuando existe", () => {

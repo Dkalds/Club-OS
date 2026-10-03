@@ -20,11 +20,11 @@ describe("navItems", () => {
   });
 
   it("la terminología del club cambia la etiqueta", () => {
-    const items = navItems(SLUG, { way: "Nuestra forma" });
+    const items = navItems(SLUG, { way: "Nuestro estilo" });
 
     expect(items.map((item) => item.label)).toEqual([
       "Inicio",
-      "Nuestra forma",
+      "Nuestro estilo",
       "Entrenar",
       "Partidos",
       "Equipo",
