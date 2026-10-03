@@ -1,7 +1,10 @@
-import { expect, test, type Page } from "@playwright/test";
-import { loginAs } from "./helpers/auth";
+import type { Page } from "@playwright/test";
+import { openAs } from "./helpers/sessions";
+import { expect, test } from "./helpers/test";
 
-// Necesita Supabase local con `pnpm seed` (Arcángel y Club Demo).
+// Necesita el Supabase local arrancado. `e2e/global-setup.ts` siembra Arcángel y Club Demo
+// antes de los tests y guarda una sesión por usuario: aquí nadie pasa por el login, cada
+// test abre la app con `openAs` como quien ya está dentro.
 
 const ALEX = "alex@arcangel.test"; // entrenador de Arcángel
 const MARTA = "marta@demo.test"; // entrenadora de Club Demo
@@ -17,13 +20,18 @@ async function brandAccent(page: Page): Promise<string> {
     .evaluate((element) => getComputedStyle(element).getPropertyValue("--brand-accent").trim());
 }
 
-test("un club ajeno y uno inexistente dan el mismo 404", async ({ page }) => {
+test("un club ajeno y uno inexistente dan el mismo 404", async ({ page, browserErrors }) => {
   // Review Focus 1: Álex es de Arcángel; Club Demo existe, pero no es su club.
-  await loginAs(page, ALEX);
+  await openAs(page, ALEX);
   await expect(page).toHaveURL(/\/c\/arcangel$/);
 
+  // Estas tres páginas responden 404 y eso es lo que se comprueba: el aviso que Chromium
+  // deja en la consola por cada una no cuenta como error (ver `helpers/test.ts`).
+  const notFoundPaths = ["/c/club-demo", "/c/no-existe", "/c/club-demo/way"];
+  browserErrors.allowNotFound(...notFoundPaths);
+
   const seen: Array<{ path: string; status: number | undefined; text: string; html: string }> = [];
-  for (const path of ["/c/club-demo", "/c/no-existe", "/c/club-demo/way"]) {
+  for (const path of notFoundPaths) {
     const response = await page.goto(path);
 
     await expect(
@@ -69,7 +77,7 @@ test("un club ajeno y uno inexistente dan el mismo 404", async ({ page }) => {
 });
 
 test("cada club pinta su acento", async ({ page }) => {
-  await loginAs(page, ALEX);
+  await openAs(page, ALEX);
   await expect(page).toHaveURL(/\/c\/arcangel$/);
   await expect(page.locator("[data-club]")).toHaveAttribute("data-club", "arcangel");
   expect(await brandAccent(page)).toBe("#c9a45c");
@@ -79,7 +87,7 @@ test("cada club pinta su acento", async ({ page }) => {
     "rgb(201, 164, 92)",
   );
 
-  await loginAs(page, MARTA);
+  await openAs(page, MARTA);
   await expect(page).toHaveURL(/\/c\/club-demo$/);
   await expect(page.locator("[data-club]")).toHaveAttribute("data-club", "club-demo");
   expect(await brandAccent(page)).toBe("#3fb8af");
@@ -90,7 +98,7 @@ test("cada club pinta su acento", async ({ page }) => {
 });
 
 test("la terminología llega a la navegación", async ({ page }) => {
-  await loginAs(page, MARTA);
+  await openAs(page, MARTA);
   await expect(page).toHaveURL(/\/c\/club-demo$/);
   await expect(mainNav(page).getByRole("link")).toHaveText([
     "Inicio",
@@ -117,7 +125,7 @@ test("la terminología llega a la navegación", async ({ page }) => {
   );
   await expect(mainNav(page).locator('[aria-current="page"]')).toHaveCount(1);
 
-  await loginAs(page, ALEX);
+  await openAs(page, ALEX);
   await expect(page).toHaveURL(/\/c\/arcangel$/);
   await expect(mainNav(page).getByRole("link")).toHaveText([
     "Inicio",

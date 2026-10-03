@@ -17,6 +17,11 @@ const CLOCK_SLACK_MS = 1_000;
  *
  * Al volver, la página ya está en su destino: /c/{slug} si la cuenta tiene un solo club,
  * o el selector (/select-club) si tiene varios o ninguno.
+ *
+ * Cada llamada es una verificación de código en Auth, que las limita por IP. Un test que
+ * solo necesita estar dentro como alguien usa `openAs` (`helpers/sessions.ts`), que
+ * reutiliza la sesión guardada en el arranque global; `loginAs` queda para probar el
+ * acceso en sí.
  */
 export async function loginAs(page: Page, email: string): Promise<void> {
   // Con sesión, /login redirige al selector y el formulario no llegaría a verse.

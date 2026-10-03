@@ -1,25 +1,35 @@
-import { expect, test, type Page } from "@playwright/test";
+import type { Page } from "@playwright/test";
 import { ARCANGEL, CLUB_DEMO } from "../scripts/seed/data";
-import { seedSchedule } from "../scripts/seed/dates";
+import { seedSchedule, type SlotIso } from "../scripts/seed/dates";
 import { addLocalDays, formatEventSlot, startOfLocalDay } from "../src/lib/time";
-import { loginAs } from "./helpers/auth";
+import { seedNow } from "./helpers/seed";
+import { openAs } from "./helpers/sessions";
+import { expect, test } from "./helpers/test";
 
-// Necesita Supabase local con `pnpm seed` (Arcángel y Club Demo).
+// Necesita el Supabase local arrancado. `e2e/global-setup.ts` lo siembra justo antes de los
+// tests (Arcángel y Club Demo), deja el instante de esa siembra en `seedNow()` y guarda una
+// sesión por usuario: aquí nadie pasa por el login, cada test abre la app con `openAs`.
 //
-// Lo esperado se calcula igual que lo calculó el seed: `seedSchedule(ahora, zona del club)`.
-// El seed corre unos minutos antes que estos tests; si entre los dos cae el inicio de un
-// entrenamiento (martes o jueves a las 18:00 de Madrid) o el final del de Benjamín A (18:00
-// de ese mismo día), el calendario sembrado y el esperado difieren en una sesión y el test
-// del próximo entrenamiento o el de Nora fallan. Volver a sembrar lo arregla.
+// Contra un Supabase que no es local el arranque global no siembra (ver su cabecera):
+// `seedNow()` sigue definido, pero estos tests solo aciertan si ese destino se sembró hace
+// poco y `E2E_SEED_NOW` dice cuándo.
+//
+// Aquí cuentan dos relojes, y cada test dice cuál usa:
+//  - Qué hay en la base de datos lo decide el instante de la SIEMBRA: el calendario
+//    esperado es `seedSchedule(seedNow(), zona del club)`, nunca `seedSchedule(new Date())`.
+//    Así da igual cuánto tarde la ejecución en llegar a cada test, o que entre medias
+//    empiece un entrenamiento.
+//  - Qué enseña la pantalla de ese calendario lo decide el «ahora» del SERVIDOR al
+//    pintarla: «próximo» es lo que aún no ha terminado y «esta semana» empieza hoy. Donde
+//    eso importa, el test acota ese «ahora» con su propio reloj de antes y de después.
+//
+// Lo único que queda expuesto al reloj es la propia ejecución, y solo si dura más que un
+// entrenamiento (75 min): para entonces lo sembrado como «próximo» ya habría terminado.
+// Puede pasar con el modo interactivo de Playwright abierto mucho rato; se arregla
+// relanzándolo, que vuelve a sembrar.
 
 // La pantalla se revisa siempre a 375 px, sea cual sea el proyecto de Playwright.
 test.use({ viewport: { width: 375, height: 812 } });
-
-// Cada test entra por su cuenta. Auth guarda un solo código por usuario, así que `loginAs`
-// hace cola por email: en paralelo, los tests de este archivo se pasarían el tiempo
-// esperando turno (y, con muchos workers, agotándolo). Van uno detrás de otro, en un mismo
-// worker, y repartidos entre personas; siguen siendo independientes entre sí.
-test.describe.configure({ mode: "default" });
 
 const ALEX = "alex@arcangel.test"; // entrenador de Alevín A
 const NORA = "nora@arcangel.test"; // entrenadora de Benjamín A, mismo club
@@ -52,9 +62,20 @@ function weekSection(page: Page) {
     .filter({ has: page.getByRole("heading", { level: 2, name: "Esta semana" }) });
 }
 
+/**
+ * ¿Empieza `slot` dentro de «Esta semana», vista en el instante `now`? La semana va de las
+ * 00:00 de ese día a las 00:00 de siete días después, en la zona del club.
+ */
+function startsThisWeek(slot: SlotIso, now: Date): boolean {
+  const weekStart = startOfLocalDay(now.toISOString(), TZ);
+  const weekEnd = addLocalDays(weekStart, 7, TZ);
+  const start = Date.parse(slot.startsAt);
+  return start >= Date.parse(weekStart) && start < Date.parse(weekEnd);
+}
+
 /** Entra y espera a que Inicio esté pintado: el saludo, con su nombre, es el único `<h1>`. */
 async function openHome(page: Page, email: string, club: string, firstName: string): Promise<void> {
-  await loginAs(page, email);
+  await openAs(page, email);
   await expect(page).toHaveURL(new RegExp(`${club}$`));
   await expect(page.getByRole("heading", { level: 1 })).toHaveCount(1);
   await expect(page.getByRole("heading", { level: 1 })).toHaveText(
@@ -63,7 +84,9 @@ async function openHome(page: Page, email: string, club: string, firstName: stri
 }
 
 test("el entrenador ve su próximo entrenamiento", async ({ page }) => {
-  const [next] = seedSchedule(new Date(), TZ).upcoming;
+  // Reloj de la siembra. El primer entrenamiento sembrado empieza después de sembrar y
+  // sigue siendo «el próximo» hasta que termina, aunque empiece durante la ejecución.
+  const [next] = seedSchedule(seedNow(), TZ).upcoming;
 
   await openHome(page, ALEX, CLUB, "Álex");
 
@@ -87,9 +110,12 @@ test("el entrenador ve su próximo entrenamiento", async ({ page }) => {
 });
 
 test("ve el próximo partido y su semana", async ({ page }) => {
-  const now = new Date();
-  const { game } = seedSchedule(now, TZ);
+  // Reloj de la siembra: el partido sembrado es el del sábado siguiente a la siembra, y el
+  // primer entrenamiento, el del siguiente martes o jueves. Los dos están por jugar.
+  const { game } = seedSchedule(seedNow(), TZ);
 
+  // Reloj del servidor: pinta Inicio en algún momento entre estos dos instantes.
+  const before = new Date();
   await openHome(page, ALEX, CLUB, "Álex");
 
   await expect(gameCard(page)).toHaveCount(1);
@@ -97,15 +123,16 @@ test("ve el próximo partido y su semana", async ({ page }) => {
 
   const week = weekSection(page);
   await expect(week).toBeVisible();
+  // El próximo entrenamiento es dentro de cinco días como mucho: siempre cae en la semana.
   await expect(week.getByRole("link").filter({ hasText: "Entrenamiento" }).first()).toBeVisible();
+  const after = new Date();
 
-  // «Esta semana» va de las 00:00 de hoy a las 00:00 de dentro de siete días, en la zona
-  // del club. El partido del seed es el sábado siguiente: sembrado un sábado después de las
-  // 10:30 cae fuera, y entonces solo sale en su card.
-  const weekStart = startOfLocalDay(now.toISOString(), TZ);
-  const weekEnd = addLocalDays(weekStart, 7, TZ);
-  const gameStart = Date.parse(game.startsAt);
-  if (gameStart >= Date.parse(weekStart) && gameStart < Date.parse(weekEnd)) {
+  // El partido no siempre: sembrado un sábado después de las 10:30, es el del sábado
+  // siguiente y queda fuera de «Esta semana»; entonces solo sale en su card. La semana se
+  // cuenta desde el «ahora» del servidor, así que la fila solo se exige si el partido cae
+  // dentro tanto con el reloj de antes de pintar como con el de después (solo difieren si
+  // la medianoche del club pasa justo en medio).
+  if (startsThisWeek(game, before) && startsThisWeek(game, after)) {
     const gameRow = week.getByRole("link").filter({ hasText: "Partido" }).first();
     await expect(gameRow).toBeVisible();
     await expect(gameRow).toContainText("Ribera");
@@ -115,22 +142,39 @@ test("ve el próximo partido y su semana", async ({ page }) => {
 test("la entrenadora de Benjamín A solo ve lo suyo", async ({ page }) => {
   // Review Focus 3: mismo club, otro equipo. Ni la plantilla, ni los eventos, ni los planes
   // de Alevín A llegan a su Inicio.
+  const alevinA = ARCANGEL.teams.find((team) => team.key === "alevin-a");
+  const [ownSession] = ARCANGEL.teams.find((team) => team.key === "benjamin-a")?.sessions ?? [];
+  if (!alevinA?.game || !ownSession) {
+    throw new Error("El seed ya no tiene a Alevín A con su partido y a Benjamín A con su sesión.");
+  }
+  expect(ownSession.title).toBe("Bote y control");
+  // Reloj de la siembra: las horas de su única sesión, tal como quedaron sembradas.
+  const ownSlot = ownSession.slot(seedSchedule(seedNow(), TZ), TZ);
+
   await openHome(page, NORA, CLUB, "Nora");
   // Carga completa del documento: así el HTML trae también los datos que Next manda al
   // navegador sin pintarlos, y se revisan los dos.
   await page.goto(CLUB);
-
   await expect(page.getByText("Benjamín A · Temporada 2026/27")).toBeVisible();
-  await expect(
-    practiceCard(page).getByRole("heading", { level: 2, name: "Bote y control" }),
-  ).toBeVisible();
+  const html = await page.content();
+  const painted = Date.now();
+
+  // Reloj del servidor. Su sesión es la hora anterior al próximo entrenamiento de Alevín A
+  // y puede estar ya empezada al sembrar: sale como «próximo entrenamiento» mientras no
+  // haya terminado. `painted` es posterior al momento en que el servidor pintó la pantalla:
+  // si ni siquiera entonces había terminado, tenía que estar. (Si la ejecución cruza justo
+  // el final de esa hora, esto no se exige; el aislamiento de abajo, siempre.)
+  if (painted < Date.parse(ownSlot.endsAt)) {
+    await expect(
+      practiceCard(page).getByRole("heading", { level: 2, name: "Bote y control" }),
+    ).toBeVisible();
+    expect(html).toContain("Bote y control");
+  }
   // Benjamín A no tiene partido: el de Alevín A no es suyo.
   await expect(gameCard(page)).toHaveCount(0);
 
   await expect(page.locator("body")).not.toContainText("Transición + rebote defensivo");
 
-  const alevinA = ARCANGEL.teams.find((team) => team.key === "alevin-a");
-  if (!alevinA?.game) throw new Error("El seed ya no tiene a Alevín A con su partido.");
   const foreign = [
     alevinA.name,
     alevinA.game.opponent,
@@ -140,8 +184,6 @@ test("la entrenadora de Benjamín A solo ve lo suyo", async ({ page }) => {
   ];
   expect(foreign).toContain("Transición + rebote defensivo");
 
-  const html = await page.content();
-  expect(html).toContain("Bote y control");
   for (const text of foreign) {
     expect(html, `«${text}» es de Alevín A y no debería llegar a Nora`).not.toContain(text);
   }
@@ -210,18 +252,13 @@ test("áreas táctiles de 44 px", async ({ page }) => {
   }
 });
 
-test("sin errores de consola", async ({ page }) => {
-  const errors: string[] = [];
-  page.on("console", (message) => {
-    if (message.type() === "error") {
-      errors.push(`console.error en ${page.url()}: ${message.text()}`);
-    }
-  });
-  page.on("pageerror", (error) => {
-    errors.push(`excepción en ${page.url()}: ${error.message}`);
-  });
+test("sin errores de consola", async ({ page, browserErrors }) => {
+  // La consola la vigila `helpers/test.ts` en TODOS los tests de los e2e: cualquiera falla
+  // con un `console.error` o una excepción del navegador (el acceso en /login y el selector
+  // sin clubes, en `auth.spec.ts`; el Inicio de cada persona, en este archivo). Este test
+  // añade el recorrido que ningún otro hace: todas las pestañas, la vuelta y una recarga.
 
-  // Acceso (/login), selector (/select-club, que con un solo club salta a él) e Inicio.
+  // La entrada (la raíz y el selector, que con un solo club salta a él) e Inicio.
   await openHome(page, MARTA, DEMO, "Marta");
   await expect(practiceCard(page)).toBeVisible();
 
@@ -250,5 +287,5 @@ test("sin errores de consola", async ({ page }) => {
   await page.reload();
   await expect(practiceCard(page)).toBeVisible();
 
-  expect(errors).toEqual([]);
+  expect(browserErrors.seen).toEqual([]);
 });

@@ -31,3 +31,6 @@ yarn-error.log*
 
 # vercel
 .vercel
+
+# sesiones guardadas de los e2e (una por usuario y por ejecución)
+e2e/.auth/

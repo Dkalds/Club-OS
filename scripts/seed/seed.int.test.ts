@@ -1,8 +1,9 @@
 // Integración contra Supabase local: `supabase start`, `.env.local` con las claves y
 // `pnpm test:int`. Escribe con la clave de servicio, así que RLS no interviene.
 //
-// El estado final de la base es el de un `pnpm seed` hecho ahora mismo: el job de e2e lo
-// usa justo después, y calcula lo esperado con `seedSchedule(new Date(), ...)`.
+// El estado final de la base es el de un `pnpm seed` hecho ahora mismo. Los e2e no dependen
+// de él: vuelven a sembrar al arrancar (`e2e/global-setup.ts`) y calculan lo esperado con
+// el instante de esa siembra.
 
 import { randomUUID } from "node:crypto";
 import { beforeAll, describe, expect, it } from "vitest";

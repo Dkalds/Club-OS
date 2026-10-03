@@ -1,5 +1,29 @@
 import { describe, expect, it } from "vitest";
-import { assertSeedTarget } from "./guard";
+import { assertSeedTarget, isLocalSupabaseUrl } from "./guard";
+
+describe("isLocalSupabaseUrl", () => {
+  it("reconoce el Supabase local por su host", () => {
+    for (const url of ["http://127.0.0.1:54321", "http://localhost:54321", "http://[::1]:54321"]) {
+      expect(isLocalSupabaseUrl(url), url).toBe(true);
+    }
+  });
+
+  it("un remoto, un host que solo parece local o una URL ilegible no son locales", () => {
+    for (const url of [
+      "https://abc.supabase.co",
+      "https://localhost.evil.test",
+      "https://127.0.0.1.evil.test",
+      "https://evil.test/localhost",
+      "https://user@evil.test",
+      "http://127.0.0.2:54321",
+      "http://0.0.0.0:54321",
+      "no-es-una-url",
+      "",
+    ]) {
+      expect(isLocalSupabaseUrl(url), url).toBe(false);
+    }
+  });
+});
 
 describe("assertSeedTarget", () => {
   it("acepta Supabase local", () => {

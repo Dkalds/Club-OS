@@ -8,24 +8,35 @@ cd "$(dirname "$0")/.."
 fail=0
 
 # check_absent <descripción> <opciones de grep...>
-# Falla si grep encuentra algo en src/ (tests incluidos).
+# Falla si grep encuentra algo en src/ (tests incluidos), y también si grep no ha podido
+# buscar: su estado 1 es «sin coincidencias» (pasa), 0 es «hay coincidencias» y 2 o más es
+# un error (src/ no existe o no se puede leer), que no puede contar como un pase.
 check_absent() {
   local label="$1"
   shift
-  local found
-  found="$(grep "$@" src/ || true)"
-  if [ -n "$found" ]; then
-    echo "FALLO: $label"
-    echo "$found"
-    echo
-    fail=1
+  local found status
+  found="$(grep "$@" src/)"
+  status=$?
+  if [ "$status" -eq 1 ]; then
+    return
   fi
+  if [ "$status" -eq 0 ]; then
+    echo "FALLO: $label"
+  else
+    echo "FALLO: $label: grep no pudo comprobarlo (estado $status)"
+  fi
+  if [ -n "$found" ]; then
+    echo "$found"
+  fi
+  echo
+  fail=1
 }
 
-# Regla 3: nada de un club escrito en src/. Alternancia explícita (no [aá]) para
-# que funcione igual con cualquier locale.
-check_absent "src/ menciona a un club (Arcángel / c9a45c)" \
-  -rniE 'arc(a|á|Á)ngel|c9a45c'
+# Regla 3: nada de un club escrito en src/. Los dos clubes del seed: nombre, slug y color
+# de acento, sin distinguir mayúsculas. Alternancia explícita (no [aá]) para que funcione
+# igual con cualquier locale.
+check_absent "src/ menciona a un club (Arcángel / c9a45c / Club Demo / 3fb8af)" \
+  -rniE 'arc(a|á|Á)ngel|c9a45c|club[ _-]?demo|3fb8af'
 
 # Regla 2: la clave de servicio nunca entra en src/.
 check_absent "src/ menciona SERVICE_ROLE" -rn 'SERVICE_ROLE'
