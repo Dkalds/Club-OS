@@ -2,15 +2,15 @@ import { mkdir, rm } from "node:fs/promises";
 import { chromium, type FullConfig } from "@playwright/test";
 import { readSupabaseEnv } from "../scripts/lib/admin-client";
 import { isLocalSupabaseUrl } from "../scripts/seed/guard";
-import { runSeed } from "../scripts/seed/run";
 import { loginAs } from "./helpers/auth";
-import { SEED_NOW_ENV } from "./helpers/seed";
+import { restoreSeed, SEED_NOW_ENV } from "./helpers/seed";
 import { SESSION_DIR, SESSION_USERS, sessionFile } from "./helpers/sessions";
 
 /**
  * Arranque global de los e2e. Con un Supabase LOCAL hace tres cosas, en este orden:
  *
- * 1. Vuelve a sembrar la base de datos justo antes de los tests.
+ * 1. Deja la base de datos como la deja el seed, justo antes de los tests: borra lo que una
+ *    ejecución anterior abortada pudo dejar en la metodología (`restoreSeed`) y vuelve a sembrar.
  * 2. Les deja el instante de esa siembra (`seedNow()` en `helpers/seed.ts`).
  * 3. Entra una vez como cada usuario de `SESSION_USERS` y guarda su sesión, para que los
  *    tests la reutilicen (`openAs` en `helpers/sessions.ts`) en vez de entrar cada uno.
@@ -20,6 +20,11 @@ import { SESSION_DIR, SESSION_USERS, sessionFile } from "./helpers/sessions";
  * entrenamiento» ya terminó, el partido ya se jugó, y los tests de Inicio fallan sin que
  * nada esté roto. Sembrando aquí, lo que hay en la base de datos es siempre de esta misma
  * ejecución. Es el mismo seed de `pnpm seed`: idempotente (actualiza por id, no duplica).
+ *
+ * Por qué borrar antes: el seed solo actualiza lo suyo. Una ejecución abortada de `admin`
+ * (que crea una sección y un Standard) o de `way` (que crea borradores) dejaría esas filas, y
+ * `mobile`, que corre primero y espera exactamente las del seed, fallaría; `admin`, cuya
+ * dependencia ha fallado, no correría y no las limpiaría nunca. Así la suite se recupera sola.
  *
  * Con un Supabase que NO es local (los e2e contra una preview) no siembra ni entra por
  * nadie, diga lo que diga `ALLOW_REMOTE_SEED`: lanzar unos tests nunca escribe en una base
@@ -57,7 +62,7 @@ export default async function globalSetup(config: FullConfig): Promise<void> {
 
   const seededAt = new Date();
   try {
-    await runSeed(seededAt);
+    await restoreSeed(seededAt);
   } catch (error) {
     throw setupFailure("No se pudieron sembrar los datos de los e2e.", error);
   }

@@ -1,3 +1,10 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Database } from "@/lib/database.types";
+import { createAdminClient, readSupabaseEnv } from "../../scripts/lib/admin-client";
+import { buildSeedData } from "../../scripts/seed/data";
+import { isLocalSupabaseUrl } from "../../scripts/seed/guard";
+import { runSeed } from "../../scripts/seed/run";
+
 /**
  * Variable de entorno con la que `e2e/global-setup.ts` pasa a los tests el instante con el
  * que acaba de sembrar la base de datos. Los workers de Playwright arrancan después del
@@ -31,4 +38,68 @@ export function seedNow(): Date {
     );
   }
   return at;
+}
+
+/**
+ * Las cinco tablas de la metodología del club. Son las únicas que los e2e de escritura
+ * (Gestión) y los borradores de los de lectura (The Way) pueden dejar con filas que el seed
+ * no conoce. Cada fase que añade tablas que sus e2e escriben, la suma aquí.
+ */
+const WRITABLE_TABLES = [
+  "principle_points",
+  "game_principles",
+  "club_values",
+  "standards",
+  "way_sections",
+] as const;
+
+/**
+ * Deja la metodología de los clubes del seed exactamente como la deja `runSeed(now)`: borra,
+ * en las cinco tablas de `WRITABLE_TABLES` y en los clubes del seed, toda fila cuyo id no sea
+ * de `buildSeedData(now)`, y después siembra, que devuelve a lo suyo lo que el seed sí posee
+ * (texto, estado, orden, número) y quita los puntos que sobren de sus principios.
+ *
+ * Es lo que hace que la suite se recupere sola de una ejecución abortada: lo que esta dejó a
+ * medias (una sección, un Standard o un borrador de un spec) no vale como dato de la
+ * siguiente, y quien lo ve falla sin que el fallo señale a la causa. Sin listas de slugs ni
+ * de números escritas a mano: lo que no es del seed no sobrevive, se llame como se llame.
+ *
+ * Borra contenido, así que:
+ *  - Solo corre con un Supabase local, diga lo que diga `ALLOW_REMOTE_SEED`. Con otro lanza,
+ *    sin borrar nada. (Los specs que la llaman ya se saltan sus tests en ese caso.)
+ *  - Solo toca los clubes del seed y solo esas tablas.
+ *  - NO está dentro de `runSeed`: `pnpm seed` con `ALLOW_REMOTE_SEED=true` borraría el
+ *    contenido real de un entorno de demo.
+ *
+ * `now` es el instante de la siembra (`seedNow()` en los specs, el del arranque global en él).
+ */
+export async function restoreSeed(now: Date, client?: SupabaseClient<Database>): Promise<void> {
+  if (!isLocalSupabaseUrl(readSupabaseEnv().url)) {
+    throw new Error(
+      "restoreSeed borra contenido de la metodología: solo se ejecuta contra un Supabase local.",
+    );
+  }
+
+  const db = client ?? createAdminClient();
+  const data = buildSeedData(now);
+  const organizationIds = data.organizations.map((organization) => organization.id);
+  const seedIds = {
+    principle_points: data.principle_points.map((row) => row.id),
+    game_principles: data.game_principles.map((row) => row.id),
+    club_values: data.club_values.map((row) => row.id),
+    standards: data.standards.map((row) => row.id),
+    way_sections: data.way_sections.map((row) => row.id),
+  } satisfies Record<(typeof WRITABLE_TABLES)[number], string[]>;
+
+  for (const table of WRITABLE_TABLES) {
+    const keep = seedIds[table];
+    let strays = db.from(table).delete().in("organization_id", organizationIds);
+    if (keep.length > 0) strays = strays.not("id", "in", `(${keep.join(",")})`);
+    const { error } = await strays;
+    if (error) {
+      throw new Error(`No se pudieron borrar las filas de ${table} que no son del seed: ${error.message}`);
+    }
+  }
+
+  await runSeed(now, db);
 }

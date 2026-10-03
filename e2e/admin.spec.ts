@@ -3,8 +3,7 @@ import { createAdminClient, readSupabaseEnv } from "../scripts/lib/admin-client"
 import { ARCANGEL } from "../scripts/seed/data";
 import { isLocalSupabaseUrl } from "../scripts/seed/guard";
 import { seedId } from "../scripts/seed/ids";
-import { runSeed } from "../scripts/seed/run";
-import { seedNow } from "./helpers/seed";
+import { restoreSeed, seedNow } from "./helpers/seed";
 import { openAs } from "./helpers/sessions";
 import { expect, test } from "./helpers/test";
 
@@ -18,13 +17,13 @@ import { expect, test } from "./helpers/test";
 // Los tests de Gestión escriben. Los de The Way crean la sección «Plan de temporada» y la
 // reordenan, lo que renumera las del seed; los de valores, principios y Standards editan lo
 // del seed (la descripción de «RESPECT», el estado de «EFFORT», un punto más en «Defensa») y
-// crean el Standard 6. `restoreSeed` deja la base de datos como la dejó el arranque global:
-// borra lo que el seed no conoce (esa sección y ese Standard) y vuelve a sembrar, que devuelve
-// su texto, su estado, su orden y su número a lo que el seed sí posee y quita los puntos que
-// sobran de sus principios. Corre al empezar (una ejecución anterior matada a medias no puede
-// dejar una sección que estorbe: la nueva se llamaría `plan-de-temporada-2`) y al acabar. Los
-// dos toleran que lo borrado ya no esté. Con un Supabase que no es local nada se escribe: los
-// tests que escriben se saltan, como en `way.spec.ts`.
+// crean el Standard 6. `restoreSeed` (`helpers/seed.ts`) deja la base de datos como la dejó el
+// arranque global: borra todo lo de la metodología que el seed no conoce (esa sección, ese
+// Standard y lo que deje cualquier otro spec) y vuelve a sembrar, que devuelve su texto, su
+// estado, su orden y su número a lo que el seed sí posee y quita los puntos que sobran de sus
+// principios. Corre al empezar (una ejecución anterior matada a medias no puede dejar una
+// sección que estorbe: la nueva se llamaría `plan-de-temporada-2`) y al acabar. Con un Supabase
+// que no es local nada se escribe: los tests que escriben se saltan, como en `way.spec.ts`.
 test.describe.configure({ mode: "serial" });
 
 const ALEX = "alex@arcangel.test"; // entrenador de Arcángel
@@ -65,39 +64,14 @@ function targetIsLocal(): boolean {
 
 const CAN_WRITE = targetIsLocal();
 
-async function restoreSeed(): Promise<void> {
+// Mismo instante que el arranque global: la base de datos queda como la dejó él.
+async function restore(): Promise<void> {
   if (!CAN_WRITE) return;
-
-  const db = createAdminClient();
-
-  // Borrar no falla si la sección ya no está. Solo las de Arcángel: nunca las de otro club.
-  const removed = await db
-    .from("way_sections")
-    .delete()
-    .eq("organization_id", ORGANIZATION_ID)
-    .like("slug", `${SECTION_SLUG}%`);
-  if (removed.error) {
-    throw new Error(`No se pudo borrar la sección de prueba: ${removed.error.message}`);
-  }
-
-  // Lo mismo con el Standard 6, que el seed (del 1 al 5) no posee y por tanto no quitaría.
-  const standard = await db
-    .from("standards")
-    .delete()
-    .eq("organization_id", ORGANIZATION_ID)
-    .eq("number", NEW_STANDARD.number);
-  if (standard.error) {
-    throw new Error(`No se pudo borrar el Standard de prueba: ${standard.error.message}`);
-  }
-
-  // Mismo instante que el arranque global: la base de datos queda como la dejó él. El seed
-  // devuelve la descripción de «RESPECT», el estado de «EFFORT» y el orden de las listas, y
-  // borra el punto que los tests añaden a «Defensa».
-  await runSeed(seedNow());
+  await restoreSeed(seedNow());
 }
 
-test.beforeAll(restoreSeed);
-test.afterAll(restoreSeed);
+test.beforeAll(restore);
+test.afterAll(restore);
 
 /** El botón de la cabecera que abre el menú de cuenta: el avatar de quien ha entrado. */
 function accountButton(page: Page) {
