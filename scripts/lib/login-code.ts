@@ -50,20 +50,32 @@ export async function findAuthUser(
 }
 
 /**
+ * Falla si `email` no es un usuario ya creado. Solo mira: no pide ningún código ni escribe.
+ * `loginAs` la llama antes de tocar la página, para que en un entorno sin sembrar el error
+ * llegue antes de que la app gaste una petición de código (Auth las limita).
+ */
+export async function assertAuthUserExists(
+  email: string,
+  client: AuthAdminClient = createAdminClient(),
+): Promise<void> {
+  if (await findAuthUser(email, client)) return;
+  throw new Error(
+    `No existe ningún usuario ${email} en el Supabase de los e2e (NEXT_PUBLIC_SUPABASE_URL). ` +
+      "Los e2e nunca crean cuentas: siembra primero ese entorno con `pnpm seed` (en un " +
+      "remoto, a mano, con ALLOW_REMOTE_SEED=true y solo si es un entorno de demo).",
+  );
+}
+
+/**
  * Un código de 6 dígitos para entrar como `email`, que tiene que ser un usuario ya creado.
- * Si no existe, falla sin llamar a `generateLink` (que lo crearía).
+ * Si no existe, falla sin llamar a `generateLink` (que lo crearía). Esta comprobación es la
+ * que protege: se hace aquí, junto a `generateLink`, aunque quien llame ya haya comprobado.
  */
 export async function generateLoginCode(
   email: string,
   client: AuthAdminClient = createAdminClient(),
 ): Promise<string> {
-  if (!(await findAuthUser(email, client))) {
-    throw new Error(
-      `No existe ningún usuario ${email} en el Supabase de los e2e (NEXT_PUBLIC_SUPABASE_URL). ` +
-        "Los e2e nunca crean cuentas: siembra primero ese entorno con `pnpm seed` (en un " +
-        "remoto, a mano, con ALLOW_REMOTE_SEED=true y solo si es un entorno de demo).",
-    );
-  }
+  await assertAuthUserExists(email, client);
 
   const { data, error } = await client.auth.admin.generateLink({ type: "magiclink", email });
   const code = data?.properties?.email_otp;

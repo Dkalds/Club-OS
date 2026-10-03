@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { findAuthUser, generateLoginCode } from "./login-code";
+import { assertAuthUserExists, findAuthUser, generateLoginCode } from "./login-code";
 
 // Un cliente de Auth falso que solo registra llamadas. No sustituye a `login-code.int.test.ts`,
 // que prueba lo mismo contra el Auth local de verdad: aquí se comprueba el orden (nunca se
@@ -102,6 +102,33 @@ describe("findAuthUser", () => {
 
     return expect(findAuthUser("alex@arcangel.test", client)).rejects.toThrow(
       /No se pudo leer la lista de usuarios: sin acceso/,
+    );
+  });
+});
+
+describe("assertAuthUserExists", () => {
+  it("con el usuario creado, no dice nada", async () => {
+    const { client, links } = fakeClient({ users: [{ email: "alex@arcangel.test" }] });
+
+    await expect(assertAuthUserExists("alex@arcangel.test", client)).resolves.toBeUndefined();
+    // Solo mira: nunca pide un código.
+    expect(links).toEqual([]);
+  });
+
+  it("sin el usuario, falla con el aviso de sembrar ese entorno", async () => {
+    const { client, links } = fakeClient({ users: [{ email: "otra@clubos.test" }] });
+
+    await expect(assertAuthUserExists("nadie@clubos.test", client)).rejects.toThrow(
+      /No existe ningún usuario nadie@clubos\.test[\s\S]*pnpm seed/,
+    );
+    expect(links).toEqual([]);
+  });
+
+  it("si Auth falla al mirar, lo dice en vez de dar al usuario por existente", async () => {
+    const { client } = fakeClient({ failList: true });
+
+    await expect(assertAuthUserExists("alex@arcangel.test", client)).rejects.toThrow(
+      /No se pudo leer la lista de usuarios/,
     );
   });
 });

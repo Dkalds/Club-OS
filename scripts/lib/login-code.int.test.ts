@@ -4,6 +4,11 @@
 //
 // Crea y borra sus propios usuarios (emails únicos), así que no depende del seed. Con un
 // Supabase que no es local se salta entera: no escribe nunca en un remoto.
+//
+// Los usuarios de prueba van en un dominio que no acaba en `.test`: `seed.int.test.ts` cuenta
+// los usuarios `.test` de Auth y espera exactamente los 6 del seed, y Vitest ejecuta los dos
+// ficheros a la vez. Ese es el único sitio de `seed.int.test.ts` que cuenta usuarios; los
+// demás buscan a uno por su email exacto.
 
 import { randomUUID } from "node:crypto";
 import { afterAll, describe, expect, it } from "vitest";
@@ -12,6 +17,9 @@ import { createAdminClient, readSupabaseEnv } from "./admin-client";
 import { findAuthUser, generateLoginCode } from "./login-code";
 
 const { url } = readSupabaseEnv();
+
+/** `.invalid` está reservado (RFC 2606): no existe y no recibe correo. No acaba en `.test`. */
+const THROWAWAY_DOMAIN = "login-code.invalid";
 
 describe.skipIf(!isLocalSupabaseUrl(url))("generateLoginCode contra Auth local", () => {
   const admin = createAdminClient();
@@ -27,7 +35,7 @@ describe.skipIf(!isLocalSupabaseUrl(url))("generateLoginCode contra Auth local",
   });
 
   it("con una cuenta que no existe, falla y no la crea", async () => {
-    const email = `no-existe-${randomUUID()}@clubos.test`;
+    const email = `no-existe-${randomUUID()}@${THROWAWAY_DOMAIN}`;
     emails.push(email);
 
     await expect(generateLoginCode(email)).rejects.toThrow(/No existe ningún usuario/);
@@ -37,7 +45,7 @@ describe.skipIf(!isLocalSupabaseUrl(url))("generateLoginCode contra Auth local",
   });
 
   it("con una cuenta que existe, devuelve un código de 6 dígitos", async () => {
-    const email = `existe-${randomUUID()}@clubos.test`;
+    const email = `existe-${randomUUID()}@${THROWAWAY_DOMAIN}`;
     emails.push(email);
     const { error } = await admin.auth.admin.createUser({ email, email_confirm: true });
     expect(error).toBeNull();

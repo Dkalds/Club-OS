@@ -28,8 +28,9 @@ import { SESSION_DIR, SESSION_USERS, sessionFile } from "./helpers/sessions";
  * ningún test.
  *
  * Con un Supabase que NO es local (los e2e contra una preview) no siembra ni entra por
- * nadie, diga lo que diga `ALLOW_REMOTE_SEED`: lanzar unos tests nunca escribe en una base
- * de datos remota. Entonces:
+ * nadie, diga lo que diga `ALLOW_REMOTE_SEED`: lanzar unos tests nunca siembra ni crea
+ * usuarios en una base de datos remota (sí reescribe el código de acceso de los usuarios que
+ * ya existen, y abre sesiones, como haría quien entra). Entonces:
  *  - Los datos tienen que estar ya sembrados en el destino (`pnpm seed`, a mano y a
  *    propósito, con `ALLOW_REMOTE_SEED=true`).
  *  - El instante de la siembra es el que traiga `E2E_SEED_NOW` (una fecha ISO: cuándo se

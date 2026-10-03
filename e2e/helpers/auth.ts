@@ -2,7 +2,7 @@ import { mkdir, rm, stat } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { expect, type Page } from "@playwright/test";
-import { findAuthUser, generateLoginCode } from "../../scripts/lib/login-code";
+import { assertAuthUserExists, findAuthUser, generateLoginCode } from "../../scripts/lib/login-code";
 
 const INVALID_CODE = "El código no es válido o ha caducado. Pide uno nuevo.";
 /** Con el candado, solo la petición de la propia app puede pisar un código: sobra con 3. */
@@ -15,9 +15,11 @@ const CLOCK_SLACK_MS = 1_000;
  * escribe el email, pide el código y lo teclea. El código no se lee de ningún buzón:
  * se genera con la API de administración (`generateLink` → `email_otp`).
  *
- * El usuario tiene que existir ya: `generateLink` crearía la cuenta si no existiera, así
- * que `generateLoginCode` (`scripts/lib/login-code.ts`) lo comprueba antes y, si falta,
- * falla pidiendo sembrar ese entorno. Ningún e2e crea usuarios.
+ * El usuario tiene que existir ya: `generateLink` crearía la cuenta si no existiera. Se
+ * comprueba lo primero, antes de tocar la página (así, en un entorno sin sembrar, la app no
+ * llega a gastar una petición de código), y otra vez dentro de `generateLoginCode`
+ * (`scripts/lib/login-code.ts`), junto a `generateLink`. Si falta, falla pidiendo sembrar
+ * ese entorno. Ningún e2e crea usuarios.
  *
  * Al volver, la página ya está en su destino: /c/{slug} si la cuenta tiene un solo club,
  * o el selector (/select-club) si tiene varios o ninguno.
@@ -28,6 +30,8 @@ const CLOCK_SLACK_MS = 1_000;
  * acceso en sí.
  */
 export async function loginAs(page: Page, email: string): Promise<void> {
+  await assertAuthUserExists(email);
+
   // Con sesión, /login redirige al selector y el formulario no llegaría a verse.
   await page.context().clearCookies();
 

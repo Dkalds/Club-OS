@@ -12,10 +12,16 @@ const BYPASS_HEADER = "x-vercel-protection-bypass";
 
 type Env = Record<string, string | undefined>;
 
-/** Lo que `playwright.config.ts` pone en `use`. */
+/**
+ * Lo que `playwright.config.ts` pone en `use`. Sin `extraHTTPHeaders`, a propósito: esa opción
+ * envía sus cabeceras a TODOS los orígenes que pide la página (también a los saltos de una
+ * redirección a otro dominio), y el secreto del bypass no puede ir a ninguno que no sea la app.
+ */
 export type E2eUse = Pick<PlaywrightTestOptions, "baseURL"> &
-  Partial<Pick<PlaywrightTestOptions, "extraHTTPHeaders">> &
   Partial<Pick<PlaywrightWorkerOptions, "trace" | "video">>;
+
+/** Qué cabecera con qué secreto, y SOLO para las peticiones a qué origen. */
+export type E2eBypass = { origin: string; header: string; secret: string };
 
 export type E2eTarget = {
   baseURL: string;
@@ -24,6 +30,12 @@ export type E2eTarget = {
   /** Playwright construye y arranca la app solo si nadie ha dicho dónde está ya. */
   startServer: boolean;
   use: E2eUse;
+  /**
+   * El secreto de la protección de despliegues, si hay que enviarlo: solo con una app remota
+   * y con `VERCEL_AUTOMATION_BYPASS_SECRET` puesto. Con una app local es siempre `null`,
+   * aunque la variable esté en la shell. Lo aplica el fixture de `e2e/helpers/test.ts`.
+   */
+  bypass: E2eBypass | null;
 };
 
 /** Una variable de entorno sin valor y una en blanco son lo mismo: no puesta. */
@@ -39,8 +51,9 @@ function readVar(env: Env, name: string): string | null {
  *    guarda traza ni vídeo: una traza lleva la cookie de sesión de esa ejecución y no debe
  *    acabar en un artefacto. Con un host local todo queda como siempre.
  *
- * `VERCEL_AUTOMATION_BYPASS_SECRET`, si está puesto, viaja como cabecera para atravesar la
- * protección de una preview. Su valor no se escribe en ningún mensaje ni log.
+ * `VERCEL_AUTOMATION_BYPASS_SECRET`, si está puesto y la app es remota, queda en `bypass`
+ * para atravesar la protección de una preview, solo hacia el origen de `BASE_URL`. Su valor
+ * no se escribe en ningún mensaje ni log.
  */
 export function readE2eTarget(env: Env): E2eTarget {
   const configured = readVar(env, "BASE_URL");
@@ -63,15 +76,49 @@ export function readE2eTarget(env: Env): E2eTarget {
   // Mismo criterio de host que para el Supabase local: localhost, 127.0.0.1 o [::1].
   const remote = configured !== null && !isLocalSupabaseUrl(configured);
 
-  const bypass = readVar(env, "VERCEL_AUTOMATION_BYPASS_SECRET");
   const use: E2eUse = {
     baseURL,
     trace: remote ? "off" : "retain-on-failure",
     ...(remote ? { video: "off" as const } : {}),
-    ...(bypass ? { extraHTTPHeaders: { [BYPASS_HEADER]: bypass } } : {}),
   };
 
-  return { baseURL, remote, startServer: configured === null, use };
+  const secret = readVar(env, "VERCEL_AUTOMATION_BYPASS_SECRET");
+  const bypass: E2eBypass | null =
+    remote && secret
+      ? { origin: new URL(baseURL).origin, header: BYPASS_HEADER, secret }
+      : null;
+
+  return { baseURL, remote, startServer: configured === null, use, bypass };
+}
+
+/** Lo que usa `bypassHandler` de una ruta de Playwright (`Route` lo cumple). */
+type RouteLike = {
+  request(): { headers(): Record<string, string> };
+  fallback(overrides: { headers: Record<string, string> }): Promise<void>;
+};
+
+/**
+ * El manejador de ruta que añade el secreto a una petición. Se registra solo para el origen
+ * de `bypass.origin` (ver el fixture `protectionBypass` de `e2e/helpers/test.ts`): ninguna
+ * petición a otro origen lo lleva (scripts de terceros, analítica, CDN).
+ *
+ * - `fallback` y no `continue`: la petición sigue su camino y otras rutas del test se aplican
+ *   también. Una ruta de un test que se registre con `page.route` va antes que esta y tiene
+ *   que terminar con `route.fallback()`, no con `route.continue()`, para que el secreto llegue.
+ * - Las cabeceras se reenvían enteras: al cambiarlas, Playwright sustituye el conjunto
+ *   completo. `headers()` no incluye las cookies; las añade el navegador después.
+ * - Redirecciones, comprobado con Chromium: Playwright solo pasa por la ruta la primera
+ *   petición, y las cabeceras cambiadas siguen a la petición en sus redirecciones, también
+ *   a otro dominio (la documentación de Playwright dice lo contrario). Las redirecciones al
+ *   propio origen (/ → /select-club → /c/club) lo necesitan: cada salto es una petición a la
+ *   preview y la protección la comprueba. A cambio, si el secreto es incorrecto y la protección
+ *   redirige a otro dominio, esa petición lo lleva también. Con un secreto válido no debería haberla.
+ */
+export function bypassHandler(bypass: E2eBypass): (route: RouteLike) => Promise<void> {
+  return (route) =>
+    route.fallback({
+      headers: { ...route.request().headers(), [bypass.header]: bypass.secret },
+    });
 }
 
 /**

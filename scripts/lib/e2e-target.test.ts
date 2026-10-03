@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { checkRunnerSupabase, readE2eTarget } from "./e2e-target";
+import { bypassHandler, checkRunnerSupabase, readE2eTarget } from "./e2e-target";
 
 const REMOTE_APP = "https://club-os-phi.vercel.app";
 const REMOTE_SUPABASE = "https://abc.supabase.co";
@@ -68,29 +68,72 @@ describe("readE2eTarget", () => {
     }
   });
 
-  describe("cabecera de la protección de despliegues de Vercel", () => {
-    it("sin VERCEL_AUTOMATION_BYPASS_SECRET no se envía ninguna cabecera", () => {
-      for (const env of [{}, { BASE_URL: REMOTE_APP }]) {
-        expect(readE2eTarget(env).use).not.toHaveProperty("extraHTTPHeaders");
+  describe("secreto de la protección de despliegues de Vercel", () => {
+    const SECRET = "el-secreto";
+
+    it("sin VERCEL_AUTOMATION_BYPASS_SECRET no hay nada que enviar", () => {
+      for (const env of [{}, { BASE_URL: REMOTE_APP }, { BASE_URL: "http://localhost:3000" }]) {
+        expect(readE2eTarget(env).bypass, JSON.stringify(env)).toBeNull();
       }
     });
 
     it("un secreto vacío o en blanco cuenta como no puesto", () => {
       for (const secret of ["", "  "]) {
-        const { use } = readE2eTarget({ BASE_URL: REMOTE_APP, VERCEL_AUTOMATION_BYPASS_SECRET: secret });
-        expect(use, JSON.stringify(secret)).not.toHaveProperty("extraHTTPHeaders");
+        const target = readE2eTarget({ BASE_URL: REMOTE_APP, VERCEL_AUTOMATION_BYPASS_SECRET: secret });
+        expect(target.bypass, JSON.stringify(secret)).toBeNull();
       }
     });
 
-    it("con el secreto puesto se envía como x-vercel-protection-bypass", () => {
-      const { use } = readE2eTarget({
+    it("con una app remota, se envía como x-vercel-protection-bypass solo a su origen", () => {
+      const target = readE2eTarget({
         BASE_URL: REMOTE_APP,
-        VERCEL_AUTOMATION_BYPASS_SECRET: "  el-secreto  ",
+        VERCEL_AUTOMATION_BYPASS_SECRET: `  ${SECRET}  `,
       });
 
-      expect(use.extraHTTPHeaders).toEqual({ "x-vercel-protection-bypass": "el-secreto" });
-      // Lo demás no cambia por llevar cabecera.
-      expect(use).toMatchObject({ baseURL: REMOTE_APP, trace: "off", video: "off" });
+      expect(target.bypass).toEqual({
+        origin: REMOTE_APP,
+        header: "x-vercel-protection-bypass",
+        secret: SECRET,
+      });
+    });
+
+    it("el origen es solo esquema, host y puerto: sin ruta ni consulta", () => {
+      const target = readE2eTarget({
+        BASE_URL: "https://preview.example.test:8443/app/?x=1",
+        VERCEL_AUTOMATION_BYPASS_SECRET: SECRET,
+      });
+
+      expect(target.bypass?.origin).toBe("https://preview.example.test:8443");
+    });
+
+    it("nunca viaja como cabecera global del contexto (extraHTTPHeaders): iría a todos los orígenes", () => {
+      const target = readE2eTarget({ BASE_URL: REMOTE_APP, VERCEL_AUTOMATION_BYPASS_SECRET: SECRET });
+
+      expect(target.use).not.toHaveProperty("extraHTTPHeaders");
+      expect(target.use).toEqual({ baseURL: REMOTE_APP, trace: "off", video: "off" });
+    });
+
+    it("con una app local no se envía a nadie, aunque la variable esté puesta", () => {
+      for (const env of [
+        {},
+        { BASE_URL: "http://localhost:4000" },
+        { BASE_URL: "http://127.0.0.1:3000" },
+        { BASE_URL: "http://[::1]:3000" },
+      ]) {
+        const target = readE2eTarget({ ...env, VERCEL_AUTOMATION_BYPASS_SECRET: SECRET });
+
+        expect(target.bypass, JSON.stringify(env)).toBeNull();
+        expect(target.use, JSON.stringify(env)).not.toHaveProperty("extraHTTPHeaders");
+      }
+    });
+
+    it("un host que solo parece local es remoto y recibe el secreto en su propio origen", () => {
+      const target = readE2eTarget({
+        BASE_URL: "https://localhost.evil.test",
+        VERCEL_AUTOMATION_BYPASS_SECRET: SECRET,
+      });
+
+      expect(target.bypass?.origin).toBe("https://localhost.evil.test");
     });
 
     it("el secreto no se cuela en ningún error", () => {
@@ -107,6 +150,62 @@ describe("readE2eTarget", () => {
       const target = readE2eTarget({ BASE_URL: REMOTE_APP, VERCEL_AUTOMATION_BYPASS_SECRET: secret });
       expect(checkRunnerSupabase(target, LOCAL_SUPABASE)).not.toContain(secret);
     });
+  });
+});
+
+describe("bypassHandler", () => {
+  const bypass = {
+    origin: REMOTE_APP,
+    header: "x-vercel-protection-bypass",
+    secret: "el-secreto",
+  };
+
+  function fakeRoute(headers: Record<string, string>) {
+    const calls: { headers: Record<string, string> }[] = [];
+    const route = {
+      request: () => ({ headers: () => headers }),
+      fallback: (overrides: { headers: Record<string, string> }) => {
+        calls.push(overrides);
+        return Promise.resolve();
+      },
+    };
+    return { route, calls };
+  }
+
+  it("añade la cabecera y conserva las de la petición", async () => {
+    const { route, calls } = fakeRoute({ accept: "text/html", "content-type": "text/plain" });
+
+    await bypassHandler(bypass)(route);
+
+    expect(calls).toEqual([
+      {
+        headers: {
+          accept: "text/html",
+          "content-type": "text/plain",
+          "x-vercel-protection-bypass": "el-secreto",
+        },
+      },
+    ]);
+  });
+
+  it("pisa un secreto viejo que la petición ya trajera", async () => {
+    const { route, calls } = fakeRoute({ "x-vercel-protection-bypass": "viejo", accept: "*/*" });
+
+    await bypassHandler(bypass)(route);
+
+    expect(calls[0].headers).toEqual({
+      accept: "*/*",
+      "x-vercel-protection-bypass": "el-secreto",
+    });
+  });
+
+  it("deja pasar la petición con fallback, no con continue: otras rutas del test siguen aplicándose", async () => {
+    const { route, calls } = fakeRoute({});
+    const withContinue = { ...route, continue: () => Promise.reject(new Error("no debe usarse")) };
+
+    await bypassHandler(bypass)(withContinue);
+
+    expect(calls).toHaveLength(1);
   });
 });
 
