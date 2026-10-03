@@ -487,7 +487,15 @@ isOneToOne: false
             [_ in never]: never
           }
           Functions: {
-            [_ in never]: never
+            "reorder_methodology":
+{ Args: { "p_ids": (string)[],"p_kind": string,"p_org": string }; Returns: undefined
+                           },
+"save_game_principle":
+{ Args: { "p_id": string,"p_points": (string)[],"p_summary": string,"p_title": string }; Returns: undefined
+                           },
+"update_way_section":
+{ Args: { "p_body_md": string,"p_content_kind": string,"p_expected_updated_at": string,"p_id": string,"p_summary": string,"p_title": string }; Returns: string
+                           }
           }
           Enums: {
             "content_status": "draft"|"published","event_kind": "practice"|"game","event_status": "scheduled"|"done"|"cancelled","org_role": "admin"|"coach"|"player"|"guardian","staff_role": "head_coach"|"assistant"
