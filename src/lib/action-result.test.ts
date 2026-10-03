@@ -72,7 +72,7 @@ describe("fromDbError", () => {
   // Las fases siguientes amplían `ActionError`: el traductor tiene que seguir a la copia
   // de textos sin tocarse. Se recorre la propia tabla en vez de una lista escrita aquí.
   it.each(Object.keys(ACTION_ERROR_COPY) as ActionError[])(
-    "P0001 con el mensaje %s devuelve %s",
+    "P0001 con el mensaje %s devuelve ese mismo error",
     (error) => {
       expect(fromDbError({ code: "P0001", message: error })).toStrictEqual({ ok: false, error });
     },
