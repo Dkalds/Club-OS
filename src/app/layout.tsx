@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Barlow, Barlow_Condensed } from "next/font/google";
 import "./globals.css";
 
@@ -21,6 +21,14 @@ const barlowCondensed = Barlow_Condensed({
 export const metadata: Metadata = {
   title: "CLUB OS",
   description: "Plataforma para clubes de baloncesto de formación.",
+};
+
+// `viewport-fit=cover`: sin él, `env(safe-area-inset-*)` vale siempre 0 y la navegación
+// inferior quedaría debajo de la barra de gestos del teléfono.
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

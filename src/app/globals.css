@@ -47,3 +47,25 @@
   --font-display: var(--font-barlow-condensed), "Arial Narrow", sans-serif;
   --font-text: var(--font-barlow), system-ui, -apple-system, "Segoe UI", sans-serif;
 }
+
+/*
+ * TopNavigation: sin borde en reposo; al desplazar la página aparece una línea `line`
+ * debajo (design/components/TopNavigation). Va atada al scroll del documento, sin
+ * JavaScript. Donde el navegador no tiene `animation-timeline`, la cabecera se queda
+ * sin línea.
+ */
+@utility top-nav-line {
+  border-bottom: 1px solid transparent;
+
+  @supports (animation-timeline: scroll()) {
+    animation: top-nav-line linear both;
+    animation-timeline: scroll(root block);
+    animation-range: 0px 8px;
+  }
+}
+
+@keyframes top-nav-line {
+  to {
+    border-bottom-color: var(--line);
+  }
+}
