@@ -30,6 +30,20 @@ check_absent "src/ menciona a un club (Arcángel / c9a45c)" \
 # Regla 2: la clave de servicio nunca entra en src/.
 check_absent "src/ menciona SERVICE_ROLE" -rn 'SERVICE_ROLE'
 
+# Gestión: cada página de /admin pide `requireAdmin(` ella misma. Un layout no protege a sus
+# páginas (Next puede pintar una página sin volver a ejecutar su layout), así que la
+# comprobación del layout no basta. La ruta lleva corchetes y paréntesis: va entre comillas.
+admin_dir='src/app/c/[club]/admin'
+if [ -d "$admin_dir" ]; then
+  unguarded="$(find "$admin_dir" -type f -name 'page.[jt]s*' -exec grep -L 'requireAdmin(' {} + || true)"
+  if [ -n "$unguarded" ]; then
+    echo "FALLO: páginas de Gestión sin requireAdmin( (regla: cada page.tsx de /admin comprueba que quien entra administra)"
+    echo "$unguarded"
+    echo
+    fail=1
+  fi
+fi
+
 # Tokens generados desde design/tokens.json. Se activa cuando existe el generador.
 if [ -f scripts/tokens-to-css.ts ]; then
   if ! pnpm tokens; then

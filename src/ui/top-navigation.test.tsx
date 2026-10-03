@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { TopNavigation } from "./top-navigation";
 
@@ -25,5 +25,45 @@ describe("TopNavigation", () => {
     render(<TopNavigation brand={{ displayName: "Club B", wordmarkSub: "  " }} />);
 
     expect(screen.getByRole("banner").textContent).toBe("Club B");
+  });
+
+  it("sin cuenta no pinta el menú de cuenta", () => {
+    render(<TopNavigation brand={{ displayName: "Club B", wordmarkSub: null }} />);
+
+    expect(screen.queryByRole("button", { name: "Abrir menú de cuenta" })).not.toBeInTheDocument();
+  });
+
+  it("con cuenta pinta el menú a la derecha de la marca, dentro de la cabecera", () => {
+    render(
+      <TopNavigation
+        brand={{ displayName: "Club B", wordmarkSub: null }}
+        account={{ name: "Ana Ruiz", adminHref: "/c/club-b/admin" }}
+      />,
+    );
+
+    const header = screen.getByRole("banner");
+    const toggle = within(header).getByRole("button", { name: "Abrir menú de cuenta" });
+    expect(within(toggle).getByRole("img", { name: "Ana Ruiz" })).toBeInTheDocument();
+    expect(header.firstElementChild?.textContent).toBe("Club B");
+
+    fireEvent.click(toggle);
+    expect(within(header).getByRole("link", { name: "Gestión" })).toHaveAttribute(
+      "href",
+      "/c/club-b/admin",
+    );
+    expect(within(header).getByRole("button", { name: "Salir" })).toBeInTheDocument();
+  });
+
+  it("con cuenta sin adminHref el menú solo ofrece Salir", () => {
+    render(
+      <TopNavigation
+        brand={{ displayName: "Club B", wordmarkSub: null }}
+        account={{ name: "Ana Ruiz", adminHref: null }}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Abrir menú de cuenta" }));
+    expect(screen.queryByRole("link", { name: "Gestión" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Salir" })).toBeInTheDocument();
   });
 });

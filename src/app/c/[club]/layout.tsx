@@ -20,6 +20,9 @@ export const dynamic = "force-dynamic";
  * cualquier club, sea de quien sea. Esta carpeta no tiene `error.tsx` propio: lo que lancen
  * los layouts de las dos áreas, que cuelgan de aquí, sube igual hasta ese.
  *
+ * El `notFound()` de esos layouts (quien no administra y abre Gestión) lo recoge el
+ * `not-found.tsx` de esta carpeta, bajo la marca del club pero sin marco de ninguna área.
+ *
  * Un layout no protege a sus páginas (Next puede pintar una página sin volver a ejecutar
  * su layout): cada página bajo `/c/[club]` pide también el contexto, que con `cache()`
  * es la misma consulta, y los datos los protege RLS.

@@ -47,6 +47,24 @@ export function navItems(clubSlug: string, terminology: Terminology): NavItem[] 
   ];
 }
 
+export type AdminNavItem = { label: string; href: string };
+
+/**
+ * Los apartados de Gestión (`/c/{slug}/admin/…`), en su orden: la metodología, los valores,
+ * los principios de juego y los Standards. La metodología y los Standards llevan el nombre
+ * que el club les haya dado en su terminología; «Valores» y «Principios» son siempre esos.
+ */
+export function adminNavItems(clubSlug: string, terminology: Terminology): AdminNavItem[] {
+  const base = `/c/${clubSlug}/admin`;
+
+  return [
+    { label: wayLabel(terminology), href: `${base}/way` },
+    { label: "Valores", href: `${base}/values` },
+    { label: "Principios", href: `${base}/principles` },
+    { label: standardsLabel(terminology), href: `${base}/standards` },
+  ];
+}
+
 /**
  * La pestaña a la que pertenece una ruta del club. Cuenta el primer segmento tras
  * `/c/{slug}`, entero: `/c/club/train/…` es Entrenar. Todo lo demás es Inicio.

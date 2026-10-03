@@ -4,6 +4,14 @@ import { defineConfig } from "@playwright/test";
 // `next start` lo lee del entorno y aquí se apunta al mismo puerto.
 const baseURL = `http://localhost:${process.env.PORT ?? "3000"}`;
 
+// Los e2e que modifican datos del seed (Gestión y los editores de las fases siguientes) van
+// en su propio proyecto, `admin`: en serie y después de `mobile`, que solo lee. Cada fase
+// que añade uno de esos specs lo suma a esta lista; `mobile` la ignora.
+const ADMIN_SPECS = [/admin\.spec\.ts/];
+
+// La pantalla de referencia del móvil.
+const MOBILE_VIEWPORT = { width: 375, height: 812 };
+
 export default defineConfig({
   testDir: "./e2e",
   fullyParallel: true,
@@ -17,9 +25,23 @@ export default defineConfig({
   projects: [
     {
       name: "mobile",
+      testIgnore: ADMIN_SPECS,
       use: {
         browserName: "chromium",
-        viewport: { width: 375, height: 812 },
+        viewport: MOBILE_VIEWPORT,
+      },
+    },
+    {
+      name: "admin",
+      testMatch: ADMIN_SPECS,
+      // Escriben en la base de datos compartida: un worker, un test detrás de otro. Y solo
+      // si `mobile` ha pasado, para no escribir sobre un seed que ya está roto.
+      fullyParallel: false,
+      workers: 1,
+      dependencies: ["mobile"],
+      use: {
+        browserName: "chromium",
+        viewport: MOBILE_VIEWPORT,
       },
     },
   ],

@@ -48,7 +48,7 @@ Principio de producto: *Everyone knows what's next. Everyone knows why.* El QUÉ
 - Rejilla de 4px. Margen lateral de pantalla `space-4`; padding de card `space-4`; entre cards `space-3`; entre secciones `space-6`.
 - Radios: `radius-lg` cards, `radius-md` botones e inputs, `radius-sm` chips y miniaturas, `radius-xl` card destacada y hojas, `radius-pill` avatares y filtros.
 - Áreas táctiles de `target-min` (44px) como mínimo; `target-live` (72px) en el Live Mode.
-- Contenido móvil hasta `content-max`; la gestión (admin) puede usar un layout de escritorio con los mismos tokens.
+- Contenido móvil hasta `content-max`. La gestión (admin) usa un layout de escritorio con los mismos tokens: desde `lg` (1024px), columna de navegación de `admin-nav` y contenido hasta `admin-content-max`; debajo, pestañas desplazables encima del contenido.
 - Pocas acciones por pantalla: una principal, como mucho dos secundarias.
 
 ## Imagen y menores
