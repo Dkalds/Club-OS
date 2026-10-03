@@ -116,6 +116,11 @@ describe("ValueEditor · un valor que existe", () => {
       direction: "up",
     });
 
+    // El mock se llama dentro del clic, con la acción aún corriendo: todos los controles siguen
+    // desactivados. Hasta que «Publicar» vuelve a estar activo no hay un segundo clic que valga.
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Publicar VALOR A" })).toBeEnabled(),
+    );
     fireEvent.click(screen.getByRole("button", { name: "Publicar VALOR A" }));
     await waitFor(() => expect(mocks.setMethodologyStatus).toHaveBeenCalledTimes(1));
     expect(mocks.setMethodologyStatus).toHaveBeenCalledWith("club-a", {
@@ -184,8 +189,22 @@ describe("ValueEditor · un valor que existe", () => {
     await screen.findByText("Cambios guardados.");
     save();
 
+    // Nada más enviar, antes de que llegue la respuesta, el aviso del primer guardado ya no está.
+    expect(screen.queryByText("Cambios guardados.")).not.toBeInTheDocument();
     await waitFor(() => expect(mocks.updateValue).toHaveBeenCalledTimes(2));
     await screen.findByText("Cambios guardados.");
+  });
+
+  it("si el guardado de después falla, el aviso de guardado se quita y sale el del error", async () => {
+    mocks.updateValue.mockResolvedValueOnce(ok(null)).mockResolvedValueOnce(fail("SAVE_FAILED"));
+    renderEditor();
+
+    save();
+    await screen.findByText("Cambios guardados.");
+    save();
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(ACTION_ERROR_COPY.SAVE_FAILED);
+    expect(screen.queryByText("Cambios guardados.")).not.toBeInTheDocument();
   });
 
   it("lo guardado no vacía el formulario: lo escrito sigue ahí", async () => {
@@ -381,6 +400,21 @@ describe("ValueEditor · el alta", () => {
 
     type("Código", "C");
 
+    expect(screen.queryByText("Valor creado.")).not.toBeInTheDocument();
+  });
+
+  it("si el alta de después falla, el aviso de «Valor creado.» se quita y sale el del error", async () => {
+    mocks.createValue.mockResolvedValueOnce(ok({ id: NEW_ID })).mockResolvedValueOnce(fail("SAVE_FAILED"));
+    renderCreate();
+
+    type("Código", "UNO");
+    type("Descripción", "Primero.");
+    create();
+    await screen.findByText("Valor creado.");
+    // Sin tocar ningún campo: lo que quita el aviso es enviar de nuevo, no escribir.
+    create();
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(ACTION_ERROR_COPY.SAVE_FAILED);
     expect(screen.queryByText("Valor creado.")).not.toBeInTheDocument();
   });
 

@@ -165,6 +165,20 @@ describe("StandardEditor · un Standard que existe", () => {
     expect(region).toBeEmptyDOMElement();
   });
 
+  it("si el guardado de después falla, el aviso de guardado se quita y sale el del error", async () => {
+    mocks.updateStandard
+      .mockResolvedValueOnce(ok(null))
+      .mockResolvedValueOnce(fail("SAVE_FAILED"));
+    renderEditor();
+
+    save();
+    await screen.findByText("Cambios guardados.");
+    save();
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(ACTION_ERROR_COPY.SAVE_FAILED);
+    expect(screen.queryByText("Cambios guardados.")).not.toBeInTheDocument();
+  });
+
   it("un número que ya existe se explica bajo «Número» y deja el resto como está", async () => {
     mocks.updateStandard.mockResolvedValue(fail("INVALID", { number: REPEATED }));
     renderEditor();
@@ -378,6 +392,23 @@ describe("StandardEditor · el alta", () => {
     expect(screen.getByLabelText("Título")).toHaveValue("STANDARD NUEVO");
     expect(screen.queryByText("Standard creado.")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Crear Standard" })).toBeEnabled();
+  });
+
+  it("si el alta de después falla, el aviso de «Standard creado.» se quita y sale el del error", async () => {
+    mocks.createStandard
+      .mockResolvedValueOnce(ok({ id: NEW_ID }))
+      .mockResolvedValueOnce(fail("SAVE_FAILED"));
+    renderCreate(6);
+
+    type("Título", "A");
+    type("Descripción", "B");
+    create();
+    await screen.findByText("Standard creado.");
+    // Sin tocar ningún campo: lo que quita el aviso es enviar de nuevo, no escribir.
+    create();
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(ACTION_ERROR_COPY.SAVE_FAILED);
+    expect(screen.queryByText("Standard creado.")).not.toBeInTheDocument();
   });
 
   it("el error del número se quita al enviar de nuevo", async () => {

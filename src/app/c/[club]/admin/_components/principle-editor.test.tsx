@@ -400,6 +400,20 @@ describe("PrincipleEditor · un principio que existe", () => {
       expect(region).toBeEmptyDOMElement();
     });
 
+    it("si el guardado de después falla, el aviso de guardado se quita y sale el del error", async () => {
+      mocks.savePrinciple
+        .mockResolvedValueOnce(ok(null))
+        .mockResolvedValueOnce(fail("SAVE_FAILED"));
+      renderEditor(["A"]);
+
+      save();
+      await screen.findByText("Cambios guardados.");
+      save();
+
+      expect(await screen.findByRole("alert")).toHaveTextContent(ACTION_ERROR_COPY.SAVE_FAILED);
+      expect(screen.queryByText("Cambios guardados.")).not.toBeInTheDocument();
+    });
+
     it("repintar la card con datos nuevos (la acción revalida) no pisa los puntos que se están editando", () => {
       const { rerender } = renderEditor(["A", "B"]);
 
@@ -611,6 +625,22 @@ describe("PrincipleEditor · el alta", () => {
     expect(screen.getByLabelText("Título")).toHaveValue("");
     expect(screen.getByLabelText("Resumen (opcional)")).toHaveValue("");
     await waitFor(() => expect(screen.getByLabelText("Título")).toHaveFocus());
+  });
+
+  it("si el alta de después falla, el aviso de «Principio creado.» se quita y sale el del error", async () => {
+    mocks.createPrinciple
+      .mockResolvedValueOnce(ok({ id: NEW_ID }))
+      .mockResolvedValueOnce(fail("SAVE_FAILED"));
+    renderCreate();
+
+    type("Título", "Principio nuevo");
+    create();
+    await screen.findByText("Principio creado.");
+    // Sin tocar ningún campo: lo que quita el aviso es enviar de nuevo, no escribir.
+    create();
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(ACTION_ERROR_COPY.SAVE_FAILED);
+    expect(screen.queryByText("Principio creado.")).not.toBeInTheDocument();
   });
 
   it("sin título: el error bajo el campo y lo escrito se queda", async () => {
