@@ -1,26 +1,49 @@
 @import "tailwindcss";
+@import "../ui/tokens.css";
+@import "../ui/brand-defaults.css";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
+/*
+ * Colores: cada token `x` de design/tokens.json es la variable `--x` (tokens.css)
+ * y la utilidad `bg-x`, `text-x`, `border-x`. Con `inline` la utilidad compila a
+ * `var(--x)` y no a un hex, así que `--brand-*` se puede sustituir en tiempo de
+ * ejecución con un `style` en el layout del club.
+ * Los radios, la sombra y los estilos de texto salen ya de tokens.css (@theme).
+ * `--color-*: initial` quita la paleta por defecto: solo hay colores de token.
+ */
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-*: initial;
+  --color-bg: var(--bg);
+  --color-surface-1: var(--surface-1);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-spotlight: var(--spotlight);
+  --color-on-spotlight: var(--on-spotlight);
+  --color-on-spotlight-2: var(--on-spotlight-2);
+  --color-brand-accent: var(--brand-accent);
+  --color-brand-accent-pressed: var(--brand-accent-pressed);
+  --color-brand-on-accent: var(--brand-on-accent);
+  --color-brand-accent-soft: var(--brand-accent-soft);
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-scrim: var(--scrim);
+  --color-focus-ring: var(--focus-ring);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/*
+ * Fuentes: next/font (layout.tsx) define `--font-barlow` y `--font-barlow-condensed`
+ * en <html>. Los nombres públicos `--font-display` y `--font-text` coinciden con el
+ * espacio de nombres de Tailwind, por eso no pueden apuntar a sí mismos.
+ * Los fallbacks son los de design/tokens.json (type.families). `static` deja
+ * `--font-display` y `--font-text` disponibles en :root para CSS propio.
+ */
+@theme inline static {
+  --font-display: var(--font-barlow-condensed), "Arial Narrow", sans-serif;
+  --font-text: var(--font-barlow), system-ui, -apple-system, "Segoe UI", sans-serif;
 }
