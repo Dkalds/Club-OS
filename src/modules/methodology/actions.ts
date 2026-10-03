@@ -48,6 +48,21 @@ import { slugify, uniqueSlug } from "./slug";
 // borra nunca (archivar es pasar a borrador) no tiene acción de borrado, y los puntos de un
 // principio los reemplaza `save_game_principle`.
 
+// Rutas que se revalidan tras escribir. Son patrones de ruta, no URLs: las carpetas de
+// `src/app/c/[club]/` tal cual, con el segmento dinámico `[club]` y el grupo `(app)`. Así lo
+// espera `revalidatePath(ruta, "layout")`: Next etiqueta cada página con los layouts de su
+// patrón (`/c/[club]/(app)/way/layout`, `/c/[club]/admin/layout`…), y con la URL concreta
+// (`/c/club-a/way`) más `layout` armaría una etiqueta que ninguna ruta lleva y no
+// invalidaría nada; solo parecería funcionar porque cualquier `revalidatePath` dentro de una
+// Server Action vacía además la caché de rutas del cliente. El patrón no distingue clubes.
+//
+// Siguen las carpetas: `(app)` es el grupo al que se mueven las pestañas del entrenador
+// (convención C3) y `admin` es el área de Gestión. Si se renombran o se mueven, se cambian aquí.
+/** The Way: el índice, cada sección y la página de los Standards. */
+const WAY_ROUTE = "/c/[club]/(app)/way";
+/** Gestión: cada lista y cada formulario. */
+const ADMIN_ROUTE = "/c/[club]/admin";
+
 type Db = SupabaseClient<Database>;
 type DbError = { code?: string; message?: string };
 type UniqueField = { field: string; message: string };
@@ -105,10 +120,8 @@ async function mutate<D, T>(
   }
 
   if (result.ok) {
-    // `layout`: cuelga de `/way` cada sección y la página de los Standards, y de `/admin`
-    // cada lista de Gestión; todas pintan estos datos.
-    revalidatePath(`/c/${ctx.org.slug}/way`, "layout");
-    revalidatePath(`/c/${ctx.org.slug}/admin`, "layout");
+    revalidatePath(WAY_ROUTE, "layout");
+    revalidatePath(ADMIN_ROUTE, "layout");
   }
   return result;
 }

@@ -267,15 +267,17 @@ describe("quién escribe", () => {
 });
 
 describe("tras escribir", () => {
-  it("revalida The Way y Gestión del club, con todo lo que cuelga de ellos", async () => {
+  it("revalida The Way y Gestión por patrón de ruta y layout, no por la URL del club", async () => {
     useDb(reply([]), reply({ id: NEW_ID }));
 
     const result = await createWaySection("club-a", { title: "Sección", contentKind: "text" });
 
     expect(result.ok).toBe(true);
+    // Patrón de ruta (carpetas, con el grupo `(app)`) y `layout`: así lo documenta Next. Con
+    // la URL concreta y `layout` Next arma una etiqueta que ninguna ruta lleva.
     expect(mocks.revalidatePath.mock.calls).toEqual([
-      ["/c/club-a/way", "layout"],
-      ["/c/club-a/admin", "layout"],
+      ["/c/[club]/(app)/way", "layout"],
+      ["/c/[club]/admin", "layout"],
     ]);
   });
 
@@ -475,10 +477,10 @@ describe("createWaySection", () => {
   it("guarda el título recortado", async () => {
     const db = useDb(reply([]), reply({ id: NEW_ID }));
 
-    await createWaySection("club-a", { title: "  Nuestra cultura  ", contentKind: "values" });
+    await createWaySection("club-a", { title: "  Sección de valores  ", contentKind: "values" });
 
     expect(db.queries[1].sent("insert")).toEqual([
-      expect.objectContaining({ title: "Nuestra cultura", slug: "nuestra-cultura" }),
+      expect.objectContaining({ title: "Sección de valores", slug: "seccion-de-valores" }),
     ]);
   });
 
@@ -822,9 +824,9 @@ describe("createValue", () => {
     const db = useDb(reply([{ sort: 2 }, { sort: 3 }]), reply({ id: NEW_ID }));
 
     const result = await createValue("club-a", {
-      code: "  TEAM FIRST ",
-      title: "Primero el equipo",
-      description: "  Se gana juntos.  ",
+      code: "  VALOR UNO ",
+      title: "Título del valor",
+      description: "  Descripción del valor.  ",
     });
 
     expect(result).toEqual({ ok: true, data: { id: NEW_ID } });
@@ -834,9 +836,9 @@ describe("createValue", () => {
     expect(db.queries[1].sent("insert")).toEqual([
       {
         organization_id: ORG,
-        code: "TEAM FIRST",
-        title: "Primero el equipo",
-        description: "Se gana juntos.",
+        code: "VALOR UNO",
+        title: "Título del valor",
+        description: "Descripción del valor.",
         status: "draft",
         sort: 4,
       },
@@ -910,15 +912,15 @@ describe("updateValue", () => {
 
     const result = await updateValue("club-a", {
       id: ID,
-      code: " TEAM FIRST ",
+      code: " VALOR UNO ",
       title: " ",
-      description: " Se gana juntos. ",
+      description: " Descripción del valor. ",
     });
 
     expect(result).toEqual({ ok: true, data: null });
     expect(db.queries[0].table).toBe("club_values");
     expect(db.queries[0].sent("update")).toEqual([
-      { code: "TEAM FIRST", title: null, description: "Se gana juntos." },
+      { code: "VALOR UNO", title: null, description: "Descripción del valor." },
     ]);
     expect(db.queries[0].filters).toEqual([
       ["organization_id", ORG],
@@ -953,11 +955,11 @@ describe("updateValue", () => {
 
 describe("createPrinciple", () => {
   it("crea un borrador al final con un slug libre", async () => {
-    const db = useDb(reply([{ sort: 4, slug: "defensa" }]), reply({ id: NEW_ID }));
+    const db = useDb(reply([{ sort: 4, slug: "principio-uno" }]), reply({ id: NEW_ID }));
 
     const result = await createPrinciple("club-a", {
-      title: " Defensa ",
-      summary: "  Cómo defendemos.  ",
+      title: " Principio uno ",
+      summary: "  Resumen del principio.  ",
     });
 
     expect(result).toEqual({ ok: true, data: { id: NEW_ID } });
@@ -967,9 +969,9 @@ describe("createPrinciple", () => {
     expect(db.queries[1].sent("insert")).toEqual([
       {
         organization_id: ORG,
-        slug: "defensa-2",
-        title: "Defensa",
-        summary: "Cómo defendemos.",
+        slug: "principio-uno-2",
+        title: "Principio uno",
+        summary: "Resumen del principio.",
         status: "draft",
         sort: 5,
       },
@@ -1000,8 +1002,8 @@ describe("createPrinciple", () => {
 describe("savePrinciple", () => {
   const input = {
     id: ID,
-    title: "Defensa",
-    summary: "Cómo defendemos.",
+    title: "Principio uno",
+    summary: "Resumen del principio.",
     points: ["Espacios", "Pase"],
   };
 
@@ -1016,8 +1018,8 @@ describe("savePrinciple", () => {
         name: "save_game_principle",
         args: {
           p_id: ID,
-          p_title: "Defensa",
-          p_summary: "Cómo defendemos.",
+          p_title: "Principio uno",
+          p_summary: "Resumen del principio.",
           p_points: ["Espacios", "Pase"],
         },
       },
