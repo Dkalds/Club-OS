@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent, type MouseEvent } from "react";
 import { ACTION_ERROR_COPY } from "@/lib/action-result";
 import { updateWaySection } from "@/modules/methodology/actions";
 import {
@@ -21,6 +21,20 @@ const LIST_PAGES = {
   standards: { noun: "los Standards", path: "standards" },
 } as const satisfies Record<Exclude<ContentKind, "text">, { noun: string; path: string }>;
 
+/** Lo que dice `window.confirm` al volver con cambios sin guardar (hasta que llegue `ConfirmDialog`). */
+const UNSAVED_CHANGES = "Tienes cambios sin guardar. Si sales ahora, se pierden.";
+
+/**
+ * Pide al navegador que confirme antes de cerrar o recargar la pestaña. Es una función suelta,
+ * y no una dentro del componente, para que quien la pone y quien la quita (`Recargar`) hablen
+ * de la misma. Los navegadores enseñan su propio texto, no el nuestro.
+ */
+function warnBeforeUnload(event: BeforeUnloadEvent) {
+  event.preventDefault();
+  // Los navegadores antiguos solo preguntan si se asigna `returnValue`.
+  event.returnValue = "";
+}
+
 /**
  * El editor de una sección de The Way: título, resumen, tipo y texto en Markdown.
  *
@@ -35,6 +49,13 @@ const LIST_PAGES = {
  * El estado del formulario sale de la sección una sola vez: al guardar, la página se repinta
  * con los datos nuevos (la acción revalida Gestión) y eso no debe pisar lo que se esté
  * escribiendo.
+ *
+ * Sin guardar no se pierde nada en silencio: mientras algún campo difiera de la última copia
+ * guardada (`dirty`), cerrar o recargar la pestaña pide confirmación (`beforeunload`) y
+ * «Volver» pregunta antes de salir. La última copia guardada es la que se abrió o, tras cada
+ * guardado, lo que se mandó. «Recargar», tras una copia obsoleta, no pregunta: quien pulsa
+ * ya ha decidido tirar lo suyo. La navegación interna por las pestañas de Gestión no se
+ * intercepta: App Router no tiene gancho para bloquearla.
  */
 export function SectionEditor({ clubSlug, section }: { clubSlug: string; section: WaySection }) {
   const { pending, failure, run } = useAction();
@@ -44,6 +65,25 @@ export function SectionEditor({ clubSlug, section }: { clubSlug: string; section
   const [bodyMd, setBodyMd] = useState(section.bodyMd);
   const [expectedUpdatedAt, setExpectedUpdatedAt] = useState(section.updatedAt);
   const [saved, setSaved] = useState(false);
+  // La última copia guardada: contra ella se mide si hay cambios sin guardar.
+  const [lastSaved, setLastSaved] = useState({
+    title: section.title,
+    summary: section.summary ?? "",
+    contentKind: section.contentKind,
+    bodyMd: section.bodyMd,
+  });
+
+  const dirty =
+    title !== lastSaved.title ||
+    summary !== lastSaved.summary ||
+    contentKind !== lastSaved.contentKind ||
+    bodyMd !== lastSaved.bodyMd;
+
+  useEffect(() => {
+    if (!dirty) return;
+    window.addEventListener("beforeunload", warnBeforeUnload);
+    return () => window.removeEventListener("beforeunload", warnBeforeUnload);
+  }, [dirty]);
 
   /** Tocar cualquier campo deja sin efecto el «Cambios guardados.» del guardado anterior. */
   function edit<V>(setValue: (value: V) => void) {
@@ -56,21 +96,26 @@ export function SectionEditor({ clubSlug, section }: { clubSlug: string; section
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setSaved(false);
+    // Lo que se manda es lo que queda guardado: si se escribe mientras guarda, eso sigue sin guardar.
+    const sent = { title, summary, contentKind, bodyMd };
     run(
-      () =>
-        updateWaySection(clubSlug, {
-          id: section.id,
-          expectedUpdatedAt,
-          title,
-          summary,
-          contentKind,
-          bodyMd,
-        }),
+      () => updateWaySection(clubSlug, { id: section.id, expectedUpdatedAt, ...sent }),
       ({ updatedAt }) => {
         setExpectedUpdatedAt(updatedAt);
+        setLastSaved(sent);
         setSaved(true);
       },
     );
+  }
+
+  function leave(event: MouseEvent<HTMLAnchorElement>) {
+    if (dirty && !window.confirm(UNSAVED_CHANGES)) event.preventDefault();
+  }
+
+  function reload() {
+    // Se quita el aviso a mano: si no, el navegador preguntaría justo al hacer lo que se pidió.
+    window.removeEventListener("beforeunload", warnBeforeUnload);
+    location.reload();
   }
 
   const errors = failure?.fieldErrors ?? {};
@@ -84,7 +129,7 @@ export function SectionEditor({ clubSlug, section }: { clubSlug: string; section
             <CTAButton
               variant="secondary"
               className="self-start"
-              onClick={() => location.reload()}
+              onClick={reload}
             >
               Recargar
             </CTAButton>
@@ -168,6 +213,7 @@ export function SectionEditor({ clubSlug, section }: { clubSlug: string; section
           href={`/c/${clubSlug}/admin/way`}
           block
           className="lg:w-auto"
+          onClick={leave}
         >
           Volver
         </CTAButton>

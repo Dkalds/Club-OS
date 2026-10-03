@@ -38,6 +38,35 @@ function renderEditor(overrides: Partial<WaySection> = {}) {
 const save = () => fireEvent.click(screen.getByRole("button", { name: "Guardar cambios" }));
 const body = () => screen.getByLabelText("Contenido");
 
+const UNSAVED = "Tienes cambios sin guardar. Si sales ahora, se pierden.";
+
+/**
+ * Lo que haría el navegador al cerrar o recargar la pestaña: lanza `beforeunload` y dice si
+ * algo pidió confirmación (cancelando el evento).
+ */
+function unloadAsks(): boolean {
+  const event = new Event("beforeunload", { cancelable: true });
+  window.dispatchEvent(event);
+  return event.defaultPrevented;
+}
+
+/**
+ * Pulsa «Volver» y dice si el clic llegó a navegar. jsdom no implementa la navegación (la
+ * registra como error): el clic se corta en `document`, ya después de que React y el
+ * componente lo hayan visto, y se mira si el componente lo había cancelado.
+ */
+function clickBack(): "navega" | "se queda" {
+  let outcome: "navega" | "se queda" = "navega";
+  const cut = (event: Event) => {
+    outcome = event.defaultPrevented ? "se queda" : "navega";
+    event.preventDefault();
+  };
+  document.addEventListener("click", cut);
+  fireEvent.click(screen.getByRole("link", { name: "Volver" }));
+  document.removeEventListener("click", cut);
+  return outcome;
+}
+
 beforeEach(() => {
   vi.resetAllMocks();
   mocks.updateWaySection.mockResolvedValue(ok({ updatedAt: FIRST_SAVE }));
@@ -46,6 +75,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.restoreAllMocks();
   vi.unstubAllGlobals();
 });
 
@@ -343,3 +373,137 @@ describe("SectionEditor", () => {
     expect(screen.getByText("importante").tagName).toBe("STRONG");
   });
 });
+
+// Quien escribe un texto largo espera un aviso antes de perderlo. «Volver» es un enlace normal a
+// la lista y cerrar o recargar la pestaña tampoco guardan nada: mientras algún campo difiera de
+// la última copia guardada, las dos cosas preguntan. (La navegación interna por las pestañas de
+// Gestión no se intercepta: App Router no tiene gancho para bloquearla.)
+describe("SectionEditor · cambios sin guardar", () => {
+  it("sin cambios no hay aviso: ni al cerrar la pestaña ni al volver", () => {
+    const confirm = vi.spyOn(window, "confirm");
+    renderEditor();
+
+    expect(unloadAsks()).toBe(false);
+    expect(clickBack()).toBe("navega");
+    expect(confirm).not.toHaveBeenCalled();
+  });
+
+  it("con cambios, cerrar o recargar la pestaña pide confirmación", () => {
+    renderEditor();
+
+    fireEvent.change(body(), { target: { value: "Texto sin guardar." } });
+
+    expect(unloadAsks()).toBe(true);
+  });
+
+  it("con cambios, «Volver» pregunta con su texto; cancelar no navega y aceptar sí", () => {
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+    renderEditor();
+    fireEvent.change(body(), { target: { value: "Texto sin guardar." } });
+
+    expect(clickBack()).toBe("se queda");
+    expect(confirm).toHaveBeenCalledTimes(1);
+    expect(confirm).toHaveBeenCalledWith(UNSAVED);
+
+    confirm.mockReturnValue(true);
+    expect(clickBack()).toBe("navega");
+    expect(confirm).toHaveBeenCalledTimes(2);
+  });
+
+  it("cuenta cualquier campo: título, resumen, tipo y contenido", () => {
+    const fields = [
+      ["Título", "Otro título"],
+      ["Resumen", "Otro resumen."],
+      ["Tipo", "values"],
+      ["Contenido", "Otro texto."],
+    ] as const;
+
+    for (const [label, value] of fields) {
+      const { unmount } = renderEditor();
+
+      expect(unloadAsks(), `${label} sin tocar`).toBe(false);
+      fireEvent.change(screen.getByLabelText(label), { target: { value } });
+      expect(unloadAsks(), label).toBe(true);
+
+      unmount();
+    }
+  });
+
+  it("volver a dejar un campo como estaba guardado quita el aviso", () => {
+    renderEditor();
+
+    fireEvent.change(screen.getByLabelText("Título"), { target: { value: "Otro título" } });
+    expect(unloadAsks()).toBe(true);
+    fireEvent.change(screen.getByLabelText("Título"), { target: { value: "Una sección" } });
+
+    expect(unloadAsks()).toBe(false);
+  });
+
+  it("tras guardar, vuelve a no haber aviso", async () => {
+    const confirm = vi.spyOn(window, "confirm");
+    renderEditor();
+    fireEvent.change(body(), { target: { value: "Texto nuevo." } });
+    expect(unloadAsks()).toBe(true);
+
+    save();
+    await screen.findByText("Cambios guardados.");
+
+    expect(unloadAsks()).toBe(false);
+    expect(clickBack()).toBe("navega");
+    expect(confirm).not.toHaveBeenCalled();
+  });
+
+  it("lo guardado es la nueva copia: escribir otra vez después de guardar vuelve a avisar", async () => {
+    renderEditor();
+    fireEvent.change(body(), { target: { value: "Primera versión." } });
+    save();
+    await screen.findByText("Cambios guardados.");
+
+    fireEvent.change(body(), { target: { value: "Segunda versión." } });
+
+    expect(unloadAsks()).toBe(true);
+  });
+
+  it("si el guardado falla, lo escrito sigue sin guardar y el aviso se queda", async () => {
+    mocks.updateWaySection.mockResolvedValue(fail("SAVE_FAILED"));
+    renderEditor();
+    fireEvent.change(body(), { target: { value: "Texto que no se pudo guardar." } });
+
+    save();
+    await screen.findByRole("alert");
+
+    expect(unloadAsks()).toBe(true);
+  });
+
+  it("al salir de la pantalla ya no avisa", () => {
+    const { unmount } = renderEditor();
+    fireEvent.change(body(), { target: { value: "Texto sin guardar." } });
+    expect(unloadAsks()).toBe(true);
+
+    unmount();
+
+    expect(unloadAsks()).toBe(false);
+  });
+
+  it("«Recargar» tras una copia obsoleta se salta el aviso: quien recarga ya ha decidido", async () => {
+    mocks.updateWaySection.mockResolvedValue(fail("STALE_COPY"));
+    const confirm = vi.spyOn(window, "confirm");
+    let askedWhileReloading: boolean | null = null;
+    mocks.reload.mockImplementation(() => {
+      askedWhileReloading = unloadAsks();
+    });
+    renderEditor();
+    fireEvent.change(screen.getByLabelText("Título"), { target: { value: "Versión B" } });
+    save();
+    await screen.findByRole("alert");
+    // Sigue habiendo cambios sin guardar: el aviso está puesto hasta que se pulsa «Recargar».
+    expect(unloadAsks()).toBe(true);
+
+    fireEvent.click(screen.getByRole("button", { name: "Recargar" }));
+
+    expect(mocks.reload).toHaveBeenCalledTimes(1);
+    expect(askedWhileReloading).toBe(false);
+    expect(confirm).not.toHaveBeenCalled();
+  });
+});
+
