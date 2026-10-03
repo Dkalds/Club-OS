@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useState, useTransition } from "react";
+import { useEffect, useId, useRef, useState, useTransition } from "react";
 import {
   ACTION_ERROR_COPY,
   fail,
@@ -11,6 +11,15 @@ import { moveMethodologyItem, setMethodologyStatus } from "@/modules/methodology
 import type { ContentStatus, MethodologyKind } from "@/modules/methodology/types";
 import { CTAButton } from "@/ui/cta-button";
 import { FieldError } from "@/ui/form-field";
+
+type Control = "up" | "down" | "status";
+
+/** A qué botón vuelve el foco tras usar cada control: primero él mismo y, si no se puede, su pareja. */
+const FOCUS_ORDER: Record<Control, readonly Control[]> = {
+  up: ["up", "down"],
+  down: ["down", "up"],
+  status: ["status"],
+};
 
 /**
  * Los controles de una fila de Gestión: subir, bajar y publicar o pasar a borrador («archivar»:
@@ -23,6 +32,11 @@ import { FieldError } from "@/ui/form-field";
  *
  * Los nombres accesibles llevan el título de la fila («Subir {title}»): sin él, una lista de
  * seis filas sería seis botones «Subir» iguales.
+ *
+ * El foco: mientras la acción corre los botones se desactivan y el navegador suelta el foco
+ * (queda en `<body>`), y al repintarse la lista la fila cambia de sitio. Quien usa el teclado
+ * perdería su lugar tras cada toque. Al terminar, el foco vuelve a lo que se usó; si ese botón
+ * ya no se puede usar (la fila llegó al extremo), al otro de la pareja.
  */
 export function ItemControls({
   clubSlug,
@@ -44,8 +58,29 @@ export function ItemControls({
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<ActionError | null>(null);
   const errorId = useId();
+  const root = useRef<HTMLDivElement>(null);
+  const refocus = useRef<Control | null>(null);
 
-  function run(action: () => Promise<ActionResult<null>>) {
+  // `pending` pasa a falso en la misma pintura que trae la lista nueva: aquí ya están los
+  // botones con su estado definitivo.
+  useEffect(() => {
+    if (pending || refocus.current === null) return;
+    const used = refocus.current;
+    refocus.current = null;
+
+    for (const control of FOCUS_ORDER[used]) {
+      const button = root.current?.querySelector<HTMLButtonElement>(
+        `[data-control="${control}"]:not(:disabled)`,
+      );
+      if (button) {
+        button.focus();
+        return;
+      }
+    }
+  }, [pending]);
+
+  function run(control: Control, action: () => Promise<ActionResult<null>>) {
+    refocus.current = control;
     setError(null);
     startTransition(async () => {
       let result: ActionResult<null>;
@@ -61,44 +96,50 @@ export function ItemControls({
     });
   }
 
-  const move = (direction: "up" | "down") => () =>
-    run(() => moveMethodologyItem(clubSlug, { kind, id, direction }));
-  const setStatus = (next: ContentStatus) => () =>
-    run(() => setMethodologyStatus(clubSlug, { kind, id, status: next }));
+  // Solo las acciones: `run` las lanza desde el manejador de cada botón, que es donde se
+  // toca el foco pendiente (un ref no se lee ni se escribe al pintar).
+  const moveUp = () => moveMethodologyItem(clubSlug, { kind, id, direction: "up" });
+  const moveDown = () => moveMethodologyItem(clubSlug, { kind, id, direction: "down" });
+  const publish = () => setMethodologyStatus(clubSlug, { kind, id, status: "published" });
+  const archive = () => setMethodologyStatus(clubSlug, { kind, id, status: "draft" });
 
   return (
-    <div className="flex flex-wrap items-center gap-(--space-2)">
+    <div ref={root} className="flex flex-wrap items-center gap-(--space-2)">
       <CTAButton
         variant="ghost"
+        data-control="up"
         aria-label={`Subir ${title}`}
         disabled={isFirst || pending}
-        onClick={move("up")}
+        onClick={() => run("up", moveUp)}
       >
         Subir
       </CTAButton>
       <CTAButton
         variant="ghost"
+        data-control="down"
         aria-label={`Bajar ${title}`}
         disabled={isLast || pending}
-        onClick={move("down")}
+        onClick={() => run("down", moveDown)}
       >
         Bajar
       </CTAButton>
       {status === "published" ? (
         <CTAButton
           variant="secondary"
+          data-control="status"
           aria-label={`Pasar a borrador ${title}`}
           disabled={pending}
-          onClick={setStatus("draft")}
+          onClick={() => run("status", archive)}
         >
           Pasar a borrador
         </CTAButton>
       ) : (
         <CTAButton
           variant="secondary"
+          data-control="status"
           aria-label={`Publicar ${title}`}
           disabled={pending}
-          onClick={setStatus("published")}
+          onClick={() => run("status", publish)}
         >
           Publicar
         </CTAButton>

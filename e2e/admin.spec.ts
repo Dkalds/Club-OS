@@ -421,7 +421,8 @@ test("un borrador no llega al entrenador hasta publicarlo", async ({ page }) => 
   await expect(row.getByText("Borrador", { exact: true })).toBeVisible();
   await row.getByRole("button", { name: `Publicar ${SECTION_TITLE}` }).click();
   await expect(row.getByText("Publicado", { exact: true })).toBeVisible();
-  await expect(row.getByRole("button", { name: `Pasar a borrador ${SECTION_TITLE}` })).toBeVisible();
+  // El foco no se pierde con el cambio de botón: queda en el que ocupa su lugar.
+  await expect(row.getByRole("button", { name: `Pasar a borrador ${SECTION_TITLE}` })).toBeFocused();
 
   // Ahora Álex la ve: con su número, su título y el texto que Raúl guardó.
   await openAs(page, ALEX);
@@ -448,6 +449,8 @@ test("reordenar cambia el número", async ({ page }) => {
   await expect(competing.getByText("06", { exact: true })).toBeVisible();
   await expect(page.getByRole("main").getByRole("listitem").nth(4)).toContainText(SECTION_TITLE);
   await expect(page.getByRole("main").getByRole("listitem").nth(5)).toContainText("Cómo competimos");
+  // La fila ha cambiado de sitio y quien usa el teclado sigue en su botón: puede volver a subirla.
+  await expect(plan.getByRole("button", { name: `Subir ${SECTION_TITLE}` })).toBeFocused();
 
   // Y Álex ve lo mismo: el número que pinta el entrenador es el de esta posición.
   await openAs(page, ALEX);

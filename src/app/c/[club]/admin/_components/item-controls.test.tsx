@@ -15,15 +15,15 @@ import { ItemControls } from "./item-controls";
 // Datos neutros: los tests de `src/` no pueden nombrar a ningún club (pnpm check:guards).
 const ID = "00000000-0000-4000-8000-000000000001";
 
-function renderControls(
-  props: Partial<{
-    kind: MethodologyKind;
-    status: ContentStatus;
-    isFirst: boolean;
-    isLast: boolean;
-  }> = {},
-) {
-  return render(
+type Props = Partial<{
+  kind: MethodologyKind;
+  status: ContentStatus;
+  isFirst: boolean;
+  isLast: boolean;
+}>;
+
+function controls(props: Props = {}) {
+  return (
     <ItemControls
       clubSlug="club-a"
       kind="way_sections"
@@ -33,8 +33,22 @@ function renderControls(
       isFirst={false}
       isLast={false}
       {...props}
-    />,
+    />
   );
+}
+
+function renderControls(props: Props = {}) {
+  const view = render(controls(props));
+  return { ...view, update: (next: Props) => view.rerender(controls(next)) };
+}
+
+/** Una acción que no termina hasta que el test lo diga. */
+function deferred() {
+  let finish: (result: ActionResult<null>) => void = () => {};
+  const promise = new Promise<ActionResult<null>>((resolve) => {
+    finish = resolve;
+  });
+  return { promise, finish: (result: ActionResult<null> = ok(null)) => finish(result) };
 }
 
 beforeEach(() => {
@@ -201,5 +215,113 @@ describe("ItemControls", () => {
       expect(button).toHaveClass("min-h-(--target-min)");
       expect(button).toHaveAttribute("type", "button");
     }
+  });
+
+  // Mientras la acción corre, los botones se desactivan y el navegador suelta el foco que
+  // tenían (queda en <body>): quien usa el teclado perdería su sitio en la lista. Al terminar,
+  // el foco vuelve a lo que se usó. jsdom no lo suelta por sí solo (un botón desactivado sigue
+  // siendo `activeElement`): `loseFocus` lo imita pasando el foco a un botón que se quita después.
+  describe("foco", () => {
+    function loseFocus() {
+      const sink = document.createElement("button");
+      document.body.append(sink);
+      sink.focus();
+      sink.remove();
+      for (const button of screen.getAllByRole("button")) expect(button).not.toHaveFocus();
+    }
+
+    it("tras subir, el foco vuelve a «Subir»", async () => {
+      const action = deferred();
+      mocks.moveMethodologyItem.mockReturnValue(action.promise);
+      renderControls();
+
+      const up = screen.getByRole("button", { name: "Subir Una sección" });
+      up.focus();
+      fireEvent.click(up);
+      await waitFor(() => expect(up).toBeDisabled());
+      loseFocus();
+
+      action.finish();
+
+      await waitFor(() => expect(up).toHaveFocus());
+    });
+
+    it("si al subir la fila llega arriba, el foco pasa a «Bajar», el que aún se puede usar", async () => {
+      const action = deferred();
+      mocks.moveMethodologyItem.mockReturnValue(action.promise);
+      const { update } = renderControls();
+
+      const up = screen.getByRole("button", { name: "Subir Una sección" });
+      up.focus();
+      fireEvent.click(up);
+      await waitFor(() => expect(up).toBeDisabled());
+      loseFocus();
+      // La lista se repinta con la fila ya en el primer puesto.
+      update({ isFirst: true });
+
+      action.finish();
+
+      await waitFor(() =>
+        expect(screen.getByRole("button", { name: "Bajar Una sección" })).toHaveFocus(),
+      );
+    });
+
+    it("tras bajar, el foco vuelve a «Bajar»", async () => {
+      const action = deferred();
+      mocks.moveMethodologyItem.mockReturnValue(action.promise);
+      renderControls();
+
+      const down = screen.getByRole("button", { name: "Bajar Una sección" });
+      down.focus();
+      fireEvent.click(down);
+      await waitFor(() => expect(down).toBeDisabled());
+      loseFocus();
+
+      action.finish();
+
+      await waitFor(() => expect(down).toHaveFocus());
+    });
+
+    it("tras publicar, el foco va al botón que ocupa su lugar: «Pasar a borrador»", async () => {
+      const action = deferred();
+      mocks.setMethodologyStatus.mockReturnValue(action.promise);
+      const { update } = renderControls({ status: "draft" });
+
+      const publish = screen.getByRole("button", { name: "Publicar Una sección" });
+      publish.focus();
+      fireEvent.click(publish);
+      await waitFor(() => expect(publish).toBeDisabled());
+      loseFocus();
+      update({ status: "published" });
+
+      action.finish();
+
+      await waitFor(() =>
+        expect(screen.getByRole("button", { name: "Pasar a borrador Una sección" })).toHaveFocus(),
+      );
+    });
+
+    it("si la acción falla, el foco también vuelve al botón que se pulsó", async () => {
+      const action = deferred();
+      mocks.moveMethodologyItem.mockReturnValue(action.promise);
+      renderControls();
+
+      const up = screen.getByRole("button", { name: "Subir Una sección" });
+      up.focus();
+      fireEvent.click(up);
+      await waitFor(() => expect(up).toBeDisabled());
+      loseFocus();
+
+      action.finish(fail("SAVE_FAILED"));
+
+      await screen.findByRole("alert");
+      await waitFor(() => expect(up).toHaveFocus());
+    });
+
+    it("al pintarse por primera vez no roba el foco", () => {
+      renderControls();
+
+      expect(document.body).toHaveFocus();
+    });
   });
 });
