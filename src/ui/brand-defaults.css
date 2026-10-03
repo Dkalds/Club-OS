@@ -1,0 +1,8 @@
+/* Marca de plataforma: se usa fuera de un club (p. ej. en el login). */
+/* El layout de un club la sustituye con las variables de organization_branding. */
+:root {
+  --brand-accent: #f2eee6;
+  --brand-accent-pressed: #d9d4ca;
+  --brand-on-accent: #0a0a0b;
+  --brand-accent-soft: #26262a;
+}
