@@ -1,8 +1,16 @@
 import { spawnSync } from "node:child_process";
-import { copyFileSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import {
+  copyFileSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeAll, describe, expect, it } from "vitest";
 
 // Controles negativos de `scripts/check-guards.sh`: el script real, con el mismo `bash` que
 // `pnpm check:guards`, en una carpeta temporal con su propio `src/`. Allí no hay generador
@@ -11,12 +19,15 @@ import { afterEach, describe, expect, it } from "vitest";
 // Este archivo vive en `scripts/`: aquí sí se pueden escribir los literales prohibidos.
 
 const SCRIPT = path.resolve(import.meta.dirname, "check-guards.sh");
+const SANDBOX_PREFIX = "clubos-guards-";
+/** Una ejecución de este archivo dura segundos: una carpeta más vieja ya no es de nadie. */
+const SANDBOX_STALE_MS = 60_000;
 
 const sandboxes: string[] = [];
 
 /** Una raíz de repo de mentira: el script copiado y, si se dan, los archivos de `src/`. */
 function sandbox(files: Record<string, string> | null): string {
-  const root = mkdtempSync(path.join(os.tmpdir(), "clubos-guards-"));
+  const root = mkdtempSync(path.join(os.tmpdir(), SANDBOX_PREFIX));
   sandboxes.push(root);
   mkdirSync(path.join(root, "scripts"));
   copyFileSync(SCRIPT, path.join(root, "scripts", "check-guards.sh"));
@@ -39,8 +50,29 @@ function runGuards(files: Record<string, string> | null): { status: number | nul
   return { status: result.status, output: `${result.stdout}${result.stderr}` };
 }
 
+function removeQuietly(dir: string): void {
+  try {
+    rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
+  } catch {
+    // En Windows, `bash` puede ser el de WSL, que tarda unos segundos en soltar la carpeta
+    // y no deja borrarla todavía. Se queda para el barrido de la siguiente ejecución.
+  }
+}
+
+// Barrido de lo que una ejecución anterior no pudo borrar. Solo carpetas viejas: las
+// recientes pueden ser de otra ejecución que está en marcha ahora mismo.
+beforeAll(() => {
+  const tmp = os.tmpdir();
+  for (const name of readdirSync(tmp)) {
+    if (!name.startsWith(SANDBOX_PREFIX)) continue;
+    const dir = path.join(tmp, name);
+    const age = Date.now() - (statSync(dir, { throwIfNoEntry: false })?.mtimeMs ?? Date.now());
+    if (age > SANDBOX_STALE_MS) removeQuietly(dir);
+  }
+});
+
 afterEach(() => {
-  for (const root of sandboxes.splice(0)) rmSync(root, { recursive: true, force: true });
+  for (const root of sandboxes.splice(0)) removeQuietly(root);
 });
 
 describe("check-guards.sh", () => {
