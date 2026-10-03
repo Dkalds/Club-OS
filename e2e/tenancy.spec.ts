@@ -1,7 +1,8 @@
 import { expect, test, type Page } from "@playwright/test";
 import { loginAs } from "./helpers/auth";
 
-// Necesita Supabase local con `pnpm seed` (Arcángel y Club Demo).
+// Necesita el Supabase local arrancado. `e2e/global-setup.ts` siembra Arcángel y Club Demo
+// antes de los tests.
 
 const ALEX = "alex@arcangel.test"; // entrenador de Arcángel
 const MARTA = "marta@demo.test"; // entrenadora de Club Demo

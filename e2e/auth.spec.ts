@@ -2,7 +2,8 @@ import { expect, test } from "@playwright/test";
 import { createAdminClient } from "../scripts/lib/admin-client";
 import { lastCodeSentAt, loginAs, requestCodeFor } from "./helpers/auth";
 
-// Necesita Supabase local con `pnpm seed` (usuarios y clubes de ejemplo).
+// Necesita el Supabase local arrancado. `e2e/global-setup.ts` siembra los usuarios y los
+// clubes de ejemplo antes de los tests.
 
 test("el entrenador entra y aterriza en su club", async ({ page }) => {
   await loginAs(page, "alex@arcangel.test");
