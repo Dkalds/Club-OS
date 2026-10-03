@@ -1,4 +1,4 @@
-import Markdown, { type Components } from "react-markdown";
+import Markdown, { type Components, type ExtraProps } from "react-markdown";
 
 // Sin `"use client"`: el `Markdown` síncrono de react-markdown no usa hooks (solo
 // `MarkdownHooks`, que aquí no se importa). Así funciona igual en un componente de servidor
@@ -31,17 +31,37 @@ export function safeHref(url: string): string | null {
   }
 }
 
+/** Un elemento del árbol del Markdown (lo que React Markdown da a cada componente como `node`). */
+type MarkdownElement = NonNullable<ExtraProps["node"]>;
+
+function hasContent(child: MarkdownElement["children"][number]): boolean {
+  if (child.type === "text") return child.value.trim() !== "";
+  if (child.type === "element") return child.children.some(hasContent);
+  return false;
+}
+
+/**
+ * Si un elemento se queda sin nada que pintar: ni texto (solo espacios no cuenta) ni nada
+ * dentro que lo tenga. Lo que no está en la lista blanca se quita antes de llegar aquí y no
+ * deja texto si no lo tenía (una imagen), así que `![f](…)` dejaría un `<p></p>` vacío y
+ * `[![f](…)](…)` un enlace enfocable y sin nombre. Esos elementos no se pintan.
+ */
+function isEmpty(node: MarkdownElement | undefined): boolean {
+  return node !== undefined && !node.children.some(hasContent);
+}
+
 // Las etiquetas no heredan nada del navegador (el preflight de Tailwind lo reinicia todo):
 // cada una lleva aquí su estilo. Los bloques de primer nivel se separan con el `gap` del
 // contenedor. El sangrado deja sitio al número de una lista de dos cifras.
 const LIST = "flex flex-col gap-(--space-1) pl-(--space-6) marker:text-ink-3";
 
 /**
- * Los componentes de `a`, `ul`, `ol`, `h3` y `blockquote` pintan solo `children` y, donde hace
- * falta, una propiedad concreta (`href`, `start`): nada más de lo que trae el árbol del
- * Markdown se vuelca en esas etiquetas.
+ * Los componentes de `p`, `a`, `ul`, `ol`, `h3` y `blockquote` pintan solo `children` y, donde
+ * hace falta, una propiedad concreta (`href`, `start`): nada más de lo que trae el árbol del
+ * Markdown se vuelca en esas etiquetas. Un párrafo o un enlace sin contenido no se pinta.
  */
 const COMPONENTS: Components = {
+  p: ({ node, children }) => (isEmpty(node) ? null : <p>{children}</p>),
   h3: ({ children }) => <h3 className="font-display text-title text-ink uppercase">{children}</h3>,
   ul: ({ children }) => <ul className={`${LIST} list-disc`}>{children}</ul>,
   ol: ({ children, start }) => (
@@ -54,7 +74,9 @@ const COMPONENTS: Components = {
       {children}
     </blockquote>
   ),
-  a: ({ href, children }) => {
+  a: ({ node, href, children }) => {
+    if (isEmpty(node)) return null;
+
     const safe = href === undefined ? null : safeHref(href);
 
     // Un enlace que no es seguro se queda en su texto: el contenido no se pierde.

@@ -97,6 +97,33 @@ describe("MarkdownBody · enlaces", () => {
     expect(container).toHaveTextContent("clic");
   });
 
+  it("un protocolo que la librería deja pasar pero no es http(s) ni mailto lo para safeHref", () => {
+    // `irc:` está entre los protocolos que la librería admite por su cuenta: aquí el único que
+    // lo rechaza es `safeHref`.
+    const container = renderMarkdown("[clic](irc://club-a.example/x)");
+
+    expect(container.querySelector("a")).toBeNull();
+    expect(container.querySelector("[href]")).toBeNull();
+    expect(container).toHaveTextContent("clic");
+  });
+
+  it("un enlace por referencia a javascript tampoco es un enlace y deja el texto", () => {
+    const container = renderMarkdown("[clic][1]\n\n[1]: javascript:alert(1)");
+
+    expect(container.querySelector("a")).toBeNull();
+    expect(container.querySelector("[href]")).toBeNull();
+    expect(container).toHaveTextContent("clic");
+  });
+
+  it("un enlace con título no lleva el atributo title", () => {
+    const container = renderMarkdown('[clic](https://club-a.example/ruta "Un título")');
+
+    const link = container.querySelector("a");
+    expect(link).toHaveAttribute("href", "https://club-a.example/ruta");
+    expect(link).not.toHaveAttribute("title");
+    expect(container).not.toHaveTextContent("Un título");
+  });
+
   it("un enlace automático con javascript tampoco es un enlace", () => {
     const container = renderMarkdown("<javascript:alert(1)>");
 
@@ -164,6 +191,58 @@ describe("MarkdownBody · elementos", () => {
     const container = renderMarkdown("![f](https://club-a.example/f.png)");
 
     expect(container.querySelector("img")).toBeNull();
+  });
+
+  // Lo que se descarta no deja un cascarón vacío: ni un párrafo sin nada ni un enlace sin
+  // nombre que se pueda enfocar y no se sepa a dónde lleva.
+  it("una imagen sola no deja un párrafo vacío", () => {
+    const container = renderMarkdown("![f](https://club-a.example/f.png)");
+
+    expect(container.querySelector("p")).toBeNull();
+    expect(container.firstElementChild).toBeEmptyDOMElement();
+  });
+
+  it("una imagen dentro de un enlace no deja un enlace sin nombre, ni el párrafo vacío", () => {
+    const container = renderMarkdown(
+      "[![alt](https://club-a.example/f.png)](https://club-a.example/destino)",
+    );
+
+    expect(container.querySelector("a")).toBeNull();
+    expect(container.querySelector("[href]")).toBeNull();
+    expect(container.querySelector("p")).toBeNull();
+    expect(container.firstElementChild).toBeEmptyDOMElement();
+  });
+
+  it("un enlace con una imagen y espacios tampoco tiene nombre", () => {
+    const container = renderMarkdown(
+      "[ ![alt](https://club-a.example/f.png) ](https://club-a.example/destino)",
+    );
+
+    expect(container.querySelector("a")).toBeNull();
+    expect(container.querySelector("p")).toBeNull();
+  });
+
+  it("un enlace con una imagen y texto sigue siendo un enlace, con su texto", () => {
+    const container = renderMarkdown(
+      "[![alt](https://club-a.example/f.png) el plan](https://club-a.example/destino)",
+    );
+
+    const link = container.querySelector("a");
+    expect(link).toHaveAttribute("href", "https://club-a.example/destino");
+    expect(link).toHaveTextContent("el plan");
+  });
+
+  it("un párrafo con una imagen y texto conserva el texto", () => {
+    const container = renderMarkdown("Mira ![f](https://club-a.example/f.png) esto");
+
+    expect(container.querySelector("p")).toHaveTextContent("Mira esto");
+    expect(container.querySelector("img")).toBeNull();
+  });
+
+  it("solo se va el párrafo que se queda sin nada: los demás siguen", () => {
+    const container = renderMarkdown("Uno\n\n![f](https://club-a.example/f.png)\n\nDos");
+
+    expect([...container.querySelectorAll("p")].map((p) => p.textContent)).toEqual(["Uno", "Dos"]);
   });
 
   it("el código pierde su elemento y deja el texto", () => {
