@@ -40,8 +40,13 @@ import { slugify, uniqueSlug } from "./slug";
 // Todas siguen el mismo orden (ver `mutate`): Zod sobre la entrada, el club y el permiso
 // `way.manage` (sin permiso, `NOT_FOUND` sin tocar la base de datos), la escritura y, si ha
 // ido bien, `revalidatePath`. RLS decide de verdad quién escribe; `can` solo evita llegar
-// hasta ella. Lo que no se borra nunca (archivar es pasar a borrador) no tiene acción de
-// borrado, y los puntos de un principio los reemplaza `save_game_principle`.
+// hasta ella.
+//
+// Todo va acotado al club de `clubSlug`: los insert llevan su `organization_id`, los update y
+// los select lo filtran, y las dos acciones que escriben por RPC con solo un id
+// (`updateWaySection`, `savePrinciple`) comprueban antes que la fila es del club. Lo que no se
+// borra nunca (archivar es pasar a borrador) no tiene acción de borrado, y los puntos de un
+// principio los reemplaza `save_game_principle`.
 
 type Db = SupabaseClient<Database>;
 type DbError = { code?: string; message?: string };
@@ -113,6 +118,20 @@ function nextPosition(current: number[]): number {
   return Math.max(0, ...current) + 1;
 }
 
+/**
+ * La fila `id` de `table` si es de este club; `data: null` si no existe o es de otro. Las
+ * funciones SQL que escriben por `p_id` no reciben el club: sin esta comprobación previa,
+ * quien administra dos clubes escribiría en una fila del B llamando a la acción del A.
+ */
+function findInClub(
+  db: Db,
+  table: "way_sections" | "game_principles",
+  ctx: ClubContext,
+  id: string,
+) {
+  return db.from(table).select("id").eq("organization_id", ctx.org.id).eq("id", id).maybeSingle();
+}
+
 const DUPLICATE_STANDARD: UniqueField = {
   field: "number",
   message: "Ya existe un Standard con ese número.",
@@ -168,7 +187,8 @@ export async function createWaySection(
 
 /**
  * Guarda el contenido de una sección con `update_way_section`, la única que cambia su
- * `updated_at`. Si `expectedUpdatedAt` ya no es el de la fila, alguien guardó antes:
+ * `updated_at`. Antes comprueba que la sección es de este club: si no, `NOT_FOUND` sin llamar
+ * a la función. Si `expectedUpdatedAt` ya no es el de la fila, alguien guardó antes:
  * `STALE_COPY`. Devuelve el `updated_at` nuevo tal cual lo da la función (con microsegundos),
  * que es la copia de quien siga editando. El slug no cambia nunca.
  */
@@ -181,7 +201,11 @@ export async function updateWaySection(
     clubSlug,
     updateWaySectionSchema,
     input,
-    async ({ db, data, fromDb }) => {
+    async ({ db, ctx, data, fromDb }) => {
+      const section = await findInClub(db, "way_sections", ctx, data.id);
+      if (section.error) return fromDb(section.error);
+      if (!section.data) return fail("NOT_FOUND");
+
       const { data: updatedAt, error } = await db.rpc("update_way_section", {
         p_id: data.id,
         p_expected_updated_at: data.expectedUpdatedAt,
@@ -382,7 +406,8 @@ export async function createPrinciple(
 
 /**
  * Guarda un principio con `save_game_principle`: cambia título y resumen y reemplaza todos
- * sus puntos por `points`, ya sin los vacíos, en una sola transacción.
+ * sus puntos por `points`, ya sin los vacíos, en una sola transacción. Antes comprueba que el
+ * principio es de este club: si no, `NOT_FOUND` sin llamar a la función.
  */
 export async function savePrinciple(
   clubSlug: string,
@@ -393,7 +418,11 @@ export async function savePrinciple(
     clubSlug,
     savePrincipleSchema,
     input,
-    async ({ db, data, fromDb }) => {
+    async ({ db, ctx, data, fromDb }) => {
+      const principle = await findInClub(db, "game_principles", ctx, data.id);
+      if (principle.error) return fromDb(principle.error);
+      if (!principle.data) return fail("NOT_FOUND");
+
       const { error } = await db.rpc("save_game_principle", {
         p_id: data.id,
         p_title: data.title,

@@ -84,6 +84,7 @@ class FakeQuery implements PromiseLike<Reply> {
   eq = (...args: unknown[]) => this.record("eq", args);
   order = (...args: unknown[]) => this.record("order", args);
   single = (...args: unknown[]) => this.record("single", args);
+  maybeSingle = (...args: unknown[]) => this.record("maybeSingle", args);
 
   then<A = Reply, B = never>(
     onfulfilled?: ((value: Reply) => A | PromiseLike<A>) | null,
@@ -142,6 +143,10 @@ function useDb(...replies: Reply[]): FakeDb {
 }
 
 const reply = (data: unknown): Reply => ({ data, error: null });
+/** La consulta «¿es de este club?» de las acciones que escriben por RPC: encuentra la fila... */
+const ownRow = reply({ id: ID });
+/** ...o no la encuentra, porque no existe o es de otro club. */
+const noRow = reply(null);
 
 /** Un error de PostgREST: un `Error` con su código, y un mensaje que lleva datos de la fila. */
 function dbError(code: string, message: string): Reply {
@@ -295,7 +300,7 @@ describe("tras escribir", () => {
 
 describe("errores de la base de datos", () => {
   it("un fallo inesperado es SAVE_FAILED y se registra sin el contenido de la fila", async () => {
-    useDb(dbError("XX000", 'fila con "texto del club"'));
+    useDb(ownRow, dbError("XX000", 'fila con "texto del club"'));
 
     const result = await updateWaySection("club-a", {
       id: ID,
@@ -324,6 +329,7 @@ describe("errores de la base de datos", () => {
       reply([{ id: S1 }, { id: S2 }]),
       dbError("P0001", "STALE_COPY"),
       dbError("23505", "duplicate"),
+      ownRow,
       dbError("22023", "INVALID"),
     );
 
@@ -515,7 +521,7 @@ describe("updateWaySection", () => {
   });
 
   it("un cuerpo de exactamente 20.000 caracteres se guarda", async () => {
-    const db = useDb(reply(NEXT_STAMP));
+    const db = useDb(ownRow, reply(NEXT_STAMP));
 
     const result = await updateWaySection("club-a", { ...input, bodyMd: "a".repeat(20000) });
 
@@ -542,7 +548,7 @@ describe("updateWaySection", () => {
   });
 
   it("copia obsoleta", async () => {
-    useDb(dbError("P0001", "STALE_COPY"));
+    useDb(ownRow, dbError("P0001", "STALE_COPY"));
 
     const result = await updateWaySection("club-a", input);
 
@@ -552,7 +558,7 @@ describe("updateWaySection", () => {
   });
 
   it("expectedUpdatedAt viaja intacto", async () => {
-    const db = useDb(reply(NEXT_STAMP));
+    const db = useDb(ownRow, reply(NEXT_STAMP));
 
     const result = await updateWaySection("club-a", input);
 
@@ -563,7 +569,7 @@ describe("updateWaySection", () => {
   });
 
   it("manda al RPC todos los campos con su nombre", async () => {
-    const db = useDb(reply(NEXT_STAMP));
+    const db = useDb(ownRow, reply(NEXT_STAMP));
 
     await updateWaySection("club-a", { ...input, title: "  Cómo jugamos  ", bodyMd: "Un texto." });
 
@@ -578,7 +584,7 @@ describe("updateWaySection", () => {
   });
 
   it("un resumen vacío se guarda como null, no como texto vacío", async () => {
-    const db = useDb(reply(NEXT_STAMP), reply(NEXT_STAMP));
+    const db = useDb(ownRow, reply(NEXT_STAMP), ownRow, reply(NEXT_STAMP));
 
     await updateWaySection("club-a", { ...input, summary: "   " });
     await updateWaySection("club-a", { ...input, summary: null });
@@ -588,19 +594,59 @@ describe("updateWaySection", () => {
   });
 
   it("solo escribe por la función: ningún update directo de las columnas de texto", async () => {
-    const db = useDb(reply(NEXT_STAMP));
+    const db = useDb(ownRow, reply(NEXT_STAMP));
 
     await updateWaySection("club-a", input);
 
-    expect(db.queries).toEqual([]);
+    const direct = db.queries
+      .flatMap((query) => query.calls)
+      .filter((call) => call.method === "update" || call.method === "insert");
+    expect(direct).toEqual([]);
   });
 
   it("sin permiso en la fila, NOT_FOUND", async () => {
-    useDb(dbError("P0002", "NOT_FOUND"));
+    useDb(ownRow, dbError("P0002", "NOT_FOUND"));
 
     const result = await updateWaySection("club-a", input);
 
     expect(result).toEqual({ ok: false, error: "NOT_FOUND" });
+  });
+
+  it("una sección que no es de este club es NOT_FOUND y no llega a la función", async () => {
+    const db = useDb(noRow);
+
+    const result = await updateWaySection("club-a", input);
+
+    expect(result).toEqual({ ok: false, error: "NOT_FOUND" });
+    expect(db.rpcs).toEqual([]);
+    expect(mocks.revalidatePath).not.toHaveBeenCalled();
+    expect(logged).toEqual([]);
+  });
+
+  it("antes de escribir mira si la sección es de este club, no de otro", async () => {
+    const db = useDb(ownRow, reply(NEXT_STAMP));
+
+    await updateWaySection("club-a", input);
+
+    expect(db.queries).toHaveLength(1);
+    expect(db.queries[0].table).toBe("way_sections");
+    expect(db.queries[0].sent("select")).toEqual(["id"]);
+    expect(db.queries[0].filters).toEqual([
+      ["organization_id", ORG],
+      ["id", ID],
+    ]);
+    expect(db.queries[0].calls.some((call) => call.method === "maybeSingle")).toBe(true);
+  });
+
+  it("si falla esa comprobación no llama a la función y se registra", async () => {
+    const db = useDb(dbError("XX000", "boom"));
+
+    const result = await updateWaySection("club-a", input);
+
+    expect(result).toEqual({ ok: false, error: "SAVE_FAILED" });
+    expect(db.rpcs).toEqual([]);
+    expect(mocks.revalidatePath).not.toHaveBeenCalled();
+    expect(logged).toEqual(["[methodology.update-way-section] PostgrestError code=XX000"]);
   });
 });
 
@@ -960,7 +1006,7 @@ describe("savePrinciple", () => {
   };
 
   it("puntos", async () => {
-    const db = useDb(reply(null));
+    const db = useDb(ownRow, reply(null));
 
     const result = await savePrinciple("club-a", { ...input, points: ["Espacios", "  ", "Pase"] });
 
@@ -992,7 +1038,7 @@ describe("savePrinciple", () => {
   });
 
   it("12 puntos más los huecos en blanco que haya entre ellos se guardan", async () => {
-    const db = useDb(reply(null));
+    const db = useDb(ownRow, reply(null));
     const points = Array.from({ length: 12 }, (_, i) => `Punto ${i + 1}`);
 
     const result = await savePrinciple("club-a", { ...input, points: [...points, "", "  "] });
@@ -1002,7 +1048,7 @@ describe("savePrinciple", () => {
   });
 
   it("sin puntos deja la lista vacía", async () => {
-    const db = useDb(reply(null));
+    const db = useDb(ownRow, reply(null));
 
     await savePrinciple("club-a", { ...input, points: ["", " "] });
 
@@ -1037,7 +1083,7 @@ describe("savePrinciple", () => {
   });
 
   it("un resumen vacío se guarda como null, no como texto vacío", async () => {
-    const db = useDb(reply(null), reply(null));
+    const db = useDb(ownRow, reply(null), ownRow, reply(null));
 
     await savePrinciple("club-a", { ...input, summary: "  " });
     await savePrinciple("club-a", { ...input, summary: null });
@@ -1047,19 +1093,59 @@ describe("savePrinciple", () => {
   });
 
   it("solo escribe por la función, que reemplaza los puntos en una transacción", async () => {
-    const db = useDb(reply(null));
+    const db = useDb(ownRow, reply(null));
 
     await savePrinciple("club-a", input);
 
-    expect(db.queries).toEqual([]);
+    const direct = db.queries
+      .flatMap((query) => query.calls)
+      .filter((call) => call.method === "update" || call.method === "insert");
+    expect(direct).toEqual([]);
   });
 
   it("un principio que no se ve o no se administra: NOT_FOUND", async () => {
-    useDb(dbError("P0002", "NOT_FOUND"));
+    useDb(ownRow, dbError("P0002", "NOT_FOUND"));
 
     const result = await savePrinciple("club-a", input);
 
     expect(result).toEqual({ ok: false, error: "NOT_FOUND" });
+  });
+
+  it("un principio que no es de este club es NOT_FOUND y no llega a la función", async () => {
+    const db = useDb(noRow);
+
+    const result = await savePrinciple("club-a", input);
+
+    expect(result).toEqual({ ok: false, error: "NOT_FOUND" });
+    expect(db.rpcs).toEqual([]);
+    expect(mocks.revalidatePath).not.toHaveBeenCalled();
+    expect(logged).toEqual([]);
+  });
+
+  it("antes de escribir mira si el principio es de este club, no de otro", async () => {
+    const db = useDb(ownRow, reply(null));
+
+    await savePrinciple("club-a", input);
+
+    expect(db.queries).toHaveLength(1);
+    expect(db.queries[0].table).toBe("game_principles");
+    expect(db.queries[0].sent("select")).toEqual(["id"]);
+    expect(db.queries[0].filters).toEqual([
+      ["organization_id", ORG],
+      ["id", ID],
+    ]);
+    expect(db.queries[0].calls.some((call) => call.method === "maybeSingle")).toBe(true);
+  });
+
+  it("si falla esa comprobación no llama a la función y se registra", async () => {
+    const db = useDb(dbError("XX000", "boom"));
+
+    const result = await savePrinciple("club-a", input);
+
+    expect(result).toEqual({ ok: false, error: "SAVE_FAILED" });
+    expect(db.rpcs).toEqual([]);
+    expect(mocks.revalidatePath).not.toHaveBeenCalled();
+    expect(logged).toEqual(["[methodology.save-principle] PostgrestError code=XX000"]);
   });
 });
 
