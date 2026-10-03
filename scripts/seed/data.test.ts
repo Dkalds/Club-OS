@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildSeedData, type SeedData } from "./data";
+import { ARCANGEL, buildSeedData, CLUB_DEMO, type ClubDef, type SeedData } from "./data";
 import { seedSchedule } from "./dates";
 import { seedId } from "./ids";
 
@@ -601,5 +601,53 @@ describe("buildSeedData: invariantes", () => {
     expect(seedId("arcangel", "a")).not.toBe(seedId("arcangel", "b"));
     expect(orgId("arcangel")).toBe(seedId("arcangel", "organization"));
     expect(orgId("club-demo")).toBe(seedId("club-demo", "organization"));
+  });
+});
+
+describe("fixtures exportados (contrato entre fases)", () => {
+  it("ARCANGEL y CLUB_DEMO se exportan por nombre, con sus slugs", () => {
+    expect(ARCANGEL.slug).toBe("arcangel");
+    expect(CLUB_DEMO.slug).toBe("club-demo");
+  });
+
+  it("buildSeedData sigue las organizaciones en el orden [ARCANGEL, CLUB_DEMO]", () => {
+    expect(data.organizations.map((o) => o.slug)).toEqual([ARCANGEL.slug, CLUB_DEMO.slug]);
+    expect(data.organization_branding.map((b) => b.organization_id)).toEqual(
+      data.organizations.map((o) => o.id),
+    );
+  });
+
+  it.each([
+    ["ARCANGEL", ARCANGEL],
+    ["CLUB_DEMO", CLUB_DEMO],
+  ] as [string, ClubDef][])("la salida de buildSeedData es la que describe %s", (_name, club) => {
+    const id = orgId(club.slug);
+    expect(one(data.organizations, (o) => o.id === id, club.slug)).toMatchObject({
+      name: club.name,
+      timezone: club.timezone,
+    });
+    expect(one(data.organization_branding, (b) => b.organization_id === id, club.slug)).toEqual({
+      organization_id: id,
+      ...club.branding,
+    });
+    expect(
+      data.teams
+        .filter((t) => t.organization_id === id)
+        .map((t) => t.name)
+        .sort(),
+    ).toEqual(club.teams.map((t) => t.name).sort());
+    expect(
+      data.categories
+        .filter((c) => c.organization_id === id)
+        .map((c) => c.name)
+        .sort(),
+    ).toEqual(club.categories.map((c) => c.name).sort());
+    const players = club.teams.reduce((sum, team) => sum + team.players.length, 0);
+    expect(data.people.filter((p) => p.organization_id === id)).toHaveLength(
+      club.staff.length + players,
+    );
+    expect(
+      data.memberships.filter((m) => m.organization_id === id).map((m) => m.email),
+    ).toEqual(club.members.map((m) => m.email));
   });
 });

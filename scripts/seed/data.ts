@@ -45,7 +45,7 @@ export type SeedData = {
 
 // ── Definiciones ─────────────────────────────────────────────────────────────────────
 
-type FocusSlug = "tecnica" | "transicion" | "tiro" | "defensa" | "rebote" | "ataque";
+export type FocusSlug = "tecnica" | "transicion" | "tiro" | "defensa" | "rebote" | "ataque";
 
 // Mismos seis focos en los dos clubes: son el vocabulario de trabajo de cualquier club.
 const FOCUS_AREAS: { slug: FocusSlug; name: string }[] = [
@@ -57,12 +57,12 @@ const FOCUS_AREAS: { slug: FocusSlug; name: string }[] = [
   { slug: "ataque", name: "Ataque" },
 ];
 
-type StaffDef = { key: string; firstName: string; lastName: string };
-type PlayerDef = { firstName: string; lastName: string; number: number; position: string | null };
-type ItemDef = { phase: string; title: string; minutes: number };
-type SlotOf = (schedule: SeedSchedule, tz: string) => SlotIso;
+export type StaffDef = { key: string; firstName: string; lastName: string };
+export type PlayerDef = { firstName: string; lastName: string; number: number; position: string | null };
+export type ItemDef = { phase: string; title: string; minutes: number };
+export type SlotOf = (schedule: SeedSchedule, tz: string) => SlotIso;
 
-type SessionDef = {
+export type SessionDef = {
   // Posición dentro del calendario (`upcoming-0`, `past-2`…): forma parte del id, así que
   // un nuevo seed mueve la sesión de fecha en vez de crear otra.
   slotKey: string;
@@ -75,7 +75,7 @@ type SessionDef = {
   items: ItemDef[];
 };
 
-type GameDef = {
+export type GameDef = {
   slotKey: string;
   slot: SlotOf;
   location: string;
@@ -84,7 +84,7 @@ type GameDef = {
   homeAway: "home" | "away";
 };
 
-type TeamDef = {
+export type TeamDef = {
   key: string;
   name: string;
   categoryKey: string;
@@ -95,7 +95,7 @@ type TeamDef = {
   game: GameDef | null;
 };
 
-type ClubDef = {
+export type ClubDef = {
   slug: string;
   name: string;
   timezone: string;
@@ -299,63 +299,66 @@ const INFANTIL_A: TeamDef = {
   game: null,
 };
 
-const CLUBS: ClubDef[] = [
-  {
-    slug: "arcangel",
-    name: "CB Arcángel",
-    timezone: "Europe/Madrid",
-    branding: {
-      display_name: "Arcángel",
-      wordmark_sub: "Basketball",
-      short_name: "CBA",
-      way_name: "The Arcángel Way",
-      tagline: "One club. One identity. One way.",
-      color_accent: "#c9a45c",
-      color_accent_pressed: "#b38e48",
-      color_on_accent: "#0a0a0b",
-      color_accent_soft: "#2b2517",
-      terminology: { way: "The Way", standards: "Arcángel Standards" },
-    },
-    staff: [
-      { key: "raul", firstName: "Raúl", lastName: "Campos" },
-      { key: "alex", firstName: "Álex", lastName: "Prieto" },
-      { key: "irene", firstName: "Irene", lastName: "Soler" },
-      { key: "nora", firstName: "Nora", lastName: "Gil" },
-    ],
-    members: [
-      { email: "raul@arcangel.test", personKey: "raul", role: "admin" },
-      { email: "alex@arcangel.test", personKey: "alex", role: "coach" },
-      { email: "irene@arcangel.test", personKey: "irene", role: "coach" },
-      { email: "nora@arcangel.test", personKey: "nora", role: "coach" },
-    ],
-    categories: [
-      { key: "benjamin", name: "Benjamín", ageBand: "U10", sort: 10 },
-      { key: "alevin", name: "Alevín", ageBand: "U12", sort: 20 },
-    ],
-    teams: [ALEVIN_A, BENJAMIN_A],
+// Los fixtures de los dos clubes se exportan por nombre: las fases siguientes los importan
+// (y extienden con sus propias tablas) en vez de volver a escribir los datos del club.
+export const ARCANGEL: ClubDef = {
+  slug: "arcangel",
+  name: "CB Arcángel",
+  timezone: "Europe/Madrid",
+  branding: {
+    display_name: "Arcángel",
+    wordmark_sub: "Basketball",
+    short_name: "CBA",
+    way_name: "The Arcángel Way",
+    tagline: "One club. One identity. One way.",
+    color_accent: "#c9a45c",
+    color_accent_pressed: "#b38e48",
+    color_on_accent: "#0a0a0b",
+    color_accent_soft: "#2b2517",
+    terminology: { way: "The Way", standards: "Arcángel Standards" },
   },
-  {
-    slug: "club-demo",
-    name: "Club Demo",
-    timezone: "Europe/Madrid",
-    branding: {
-      display_name: "Club Demo",
-      wordmark_sub: "Baloncesto",
-      short_name: "CDM",
-      way_name: "The Demo Way",
-      tagline: null,
-      color_accent: "#3fb8af",
-      color_accent_pressed: "#34998f",
-      color_on_accent: "#0a0a0b",
-      color_accent_soft: "#10282a",
-      terminology: { way: "Nuestra forma" },
-    },
-    staff: [{ key: "marta", firstName: "Marta", lastName: "Ruiz" }],
-    members: [{ email: "marta@demo.test", personKey: "marta", role: "coach" }],
-    categories: [{ key: "infantil", name: "Infantil", ageBand: "U14", sort: 10 }],
-    teams: [INFANTIL_A],
+  staff: [
+    { key: "raul", firstName: "Raúl", lastName: "Campos" },
+    { key: "alex", firstName: "Álex", lastName: "Prieto" },
+    { key: "irene", firstName: "Irene", lastName: "Soler" },
+    { key: "nora", firstName: "Nora", lastName: "Gil" },
+  ],
+  members: [
+    { email: "raul@arcangel.test", personKey: "raul", role: "admin" },
+    { email: "alex@arcangel.test", personKey: "alex", role: "coach" },
+    { email: "irene@arcangel.test", personKey: "irene", role: "coach" },
+    { email: "nora@arcangel.test", personKey: "nora", role: "coach" },
+  ],
+  categories: [
+    { key: "benjamin", name: "Benjamín", ageBand: "U10", sort: 10 },
+    { key: "alevin", name: "Alevín", ageBand: "U12", sort: 20 },
+  ],
+  teams: [ALEVIN_A, BENJAMIN_A],
+};
+
+export const CLUB_DEMO: ClubDef = {
+  slug: "club-demo",
+  name: "Club Demo",
+  timezone: "Europe/Madrid",
+  branding: {
+    display_name: "Club Demo",
+    wordmark_sub: "Baloncesto",
+    short_name: "CDM",
+    way_name: "The Demo Way",
+    tagline: null,
+    color_accent: "#3fb8af",
+    color_accent_pressed: "#34998f",
+    color_on_accent: "#0a0a0b",
+    color_accent_soft: "#10282a",
+    terminology: { way: "Nuestra forma" },
   },
-];
+  staff: [{ key: "marta", firstName: "Marta", lastName: "Ruiz" }],
+  members: [{ email: "marta@demo.test", personKey: "marta", role: "coach" }],
+  categories: [{ key: "infantil", name: "Infantil", ageBand: "U14", sort: 10 }],
+  teams: [INFANTIL_A],
+};
+
+const CLUBS: ClubDef[] = [ARCANGEL, CLUB_DEMO];
 
 // Cuenta válida de Auth que no pertenece a ningún club: para probar el estado vacío.
 const USERS_WITHOUT_CLUB = ["sin.club@clubos.test"];
