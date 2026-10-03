@@ -1,9 +1,13 @@
-import { expect, test } from "@playwright/test";
 import { createAdminClient } from "../scripts/lib/admin-client";
 import { lastCodeSentAt, loginAs, requestCodeFor } from "./helpers/auth";
+import { expect, test } from "./helpers/test";
 
 // Necesita el Supabase local arrancado. `e2e/global-setup.ts` siembra los usuarios y los
 // clubes de ejemplo antes de los tests.
+//
+// Este archivo prueba el acceso en sí, así que aquí cada test entra de verdad con
+// `loginAs` (una verificación de código por login). Los demás specs reutilizan la sesión
+// guardada en el arranque global (`openAs`).
 
 test("el entrenador entra y aterriza en su club", async ({ page }) => {
   await loginAs(page, "alex@arcangel.test");
@@ -32,6 +36,8 @@ test("un usuario sin club ve el aviso", async ({ page }) => {
 });
 
 test("salir cierra la sesión", async ({ page }) => {
+  // Con su propio login: la sesión que se cierra aquí no es ninguna de las guardadas que
+  // comparten los demás tests (y «Salir» solo cierra la de este navegador).
   await loginAs(page, "sin.club@clubos.test");
 
   await page.getByRole("button", { name: "Salir" }).click();

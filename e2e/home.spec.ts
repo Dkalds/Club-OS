@@ -1,12 +1,18 @@
-import { expect, test, type Page } from "@playwright/test";
+import type { Page } from "@playwright/test";
 import { ARCANGEL, CLUB_DEMO } from "../scripts/seed/data";
 import { seedSchedule, type SlotIso } from "../scripts/seed/dates";
 import { addLocalDays, formatEventSlot, startOfLocalDay } from "../src/lib/time";
-import { loginAs } from "./helpers/auth";
 import { seedNow } from "./helpers/seed";
+import { openAs } from "./helpers/sessions";
+import { expect, test } from "./helpers/test";
 
 // Necesita el Supabase local arrancado. `e2e/global-setup.ts` lo siembra justo antes de los
-// tests (Arcángel y Club Demo) y deja el instante de esa siembra en `seedNow()`.
+// tests (Arcángel y Club Demo), deja el instante de esa siembra en `seedNow()` y guarda una
+// sesión por usuario: aquí nadie pasa por el login, cada test abre la app con `openAs`.
+//
+// Contra un Supabase que no es local el arranque global no siembra (ver su cabecera):
+// `seedNow()` sigue definido, pero estos tests solo aciertan si ese destino se sembró hace
+// poco y `E2E_SEED_NOW` dice cuándo.
 //
 // Aquí cuentan dos relojes, y cada test dice cuál usa:
 //  - Qué hay en la base de datos lo decide el instante de la SIEMBRA: el calendario
@@ -24,12 +30,6 @@ import { seedNow } from "./helpers/seed";
 
 // La pantalla se revisa siempre a 375 px, sea cual sea el proyecto de Playwright.
 test.use({ viewport: { width: 375, height: 812 } });
-
-// Cada test entra por su cuenta. Auth guarda un solo código por usuario, así que `loginAs`
-// hace cola por email: en paralelo, los tests de este archivo se pasarían el tiempo
-// esperando turno (y, con muchos workers, agotándolo). Van uno detrás de otro, en un mismo
-// worker, y repartidos entre personas; siguen siendo independientes entre sí.
-test.describe.configure({ mode: "default" });
 
 const ALEX = "alex@arcangel.test"; // entrenador de Alevín A
 const NORA = "nora@arcangel.test"; // entrenadora de Benjamín A, mismo club
@@ -75,7 +75,7 @@ function startsThisWeek(slot: SlotIso, now: Date): boolean {
 
 /** Entra y espera a que Inicio esté pintado: el saludo, con su nombre, es el único `<h1>`. */
 async function openHome(page: Page, email: string, club: string, firstName: string): Promise<void> {
-  await loginAs(page, email);
+  await openAs(page, email);
   await expect(page).toHaveURL(new RegExp(`${club}$`));
   await expect(page.getByRole("heading", { level: 1 })).toHaveCount(1);
   await expect(page.getByRole("heading", { level: 1 })).toHaveText(
@@ -252,18 +252,13 @@ test("áreas táctiles de 44 px", async ({ page }) => {
   }
 });
 
-test("sin errores de consola", async ({ page }) => {
-  const errors: string[] = [];
-  page.on("console", (message) => {
-    if (message.type() === "error") {
-      errors.push(`console.error en ${page.url()}: ${message.text()}`);
-    }
-  });
-  page.on("pageerror", (error) => {
-    errors.push(`excepción en ${page.url()}: ${error.message}`);
-  });
+test("sin errores de consola", async ({ page, browserErrors }) => {
+  // La consola la vigila `helpers/test.ts` en TODOS los tests de los e2e: cualquiera falla
+  // con un `console.error` o una excepción del navegador (el acceso en /login y el selector
+  // sin clubes, en `auth.spec.ts`; el Inicio de cada persona, en este archivo). Este test
+  // añade el recorrido que ningún otro hace: todas las pestañas, la vuelta y una recarga.
 
-  // Acceso (/login), selector (/select-club, que con un solo club salta a él) e Inicio.
+  // La entrada (la raíz y el selector, que con un solo club salta a él) e Inicio.
   await openHome(page, MARTA, DEMO, "Marta");
   await expect(practiceCard(page)).toBeVisible();
 
@@ -292,5 +287,5 @@ test("sin errores de consola", async ({ page }) => {
   await page.reload();
   await expect(practiceCard(page)).toBeVisible();
 
-  expect(errors).toEqual([]);
+  expect(browserErrors.seen).toEqual([]);
 });

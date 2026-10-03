@@ -4,7 +4,8 @@ const baseURL = "http://localhost:3000";
 
 export default defineConfig({
   testDir: "./e2e",
-  // Siembra la base de datos justo antes de los tests y les pasa el instante de la siembra.
+  // Con Supabase local: siembra la base de datos justo antes de los tests, les pasa el
+  // instante de la siembra y guarda una sesión por usuario. Con uno remoto no escribe nada.
   globalSetup: "./e2e/global-setup.ts",
   fullyParallel: true,
   forbidOnly: !!process.env.CI,

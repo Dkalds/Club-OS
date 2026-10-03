@@ -11,12 +11,18 @@ function hostnameOf(url: string): string | null {
   }
 }
 
+/** `true` solo si la URL apunta a un Supabase local (127.0.0.1, localhost o [::1]). */
+export function isLocalSupabaseUrl(url: string): boolean {
+  const host = hostnameOf(url);
+  return host !== null && LOCAL_HOSTS.has(host);
+}
+
 export function assertSeedTarget(
   url: string,
   env: Record<string, string | undefined>,
 ): void {
   const host = hostnameOf(url);
-  if (host !== null && LOCAL_HOSTS.has(host)) return;
+  if (isLocalSupabaseUrl(url)) return;
   if (env.ALLOW_REMOTE_SEED === "true") return;
 
   const target = host ?? "una URL que no se puede interpretar";

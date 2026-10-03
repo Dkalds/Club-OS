@@ -2,11 +2,16 @@
  * Variable de entorno con la que `e2e/global-setup.ts` pasa a los tests el instante con el
  * que acaba de sembrar la base de datos. Los workers de Playwright arrancan después del
  * arranque global y heredan su entorno.
+ *
+ * Contra un Supabase que no es local el arranque global no siembra. Entonces la variable
+ * la puede traer quien lanza los e2e (una fecha ISO: cuándo sembró ese destino); si no la
+ * trae, vale el instante del arranque. Siempre queda definida.
  */
 export const SEED_NOW_ENV = "E2E_SEED_NOW";
 
 /**
- * El instante con el que se sembró la base de datos de esta ejecución.
+ * El instante con el que se sembró la base de datos de esta ejecución (o, sin siembra, el
+ * que se da por bueno: ver `SEED_NOW_ENV`).
  *
  * Las fechas del seed son relativas a ese instante (`seedSchedule(now, zona)`): con él, un
  * test calcula exactamente el calendario que hay en la base de datos, tarde lo que tarde
