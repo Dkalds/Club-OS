@@ -41,6 +41,38 @@ export type Database = {
   }
   public: {
     Tables: {
+      categories: {
+        Row: {
+          age_band: string
+          id: string
+          name: string
+          organization_id: string
+          sort: number
+        }
+        Insert: {
+          age_band: string
+          id?: string
+          name: string
+          organization_id: string
+          sort?: number
+        }
+        Update: {
+          age_band?: string
+          id?: string
+          name?: string
+          organization_id?: string
+          sort?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "categories_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       memberships: {
         Row: {
           created_at: string
@@ -76,6 +108,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "organizations"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "memberships_organization_id_person_id_fkey"
+            columns: ["organization_id", "person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["organization_id", "id"]
           },
         ]
       }
@@ -162,6 +201,44 @@ export type Database = {
         }
         Relationships: []
       }
+      people: {
+        Row: {
+          archived_at: string | null
+          birth_year: number | null
+          created_at: string
+          first_name: string
+          id: string
+          last_name: string
+          organization_id: string
+        }
+        Insert: {
+          archived_at?: string | null
+          birth_year?: number | null
+          created_at?: string
+          first_name: string
+          id?: string
+          last_name: string
+          organization_id: string
+        }
+        Update: {
+          archived_at?: string | null
+          birth_year?: number | null
+          created_at?: string
+          first_name?: string
+          id?: string
+          last_name?: string
+          organization_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "people_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           created_at: string
@@ -183,6 +260,176 @@ export type Database = {
         }
         Relationships: []
       }
+      seasons: {
+        Row: {
+          ends_on: string
+          id: string
+          is_current: boolean
+          name: string
+          organization_id: string
+          starts_on: string
+        }
+        Insert: {
+          ends_on: string
+          id?: string
+          is_current?: boolean
+          name: string
+          organization_id: string
+          starts_on: string
+        }
+        Update: {
+          ends_on?: string
+          id?: string
+          is_current?: boolean
+          name?: string
+          organization_id?: string
+          starts_on?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "seasons_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      team_players: {
+        Row: {
+          jersey_number: number | null
+          organization_id: string
+          person_id: string
+          position: string | null
+          team_id: string
+        }
+        Insert: {
+          jersey_number?: number | null
+          organization_id: string
+          person_id: string
+          position?: string | null
+          team_id: string
+        }
+        Update: {
+          jersey_number?: number | null
+          organization_id?: string
+          person_id?: string
+          position?: string | null
+          team_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "team_players_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "team_players_organization_id_person_id_fkey"
+            columns: ["organization_id", "person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "team_players_organization_id_team_id_fkey"
+            columns: ["organization_id", "team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["organization_id", "id"]
+          },
+        ]
+      }
+      team_staff: {
+        Row: {
+          organization_id: string
+          person_id: string
+          staff_role: Database["public"]["Enums"]["staff_role"]
+          team_id: string
+        }
+        Insert: {
+          organization_id: string
+          person_id: string
+          staff_role: Database["public"]["Enums"]["staff_role"]
+          team_id: string
+        }
+        Update: {
+          organization_id?: string
+          person_id?: string
+          staff_role?: Database["public"]["Enums"]["staff_role"]
+          team_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "team_staff_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "team_staff_organization_id_person_id_fkey"
+            columns: ["organization_id", "person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "team_staff_organization_id_team_id_fkey"
+            columns: ["organization_id", "team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["organization_id", "id"]
+          },
+        ]
+      }
+      teams: {
+        Row: {
+          category_id: string
+          id: string
+          name: string
+          organization_id: string
+          season_id: string
+        }
+        Insert: {
+          category_id: string
+          id?: string
+          name: string
+          organization_id: string
+          season_id: string
+        }
+        Update: {
+          category_id?: string
+          id?: string
+          name?: string
+          organization_id?: string
+          season_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "teams_organization_id_category_id_fkey"
+            columns: ["organization_id", "category_id"]
+            isOneToOne: false
+            referencedRelation: "categories"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "teams_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "teams_organization_id_season_id_fkey"
+            columns: ["organization_id", "season_id"]
+            isOneToOne: false
+            referencedRelation: "seasons"
+            referencedColumns: ["organization_id", "id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -192,6 +439,7 @@ export type Database = {
     }
     Enums: {
       org_role: "admin" | "coach" | "player" | "guardian"
+      staff_role: "head_coach" | "assistant"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -323,6 +571,7 @@ export const Constants = {
   public: {
     Enums: {
       org_role: ["admin", "coach", "player", "guardian"],
+      staff_role: ["head_coach", "assistant"],
     },
   },
 } as const
