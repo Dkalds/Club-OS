@@ -2,15 +2,31 @@ import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { clubContext } from "@/modules/tenancy/test-support";
 
-const mocks = vi.hoisted(() => ({ getClubContext: vi.fn(), listSectionsForAdmin: vi.fn() }));
+const mocks = vi.hoisted(() => ({
+  getClubContext: vi.fn(),
+  listSectionsForAdmin: vi.fn(),
+  listValuesForAdmin: vi.fn(),
+  listPrinciplesForAdmin: vi.fn(),
+  listStandardsForAdmin: vi.fn(),
+}));
 
 vi.mock("@/modules/tenancy/queries", () => ({ getClubContext: mocks.getClubContext }));
 vi.mock("@/modules/methodology/admin-queries", () => ({
   listSectionsForAdmin: mocks.listSectionsForAdmin,
+  listValuesForAdmin: mocks.listValuesForAdmin,
+  listPrinciplesForAdmin: mocks.listPrinciplesForAdmin,
+  listStandardsForAdmin: mocks.listStandardsForAdmin,
 }));
-// La lista de The Way lleva formularios que llaman a estas acciones; aquí solo se pintan.
+// Las listas de Gestión llevan formularios que llaman a estas acciones; aquí solo se pintan.
+// El contenido de cada lista se prueba en el `pages.test.tsx` de su carpeta.
 vi.mock("@/modules/methodology/actions", () => ({
   createWaySection: vi.fn(),
+  createValue: vi.fn(),
+  updateValue: vi.fn(),
+  createPrinciple: vi.fn(),
+  savePrinciple: vi.fn(),
+  createStandard: vi.fn(),
+  updateStandard: vi.fn(),
   moveMethodologyItem: vi.fn(),
   setMethodologyStatus: vi.fn(),
 }));
@@ -47,6 +63,9 @@ const PAGES: Array<[string, (props: typeof PARAMS) => Promise<unknown>]> = [
 beforeEach(() => {
   vi.resetAllMocks();
   mocks.listSectionsForAdmin.mockResolvedValue([]);
+  mocks.listValuesForAdmin.mockResolvedValue([]);
+  mocks.listPrinciplesForAdmin.mockResolvedValue([]);
+  mocks.listStandardsForAdmin.mockResolvedValue([]);
 });
 
 describe("páginas de Gestión", () => {

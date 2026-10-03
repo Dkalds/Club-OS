@@ -15,13 +15,16 @@ import { expect, test } from "./helpers/test";
 // Este archivo va en el proyecto `admin` de Playwright (ver playwright.config.ts): los
 // specs de Gestión de las fases siguientes modifican el seed y van aquí, en serie.
 //
-// Los tests de Gestión de The Way escriben: crean la sección «Plan de temporada» y la
-// reordenan, lo que renumera las del seed. `restoreSeed` deja la base de datos como la dejó
-// el arranque global: borra esa sección y vuelve a sembrar, que devuelve su número a las
-// demás. Corre al empezar (una ejecución anterior matada a medias no puede dejar una sección
-// que estorbe: la nueva se llamaría `plan-de-temporada-2`) y al acabar. Los dos toleran que
-// la sección ya no esté. Con un Supabase que no es local nada se escribe: los tests que
-// escriben se saltan, como en `way.spec.ts`.
+// Los tests de Gestión escriben. Los de The Way crean la sección «Plan de temporada» y la
+// reordenan, lo que renumera las del seed; los de valores, principios y Standards editan lo
+// del seed (la descripción de «RESPECT», el estado de «EFFORT», un punto más en «Defensa») y
+// crean el Standard 6. `restoreSeed` deja la base de datos como la dejó el arranque global:
+// borra lo que el seed no conoce (esa sección y ese Standard) y vuelve a sembrar, que devuelve
+// su texto, su estado, su orden y su número a lo que el seed sí posee y quita los puntos que
+// sobran de sus principios. Corre al empezar (una ejecución anterior matada a medias no puede
+// dejar una sección que estorbe: la nueva se llamaría `plan-de-temporada-2`) y al acabar. Los
+// dos toleran que lo borrado ya no esté. Con un Supabase que no es local nada se escribe: los
+// tests que escriben se saltan, como en `way.spec.ts`.
 test.describe.configure({ mode: "serial" });
 
 const ALEX = "alex@arcangel.test"; // entrenador de Arcángel
@@ -30,13 +33,22 @@ const RAUL = "raul@arcangel.test"; // dirección de Arcángel
 const CLUB = `/c/${ARCANGEL.slug}`;
 const ADMIN = `${CLUB}/admin`;
 
+const ORGANIZATION_ID = seedId(ARCANGEL.slug, "organization");
+
 const SECTION_TITLE = "Plan de temporada";
 const SECTION_SLUG = "plan-de-temporada";
+
+// El Standard que crean los tests: el siguiente a los cinco del seed.
+const NEW_STANDARD = {
+  number: 6,
+  title: "TALK ON DEFENSE",
+  description: "Hablamos en cada defensa.",
+};
 
 const STALE_COPY = "Alguien ha cambiado esto mientras editabas. Recarga para ver la última versión.";
 
 const NEEDS_LOCAL_DB =
-  "Escribe en la base de datos (crea y reordena secciones): solo con un Supabase local.";
+  "Escribe en la base de datos (crea, edita y reordena contenido): solo con un Supabase local.";
 
 /**
  * Los datos solo se escriben en un Supabase local: lanzar unos tests nunca escribe en una base
@@ -56,17 +68,31 @@ const CAN_WRITE = targetIsLocal();
 async function restoreSeed(): Promise<void> {
   if (!CAN_WRITE) return;
 
+  const db = createAdminClient();
+
   // Borrar no falla si la sección ya no está. Solo las de Arcángel: nunca las de otro club.
-  const removed = await createAdminClient()
+  const removed = await db
     .from("way_sections")
     .delete()
-    .eq("organization_id", seedId(ARCANGEL.slug, "organization"))
+    .eq("organization_id", ORGANIZATION_ID)
     .like("slug", `${SECTION_SLUG}%`);
   if (removed.error) {
     throw new Error(`No se pudo borrar la sección de prueba: ${removed.error.message}`);
   }
 
-  // Mismo instante que el arranque global: la base de datos queda como la dejó él.
+  // Lo mismo con el Standard 6, que el seed (del 1 al 5) no posee y por tanto no quitaría.
+  const standard = await db
+    .from("standards")
+    .delete()
+    .eq("organization_id", ORGANIZATION_ID)
+    .eq("number", NEW_STANDARD.number);
+  if (standard.error) {
+    throw new Error(`No se pudo borrar el Standard de prueba: ${standard.error.message}`);
+  }
+
+  // Mismo instante que el arranque global: la base de datos queda como la dejó él. El seed
+  // devuelve la descripción de «RESPECT», el estado de «EFFORT» y el orden de las listas, y
+  // borra el punto que los tests añaden a «Defensa».
   await runSeed(seedNow());
 }
 
@@ -97,9 +123,29 @@ function indexRow(page: Page, sectionTitle: string) {
   return page.getByRole("main").getByRole("link").filter({ hasText: sectionTitle });
 }
 
-/** El campo de una etiqueta, con el nombre entero: «Título» no es «Subir Título…». */
-function field(page: Page, label: string) {
-  return page.getByLabel(label, { exact: true });
+/**
+ * El campo de una etiqueta, con el nombre entero: «Título» no es «Subir Título…». Sobre una
+ * página o, cuando varias cards repiten las mismas etiquetas, sobre la card o el alta que lo lleva.
+ */
+function field(scope: Page | Locator, label: string) {
+  return scope.getByLabel(label, { exact: true });
+}
+
+/**
+ * La card de un elemento de las listas de Gestión (valores, principios, Standards): el `<li>`
+ * que lleva su nombre en un `<h2>`. Los puntos de un principio también son `<li>`, pero no
+ * llevan ese encabezado.
+ */
+function itemCard(page: Page, name: string) {
+  return page
+    .getByRole("main")
+    .getByRole("listitem")
+    .filter({ has: page.getByRole("heading", { level: 2, name, exact: true }) });
+}
+
+/** El alta de una lista de Gestión: su formulario, que se llama como su título («Nuevo valor»). */
+function createForm(page: Page, name: string) {
+  return page.getByRole("form", { name, exact: true });
 }
 
 /**
@@ -126,6 +172,22 @@ async function openWayList(page: Page, email = RAUL): Promise<void> {
   await page.goto(`${ADMIN}/way`);
   await expect(title(page)).toHaveText("The Way");
   await hydrated(page.getByRole("button", { name: "Crear sección" }));
+}
+
+/**
+ * Entra como Raúl y abre una lista de Gestión (`values`, `principles`, `standards`), lista para
+ * usarse: con su título y con el botón de alta, el último de la página, ya hidratado.
+ */
+async function openList(
+  page: Page,
+  list: "values" | "principles" | "standards",
+  heading: string,
+  createLabel: string,
+): Promise<void> {
+  await openAs(page, RAUL);
+  await page.goto(`${ADMIN}/${list}`);
+  await expect(title(page)).toHaveText(heading);
+  await hydrated(page.getByRole("button", { name: createLabel, exact: true }));
 }
 
 /** Abre el editor de una sección por su URL, listo para usarse. */
@@ -372,6 +434,74 @@ test("un editor que no existe da el 404 dentro del marco de Gestión", async ({ 
   await page.screenshot({ path: "test-results/admin-404-375.png", fullPage: true });
 });
 
+/**
+ * Todo lo que se toca en una lista de Gestión mide al menos 44 px de alto y cabe dentro de la
+ * pantalla: botones, enlaces y campos de `<main>`. `width` es el de la ventana.
+ */
+async function expectTargetsFit(page: Page, width: number): Promise<void> {
+  const main = page.getByRole("main");
+  const targets = [
+    ...(await main.getByRole("button").all()),
+    ...(await main.getByRole("link").all()),
+    ...(await main.locator("input, textarea, select").all()),
+  ];
+  expect(targets.length).toBeGreaterThan(0);
+
+  for (const target of targets) {
+    const box = await target.boundingBox();
+    const label =
+      (await target.innerText().catch(() => "")).replace(/\s+/g, " ").trim() ||
+      (await target.getAttribute("name")) ||
+      "un campo";
+    expect(box, `caja de «${label}»`).not.toBeNull();
+    expect(box!.height, `alto de «${label}»`).toBeGreaterThanOrEqual(44);
+    expect(box!.x + box!.width, `«${label}» cabe en ${width} px`).toBeLessThanOrEqual(width + 1);
+  }
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+}
+
+test("valores, principios y Standards caben en el móvil y en el escritorio", async ({ page }) => {
+  // Solo se mide: lo que se añade a «Ataque» no se guarda.
+  const lists = [
+    ["values", "Valores", "Crear valor", 3],
+    ["principles", "Principios", "Crear principio", 4],
+    ["standards", "Arcángel Standards", "Crear Standard", 5],
+  ] as const;
+
+  for (const [list, heading, createLabel, items] of lists) {
+    await openList(page, list, heading, createLabel);
+    await expect(page.getByRole("main").getByRole("heading", { level: 1 })).toHaveCount(1);
+    await expect(page.getByRole("main").getByRole("listitem").first()).toBeVisible();
+    await page.evaluate(() => document.fonts.ready);
+
+    // La lista de «Ataque» con sus puntos hasta el tope de 12: es la card más larga de Gestión.
+    if (list === "principles") {
+      const attack = itemCard(page, "Ataque");
+      const add = attack.getByRole("button", { name: "Añadir punto", exact: true });
+      await expect(attack.getByRole("listitem")).toHaveCount(6);
+      for (let point = 7; point <= 12; point += 1) await add.click();
+      await expect(attack.getByRole("listitem")).toHaveCount(12);
+      // Con 12 ya no se ofrece otro.
+      await expect(add).toHaveCount(0);
+    }
+
+    expect(page.viewportSize()?.width).toBe(375);
+    await expectTargetsFit(page, 375);
+    // Una card por elemento del seed, y el alta debajo, ya pintada.
+    await expect(
+      page.getByRole("main").getByRole("heading", { level: 2 }),
+    ).toHaveCount(items + 1);
+    await page.screenshot({ path: `test-results/admin-${list}-375.png`, fullPage: true });
+
+    await page.setViewportSize({ width: 1280, height: 800 });
+    const main = await page.getByRole("main").boundingBox();
+    expect(main!.width).toBeLessThanOrEqual(960);
+    await expectTargetsFit(page, 1280);
+    await page.screenshot({ path: `test-results/admin-${list}-1280.png`, fullPage: true });
+    await page.setViewportSize({ width: 375, height: 812 });
+  }
+});
+
 test("un borrador no llega al entrenador hasta publicarlo", async ({ page }) => {
   test.skip(!CAN_WRITE, NEEDS_LOCAL_DB);
 
@@ -529,4 +659,159 @@ test("dos pestañas editan a la vez", async ({ page, browser }) => {
     await other.close();
   }
   expect(otherErrors, "la segunda sesión no debe registrar errores de consola").toEqual([]);
+});
+
+test("un número de Standard repetido se explica", async ({ page }) => {
+  // No guarda nada si todo va bien, pero lo intenta: contra una base de datos que no fuera la
+  // del seed crearía el Standard 3.
+  test.skip(!CAN_WRITE, NEEDS_LOCAL_DB);
+
+  await openList(page, "standards", "Arcángel Standards", "Crear Standard");
+  const create = createForm(page, "Nuevo Standard");
+  // El alta propone el siguiente al mayor: los cinco del seed llegan al 5.
+  await expect(field(create, "Número")).toHaveValue("6");
+
+  await field(create, "Número").fill("3");
+  await field(create, "Título").fill("NÚMERO REPETIDO");
+  await field(create, "Descripción").fill("Esto no debe guardarse.");
+  await create.getByRole("button", { name: "Crear Standard", exact: true }).click();
+
+  // El error sale bajo «Número» y el campo lo señala; arriba, el aviso general de siempre.
+  const repeated = "Ya existe un Standard con ese número.";
+  await expect(create.getByText(repeated)).toBeVisible();
+  await expect(field(create, "Número")).toHaveAttribute("aria-invalid", "true");
+  await expect(field(create, "Número")).toHaveAccessibleDescription(repeated);
+  await expect(create.getByText("Revisa los campos marcados.")).toBeVisible();
+  await expect(field(create, "Título")).not.toHaveAttribute("aria-invalid");
+  await page.screenshot({ path: "test-results/admin-standard-repeated-375.png", fullPage: true });
+
+  // Lo escrito se queda para corregirlo, y no hay alta: ni en la lista ni en la base de datos.
+  await expect(field(create, "Título")).toHaveValue("NÚMERO REPETIDO");
+  await expect(page.getByRole("main").getByRole("listitem")).toHaveCount(5);
+  const stored = await createAdminClient()
+    .from("standards")
+    .select("number")
+    .eq("organization_id", ORGANIZATION_ID);
+  expect(stored.error).toBeNull();
+  expect(stored.data).toHaveLength(5);
+});
+
+test("un Standard nuevo se publica", async ({ page }) => {
+  test.skip(!CAN_WRITE, NEEDS_LOCAL_DB);
+
+  // Raúl lo crea sin tocar el número, que ya es el 6.
+  await openList(page, "standards", "Arcángel Standards", "Crear Standard");
+  const create = createForm(page, "Nuevo Standard");
+  await field(create, "Título").fill(NEW_STANDARD.title);
+  await field(create, "Descripción").fill(NEW_STANDARD.description);
+  await create.getByRole("button", { name: "Crear Standard", exact: true }).click();
+
+  // Aparece en la lista sin recargar, en borrador y con su número; y el alta queda lista para
+  // el siguiente: vacía y proponiendo el 7.
+  const card = itemCard(page, NEW_STANDARD.title);
+  await expect(card).toBeVisible();
+  await expect(card.getByText("Borrador", { exact: true })).toBeVisible();
+  await expect(card.getByText("06", { exact: true })).toBeVisible();
+  await expect(field(card, "Descripción")).toHaveValue(NEW_STANDARD.description);
+  await expect(page.getByRole("main").getByRole("listitem")).toHaveCount(6);
+  await expect(field(create, "Título")).toHaveValue("");
+  await expect(field(create, "Descripción")).toHaveValue("");
+  await expect(field(create, "Número")).toHaveValue("7");
+  await expect(create.getByRole("status")).toHaveText("Standard creado.");
+  // El foco no se pierde al desactivarse el botón mientras se crea: sigue en el alta, en el
+  // título, que es por donde se empieza el siguiente.
+  await expect(field(create, "Título")).toBeFocused();
+
+  // Álex no lo ve: es un borrador. Sigue con sus cinco Standards, y el índice cuenta cinco.
+  await openAs(page, ALEX);
+  await page.goto(`${CLUB}/way/standards`);
+  await expect(title(page)).toHaveText("Arcángel Standards");
+  await expect(page.getByRole("article")).toHaveCount(5);
+  await expect(page.locator("#standard-06")).toHaveCount(0);
+  await expect(page.locator("body")).not.toContainText(NEW_STANDARD.title);
+  await page.goto(`${CLUB}/way`);
+  await expect(indexRow(page, "Cómo competimos")).toContainText("5 Standards");
+
+  // Raúl lo publica desde su card.
+  await openList(page, "standards", "Arcángel Standards", "Crear Standard");
+  await itemCard(page, NEW_STANDARD.title)
+    .getByRole("button", { name: `Publicar ${NEW_STANDARD.title}` })
+    .click();
+  await expect(itemCard(page, NEW_STANDARD.title).getByText("Publicado", { exact: true })).toBeVisible();
+
+  // Ahora Álex lo ve con su número y su ancla, y el índice cuenta seis.
+  await openAs(page, ALEX);
+  await page.goto(`${CLUB}/way/standards#standard-06`);
+  await expect(page.getByRole("article")).toHaveCount(6);
+  const standard = page.locator("#standard-06");
+  await expect(standard).toBeVisible();
+  await expect(standard).toContainText(NEW_STANDARD.title);
+  await expect(standard).toContainText(NEW_STANDARD.description);
+  await page.goto(`${CLUB}/way`);
+  await expect(indexRow(page, "Cómo competimos")).toContainText("6 Standards");
+});
+
+test("un punto nuevo llega a Cómo jugamos", async ({ page }) => {
+  test.skip(!CAN_WRITE, NEEDS_LOCAL_DB);
+
+  // «Defensa» no tiene puntos en el seed: se añade el primero y se guarda.
+  await openList(page, "principles", "Principios", "Crear principio");
+  const card = itemCard(page, "Defensa");
+  await expect(card.getByRole("group", { name: "Puntos" })).toBeVisible();
+  await expect(card.getByRole("listitem")).toHaveCount(0);
+
+  await card.getByRole("button", { name: "Añadir punto", exact: true }).click();
+  // La fila nueva recibe el foco: quien escribe sigue en ella.
+  const point = field(card, "Punto 1");
+  await expect(point).toBeFocused();
+  await point.fill("Ayuda y recupera");
+  await card.getByRole("button", { name: "Guardar", exact: true }).click();
+  await expect(card.getByText("Cambios guardados.")).toBeVisible();
+
+  // Álex lo ve en la card de Defensa de Cómo jugamos, y los puntos de las demás siguen como estaban.
+  await openAs(page, ALEX);
+  await page.goto(`${CLUB}/way/como-jugamos`);
+  await expect(title(page)).toHaveText("Cómo jugamos");
+  const defense = page.locator("#principle-defensa");
+  await expect(defense).toContainText("Ayuda y recupera");
+  await expect(defense.getByRole("listitem")).toHaveCount(1);
+  await expect(page.locator("#principle-ataque").getByRole("listitem")).toHaveCount(6);
+  await expect(page.locator("#principle-transicion").getByRole("listitem")).toHaveCount(1);
+});
+
+test("editar y archivar un valor", async ({ page }) => {
+  test.skip(!CAN_WRITE, NEEDS_LOCAL_DB);
+
+  // Raúl cambia la descripción de «RESPECT».
+  await openList(page, "values", "Valores", "Crear valor");
+  const respect = itemCard(page, "RESPECT");
+  await field(respect, "Descripción").fill("Respeto a todos, siempre.");
+  await respect.getByRole("button", { name: "Guardar", exact: true }).click();
+  await expect(respect.getByText("Cambios guardados.")).toBeVisible();
+
+  // Álex ve la descripción nueva y no la antigua, con los tres valores.
+  await openAs(page, ALEX);
+  await page.goto(`${CLUB}/way/nuestra-cultura`);
+  await expect(page.getByText("Respeto a todos, siempre.")).toBeVisible();
+  await expect(
+    page.getByText("Respeto a compañeros, entrenadores, rivales, árbitros y mesa."),
+  ).toHaveCount(0);
+  await expect(page.getByRole("main").getByRole("heading", { level: 2 })).toHaveCount(3);
+
+  // Raúl pasa «EFFORT» a borrador desde su card, sin recargar: nada se borra.
+  await openList(page, "values", "Valores", "Crear valor");
+  const effort = itemCard(page, "EFFORT");
+  await effort.getByRole("button", { name: "Pasar a borrador EFFORT" }).click();
+  await expect(effort.getByText("Borrador", { exact: true })).toBeVisible();
+  // El foco no se pierde con el cambio de botón.
+  await expect(effort.getByRole("button", { name: "Publicar EFFORT" })).toBeFocused();
+  await expect(page.getByRole("main").getByRole("listitem")).toHaveCount(3);
+
+  // Álex ya no ve «EFFORT» y el índice cuenta dos valores.
+  await openAs(page, ALEX);
+  await page.goto(`${CLUB}/way/nuestra-cultura`);
+  await expect(page.getByRole("heading", { level: 2, name: "EFFORT" })).toHaveCount(0);
+  await expect(page.getByRole("main").getByRole("heading", { level: 2 })).toHaveCount(2);
+  await page.goto(`${CLUB}/way`);
+  await expect(indexRow(page, "Nuestra cultura")).toContainText("2 valores");
 });
