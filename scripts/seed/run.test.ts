@@ -120,6 +120,11 @@ const TABLES_IN_ORDER = [
   "games",
   "practice_plans",
   "practice_items",
+  "way_sections",
+  "club_values",
+  "game_principles",
+  "principle_points",
+  "standards",
 ];
 
 describe("runSeed", () => {
@@ -228,6 +233,11 @@ describe("runSeed", () => {
       practice_plans: "id",
       // (plan_id, sort) es único pero diferible: no puede ser el árbitro de un ON CONFLICT.
       practice_items: "id",
+      way_sections: "id",
+      club_values: "id",
+      game_principles: "id",
+      principle_points: "id",
+      standards: "id",
     });
   });
 
@@ -241,6 +251,11 @@ describe("runSeed", () => {
     expect(sent("games")).toEqual(data.games);
     expect(sent("practice_plans")).toEqual(data.practice_plans);
     expect(sent("practice_items")).toEqual(data.practice_items);
+    expect(sent("way_sections")).toEqual(data.way_sections);
+    expect(sent("club_values")).toEqual(data.club_values);
+    expect(sent("game_principles")).toEqual(data.game_principles);
+    expect(sent("principle_points")).toEqual(data.principle_points);
+    expect(sent("standards")).toEqual(data.standards);
   });
 
   it("borra, antes de reescribir los ítems, los de cada plan que ya no están en el seed", async () => {
@@ -264,11 +279,37 @@ describe("runSeed", () => {
     expect(deletes.every(({ call }) => call.filters.length >= 1)).toBe(true);
   });
 
+  it("borra, antes de reescribir los puntos, los de cada principio que ya no están en el seed", async () => {
+    const fake = fakeClient();
+    await runSeed(NOW, fake.client);
+    const pointsUpsert = fake.calls.findIndex((c) => c.table === "principle_points" && c.op === "upsert");
+    const deletes = fake.calls
+      .map((call, index) => ({ call, index }))
+      .filter(({ call }) => call.table === "principle_points" && call.op === "delete");
+    expect(deletes).toHaveLength(data.game_principles.length);
+    for (const { call, index } of deletes) {
+      expect(index).toBeLessThan(pointsUpsert);
+      const principleFilter = call.filters.find(([op, column]) => op === "eq" && column === "principle_id");
+      const principle = data.game_principles.find((p) => p.id === principleFilter?.[2]);
+      expect(principle, "el borrado filtra por un principio del seed").toBeDefined();
+      const keep = call.filters.find(([op, column]) => op === "not.in" && column === "id");
+      const ids = data.principle_points.filter((p) => p.principle_id === principle?.id).map((p) => p.id);
+      if (ids.length > 0) {
+        expect(keep?.[2]).toBe(`(${ids.join(",")})`);
+      } else {
+        // Un principio sin puntos en el seed pierde todos los que tenga.
+        expect(keep).toBeUndefined();
+      }
+    }
+    // Los borrados solo tocan principios del seed: nunca hay un delete sin filtro.
+    expect(deletes.every(({ call }) => call.filters.length >= 1)).toBe(true);
+  });
+
   it("no borra ninguna otra tabla", async () => {
     const fake = fakeClient();
     await runSeed(NOW, fake.client);
     const deleted = new Set(fake.calls.filter((c) => c.op === "delete").map((c) => c.table));
-    expect([...deleted]).toEqual(["practice_items"]);
+    expect([...deleted]).toEqual(["practice_items", "principle_points"]);
   });
 
   it.each(TABLES_IN_ORDER)("un error al escribir %s se lanza con el nombre de la tabla", async (table) => {
@@ -283,6 +324,12 @@ describe("runSeed", () => {
     const fake = fakeClient({ failOnTable: "practice_items", failOnOp: "delete" });
     await expect(runSeed(NOW, fake.client)).rejects.toThrow(/practice_items.*fallo simulado/);
     expect(fake.calls.some((c) => c.table === "practice_items" && c.op === "upsert")).toBe(false);
+  });
+
+  it("un error al borrar puntos sobrantes también se lanza con la tabla", async () => {
+    const fake = fakeClient({ failOnTable: "principle_points", failOnOp: "delete" });
+    await expect(runSeed(NOW, fake.client)).rejects.toThrow(/principle_points.*fallo simulado/);
+    expect(fake.calls.some((c) => c.table === "principle_points" && c.op === "upsert")).toBe(false);
   });
 
   it("si falla la lista de usuarios, no escribe nada", async () => {
