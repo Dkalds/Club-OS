@@ -41,6 +41,11 @@ export type SeedData = {
   games: TablesInsert<"games">[];
   practice_plans: WithId<TablesInsert<"practice_plans">>[];
   practice_items: WithId<TablesInsert<"practice_items">>[];
+  way_sections: WithId<TablesInsert<"way_sections">>[];
+  club_values: WithId<TablesInsert<"club_values">>[];
+  game_principles: WithId<TablesInsert<"game_principles">>[];
+  principle_points: WithId<TablesInsert<"principle_points">>[];
+  standards: WithId<TablesInsert<"standards">>[];
 };
 
 // ── Definiciones ─────────────────────────────────────────────────────────────────────
@@ -95,6 +100,27 @@ export type TeamDef = {
   game: GameDef | null;
 };
 
+export type SectionKind = "text" | "values" | "principles" | "standards";
+
+// Metodología de un club (The Way). Aquí solo va el contenido: el número de sección y de
+// Standard, el orden y el slug salen de la posición en la lista y del título, y todo se
+// escribe publicado (ver `addMethodology`).
+export type SectionDef = {
+  title: string;
+  summary: string | null;
+  bodyMd: string;
+  contentKind: SectionKind;
+};
+export type ValueDef = { code: string; title: string | null; description: string };
+export type PrincipleDef = { title: string; summary: string | null; points: string[] };
+export type StandardDef = { title: string; description: string };
+export type MethodologyDef = {
+  sections: SectionDef[];
+  values: ValueDef[];
+  principles: PrincipleDef[];
+  standards: StandardDef[];
+};
+
 export type ClubDef = {
   slug: string;
   name: string;
@@ -104,6 +130,7 @@ export type ClubDef = {
   members: { email: string; personKey: string; role: "admin" | "coach" }[];
   categories: { key: string; name: string; ageBand: string; sort: number }[];
   teams: TeamDef[];
+  methodology: MethodologyDef;
 };
 
 const SEASON = { key: "2026-27", name: "2026/27", startsOn: "2026-09-01", endsOn: "2027-06-30" };
@@ -299,6 +326,122 @@ const INFANTIL_A: TeamDef = {
   game: null,
 };
 
+const markdown = (...lines: string[]): string => lines.join("\n");
+
+// Los valores de Arcángel van sin título: solo código y descripción. «Defensa» y «Rebote»
+// no llevan puntos y «Ataque» no lleva resumen: son los casos vacíos que la interfaz y la
+// gestión tienen que pintar bien.
+const ARCANGEL_METHODOLOGY: MethodologyDef = {
+  sections: [
+    {
+      title: "Nuestra cultura",
+      summary: "Lo que nos une dentro y fuera de la pista.",
+      bodyMd: "",
+      contentKind: "values",
+    },
+    {
+      title: "El jugador Arcángel",
+      summary: "Qué esperamos de cada jugador.",
+      bodyMd: markdown(
+        "Queremos jugadores que **compiten**, **aprenden** y **ayudan** al equipo.",
+        "",
+        "### Lo que esperamos",
+        "",
+        "- Llega puntual.",
+        "- Escucha y lo vuelve a intentar.",
+        "- Anima desde el banquillo.",
+      ),
+      contentKind: "text",
+    },
+    {
+      title: "Cómo jugamos",
+      summary: "Nuestros principios de juego.",
+      bodyMd: "",
+      contentKind: "principles",
+    },
+    {
+      title: "Cómo entrenamos",
+      summary: "Cómo son nuestras sesiones.",
+      bodyMd: markdown(
+        "Entrenamos como competimos: **intensidad** y pocas paradas.",
+        "",
+        "### Una sesión tipo",
+        "",
+        "1. Activación.",
+        "2. Técnica.",
+        "3. Táctica.",
+        "4. Competición.",
+      ),
+      contentKind: "text",
+    },
+    {
+      title: "Cómo competimos",
+      summary: "Lo que exigimos en cada partido.",
+      bodyMd: "",
+      contentKind: "standards",
+    },
+  ],
+  values: [
+    { code: "TEAM FIRST", title: null, description: "El equipo está por delante del individuo." },
+    { code: "EFFORT", title: null, description: "El esfuerzo no es negociable." },
+    {
+      code: "RESPECT",
+      title: null,
+      description: "Respeto a compañeros, entrenadores, rivales, árbitros y mesa.",
+    },
+  ],
+  principles: [
+    { title: "Defensa", summary: "Defensa arriba y presionante.", points: [] },
+    {
+      title: "Transición",
+      summary: "Nuestra primera opción es correr.",
+      points: ["El balón busca al jugador más adelantado."],
+    },
+    {
+      title: "Rebote",
+      summary: "La posesión defensiva termina cuando controlamos el balón.",
+      points: [],
+    },
+    {
+      title: "Ataque",
+      summary: null,
+      points: ["Espacios", "Pase", "1x1", "2x2", "Pasar y cortar", "Toma de decisiones"],
+    },
+  ],
+  standards: [
+    { title: "TEAM FIRST", description: "Celebramos el pase extra y la ayuda." },
+    { title: "EFFORT IS NON-NEGOTIABLE", description: "En cada posesión, en cada ejercicio." },
+    { title: "FINISH THE POSSESSION", description: "La defensa acaba cuando cogemos el rebote." },
+    {
+      title: "FIRST LOOK FORWARD",
+      description: "Al recuperar, la primera mirada va hacia delante.",
+    },
+    { title: "RUN WIDE", description: "En transición corremos por las calles laterales." },
+  ],
+};
+
+// Club Demo solo tiene una sección de texto y sus Standards: sin valores ni principios.
+const CLUB_DEMO_METHODOLOGY: MethodologyDef = {
+  sections: [
+    {
+      title: "Quiénes somos",
+      summary: "Nuestra manera de entender el baloncesto.",
+      bodyMd: "Somos un club de barrio que **forma personas**.",
+      contentKind: "text",
+    },
+    { title: "Nuestros Standards", summary: null, bodyMd: "", contentKind: "standards" },
+  ],
+  values: [],
+  principles: [],
+  standards: [
+    { title: "DEFENDER JUNTOS", description: "Nadie defiende solo." },
+    {
+      title: "COMPARTIR EL BALÓN",
+      description: "El mejor tiro es el del compañero liberado.",
+    },
+  ],
+};
+
 // Los fixtures de los dos clubes se exportan por nombre: las fases siguientes los importan
 // (y extienden con sus propias tablas) en vez de volver a escribir los datos del club.
 export const ARCANGEL: ClubDef = {
@@ -334,6 +477,7 @@ export const ARCANGEL: ClubDef = {
     { key: "alevin", name: "Alevín", ageBand: "U12", sort: 20 },
   ],
   teams: [ALEVIN_A, BENJAMIN_A],
+  methodology: ARCANGEL_METHODOLOGY,
 };
 
 export const CLUB_DEMO: ClubDef = {
@@ -356,6 +500,7 @@ export const CLUB_DEMO: ClubDef = {
   members: [{ email: "marta@demo.test", personKey: "marta", role: "coach" }],
   categories: [{ key: "infantil", name: "Infantil", ageBand: "U14", sort: 10 }],
   teams: [INFANTIL_A],
+  methodology: CLUB_DEMO_METHODOLOGY,
 };
 
 const CLUBS: ClubDef[] = [ARCANGEL, CLUB_DEMO];
@@ -391,7 +536,91 @@ function emptySeedData(): SeedData {
     games: [],
     practice_plans: [],
     practice_items: [],
+    way_sections: [],
+    club_values: [],
+    game_principles: [],
+    principle_points: [],
+    standards: [],
   };
+}
+
+// La metodología se escribe toda publicada. `number` y `sort` son la posición (desde 1) en
+// la lista del fixture y el slug sale del título. Los ids salen de la clave de cada fila: el
+// slug de la sección o del principio (que sale de su título), el código del valor, el número
+// del Standard, y el slug del principio más la posición para sus puntos.
+//
+// Cambiar el resto del texto de una fila (resumen, cuerpo, descripción, el texto de un punto,
+// el título de un Standard) la actualiza en un nuevo `pnpm seed`. Cambiar el título de una
+// sección o de un principio, o el código de un valor, cambia su id: crea una fila nueva y deja
+// la vieja, que `runSeed` no borra (solo quita los puntos que sobran de un principio del seed).
+function addMethodology(
+  data: SeedData,
+  organizationId: string,
+  id: (key: string) => string,
+  methodology: MethodologyDef,
+): void {
+  methodology.sections.forEach((section, index) => {
+    const slug = slugify(section.title);
+    data.way_sections.push({
+      id: id(`way:${slug}`),
+      organization_id: organizationId,
+      number: index + 1,
+      slug,
+      title: section.title,
+      summary: section.summary,
+      body_md: section.bodyMd,
+      content_kind: section.contentKind,
+      status: "published",
+      sort: index + 1,
+    });
+  });
+
+  methodology.values.forEach((value, index) => {
+    data.club_values.push({
+      id: id(`value:${value.code}`),
+      organization_id: organizationId,
+      code: value.code,
+      title: value.title,
+      description: value.description,
+      status: "published",
+      sort: index + 1,
+    });
+  });
+
+  methodology.principles.forEach((principle, index) => {
+    const slug = slugify(principle.title);
+    const principleId = id(`principle:${slug}`);
+    data.game_principles.push({
+      id: principleId,
+      organization_id: organizationId,
+      slug,
+      title: principle.title,
+      summary: principle.summary,
+      status: "published",
+      sort: index + 1,
+    });
+    principle.points.forEach((text, pointIndex) => {
+      data.principle_points.push({
+        id: id(`point:${slug}:${pointIndex + 1}`),
+        organization_id: organizationId,
+        principle_id: principleId,
+        text,
+        sort: pointIndex + 1,
+      });
+    });
+  });
+
+  methodology.standards.forEach((standard, index) => {
+    data.standards.push({
+      id: id(`standard:${index + 1}`),
+      organization_id: organizationId,
+      number: index + 1,
+      title: standard.title,
+      description: standard.description,
+      status: "published",
+      sort: index + 1,
+    });
+  });
 }
 
 function addClub(data: SeedData, club: ClubDef, now: Date): void {
@@ -567,6 +796,8 @@ function addClub(data: SeedData, club: ClubDef, now: Date): void {
       });
     }
   }
+
+  addMethodology(data, organizationId, id, club.methodology);
 }
 
 /** Todas las filas del seed para el instante `now`. Pura y determinista. */

@@ -121,4 +121,39 @@ export async function runSeed(now: Date, client?: Client): Promise<void> {
     "practice_items",
     await db.from("practice_items").upsert(data.practice_items, { onConflict: "id" }),
   );
+
+  // Metodología del club. No cuelga de equipos ni de sesiones, así que va al final; solo
+  // `principle_points` depende de otra tabla suya (`game_principles`).
+  check(
+    "way_sections",
+    await db.from("way_sections").upsert(data.way_sections, { onConflict: "id" }),
+  );
+  check(
+    "club_values",
+    await db.from("club_values").upsert(data.club_values, { onConflict: "id" }),
+  );
+  check(
+    "game_principles",
+    await db.from("game_principles").upsert(data.game_principles, { onConflict: "id" }),
+  );
+  // Guardar un principio en la app reemplaza sus puntos por otros con ids nuevos, así que
+  // un reseed sin borrar antes los dejaría duplicados: los puntos de cada principio del
+  // seed que ya no están en su lista se borran ANTES de escribirla. Un principio sin
+  // puntos en el seed pierde todos los que tenga.
+  for (const principle of data.game_principles) {
+    const keep = data.principle_points
+      .filter((point) => point.principle_id === principle.id)
+      .map((point) => point.id);
+    let stale = db.from("principle_points").delete().eq("principle_id", principle.id);
+    if (keep.length > 0) stale = stale.not("id", "in", `(${keep.join(",")})`);
+    check(
+      `principle_points (borrado de puntos sobrantes del principio ${principle.id})`,
+      await stale,
+    );
+  }
+  check(
+    "principle_points",
+    await db.from("principle_points").upsert(data.principle_points, { onConflict: "id" }),
+  );
+  check("standards", await db.from("standards").upsert(data.standards, { onConflict: "id" }));
 }

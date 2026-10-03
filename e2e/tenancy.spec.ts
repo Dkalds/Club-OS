@@ -113,12 +113,10 @@ test("la terminología llega a la navegación", async ({ page }) => {
   );
 
   // La pestaña lleva a su sección, con el nombre que le da el club, y pasa a ser la activa.
+  // Lo que cada club escribe dentro de The Way lo prueba `way.spec.ts`.
   await mainNav(page).getByRole("link", { name: "Nuestra forma" }).click();
   await expect(page).toHaveURL(/\/c\/club-demo\/way$/);
-  await expect(
-    page.getByRole("heading", { level: 1, name: "Nuestra forma llega en una próxima fase" }),
-  ).toBeVisible();
-  await expect(page.getByText("Estamos preparando esta sección.")).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "The Demo Way" })).toBeVisible();
   await expect(mainNav(page).getByRole("link", { name: "Nuestra forma" })).toHaveAttribute(
     "aria-current",
     "page",

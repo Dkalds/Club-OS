@@ -144,6 +144,11 @@ describe("seed contra Supabase local", () => {
       ["games", table("games"), data.games.length],
       ["practice_plans", table("practice_plans"), data.practice_plans.length],
       ["practice_items", table("practice_items"), data.practice_items.length],
+      ["way_sections", table("way_sections"), data.way_sections.length],
+      ["club_values", table("club_values"), data.club_values.length],
+      ["game_principles", table("game_principles"), data.game_principles.length],
+      ["principle_points", table("principle_points"), data.principle_points.length],
+      ["standards", table("standards"), data.standards.length],
     ];
     for (const [name, query, rows] of expected) {
       const { count, error } = await query;
@@ -202,5 +207,145 @@ describe("seed contra Supabase local", () => {
         minutes: item.minutes,
       })),
     );
+  });
+
+  // Los cuatro tipos de contenido con estado: todo lo que el seed escribe está publicado.
+  type StatusTable = "way_sections" | "club_values" | "game_principles" | "standards";
+  async function statusesOf(table: StatusTable, organizationId: string): Promise<string[]> {
+    const { data: rows, error } = await admin
+      .from(table)
+      .select("status")
+      .eq("organization_id", organizationId);
+    expect(error, table).toBeNull();
+    return (rows ?? []).map((row) => row.status);
+  }
+
+  async function countOf(
+    table: StatusTable | "principle_points",
+    organizationId: string,
+  ): Promise<number> {
+    const { count, error } = await admin
+      .from(table)
+      .select("*", { count: "exact", head: true })
+      .eq("organization_id", organizationId);
+    expect(error, table).toBeNull();
+    return count ?? 0;
+  }
+
+  it("Arcángel tiene su metodología", async () => {
+    const org = orgId("arcangel");
+    expect(await countOf("way_sections", org)).toBe(5);
+    expect(await countOf("club_values", org)).toBe(3);
+    expect(await countOf("game_principles", org)).toBe(4);
+    expect(await countOf("principle_points", org)).toBe(7);
+    expect(await countOf("standards", org)).toBe(5);
+    for (const table of ["way_sections", "club_values", "game_principles", "standards"] as const) {
+      const statuses = await statusesOf(table, org);
+      expect(statuses.length, table).toBeGreaterThan(0);
+      expect(
+        statuses.every((status) => status === "published"),
+        `${table} publicado`,
+      ).toBe(true);
+    }
+  });
+
+  it("Club Demo tiene la suya", async () => {
+    const org = orgId("club-demo");
+    expect(await countOf("way_sections", org)).toBe(2);
+    expect(await countOf("standards", org)).toBe(2);
+    expect(await countOf("club_values", org)).toBe(0);
+    expect(await countOf("game_principles", org)).toBe(0);
+    expect(await countOf("principle_points", org)).toBe(0);
+    for (const table of ["way_sections", "standards"] as const) {
+      expect(await statusesOf(table, org), table).toEqual(["published", "published"]);
+    }
+  });
+
+  it("orden del seed", async () => {
+    const org = orgId("arcangel");
+    const { data: sections, error: sectionsError } = await admin
+      .from("way_sections")
+      .select("number, slug, sort")
+      .eq("organization_id", org)
+      .order("sort");
+    expect(sectionsError).toBeNull();
+    expect((sections ?? []).map((section) => section.number)).toEqual([1, 2, 3, 4, 5]);
+    expect((sections ?? [])[2]?.slug).toBe("como-jugamos");
+
+    const { data: principle, error: principleError } = await admin
+      .from("game_principles")
+      .select("id")
+      .eq("organization_id", org)
+      .eq("slug", "ataque")
+      .single();
+    expect(principleError).toBeNull();
+    const { data: points, error: pointsError } = await admin
+      .from("principle_points")
+      .select("text")
+      .eq("principle_id", principle?.id ?? "")
+      .order("sort");
+    expect(pointsError).toBeNull();
+    expect((points ?? []).map((point) => point.text)).toEqual([
+      "Espacios",
+      "Pase",
+      "1x1",
+      "2x2",
+      "Pasar y cortar",
+      "Toma de decisiones",
+    ]);
+  });
+
+  it("al reescribir, deja los puntos de cada principio como los define el seed", async () => {
+    // `save_game_principle` reemplaza los puntos de un principio por otros con ids nuevos.
+    // Simula esa edición hecha a mano: «Ataque» con otros puntos, «Transición» con uno de
+    // más y «Defensa», que en el seed no tiene ninguno, con uno propio.
+    const org = orgId("arcangel");
+    const principleOf = (slug: string) => {
+      const principle = data.game_principles.find(
+        (p) => p.organization_id === org && p.slug === slug,
+      );
+      if (!principle) throw new Error(`El seed no define el principio ${slug}`);
+      return principle.id;
+    };
+    const pointsOf = (principleId: string) =>
+      data.principle_points
+        .filter((point) => point.principle_id === principleId)
+        .sort((a, b) => a.sort - b.sort)
+        .map((point) => ({ id: point.id, sort: point.sort, text: point.text }));
+    const stray = (principleId: string, sort: number, text: string) => ({
+      id: randomUUID(),
+      organization_id: org,
+      principle_id: principleId,
+      sort,
+      text,
+    });
+
+    const ataque = principleOf("ataque");
+    const transicion = principleOf("transicion");
+    const defensa = principleOf("defensa");
+
+    const removed = await admin.from("principle_points").delete().eq("principle_id", ataque);
+    expect(removed.error).toBeNull();
+    const written = await admin
+      .from("principle_points")
+      .insert([
+        stray(ataque, 1, "Punto editado"),
+        stray(ataque, 2, "Otro punto editado"),
+        stray(transicion, 2, "Punto de más"),
+        stray(defensa, 1, "Punto propio"),
+      ]);
+    expect(written.error).toBeNull();
+
+    await runSeed(now);
+
+    for (const principleId of [ataque, transicion, defensa]) {
+      const { data: after, error } = await admin
+        .from("principle_points")
+        .select("id, sort, text")
+        .eq("principle_id", principleId)
+        .order("sort");
+      expect(error).toBeNull();
+      expect(after).toEqual(pointsOf(principleId));
+    }
   });
 });

@@ -5,7 +5,7 @@ const mocks = vi.hoisted(() => ({ createClient: vi.fn() }));
 
 vi.mock("@/lib/supabase/server", () => ({ createClient: mocks.createClient }));
 
-import { getClubContext } from "./queries";
+import { getClubContext, getViewerName, type ClubContext } from "./queries";
 
 // ── Un doble mínimo de la base de datos ──────────────────────────────────────────────
 // Guarda las filas de `memberships` que RLS dejaría leer a quien pregunta y aplica de
@@ -64,6 +64,8 @@ function membership(overrides: Partial<MembershipRow> = {}): MembershipRow {
 
 /** Filas de `memberships` visibles con la sesión actual. */
 let visible: MembershipRow[];
+/** Filas de `people` visibles con la sesión actual. */
+let people: Array<Record<string, unknown>>;
 /** Lo que responde la consulta si se fuerza un fallo. */
 let queryError: Record<string, unknown> | null;
 /** Lo que lanza la consulta si ni siquiera llega a responder. */
@@ -80,7 +82,7 @@ function valueAt(row: unknown, path: string): unknown {
   }, row);
 }
 
-function fakeQuery() {
+function fakeQuery(source: unknown[]) {
   const filters: Array<[string, unknown]> = [];
   const query = {
     select: () => query,
@@ -91,7 +93,7 @@ function fakeQuery() {
     async maybeSingle() {
       if (queryThrows) throw queryThrows;
       if (queryError) return { data: null, error: queryError };
-      const rows = visible.filter((row) =>
+      const rows = source.filter((row) =>
         filters.every(([column, value]) => valueAt(row, column) === value),
       );
       if (rows.length > 1) {
@@ -112,7 +114,7 @@ function signedInAs(userId: string | null, error: unknown = null) {
     auth: { getClaims },
     from(table: string) {
       queried.push(table);
-      return fakeQuery();
+      return fakeQuery(table === "people" ? people : visible);
     },
   });
   return getClaims;
@@ -147,6 +149,7 @@ const PERSONAL_DATA = [ME, "coach@club-a.test"];
 beforeEach(() => {
   vi.resetAllMocks();
   visible = [membership()];
+  people = [];
   queryError = null;
   queryThrows = null;
   queried = [];
@@ -486,7 +489,7 @@ describe("getClubContext", () => {
   it("si Supabase lanza una excepción al comprobar la sesión, deja rastro y lanza", async () => {
     mocks.createClient.mockResolvedValue({
       auth: { getClaims: vi.fn().mockRejectedValue(new TypeError(`fetch failed for ${ME}`)) },
-      from: () => fakeQuery(),
+      from: () => fakeQuery(visible),
     });
 
     const failure = await failureOf(getClubContext("club-a"));
@@ -496,5 +499,114 @@ describe("getClubContext", () => {
     for (const secret of PERSONAL_DATA) expect(everythingIn(failure)).not.toContain(secret);
     expect(logged).toEqual(["[tenancy.club-context] TypeError"]);
     expect(queried).toEqual([]);
+  });
+});
+
+// ── getViewerName ────────────────────────────────────────────────────────────────────
+// El nombre del menú de cuenta. Lee la persona de la propia membresía con la sesión del
+// usuario; si no puede, «Tu cuenta»: nunca rompe la página.
+
+const MY_PERSON = "2a6b7c8d-9e0f-4a1b-8c2d-3e4f5a6b7c8d";
+const OTHER_PERSON = "9d8c7b6a-5f4e-4d3c-8b2a-1f0e9d8c7b6a";
+
+function personRow(overrides: Record<string, unknown> = {}) {
+  return {
+    id: MY_PERSON,
+    organization_id: CLUB_A.id,
+    first_name: "Ana",
+    last_name: "Ruiz",
+    ...overrides,
+  };
+}
+
+function viewer(overrides: Partial<ClubContext["membership"]> = {}): ClubContext {
+  return {
+    org: { id: CLUB_A.id, slug: "club-a", name: "Club A", timezone: "Europe/Madrid" },
+    branding: {
+      displayName: "Club A",
+      wordmarkSub: null,
+      shortName: "CLA",
+      wayName: "The Way",
+      tagline: null,
+      colors: { ...PLATFORM_BRAND_COLORS },
+      terminology: {},
+    },
+    membership: { role: "coach", personId: MY_PERSON, ...overrides },
+  };
+}
+
+describe("getViewerName", () => {
+  it("devuelve nombre y apellidos de la persona de su membresía", async () => {
+    people = [personRow()];
+
+    expect(await getViewerName(viewer())).toBe("Ana Ruiz");
+    expect(queried).toEqual(["people"]);
+    expect(logged).toEqual([]);
+  });
+
+  it("solo lee la persona de su propia membresía, en su club", async () => {
+    people = [
+      personRow({ id: OTHER_PERSON, first_name: "Luis", last_name: "Mora" }),
+      personRow({ organization_id: CLUB_B.id, first_name: "Eva", last_name: "Sanz" }),
+      personRow(),
+    ];
+
+    expect(await getViewerName(viewer())).toBe("Ana Ruiz");
+    // La misma persona de otro club no cuenta: se filtra por club y por id.
+    expect(await getViewerName(viewer({ personId: OTHER_PERSON }))).toBe("Luis Mora");
+    people = [personRow({ organization_id: CLUB_B.id })];
+    expect(await getViewerName(viewer())).toBe("Tu cuenta");
+  });
+
+  it("una cuenta sin persona asociada es «Tu cuenta», sin consultar nada", async () => {
+    people = [personRow()];
+
+    expect(await getViewerName(viewer({ personId: null }))).toBe("Tu cuenta");
+    expect(queried).toEqual([]);
+    expect(mocks.createClient).not.toHaveBeenCalled();
+  });
+
+  it("una persona que no se ve (RLS, archivada o inexistente) es «Tu cuenta»", async () => {
+    people = [];
+
+    expect(await getViewerName(viewer())).toBe("Tu cuenta");
+    expect(logged).toEqual([]);
+  });
+
+  it("recorta los espacios y se las arregla con un solo nombre", async () => {
+    people = [personRow({ first_name: "  Ana ", last_name: " Ruiz  " })];
+    expect(await getViewerName(viewer())).toBe("Ana Ruiz");
+
+    people = [personRow({ last_name: "   " })];
+    expect(await getViewerName(viewer())).toBe("Ana");
+
+    people = [personRow({ first_name: "", last_name: "Ruiz" })];
+    expect(await getViewerName(viewer())).toBe("Ruiz");
+  });
+
+  it("sin ningún nombre es «Tu cuenta»", async () => {
+    people = [personRow({ first_name: " ", last_name: "" })];
+
+    expect(await getViewerName(viewer())).toBe("Tu cuenta");
+  });
+
+  it("si la consulta falla no rompe la página: «Tu cuenta» y un rastro sin datos personales", async () => {
+    people = [personRow()];
+    queryError = { name: "PostgrestError", code: "42501", message: `sin permiso para ${ME}` };
+
+    expect(await getViewerName(viewer())).toBe("Tu cuenta");
+
+    expect(logged).toHaveLength(1);
+    expect(logged[0]).toMatch(/^\[tenancy\.viewer-name\] /);
+    for (const secret of PERSONAL_DATA) expect(logged[0]).not.toContain(secret);
+  });
+
+  it("si la consulta ni siquiera responde tampoco rompe la página", async () => {
+    people = [personRow()];
+    queryThrows = new TypeError(`fetch failed for ${ME}`);
+
+    expect(await getViewerName(viewer())).toBe("Tu cuenta");
+
+    expect(logged).toEqual(["[tenancy.viewer-name] TypeError"]);
   });
 });

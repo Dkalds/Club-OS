@@ -419,6 +419,206 @@ describe("buildSeedData: contenido", () => {
   });
 });
 
+describe("buildSeedData: metodología", () => {
+  // `sort` es opcional en los tipos de inserción (la columna tiene valor por defecto).
+  const bySort = (a: { sort?: number }, b: { sort?: number }) => (a.sort ?? 0) - (b.sort ?? 0);
+  const sectionsOf = (slug: string) =>
+    data.way_sections.filter((s) => s.organization_id === orgId(slug)).sort(bySort);
+  const valuesOf = (slug: string) =>
+    data.club_values.filter((v) => v.organization_id === orgId(slug)).sort(bySort);
+  const principlesOf = (slug: string) =>
+    data.game_principles.filter((p) => p.organization_id === orgId(slug)).sort(bySort);
+  const standardsOf = (slug: string) =>
+    data.standards.filter((s) => s.organization_id === orgId(slug)).sort(bySort);
+  const pointsOf = (principleId: string) =>
+    data.principle_points.filter((p) => p.principle_id === principleId).sort(bySort);
+
+  it("secciones de Arcángel: cinco, numeradas por posición, con su tipo y su resumen", () => {
+    expect(
+      sectionsOf("arcangel").map((s) => [s.number, s.sort, s.slug, s.title, s.content_kind, s.summary]),
+    ).toEqual([
+      [1, 1, "nuestra-cultura", "Nuestra cultura", "values", "Lo que nos une dentro y fuera de la pista."],
+      [2, 2, "el-jugador-arcangel", "El jugador Arcángel", "text", "Qué esperamos de cada jugador."],
+      [3, 3, "como-jugamos", "Cómo jugamos", "principles", "Nuestros principios de juego."],
+      [4, 4, "como-entrenamos", "Cómo entrenamos", "text", "Cómo son nuestras sesiones."],
+      [5, 5, "como-competimos", "Cómo competimos", "standards", "Lo que exigimos en cada partido."],
+    ]);
+  });
+
+  it("cuerpos de Arcángel: Markdown con negrita, h3 y lista; el resto sin cuerpo", () => {
+    const bodies = Object.fromEntries(sectionsOf("arcangel").map((s) => [s.slug, s.body_md]));
+    expect(bodies).toEqual({
+      "nuestra-cultura": "",
+      "el-jugador-arcangel": [
+        "Queremos jugadores que **compiten**, **aprenden** y **ayudan** al equipo.",
+        "",
+        "### Lo que esperamos",
+        "",
+        "- Llega puntual.",
+        "- Escucha y lo vuelve a intentar.",
+        "- Anima desde el banquillo.",
+      ].join("\n"),
+      "como-jugamos": "",
+      "como-entrenamos": [
+        "Entrenamos como competimos: **intensidad** y pocas paradas.",
+        "",
+        "### Una sesión tipo",
+        "",
+        "1. Activación.",
+        "2. Técnica.",
+        "3. Táctica.",
+        "4. Competición.",
+      ].join("\n"),
+      "como-competimos": "",
+    });
+  });
+
+  it("valores de Arcángel: tres, sin título", () => {
+    expect(valuesOf("arcangel").map((v) => [v.sort, v.code, v.title, v.description])).toEqual([
+      [1, "TEAM FIRST", null, "El equipo está por delante del individuo."],
+      [2, "EFFORT", null, "El esfuerzo no es negociable."],
+      [3, "RESPECT", null, "Respeto a compañeros, entrenadores, rivales, árbitros y mesa."],
+    ]);
+  });
+
+  it("principios de Arcángel: cuatro, con los puntos de Transición y Ataque", () => {
+    const principles = principlesOf("arcangel");
+    expect(principles.map((p) => [p.sort, p.slug, p.title, p.summary])).toEqual([
+      [1, "defensa", "Defensa", "Defensa arriba y presionante."],
+      [2, "transicion", "Transición", "Nuestra primera opción es correr."],
+      [3, "rebote", "Rebote", "La posesión defensiva termina cuando controlamos el balón."],
+      [4, "ataque", "Ataque", null],
+    ]);
+    const points = Object.fromEntries(
+      principles.map((p) => [p.slug, pointsOf(p.id).map((point) => [point.sort, point.text])]),
+    );
+    expect(points).toEqual({
+      defensa: [],
+      transicion: [[1, "El balón busca al jugador más adelantado."]],
+      rebote: [],
+      ataque: [
+        [1, "Espacios"],
+        [2, "Pase"],
+        [3, "1x1"],
+        [4, "2x2"],
+        [5, "Pasar y cortar"],
+        [6, "Toma de decisiones"],
+      ],
+    });
+  });
+
+  it("Standards de Arcángel: cinco, numerados por posición", () => {
+    expect(standardsOf("arcangel").map((s) => [s.number, s.sort, s.title, s.description])).toEqual([
+      [1, 1, "TEAM FIRST", "Celebramos el pase extra y la ayuda."],
+      [2, 2, "EFFORT IS NON-NEGOTIABLE", "En cada posesión, en cada ejercicio."],
+      [3, 3, "FINISH THE POSSESSION", "La defensa acaba cuando cogemos el rebote."],
+      [4, 4, "FIRST LOOK FORWARD", "Al recuperar, la primera mirada va hacia delante."],
+      [5, 5, "RUN WIDE", "En transición corremos por las calles laterales."],
+    ]);
+  });
+
+  it("Club Demo: dos secciones y dos Standards, sin valores ni principios", () => {
+    expect(
+      sectionsOf("club-demo").map((s) => [s.number, s.slug, s.title, s.content_kind, s.summary, s.body_md]),
+    ).toEqual([
+      [
+        1,
+        "quienes-somos",
+        "Quiénes somos",
+        "text",
+        "Nuestra manera de entender el baloncesto.",
+        "Somos un club de barrio que **forma personas**.",
+      ],
+      [2, "nuestros-standards", "Nuestros Standards", "standards", null, ""],
+    ]);
+    expect(standardsOf("club-demo").map((s) => [s.number, s.title, s.description])).toEqual([
+      [1, "DEFENDER JUNTOS", "Nadie defiende solo."],
+      [2, "COMPARTIR EL BALÓN", "El mejor tiro es el del compañero liberado."],
+    ]);
+    expect(valuesOf("club-demo")).toEqual([]);
+    expect(principlesOf("club-demo")).toEqual([]);
+    expect(
+      data.principle_points.filter((p) => p.organization_id === orgId("club-demo")),
+    ).toEqual([]);
+  });
+
+  it("todo el contenido está publicado", () => {
+    for (const rows of [data.way_sections, data.club_values, data.game_principles, data.standards]) {
+      expect(rows.length).toBeGreaterThan(0);
+      expect(rows.every((row) => row.status === "published")).toBe(true);
+    }
+  });
+
+  it("los ids salen de seedId con la clave de cada fila", () => {
+    const section = sectionsOf("arcangel")[2];
+    expect(section.id).toBe(seedId("arcangel", "way:como-jugamos"));
+    expect(valuesOf("arcangel")[0].id).toBe(seedId("arcangel", "value:TEAM FIRST"));
+    const ataque = principlesOf("arcangel")[3];
+    expect(ataque.id).toBe(seedId("arcangel", "principle:ataque"));
+    expect(pointsOf(ataque.id).map((p) => p.id)).toEqual(
+      [1, 2, 3, 4, 5, 6].map((n) => seedId("arcangel", `point:ataque:${n}`)),
+    );
+    expect(standardsOf("club-demo")[1].id).toBe(seedId("club-demo", "standard:2"));
+  });
+
+  it("cumple los CHECK de la base de datos", () => {
+    const slug = /^[a-z0-9]+(-[a-z0-9]+)*$/;
+    for (const s of data.way_sections) {
+      expect(s.slug, s.title).toMatch(slug);
+      expect(s.slug.length).toBeLessThanOrEqual(60);
+      expect(s.slug).not.toBe("standards");
+      expect(s.title.length).toBeGreaterThanOrEqual(1);
+      expect(s.title.length).toBeLessThanOrEqual(80);
+      expect((s.summary ?? "").length).toBeLessThanOrEqual(200);
+      expect((s.body_md ?? "").length).toBeLessThanOrEqual(20000);
+      expect(s.number).toBeGreaterThanOrEqual(1);
+      expect(s.number).toBeLessThanOrEqual(99);
+      expect(["text", "values", "principles", "standards"]).toContain(s.content_kind);
+    }
+    for (const v of data.club_values) {
+      expect(v.code.length).toBeGreaterThanOrEqual(1);
+      expect(v.code.length).toBeLessThanOrEqual(40);
+      expect((v.title ?? "").length).toBeLessThanOrEqual(80);
+      expect(v.description.length).toBeGreaterThanOrEqual(1);
+      expect(v.description.length).toBeLessThanOrEqual(500);
+    }
+    for (const p of data.game_principles) {
+      expect(p.slug).toMatch(slug);
+      expect(p.title.length).toBeLessThanOrEqual(80);
+      expect((p.summary ?? "").length).toBeLessThanOrEqual(300);
+    }
+    for (const point of data.principle_points) {
+      expect(point.text.length).toBeGreaterThanOrEqual(1);
+      expect(point.text.length).toBeLessThanOrEqual(200);
+    }
+    for (const s of data.standards) {
+      expect(s.number).toBeGreaterThanOrEqual(1);
+      expect(s.number).toBeLessThanOrEqual(99);
+      expect(s.title.length).toBeLessThanOrEqual(80);
+      expect(s.description.length).toBeGreaterThanOrEqual(1);
+      expect(s.description.length).toBeLessThanOrEqual(500);
+    }
+  });
+
+  it("los únicos de la base de datos no se repiten: slug y número por club", () => {
+    const unique = (keys: string[]) => expect(new Set(keys).size).toBe(keys.length);
+    unique(data.way_sections.map((s) => `${s.organization_id}:${s.slug}`));
+    unique(data.game_principles.map((p) => `${p.organization_id}:${p.slug}`));
+    unique(data.standards.map((s) => `${s.organization_id}:${s.number}`));
+  });
+
+  it("los fixtures exportados llevan su metodología (contrato entre fases)", () => {
+    expect(ARCANGEL.methodology.sections).toHaveLength(5);
+    expect(ARCANGEL.methodology.values).toHaveLength(3);
+    expect(ARCANGEL.methodology.principles).toHaveLength(4);
+    expect(ARCANGEL.methodology.standards).toHaveLength(5);
+    expect(CLUB_DEMO.methodology.sections).toHaveLength(2);
+    expect(CLUB_DEMO.methodology.standards).toHaveLength(2);
+    expect(CLUB_DEMO.methodology.values).toEqual([]);
+    expect(CLUB_DEMO.methodology.principles).toEqual([]);
+  });
+});
+
 describe("buildSeedData: invariantes", () => {
   it("cada id es único en todo el seed", () => {
     const ids: string[] = [
@@ -432,6 +632,11 @@ describe("buildSeedData: invariantes", () => {
       ...data.events.map((r) => r.id),
       ...data.practice_plans.map((r) => r.id),
       ...data.practice_items.map((r) => r.id),
+      ...data.way_sections.map((r) => r.id),
+      ...data.club_values.map((r) => r.id),
+      ...data.game_principles.map((r) => r.id),
+      ...data.principle_points.map((r) => r.id),
+      ...data.standards.map((r) => r.id),
     ];
     expect(ids.length).toBeGreaterThan(80);
     expect(new Set(ids).size).toBe(ids.length);
@@ -522,6 +727,11 @@ describe("buildSeedData: invariantes", () => {
       ["games", data.games],
       ["practice_plans", data.practice_plans],
       ["practice_items", data.practice_items],
+      ["way_sections", data.way_sections],
+      ["club_values", data.club_values],
+      ["game_principles", data.game_principles],
+      ["principle_points", data.principle_points],
+      ["standards", data.standards],
     ];
     for (const [name, rows] of tables) {
       expect(rows.length, name).toBeGreaterThan(0);
@@ -571,6 +781,17 @@ describe("buildSeedData: invariantes", () => {
     }
     for (const b of data.organization_branding) {
       expect(data.organizations.some((o) => o.id === b.organization_id)).toBe(true);
+    }
+    for (const row of [
+      ...data.way_sections,
+      ...data.club_values,
+      ...data.game_principles,
+      ...data.standards,
+    ]) {
+      expect(data.organizations.some((o) => o.id === row.organization_id)).toBe(true);
+    }
+    for (const point of data.principle_points) {
+      expect(has(data.game_principles, point.organization_id, point.principle_id)).toBe(true);
     }
   });
 

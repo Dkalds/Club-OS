@@ -97,12 +97,40 @@ export function ChevronRightIcon(props: IconProps) {
   );
 }
 
+/** Flecha a la izquierda: volver a la pantalla de la que se viene. */
+export function ChevronLeftIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="m15 6-6 6 6 6" />
+    </Icon>
+  );
+}
+
 /** Aviso: triángulo con exclamación, para un fallo que impide mostrar el contenido. */
 export function AlertIcon(props: IconProps) {
   return (
     <Icon {...props}>
       <path d="M12 3 2 20h20z" />
       <path d="M12 10v4M12 17v.5" />
+    </Icon>
+  );
+}
+
+/** Hecho o guardado: una marca de verificación, siempre junto a la palabra que lo dice. */
+export function CheckIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="m5 12.5 4.5 4.5L19 7.5" />
+    </Icon>
+  );
+}
+
+/** Borrador: un lápiz sobre su línea, para lo que aún se está escribiendo. */
+export function DraftIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="m4 20 1-4L16.5 4.5a2.1 2.1 0 0 1 3 3L8 19z" />
+      <path d="m14.5 6.5 3 3" />
     </Icon>
   );
 }

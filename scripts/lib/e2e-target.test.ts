@@ -24,6 +24,32 @@ describe("readE2eTarget", () => {
     }
   });
 
+  it("sin BASE_URL y con PORT: la misma app local, en ese puerto", () => {
+    const target = readE2eTarget({ PORT: "3100" });
+
+    // `next start` lee `PORT` del entorno: los tests tienen que apuntar al mismo sitio.
+    expect(target.baseURL).toBe("http://localhost:3100");
+    expect(target.remote).toBe(false);
+    expect(target.startServer).toBe(true);
+    expect(target.use).toEqual({
+      baseURL: "http://localhost:3100",
+      trace: "retain-on-failure",
+    });
+  });
+
+  it("un PORT vacío, en blanco o que no es un número de puerto cuenta como no puesto", () => {
+    for (const value of ["", "   ", "abc", "3100/ruta", "-1", "0", "70000"]) {
+      expect(readE2eTarget({ PORT: value }), JSON.stringify(value)).toEqual(readE2eTarget({}));
+    }
+  });
+
+  it("con BASE_URL, PORT no cuenta: se prueba esa URL y no se arranca nada", () => {
+    const target = readE2eTarget({ BASE_URL: REMOTE_APP, PORT: "3100" });
+
+    expect(target.baseURL).toBe(REMOTE_APP);
+    expect(target.startServer).toBe(false);
+  });
+
   it("con BASE_URL remoto: esa URL, sin servidor propio, sin traza y sin vídeo", () => {
     const target = readE2eTarget({ BASE_URL: REMOTE_APP });
 

@@ -42,6 +42,25 @@ isOneToOne: false
       referencedColumns: ["id"]
     }
                   ]
+                },"club_values": {
+                  Row: {
+                    "code": string,"created_at": string,"description": string,"id": string,"organization_id": string,"sort": number,"status": Database["public"]['Enums']["content_status"],"title": string | null
+                  }
+                  Insert: {
+                    "code": string,"created_at"?: string,"description": string,"id"?: string,"organization_id": string,"sort"?: number,"status"?: Database["public"]['Enums']["content_status"],"title"?: string | null
+                  }
+                  Update: {
+                    "code"?: string,"created_at"?: string,"description"?: string,"id"?: string,"organization_id"?: string,"sort"?: number,"status"?: Database["public"]['Enums']["content_status"],"title"?: string | null
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "club_values_organization_id_fkey"
+      columns: ["organization_id"]
+isOneToOne: false
+      referencedRelation: "organizations"
+      referencedColumns: ["id"]
+    }
+                  ]
                 },"events": {
                   Row: {
                     "ends_at": string,"id": string,"kind": Database["public"]['Enums']["event_kind"],"location": string | null,"organization_id": string,"starts_at": string,"status": Database["public"]['Enums']["event_status"],"team_id": string
@@ -80,6 +99,25 @@ isOneToOne: false
                   Relationships: [
                     {
       foreignKeyName: "focus_areas_organization_id_fkey"
+      columns: ["organization_id"]
+isOneToOne: false
+      referencedRelation: "organizations"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"game_principles": {
+                  Row: {
+                    "created_at": string,"id": string,"organization_id": string,"slug": string,"sort": number,"status": Database["public"]['Enums']["content_status"],"summary": string | null,"title": string
+                  }
+                  Insert: {
+                    "created_at"?: string,"id"?: string,"organization_id": string,"slug": string,"sort"?: number,"status"?: Database["public"]['Enums']["content_status"],"summary"?: string | null,"title": string
+                  }
+                  Update: {
+                    "created_at"?: string,"id"?: string,"organization_id"?: string,"slug"?: string,"sort"?: number,"status"?: Database["public"]['Enums']["content_status"],"summary"?: string | null,"title"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "game_principles_organization_id_fkey"
       columns: ["organization_id"]
 isOneToOne: false
       referencedRelation: "organizations"
@@ -255,6 +293,31 @@ isOneToOne: false
       referencedColumns: ["organization_id","id"]
     }
                   ]
+                },"principle_points": {
+                  Row: {
+                    "created_at": string,"id": string,"organization_id": string,"principle_id": string,"sort": number,"text": string
+                  }
+                  Insert: {
+                    "created_at"?: string,"id"?: string,"organization_id": string,"principle_id": string,"sort": number,"text": string
+                  }
+                  Update: {
+                    "created_at"?: string,"id"?: string,"organization_id"?: string,"principle_id"?: string,"sort"?: number,"text"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "principle_points_organization_id_fkey"
+      columns: ["organization_id"]
+isOneToOne: false
+      referencedRelation: "organizations"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "principle_points_organization_id_principle_id_fkey"
+      columns: ["organization_id","principle_id"]
+isOneToOne: false
+      referencedRelation: "game_principles"
+      referencedColumns: ["organization_id","id"]
+    }
+                  ]
                 },"profiles": {
                   Row: {
                     "created_at": string,"display_name": string | null,"locale": string,"user_id": string
@@ -281,6 +344,25 @@ isOneToOne: false
                   Relationships: [
                     {
       foreignKeyName: "seasons_organization_id_fkey"
+      columns: ["organization_id"]
+isOneToOne: false
+      referencedRelation: "organizations"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"standards": {
+                  Row: {
+                    "created_at": string,"description": string,"id": string,"number": number,"organization_id": string,"sort": number,"status": Database["public"]['Enums']["content_status"],"title": string
+                  }
+                  Insert: {
+                    "created_at"?: string,"description": string,"id"?: string,"number": number,"organization_id": string,"sort"?: number,"status"?: Database["public"]['Enums']["content_status"],"title": string
+                  }
+                  Update: {
+                    "created_at"?: string,"description"?: string,"id"?: string,"number"?: number,"organization_id"?: string,"sort"?: number,"status"?: Database["public"]['Enums']["content_status"],"title"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "standards_organization_id_fkey"
       columns: ["organization_id"]
 isOneToOne: false
       referencedRelation: "organizations"
@@ -380,16 +462,43 @@ isOneToOne: false
       referencedColumns: ["organization_id","id"]
     }
                   ]
+                },"way_sections": {
+                  Row: {
+                    "body_md": string,"content_kind": string,"created_at": string,"id": string,"number": number,"organization_id": string,"slug": string,"sort": number,"status": Database["public"]['Enums']["content_status"],"summary": string | null,"title": string,"updated_at": string,"updated_by": string | null
+                  }
+                  Insert: {
+                    "body_md"?: string,"content_kind"?: string,"created_at"?: string,"id"?: string,"number": number,"organization_id": string,"slug": string,"sort"?: number,"status"?: Database["public"]['Enums']["content_status"],"summary"?: string | null,"title": string,"updated_at"?: string,"updated_by"?: string | null
+                  }
+                  Update: {
+                    "body_md"?: string,"content_kind"?: string,"created_at"?: string,"id"?: string,"number"?: number,"organization_id"?: string,"slug"?: string,"sort"?: number,"status"?: Database["public"]['Enums']["content_status"],"summary"?: string | null,"title"?: string,"updated_at"?: string,"updated_by"?: string | null
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "way_sections_organization_id_fkey"
+      columns: ["organization_id"]
+isOneToOne: false
+      referencedRelation: "organizations"
+      referencedColumns: ["id"]
+    }
+                  ]
                 }
           }
           Views: {
             [_ in never]: never
           }
           Functions: {
-            [_ in never]: never
+            "reorder_methodology":
+{ Args: { "p_ids": (string)[],"p_kind": string,"p_org": string }; Returns: undefined
+                           },
+"save_game_principle":
+{ Args: { "p_id": string,"p_points": (string)[],"p_summary": string,"p_title": string }; Returns: undefined
+                           },
+"update_way_section":
+{ Args: { "p_body_md": string,"p_content_kind": string,"p_expected_updated_at": string,"p_id": string,"p_summary": string,"p_title": string }; Returns: string
+                           }
           }
           Enums: {
-            "event_kind": "practice"|"game","event_status": "scheduled"|"done"|"cancelled","org_role": "admin"|"coach"|"player"|"guardian","staff_role": "head_coach"|"assistant"
+            "content_status": "draft"|"published","event_kind": "practice"|"game","event_status": "scheduled"|"done"|"cancelled","org_role": "admin"|"coach"|"player"|"guardian","staff_role": "head_coach"|"assistant"
           }
           CompositeTypes: {
             [_ in never]: never
@@ -509,7 +618,7 @@ export const Constants = {
           }
         },"public": {
           Enums: {
-            "event_kind": ["practice", "game"],"event_status": ["scheduled", "done", "cancelled"],"org_role": ["admin", "coach", "player", "guardian"],"staff_role": ["head_coach", "assistant"]
+            "content_status": ["draft", "published"],"event_kind": ["practice", "game"],"event_status": ["scheduled", "done", "cancelled"],"org_role": ["admin", "coach", "player", "guardian"],"staff_role": ["head_coach", "assistant"]
           }
         }
 } as const

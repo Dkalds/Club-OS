@@ -1,8 +1,46 @@
 import { describe, expect, it } from "vitest";
-import { activeNavKey, navItems } from "./navigation";
+import { activeNavKey, adminNavItems, navItems, standardsLabel, wayLabel } from "./navigation";
 
 // Slug neutro: los tests de `src/` no pueden nombrar a ningún club (pnpm check:guards).
 const SLUG = "club-a";
+
+describe("wayLabel", () => {
+  it("sin término, «The Way»", () => {
+    expect(wayLabel({})).toBe("The Way");
+  });
+
+  it("con término, el del club", () => {
+    expect(wayLabel({ way: "Nuestra forma" })).toBe("Nuestra forma");
+  });
+
+  it("un término vacío o en blanco no deja la etiqueta vacía", () => {
+    expect(wayLabel({ way: "" })).toBe("The Way");
+    expect(wayLabel({ way: "   " })).toBe("The Way");
+  });
+
+  it("el término de Standards no la cambia", () => {
+    expect(wayLabel({ standards: "Normas del club" })).toBe("The Way");
+  });
+});
+
+describe("standardsLabel", () => {
+  it("sin término, «Standards»", () => {
+    expect(standardsLabel({})).toBe("Standards");
+  });
+
+  it("con término, el del club", () => {
+    expect(standardsLabel({ standards: "Normas del club" })).toBe("Normas del club");
+  });
+
+  it("un término vacío o en blanco no deja la etiqueta vacía", () => {
+    expect(standardsLabel({ standards: "" })).toBe("Standards");
+    expect(standardsLabel({ standards: "   " })).toBe("Standards");
+  });
+
+  it("el término de la metodología no la cambia", () => {
+    expect(standardsLabel({ way: "Nuestra forma" })).toBe("Standards");
+  });
+});
 
 describe("navItems", () => {
   it("etiquetas por defecto", () => {
@@ -48,6 +86,36 @@ describe("navItems", () => {
 
   it("el término de Standards no cambia ninguna pestaña", () => {
     expect(navItems(SLUG, { standards: "Normas del club" })).toEqual(navItems(SLUG, {}));
+  });
+});
+
+describe("adminNavItems", () => {
+  it("por defecto: The Way, Valores, Principios y Standards, con rutas bajo /admin", () => {
+    expect(adminNavItems(SLUG, {})).toEqual([
+      { label: "The Way", href: "/c/club-a/admin/way" },
+      { label: "Valores", href: "/c/club-a/admin/values" },
+      { label: "Principios", href: "/c/club-a/admin/principles" },
+      { label: "Standards", href: "/c/club-a/admin/standards" },
+    ]);
+  });
+
+  it("la terminología del club cambia la primera y la última", () => {
+    const items = adminNavItems(SLUG, { way: "Nuestra forma", standards: "Normas" });
+
+    expect(items.map((item) => item.label)).toEqual(["Nuestra forma", "Valores", "Principios", "Normas"]);
+    expect(items.map((item) => item.href)).toEqual(adminNavItems(SLUG, {}).map((item) => item.href));
+  });
+
+  it("un término vacío no deja un apartado sin etiqueta", () => {
+    const items = adminNavItems(SLUG, { way: "   ", standards: "" });
+
+    expect(items.map((item) => item.label)).toEqual(["The Way", "Valores", "Principios", "Standards"]);
+  });
+
+  it("usa el slug del club en todas las rutas", () => {
+    for (const item of adminNavItems("club-b", {})) {
+      expect(item.href.startsWith("/c/club-b/admin/")).toBe(true);
+    }
   });
 });
 

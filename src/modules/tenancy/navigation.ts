@@ -7,6 +7,22 @@ export type NavItem = { key: NavKey; label: string; href: string };
 /** Etiqueta de la pestaña de metodología cuando el club no le ha puesto nombre. */
 const DEFAULT_WAY_LABEL = "The Way";
 
+/** Nombre de la página de los Standards cuando el club no le ha puesto uno. */
+const DEFAULT_STANDARDS_LABEL = "Standards";
+
+/**
+ * El nombre que el club da a su metodología (pestaña, títulos y migas), o «The Way». Un
+ * término vacío o en blanco cuenta como ausente: la etiqueta nunca se queda vacía.
+ */
+export function wayLabel(terminology: Terminology): string {
+  return terminology.way?.trim() || DEFAULT_WAY_LABEL;
+}
+
+/** El nombre que el club da a sus Standards, o «Standards». Mismo criterio que `wayLabel`. */
+export function standardsLabel(terminology: Terminology): string {
+  return terminology.standards?.trim() || DEFAULT_STANDARDS_LABEL;
+}
+
 /** Pestañas con ruta propia bajo `/c/{slug}/`. Inicio es la raíz del club. */
 const SECTION_KEYS = ["way", "train", "games", "team"] as const satisfies ReadonlyArray<NavKey>;
 
@@ -24,10 +40,28 @@ export function navItems(clubSlug: string, terminology: Terminology): NavItem[] 
 
   return [
     { key: "home", label: "Inicio", href: base },
-    { key: "way", label: terminology.way?.trim() || DEFAULT_WAY_LABEL, href: `${base}/way` },
+    { key: "way", label: wayLabel(terminology), href: `${base}/way` },
     { key: "train", label: "Entrenar", href: `${base}/train` },
     { key: "games", label: "Partidos", href: `${base}/games` },
     { key: "team", label: "Equipo", href: `${base}/team` },
+  ];
+}
+
+export type AdminNavItem = { label: string; href: string };
+
+/**
+ * Los apartados de Gestión (`/c/{slug}/admin/…`), en su orden: la metodología, los valores,
+ * los principios de juego y los Standards. La metodología y los Standards llevan el nombre
+ * que el club les haya dado en su terminología; «Valores» y «Principios» son siempre esos.
+ */
+export function adminNavItems(clubSlug: string, terminology: Terminology): AdminNavItem[] {
+  const base = `/c/${clubSlug}/admin`;
+
+  return [
+    { label: wayLabel(terminology), href: `${base}/way` },
+    { label: "Valores", href: `${base}/values` },
+    { label: "Principios", href: `${base}/principles` },
+    { label: standardsLabel(terminology), href: `${base}/standards` },
   ];
 }
 

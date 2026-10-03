@@ -5,7 +5,8 @@
 import type { PlaywrightTestOptions, PlaywrightWorkerOptions } from "@playwright/test";
 import { isLocalSupabaseUrl } from "../seed/guard";
 
-const LOCAL_BASE_URL = "http://localhost:3000";
+const LOCAL_ORIGIN = "http://localhost";
+const DEFAULT_PORT = "3000";
 
 /** Con esta cabecera, Vercel deja pasar una automatización por su protección de despliegues. */
 const BYPASS_HEADER = "x-vercel-protection-bypass";
@@ -45,8 +46,21 @@ function readVar(env: Env, name: string): string | null {
 }
 
 /**
+ * El puerto de la app local: `PORT` si es un número de puerto, o 3000. `next start` lee la
+ * misma variable, así que los tests apuntan a donde arranca la app. Sirve para que dos
+ * checkouts del repo (worktrees) pasen los e2e a la vez sin reutilizar el servidor del otro.
+ */
+function localPort(env: Env): string {
+  const value = readVar(env, "PORT");
+  if (value === null || !/^\d{1,5}$/.test(value)) return DEFAULT_PORT;
+  const port = Number(value);
+  return port >= 1 && port <= 65535 ? String(port) : DEFAULT_PORT;
+}
+
+/**
  * El destino de esta ejecución, según `BASE_URL`:
- *  - Sin ella, la app local de siempre: Playwright la construye y la arranca.
+ *  - Sin ella, la app local de siempre: Playwright la construye y la arranca, en el puerto
+ *    3000 o en el de `PORT`.
  *  - Con ella, esa URL, y no se arranca nada. Si su host no es local (una preview), no se
  *    guarda traza ni vídeo: una traza lleva la cookie de sesión de esa ejecución y no debe
  *    acabar en un artefacto. Con un host local todo queda como siempre.
@@ -57,7 +71,7 @@ function readVar(env: Env, name: string): string | null {
  */
 export function readE2eTarget(env: Env): E2eTarget {
   const configured = readVar(env, "BASE_URL");
-  const baseURL = configured ?? LOCAL_BASE_URL;
+  const baseURL = configured ?? `${LOCAL_ORIGIN}:${localPort(env)}`;
 
   if (configured !== null) {
     const isHttp = URL.canParse(configured) && /^https?:$/.test(new URL(configured).protocol);

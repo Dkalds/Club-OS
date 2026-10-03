@@ -29,7 +29,10 @@
   --target-min: 44px;
   --target-live: 72px;
   --nav-height: 64px;
+  --header-height: 56px;
   --content-max: 480px;
+  --admin-nav: 240px;
+  --admin-content-max: 960px;
 }
 
 @theme static {

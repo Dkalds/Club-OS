@@ -8,13 +8,13 @@ import { ErrorState } from "@/ui/states";
 const HOME_PATH = /^\/c\/[^/]+\/?$/;
 
 /**
- * Error de una pantalla de dentro de un club: se pinta en el marco del club, en lugar del
+ * Error de una pantalla de la app móvil del club: se pinta en su marco, en lugar del
  * contenido (el `<main>` lo pone `AppShell`).
  *
- * Recoge lo que lanzan las páginas de `/c/[club]` (Inicio, si no se pueden leer sus datos,
- * y también las pestañas, que cuelgan de este mismo segmento): por eso el título solo habla
- * de Inicio cuando la ruta es la de Inicio. Lo que lance el layout del club no llega aquí:
- * lo recoge `src/app/error.tsx`.
+ * Recoge lo que lanzan las páginas de `(app)` (Inicio, si no se pueden leer sus datos, y
+ * también las pestañas, que cuelgan de este mismo segmento): por eso el título solo habla
+ * de Inicio cuando la ruta es la de Inicio. Lo que lancen los layouts no llega aquí: lo
+ * recoge `src/app/error.tsx`. Gestión tiene el suyo (`admin/error.tsx`).
  *
  * Nunca enseña el mensaje del error ni su `digest`. `retry` vuelve a pedir la ruta al
  * servidor y la repinta (`reset` solo repintaría lo que ya falló).

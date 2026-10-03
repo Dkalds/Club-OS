@@ -180,3 +180,46 @@ async function loadClubContext(slug: string): Promise<ClubContext | null> {
  * consulta (y, si falla, un solo error).
  */
 export const getClubContext = cache(loadClubContext);
+
+/** Lo que se muestra de quien entra cuando no se sabe cómo se llama. */
+const ANONYMOUS_NAME = "Tu cuenta";
+
+const VIEWER_TAG = "tenancy.viewer-name";
+
+/**
+ * El nombre de quien tiene la sesión para el menú de cuenta: nombre y apellidos de la
+ * persona de su membresía, o «Tu cuenta» si no hay persona o no tiene nombre.
+ *
+ * Lee con la sesión de la persona (RLS) y filtra por club y por id. Solo sirve para
+ * mostrar: ni un error de lectura (se registra sin datos personales, ver `logError`) ni una
+ * excepción rompen la página; cae en «Tu cuenta».
+ */
+export async function getViewerName(ctx: ClubContext): Promise<string> {
+  const { personId } = ctx.membership;
+  if (!personId) return ANONYMOUS_NAME;
+
+  // Fuera del `try`: `cookies()` avisa a Next lanzando, y ese aviso tiene que subir tal cual.
+  const supabase = await createClient();
+
+  try {
+    const { data, error } = await supabase
+      .from("people")
+      .select("first_name, last_name")
+      .eq("organization_id", ctx.org.id)
+      .eq("id", personId)
+      .maybeSingle();
+    if (error) {
+      logError(VIEWER_TAG, error);
+      return ANONYMOUS_NAME;
+    }
+
+    const name = [data?.first_name, data?.last_name]
+      .map((part) => part?.trim())
+      .filter(Boolean)
+      .join(" ");
+    return name || ANONYMOUS_NAME;
+  } catch (error) {
+    logError(VIEWER_TAG, error);
+    return ANONYMOUS_NAME;
+  }
+}
