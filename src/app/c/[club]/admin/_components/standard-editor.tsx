@@ -16,11 +16,11 @@ import { useAction } from "./use-action";
  * que nace en borrador y al final de la lista.
  *
  * El número lo elige dirección y es único por club: la acción lo valida (entre 1 y 99) y, si ya
- * existe, el error sale bajo «Número». `maxLength` no hace nada en un campo numérico, así que
- * el límite no está en el campo. El alta propone `defaultNumber` (el mayor de la lista más
- * uno); tras crear uno, propone el siguiente al mayor entre el anterior y el que se acaba de
- * crear, sin esperar a que la página se repinte con la lista nueva: sale lo mismo antes y
- * después.
+ * existe, el error sale bajo «Número». El campo lleva `min` y `max` con ese rango (el que manda
+ * es la acción: el navegador no valida, el formulario es `noValidate`). El alta propone
+ * `defaultNumber` (el mayor de la lista más uno); tras crear uno, propone el siguiente al mayor
+ * entre el anterior y el que se acaba de crear, sin esperar a que la página se repinte con la
+ * lista nueva: sale lo mismo antes y después.
  *
  * El estado del formulario sale del Standard una sola vez: al guardar, la página se repinta con
  * los datos nuevos (la acción revalida Gestión) y eso no debe pisar lo que se esté escribiendo.
@@ -90,7 +90,8 @@ export function StandardEditor({
         type="number"
         value={number}
         onChange={touch(setNumber)}
-        maxLength={2}
+        min={1}
+        max={99}
         error={errors.number}
       />
       <TextField

@@ -74,23 +74,33 @@ function errorAttributes(error: string | undefined, errorId: string) {
   };
 }
 
+type TextFieldProps = {
+  label: string;
+  name: string;
+  value: string;
+  onChange: (value: string) => void;
+  error?: string;
+} & (
+  | { type?: "text"; maxLength: number; min?: never; max?: never }
+  | { type: "number"; maxLength?: number; min?: number; max?: number }
+);
+
+/**
+ * Un campo de una línea. De texto exige `maxLength`: todo texto que se guarda tiene tope. De
+ * tipo número no lo exige (el navegador ignora `maxlength` en un número) y admite `min` y
+ * `max`, que son lo que ese campo puede decir de su rango.
+ */
 export function TextField({
   label,
   name,
   value,
   onChange,
   maxLength,
+  min,
+  max,
   error,
   type = "text",
-}: {
-  label: string;
-  name: string;
-  value: string;
-  onChange: (value: string) => void;
-  maxLength: number;
-  error?: string;
-  type?: "text" | "number";
-}) {
+}: TextFieldProps) {
   const id = useId();
   const errorId = `${id}-error`;
 
@@ -106,6 +116,8 @@ export function TextField({
         inputMode={type === "number" ? "numeric" : undefined}
         value={value}
         maxLength={maxLength}
+        min={min}
+        max={max}
         onChange={(event) => onChange(event.target.value)}
         {...errorAttributes(error, errorId)}
         className={SINGLE_LINE}

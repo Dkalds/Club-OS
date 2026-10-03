@@ -59,6 +59,10 @@ describe("StandardEditor · un Standard que existe", () => {
     const number = screen.getByLabelText("Número");
     expect(number).toHaveAttribute("type", "number");
     expect(number).toHaveValue(3);
+    // El rango es de 1 a 99, como lo valida la acción; `maxlength` no haría nada en un número.
+    expect(number).toHaveAttribute("min", "1");
+    expect(number).toHaveAttribute("max", "99");
+    expect(number).not.toHaveAttribute("maxlength");
     expect(screen.getByLabelText("Título")).toHaveValue("STANDARD A");
     expect(screen.getByLabelText("Título")).toHaveAttribute("maxlength", "80");
     expect(screen.getByLabelText("Descripción")).toHaveValue("Una descripción.");

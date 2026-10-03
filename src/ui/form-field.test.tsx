@@ -73,13 +73,41 @@ describe("TextField", () => {
   });
 
   it("de tipo número abre el teclado numérico", () => {
-    render(
-      <TextField label="Número" name="number" type="number" value="3" onChange={() => {}} maxLength={2} />,
-    );
+    render(<TextField label="Número" name="number" type="number" value="3" onChange={() => {}} />);
 
     const input = screen.getByLabelText("Número");
     expect(input).toHaveAttribute("type", "number");
     expect(input).toHaveAttribute("inputmode", "numeric");
+  });
+
+  it("de tipo número no pide longitud máxima, que no haría nada, y no la pone si no se da", () => {
+    render(<TextField label="Número" name="number" type="number" value="3" onChange={() => {}} />);
+
+    expect(screen.getByLabelText("Número")).not.toHaveAttribute("maxlength");
+  });
+
+  it("de tipo número, el mínimo y el máximo son opcionales y van al campo", () => {
+    const { unmount } = render(
+      <TextField label="Número" name="number" type="number" value="3" onChange={() => {}} />,
+    );
+    expect(screen.getByLabelText("Número")).not.toHaveAttribute("min");
+    expect(screen.getByLabelText("Número")).not.toHaveAttribute("max");
+    unmount();
+
+    render(
+      <TextField label="Número" name="number" type="number" value="3" onChange={() => {}} min={1} max={99} />,
+    );
+    expect(screen.getByLabelText("Número")).toHaveAttribute("min", "1");
+    expect(screen.getByLabelText("Número")).toHaveAttribute("max", "99");
+  });
+
+  it("de tipo texto lleva su longitud máxima y ningún mínimo ni máximo", () => {
+    render(<TextField label="Título" name="title" value="" onChange={() => {}} maxLength={80} />);
+
+    const input = screen.getByLabelText("Título");
+    expect(input).toHaveAttribute("maxlength", "80");
+    expect(input).not.toHaveAttribute("min");
+    expect(input).not.toHaveAttribute("max");
   });
 
   it("es un control del sistema: surface-2, borde line-strong, radius-md y al menos target-min", () => {
