@@ -25,6 +25,22 @@ const SANDBOX_STALE_MS = 60_000;
 
 const sandboxes: string[] = [];
 
+/** Las dos llamadas con las que cada página de Gestión se protege a sí misma. */
+const GUARDED_PAGE = [
+  "export default async function Page() {",
+  "  const ctx = await requireClub(slug);",
+  "  requireAdmin(ctx);",
+  "}",
+  "",
+].join("\n");
+
+const ADMIN = "app/c/[club]/admin";
+
+/** Los archivos dados más una página de Gestión que cumple: el guard exige que exista. */
+function withAdmin(files: Record<string, string>): Record<string, string> {
+  return { [`${ADMIN}/page.tsx`]: GUARDED_PAGE, ...files };
+}
+
 /** Una raíz de repo de mentira: el script copiado y, si se dan, los archivos de `src/`. */
 function sandbox(files: Record<string, string> | null): string {
   const root = mkdtempSync(path.join(os.tmpdir(), SANDBOX_PREFIX));
@@ -77,7 +93,9 @@ afterEach(() => {
 
 describe("check-guards.sh", () => {
   it("pasa con un src/ sin literales de club ni clave de servicio", () => {
-    const { status, output } = runGuards({ "ui/card.tsx": 'export const club = "club-a";\n' });
+    const { status, output } = runGuards(
+      withAdmin({ "ui/card.tsx": 'export const club = "club-a";\n' }),
+    );
 
     expect(output).toContain("check:guards OK");
     expect(status).toBe(0);
@@ -92,10 +110,12 @@ describe("check-guards.sh", () => {
     ["el segundo club en mayúsculas", "const NAME = 'CLUB DEMO';"],
     ["el acento del segundo club", "const accent = '#3FB8AF';"],
   ])("falla si src/ lleva %s, y enseña la línea", (_label, line) => {
-    const { status, output } = runGuards({
-      "ui/card.tsx": "export const ok = 1;\n",
-      "modules/home/home.test.ts": `${line}\n`,
-    });
+    const { status, output } = runGuards(
+      withAdmin({
+        "ui/card.tsx": "export const ok = 1;\n",
+        "modules/home/home.test.ts": `${line}\n`,
+      }),
+    );
 
     expect(status).toBe(1);
     expect(output).toContain("FALLO: src/ menciona a un club");
@@ -104,9 +124,9 @@ describe("check-guards.sh", () => {
   });
 
   it("falla si src/ menciona la clave de servicio", () => {
-    const { status, output } = runGuards({
-      "lib/admin.ts": "const key = process.env.SUPABASE_SERVICE_ROLE_KEY;\n",
-    });
+    const { status, output } = runGuards(
+      withAdmin({ "lib/admin.ts": "const key = process.env.SUPABASE_SERVICE_ROLE_KEY;\n" }),
+    );
 
     expect(status).toBe(1);
     expect(output).toContain("FALLO: src/ menciona SERVICE_ROLE");
@@ -120,5 +140,100 @@ describe("check-guards.sh", () => {
     expect(status).toBe(1);
     expect(output).toMatch(/FALLO: .*grep no pudo comprobarlo \(estado 2\)/);
     expect(output).not.toContain("check:guards OK");
+  });
+
+  // Gestión: cada `page.tsx` de /admin llama ella misma a `requireClub(` y a `requireAdmin(`. Un
+  // layout no protege a sus páginas, y un guard que no encuentra la carpeta no protege nada.
+  describe("las páginas de Gestión", () => {
+    const FOLDER = "src/app/c/[club]/admin";
+    const NO_CALLS = "export default function Page() {}\n";
+
+    it("pasan con varias páginas y subcarpetas, cada una con sus dos llamadas", () => {
+      const { status, output } = runGuards({
+        [`${ADMIN}/page.tsx`]: GUARDED_PAGE,
+        [`${ADMIN}/way/page.tsx`]: GUARDED_PAGE,
+        [`${ADMIN}/way/[sectionId]/page.tsx`]: GUARDED_PAGE,
+        // Lo que no es una página no se mira: un layout o un test no llevan las llamadas.
+        [`${ADMIN}/layout.tsx`]: "export default function Layout() {}\n",
+        [`${ADMIN}/pages.test.tsx`]: "it('x', () => {});\n",
+      });
+
+      expect(output).toContain("check:guards OK");
+      expect(status).toBe(0);
+    });
+
+    it("fallan si la carpeta no existe, en vez de pasar sin proteger nada", () => {
+      // Por ejemplo, porque alguien la ha renombrado.
+      const { status, output } = runGuards({
+        "app/c/[club]/gestion/page.tsx": GUARDED_PAGE,
+        "ui/card.tsx": "export const ok = 1;\n",
+      });
+
+      expect(status).toBe(1);
+      expect(output).toContain(`FALLO: no existe ${FOLDER}`);
+      expect(output).not.toContain("check:guards OK");
+    });
+
+    it("fallan si la carpeta existe pero no tiene ninguna página", () => {
+      const { status, output } = runGuards({
+        [`${ADMIN}/layout.tsx`]: "export default function Layout() {}\n",
+      });
+
+      expect(status).toBe(1);
+      expect(output).toContain(`FALLO: ${FOLDER} no tiene ninguna página`);
+      expect(output).not.toContain("check:guards OK");
+    });
+
+    it("fallan si una página no llama a requireAdmin(, y dicen cuál", () => {
+      const { status, output } = runGuards({
+        [`${ADMIN}/page.tsx`]: GUARDED_PAGE,
+        [`${ADMIN}/values/page.tsx`]: "export default async function Page() { await requireClub(slug); }\n",
+      });
+
+      expect(status).toBe(1);
+      expect(output).toContain("FALLO: páginas de Gestión sin requireAdmin(");
+      expect(output).toContain(`${FOLDER}/values/page.tsx`);
+      expect(output).not.toContain(`${FOLDER}/page.tsx`);
+      expect(output).not.toContain("sin requireClub(");
+      expect(output).not.toContain("check:guards OK");
+    });
+
+    it("fallan si una página no llama a requireClub(, y dicen cuál", () => {
+      const { status, output } = runGuards({
+        [`${ADMIN}/page.tsx`]: GUARDED_PAGE,
+        [`${ADMIN}/standards/page.tsx`]: "export default function Page() { requireAdmin(ctx); }\n",
+      });
+
+      expect(status).toBe(1);
+      expect(output).toContain("FALLO: páginas de Gestión sin requireClub(");
+      expect(output).toContain(`${FOLDER}/standards/page.tsx`);
+      expect(output).not.toContain(`${FOLDER}/page.tsx`);
+      expect(output).not.toContain("sin requireAdmin(");
+      expect(output).not.toContain("check:guards OK");
+    });
+
+    it("una página sin ninguna de las dos sale en las dos listas", () => {
+      const { status, output } = runGuards({
+        [`${ADMIN}/page.tsx`]: GUARDED_PAGE,
+        [`${ADMIN}/principles/page.tsx`]: NO_CALLS,
+      });
+
+      expect(status).toBe(1);
+      expect(output).toContain("FALLO: páginas de Gestión sin requireClub(");
+      expect(output).toContain("FALLO: páginas de Gestión sin requireAdmin(");
+      expect(output.split(`${FOLDER}/principles/page.tsx`)).toHaveLength(3);
+    });
+
+    it("las llamadas de otras páginas no cubren a la que no las tiene", () => {
+      // Cada página se comprueba por sí misma.
+      const { status, output } = runGuards({
+        [`${ADMIN}/page.tsx`]: GUARDED_PAGE,
+        [`${ADMIN}/way/page.tsx`]: GUARDED_PAGE,
+        [`${ADMIN}/values/page.tsx`]: NO_CALLS,
+      });
+
+      expect(status).toBe(1);
+      expect(output).toContain(`${FOLDER}/values/page.tsx`);
+    });
   });
 });
