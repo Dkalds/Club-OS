@@ -36,8 +36,10 @@ jobs:
         with:
           node-version: 24
       - run: pnpm install --frozen-lockfile
-      # Sin `version`: la acción toma la del lockfile (la misma que el devDependency).
+      # Misma versión que el devDependency `supabase` de package.json: súbelas a la vez.
       - uses: supabase/setup-cli@v3
+        with:
+          version: 2.119.0
       - run: supabase start
       - run: pnpm test:db
 
@@ -52,7 +54,10 @@ jobs:
         with:
           node-version: 24
       - run: pnpm install --frozen-lockfile
+      # Misma versión que el devDependency `supabase` de package.json: súbelas a la vez.
       - uses: supabase/setup-cli@v3
+        with:
+          version: 2.119.0
       - run: supabase start
       - name: Volcar supabase status a .env.local
         run: |
