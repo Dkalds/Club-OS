@@ -1,6 +1,8 @@
 import { defineConfig } from "@playwright/test";
 
-const baseURL = "http://localhost:3000";
+// `PORT` deja que dos checkouts (worktrees) pasen los e2e a la vez sin pisarse el servidor:
+// `next start` lo lee del entorno y aquí se apunta al mismo puerto.
+const baseURL = `http://localhost:${process.env.PORT ?? "3000"}`;
 
 export default defineConfig({
   testDir: "./e2e",
