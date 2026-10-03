@@ -73,6 +73,137 @@ export type Database = {
           },
         ]
       }
+      events: {
+        Row: {
+          ends_at: string
+          id: string
+          kind: Database["public"]["Enums"]["event_kind"]
+          location: string | null
+          organization_id: string
+          starts_at: string
+          status: Database["public"]["Enums"]["event_status"]
+          team_id: string
+        }
+        Insert: {
+          ends_at: string
+          id?: string
+          kind: Database["public"]["Enums"]["event_kind"]
+          location?: string | null
+          organization_id: string
+          starts_at: string
+          status?: Database["public"]["Enums"]["event_status"]
+          team_id: string
+        }
+        Update: {
+          ends_at?: string
+          id?: string
+          kind?: Database["public"]["Enums"]["event_kind"]
+          location?: string | null
+          organization_id?: string
+          starts_at?: string
+          status?: Database["public"]["Enums"]["event_status"]
+          team_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "events_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "events_organization_id_team_id_fkey"
+            columns: ["organization_id", "team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["organization_id", "id"]
+          },
+        ]
+      }
+      focus_areas: {
+        Row: {
+          id: string
+          name: string
+          organization_id: string
+          slug: string
+          sort: number
+        }
+        Insert: {
+          id?: string
+          name: string
+          organization_id: string
+          slug: string
+          sort?: number
+        }
+        Update: {
+          id?: string
+          name?: string
+          organization_id?: string
+          slug?: string
+          sort?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "focus_areas_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      games: {
+        Row: {
+          competition_name: string | null
+          event_id: string
+          home_away: string | null
+          opponent_name: string
+          opponent_notes: string | null
+          organization_id: string
+          score_against: number | null
+          score_for: number | null
+          source: string
+        }
+        Insert: {
+          competition_name?: string | null
+          event_id: string
+          home_away?: string | null
+          opponent_name: string
+          opponent_notes?: string | null
+          organization_id: string
+          score_against?: number | null
+          score_for?: number | null
+          source?: string
+        }
+        Update: {
+          competition_name?: string | null
+          event_id?: string
+          home_away?: string | null
+          opponent_name?: string
+          opponent_notes?: string | null
+          organization_id?: string
+          score_against?: number | null
+          score_for?: number | null
+          source?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "games_organization_id_event_id_fkey"
+            columns: ["organization_id", "event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "games_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       memberships: {
         Row: {
           created_at: string
@@ -236,6 +367,147 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "organizations"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      practice_items: {
+        Row: {
+          actual_minutes: number | null
+          completed: boolean | null
+          drill_id: string | null
+          id: string
+          minutes: number
+          notes: string | null
+          organization_id: string
+          phase: string | null
+          plan_id: string
+          sort: number
+          title_override: string | null
+        }
+        Insert: {
+          actual_minutes?: number | null
+          completed?: boolean | null
+          drill_id?: string | null
+          id?: string
+          minutes: number
+          notes?: string | null
+          organization_id: string
+          phase?: string | null
+          plan_id: string
+          sort: number
+          title_override?: string | null
+        }
+        Update: {
+          actual_minutes?: number | null
+          completed?: boolean | null
+          drill_id?: string | null
+          id?: string
+          minutes?: number
+          notes?: string | null
+          organization_id?: string
+          phase?: string | null
+          plan_id?: string
+          sort?: number
+          title_override?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "practice_items_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "practice_items_organization_id_plan_id_fkey"
+            columns: ["organization_id", "plan_id"]
+            isOneToOne: false
+            referencedRelation: "practice_plans"
+            referencedColumns: ["organization_id", "id"]
+          },
+        ]
+      }
+      practice_plans: {
+        Row: {
+          actual_minutes: number | null
+          created_at: string
+          created_by: string | null
+          event_id: string | null
+          id: string
+          is_template: boolean
+          notes: string | null
+          organization_id: string
+          primary_focus_id: string | null
+          secondary_focus_id: string | null
+          status: string
+          team_id: string | null
+          title: string
+        }
+        Insert: {
+          actual_minutes?: number | null
+          created_at?: string
+          created_by?: string | null
+          event_id?: string | null
+          id?: string
+          is_template?: boolean
+          notes?: string | null
+          organization_id: string
+          primary_focus_id?: string | null
+          secondary_focus_id?: string | null
+          status?: string
+          team_id?: string | null
+          title: string
+        }
+        Update: {
+          actual_minutes?: number | null
+          created_at?: string
+          created_by?: string | null
+          event_id?: string | null
+          id?: string
+          is_template?: boolean
+          notes?: string | null
+          organization_id?: string
+          primary_focus_id?: string | null
+          secondary_focus_id?: string | null
+          status?: string
+          team_id?: string | null
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "practice_plans_organization_id_event_id_fkey"
+            columns: ["organization_id", "event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "practice_plans_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "practice_plans_organization_id_primary_focus_id_fkey"
+            columns: ["organization_id", "primary_focus_id"]
+            isOneToOne: false
+            referencedRelation: "focus_areas"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "practice_plans_organization_id_secondary_focus_id_fkey"
+            columns: ["organization_id", "secondary_focus_id"]
+            isOneToOne: false
+            referencedRelation: "focus_areas"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "practice_plans_organization_id_team_id_fkey"
+            columns: ["organization_id", "team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["organization_id", "id"]
           },
         ]
       }
@@ -438,6 +710,8 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
+      event_kind: "practice" | "game"
+      event_status: "scheduled" | "done" | "cancelled"
       org_role: "admin" | "coach" | "player" | "guardian"
       staff_role: "head_coach" | "assistant"
     }
@@ -570,6 +844,8 @@ export const Constants = {
   },
   public: {
     Enums: {
+      event_kind: ["practice", "game"],
+      event_status: ["scheduled", "done", "cancelled"],
       org_role: ["admin", "coach", "player", "guardian"],
       staff_role: ["head_coach", "assistant"],
     },
