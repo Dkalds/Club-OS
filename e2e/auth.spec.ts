@@ -1,4 +1,4 @@
-import { createAdminClient } from "../scripts/lib/admin-client";
+import { findAuthUser } from "../scripts/lib/login-code";
 import { lastCodeSentAt, loginAs, requestCodeFor } from "./helpers/auth";
 import { expect, test } from "./helpers/test";
 
@@ -81,8 +81,8 @@ test("un email sin invitación ve lo mismo que uno invitado y no crea usuario", 
     .poll(async () => (await lastCodeSentAt(invited)) ?? 0, { timeout: 10_000 })
     .toBeGreaterThanOrEqual(startedAt - 1_000);
 
-  // La del email sin invitación salió antes; a estas alturas Auth ya la ha rechazado.
-  const { data, error } = await createAdminClient().auth.admin.listUsers({ perPage: 200 });
-  expect(error).toBeNull();
-  expect(data.users.map((user) => user.email)).not.toContain(stranger);
+  // La del email sin invitación salió antes; a estas alturas Auth ya la ha rechazado. La
+  // búsqueda recorre todas las páginas de usuarios: con la primera sola, un proyecto con más
+  // de 200 usuarios habría pasado esta comprobación sin mirar de verdad.
+  expect(await findAuthUser(stranger)).toBeUndefined();
 });

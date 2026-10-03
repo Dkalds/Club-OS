@@ -1,20 +1,23 @@
 import { defineConfig } from "@playwright/test";
+import { readE2eTarget } from "./scripts/lib/e2e-target";
 
-const baseURL = "http://localhost:3000";
+// Sin `BASE_URL`, los e2e construyen y arrancan la app en localhost:3000. Con ella, prueban
+// esa URL ya desplegada (la preview) y no arrancan nada. Qué cambia entonces (sin traza ni
+// vídeo contra un remoto; el secreto de la protección de Vercel solo hacia el origen de la
+// app, en el fixture `protectionBypass`) y qué se exige al Supabase del runner está en
+// `scripts/lib/e2e-target.ts`; ver «Entorno remoto» en el README.
+const target = readE2eTarget(process.env);
 
 export default defineConfig({
   testDir: "./e2e",
   // Con Supabase local: siembra la base de datos justo antes de los tests, les pasa el
-  // instante de la siembra y guarda una sesión por usuario. Con uno remoto no escribe nada.
+  // instante de la siembra y guarda una sesión por usuario. Con uno remoto no siembra ni entra por nadie.
   globalSetup: "./e2e/global-setup.ts",
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
   reporter: process.env.CI ? [["github"], ["html", { open: "never" }]] : "list",
-  use: {
-    baseURL,
-    trace: "retain-on-failure",
-  },
+  use: target.use,
   projects: [
     {
       name: "mobile",
@@ -24,10 +27,12 @@ export default defineConfig({
       },
     },
   ],
-  webServer: {
-    command: "pnpm build && pnpm start",
-    url: baseURL,
-    reuseExistingServer: !process.env.CI,
-    timeout: 240_000,
-  },
+  webServer: target.startServer
+    ? {
+        command: "pnpm build && pnpm start",
+        url: target.baseURL,
+        reuseExistingServer: !process.env.CI,
+        timeout: 240_000,
+      }
+    : undefined,
 });

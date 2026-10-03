@@ -1,4 +1,5 @@
 import { test as base, expect, type ConsoleMessage } from "@playwright/test";
+import { bypassHandler, readE2eTarget } from "../../scripts/lib/e2e-target";
 
 /** Lo que el navegador ha dejado en su consola durante un test. */
 export type BrowserErrors = {
@@ -26,8 +27,35 @@ const NOT_FOUND_NOTICE = /^Failed to load resource: the server responded with a 
  *
  * Vigila el contexto que Playwright crea para el test. Un contexto abierto a mano con
  * `browser.newContext()` queda fuera.
+ *
+ * Además, contra una preview protegida (`BASE_URL` remoto y `VERCEL_AUTOMATION_BYPASS_SECRET`
+ * puesto) envía el secreto de la protección de despliegues, y solo en las peticiones al
+ * origen de la app. Ver el fixture `protectionBypass`.
  */
-export const test = base.extend<{ browserErrors: BrowserErrors }>({
+export const test = base.extend<{ browserErrors: BrowserErrors; protectionBypass: void }>({
+  /**
+   * Añade `x-vercel-protection-bypass` a las peticiones al origen de `BASE_URL` y a ninguna
+   * otra. No se usa `extraHTTPHeaders`: iría a todos los orígenes que pide la página, y el
+   * secreto de la protección no debe salir hacia ningún dominio que no sea la app. Tampoco
+   * vale la cookie del bypass: `loginAs`, `requestCodeFor` y `openAs` borran las cookies.
+   *
+   * Sin la variable, o con una app local (aunque la variable esté puesta), no hace nada: no
+   * se registra ninguna ruta. Qué se envía y a qué origen lo decide `readE2eTarget`, y lo
+   * prueban sus tests; cómo se añade, `bypassHandler`. Un contexto abierto a mano queda fuera,
+   * como en `browserErrors`, y las rutas que un test registre con `page.route` tienen que
+   * acabar en `route.fallback()`, no en `route.continue()`, para que el secreto llegue.
+   */
+  protectionBypass: [
+    async ({ context }, use) => {
+      const { bypass } = readE2eTarget(process.env);
+      if (bypass) {
+        await context.route((url) => url.origin === bypass.origin, bypassHandler(bypass));
+      }
+      await use();
+    },
+    { auto: true },
+  ],
+
   browserErrors: [
     async ({ context }, use) => {
       const seen: string[] = [];
