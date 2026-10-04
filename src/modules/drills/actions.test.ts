@@ -423,6 +423,50 @@ describe("la entrada se valida antes de tocar la base de datos", () => {
     });
   });
 
+  it("un error en una lista no esconde los de orden: todos a la vez, sin RPC", async () => {
+    const result = await createDrill("club-a", {
+      ...INPUT,
+      coachingPoints: [{ text: "", isKey: false }],
+      variants: [{ title: "", description: null }],
+      minPlayers: 8,
+      maxPlayers: 4,
+      minMinutes: 20,
+      maxMinutes: 10,
+      minAge: 14,
+      maxAge: 10,
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      error: "INVALID",
+      fieldErrors: {
+        coachingPoints: "Escribe el punto o quítalo.",
+        variants: "Escribe el título de la variante o quítala.",
+        maxPlayers: "El máximo de jugadores no puede ser menor que el mínimo.",
+        maxMinutes: "La duración máxima no puede ser menor que la mínima.",
+        maxAge: "La edad máxima no puede ser menor que la mínima.",
+      },
+    });
+    expect(mocks.createClient).not.toHaveBeenCalled();
+  });
+
+  it("al editar, una lista mal y un rango al revés dan los dos errores", async () => {
+    const result = await update({
+      coachingPoints: Array.from({ length: 4 }, (_, i) => ({ text: `Punto ${i + 1}`, isKey: true })),
+      minPlayers: 8,
+      maxPlayers: 4,
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      error: "INVALID",
+      fieldErrors: {
+        coachingPoints: "Marca como clave 3 puntos como máximo.",
+        maxPlayers: "El máximo de jugadores no puede ser menor que el mínimo.",
+      },
+    });
+  });
+
   it("al editar, los errores de campo llevan las mismas claves que al crear", async () => {
     const result = await update({ title: "", maxMinutes: 5 });
 

@@ -19,7 +19,8 @@ export const VIDEO_URL_RE = /^https:\/\/((www|m)\.)?(youtube\.com|youtu\.be|vime
 /**
  * Lo que manda el formulario al crear o guardar un ejercicio: la ficha menos lo que no se
  * escribe (el id, el estado, el autor, las fechas, la URL firmada del diagrama y lo que se
- * calcula al leer), y los principios y Standards como ids.
+ * calcula al leer). Los principios y Standards van como ids (`principleIds`, `standardIds`,
+ * que la ficha ya trae con todos los vínculos), no como lo que se muestra.
  */
 export type DrillInput = Omit<
   DrillDetail,
@@ -33,7 +34,7 @@ export type DrillInput = Omit<
   | "standards"
   | "createdByMe"
   | "updatedAt"
-> & { principleIds: string[]; standardIds: string[] };
+>;
 
 /** Guardar cambios: el ejercicio, y el `updated_at` de la copia que se estaba editando. */
 export type UpdateDrillInput = { drillId: string; expectedUpdatedAt: string; drill: DrillInput };
@@ -119,6 +120,10 @@ const equipment = z
  * Los puntos de coaching. Todo lo que está mal en la lista se señala en `coachingPoints`, la
  * lista entera, con el mensaje de lo primero que falla: el formulario lo enseña bajo la
  * lista. Cada punto se recorta antes de mirarlo.
+ *
+ * El error lleva `continue: true`: Zod aborta las comprobaciones del objeto (los máximos no
+ * bajan de los mínimos, más abajo) tras un error que no lo lleve, y quien arregla la lista
+ * descubriría un segundo error que ya estaba. Vale igual para las variantes.
  */
 const coachingPoints = z
   .array(z.object({ text: z.string().trim(), isKey: z.boolean() }))
@@ -135,7 +140,7 @@ const coachingPoints = z
               ? `Un ejercicio admite hasta ${MAX_POINTS} puntos.`
               : null;
 
-    if (problem) ctx.issues.push({ code: "custom", message: problem, input: points });
+    if (problem) ctx.issues.push({ code: "custom", message: problem, input: points, continue: true });
   });
 
 /** Las variantes, con la misma regla que los puntos: todo se señala en `variants`. */
@@ -158,7 +163,7 @@ const variants = z
             ? `Un ejercicio admite hasta ${MAX_VARIANTS} variantes.`
             : null;
 
-    if (problem) ctx.issues.push({ code: "custom", message: problem, input: items });
+    if (problem) ctx.issues.push({ code: "custom", message: problem, input: items, continue: true });
   });
 
 // ── El ejercicio ─────────────────────────────────────────────────────────────────────────
