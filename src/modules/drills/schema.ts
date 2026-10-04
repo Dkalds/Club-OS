@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { ACTION_ERROR_COPY } from "@/lib/action-result";
+import { DIAGRAM_ERROR, validateDiagramFile } from "@/modules/media/diagram-file";
 import type { DrillDetail } from "./types";
 
 // Entrada de las acciones de ejercicios. Los límites son los CHECK de
@@ -245,3 +246,21 @@ export const updateDrillSchema = z.preprocess(
 );
 
 export const drillIdSchema = z.object({ drillId: id });
+
+// ── Subir el diagrama ────────────────────────────────────────────────────────────────────
+
+/**
+ * Lo que valida `uploadDrillDiagram`: el ejercicio y el fichero. El fichero va bajo la clave
+ * `diagram`, que es la del campo del formulario al que apunta `fieldErrors`; en el `FormData`
+ * viaja como `file` y la acción lo renombra antes de validar. Aquí solo se mira lo que se sabe
+ * sin leerlo: que es un `File` y que su tipo declarado y su tamaño valen (`validateDiagramFile`,
+ * la misma comprobación que hace el formulario en el navegador). Los bytes los mira la acción,
+ * ya autorizada: leer el fichero es asíncrono y un esquema síncrono no puede. Cualquier problema
+ * del fichero, sea cual sea, da el mismo mensaje.
+ */
+export const diagramUploadSchema = z.object({
+  drillId: id,
+  diagram: z
+    .instanceof(File, { error: DIAGRAM_ERROR })
+    .refine((file) => validateDiagramFile(file) === "ok", DIAGRAM_ERROR),
+});

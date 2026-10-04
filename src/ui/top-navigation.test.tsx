@@ -96,3 +96,150 @@ describe("TopNavigation", () => {
     }
   });
 });
+
+describe("TopNavigation · cabecera de inicio y su coexistencia con la de detalle", () => {
+  it("variant «home» es lo mismo que no decir nada", () => {
+    render(<TopNavigation variant="home" brand={{ displayName: "Club A", wordmarkSub: "Baloncesto" }} />);
+
+    expect(screen.getByRole("banner")).toHaveTextContent("Club A");
+    expect(screen.getByRole("banner")).toHaveTextContent("Baloncesto");
+  });
+
+  it("se marca como cabecera de inicio", () => {
+    render(<TopNavigation brand={{ displayName: "Club A", wordmarkSub: null }} />);
+
+    expect(screen.getByRole("banner")).toHaveAttribute("data-topnav", "home");
+  });
+
+  it("se oculta cuando la pantalla trae su propia cabecera de detalle", () => {
+    render(<TopNavigation brand={{ displayName: "Club A", wordmarkSub: null }} />);
+
+    // `:has()` no se evalúa en jsdom: aquí se comprueba la regla; que de verdad se oculta lo
+    // prueba el e2e de la biblioteca. El marco de la app (`AppShell`) es el grupo `shell`.
+    expect(screen.getByRole("banner")).toHaveClass("group-has-[[data-topnav=detail]]/shell:hidden");
+  });
+});
+
+describe("TopNavigation · detail", () => {
+  const detail = { variant: "detail", title: "Ejercicio", backHref: "/c/club-a/train/library" } as const;
+
+  it("muestra el título de la pantalla", () => {
+    render(<TopNavigation {...detail} />);
+
+    expect(screen.getByText("Ejercicio")).toBeInTheDocument();
+  });
+
+  it("el título va en mayúsculas, en la fuente de títulos, centrado", () => {
+    render(<TopNavigation {...detail} />);
+
+    expect(screen.getByText("Ejercicio")).toHaveClass(
+      "font-display",
+      "text-title",
+      "uppercase",
+      "text-center",
+    );
+  });
+
+  it("el título no es un encabezado: el <h1> es el de la página", () => {
+    render(
+      <>
+        <TopNavigation {...detail} />
+        <h1>Rebote + outlet</h1>
+      </>,
+    );
+
+    // Con un encabezado en la cabecera, una pantalla con su propio <h1> tendría dos.
+    expect(screen.getAllByRole("heading")).toHaveLength(1);
+    expect(screen.getByRole("heading", { level: 1, name: "Rebote + outlet" })).toBeInTheDocument();
+  });
+
+  it("volver es un enlace de 44×44 a backHref, con nombre accesible", () => {
+    render(<TopNavigation {...detail} />);
+
+    const back = screen.getByRole("link", { name: "Volver" });
+    expect(back).toHaveAttribute("href", "/c/club-a/train/library");
+    expect(back).toHaveClass("size-(--target-min)");
+    // El nombre es la etiqueta, no el icono; el icono es decorativo.
+    expect(back.querySelector("svg")).toHaveAttribute("aria-hidden", "true");
+  });
+
+  it("volver es el primer elemento de la cabecera", () => {
+    render(<TopNavigation {...detail} />);
+
+    const header = document.querySelector("[data-topnav='detail']");
+    expect(header?.firstElementChild).toBe(screen.getByRole("link", { name: "Volver" }));
+  });
+
+  it("sin acción solo hay el enlace de volver", () => {
+    render(<TopNavigation {...detail} />);
+
+    expect(screen.getAllByRole("link")).toHaveLength(1);
+  });
+
+  it("con acción pinta su enlace a la derecha del título", () => {
+    render(
+      <TopNavigation
+        {...detail}
+        action={{ label: "Editar", href: "/c/club-a/admin/drills/1" }}
+      />,
+    );
+
+    const action = screen.getByRole("link", { name: "Editar" });
+    expect(action).toHaveAttribute("href", "/c/club-a/admin/drills/1");
+    expect(action).toHaveClass("min-h-(--target-min)");
+    expect(
+      screen.getByText("Ejercicio").compareDocumentPosition(action) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(screen.getAllByRole("link")).toHaveLength(2);
+  });
+
+  it("sin acción deja un hueco del tamaño de «volver» para que el título quede centrado", () => {
+    render(<TopNavigation {...detail} />);
+
+    const header = document.querySelector("[data-topnav='detail']");
+    const spacer = header?.lastElementChild;
+    expect(spacer).toHaveAttribute("aria-hidden", "true");
+    expect(spacer).toHaveClass("w-(--target-min)", "shrink-0");
+  });
+
+  it("un título larguísimo se trunca en vez de ensanchar la pantalla", () => {
+    const title = "Un título de pantalla larguísimo que no cabe entre el botón de volver y la acción";
+    render(<TopNavigation {...detail} title={title} action={{ label: "Editar", href: "/x" }} />);
+
+    expect(screen.getByText(title)).toHaveClass("min-w-0", "flex-1", "truncate");
+  });
+
+  it("se queda arriba al desplazar y mide como la de inicio", () => {
+    render(<TopNavigation {...detail} />);
+
+    const header = document.querySelector("[data-topnav='detail']");
+    expect(header).toHaveAttribute("data-topnav", "detail");
+    expect(header).toHaveClass(
+      "sticky",
+      "top-0",
+      "z-10",
+      "bg-bg",
+      "top-nav-line",
+      "min-h-[calc(var(--header-height)+env(safe-area-inset-top))]",
+      "pt-[env(safe-area-inset-top)]",
+    );
+  });
+
+  it("no se oculta a sí misma cuando hay una cabecera de detalle", () => {
+    render(<TopNavigation {...detail} />);
+
+    expect(document.querySelector("[data-topnav='detail']")?.className).not.toContain("group-has");
+  });
+
+  it("conserva el anillo de foco en sus enlaces", () => {
+    render(<TopNavigation {...detail} action={{ label: "Editar", href: "/x" }} />);
+
+    for (const name of ["Volver", "Editar"]) {
+      expect(screen.getByRole("link", { name })).toHaveClass(
+        "focus-visible:outline-2",
+        "focus-visible:outline-focus-ring",
+      );
+    }
+  });
+});
