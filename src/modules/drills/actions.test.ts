@@ -14,7 +14,8 @@ vi.mock("@/lib/supabase/server", () => ({ createClient: mocks.createClient }));
 vi.mock("@/lib/guards", () => ({ requireClub: mocks.requireClub }));
 vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidatePath }));
 
-import { archiveDrill, createDrill, publishDrill, updateDrill } from "./actions";
+import { DIAGRAM_ERROR, MAX_DIAGRAM_BYTES } from "@/modules/media/diagram-file";
+import { archiveDrill, createDrill, publishDrill, updateDrill, uploadDrillDiagram } from "./actions";
 import type { DrillInput } from "./schema";
 
 // Datos neutros: los tests de `src/` no pueden nombrar a ningún club (pnpm check:guards).
@@ -26,6 +27,8 @@ const F2 = "00000000-0000-4000-8000-0000000000f2";
 const P1 = "00000000-0000-4000-8000-0000000000a1";
 const S1 = "00000000-0000-4000-8000-0000000000b1";
 const MEDIA = "00000000-0000-4000-8000-0000000000c1";
+/** Lo que devuelve Storage al firmar el diagrama recién subido. */
+const SIGNED = "http://storage.test/object/sign/club-media/x.png?token=t";
 /** Un `updated_at` como lo devuelve PostgREST: con microsegundos y desfase. */
 const STAMP = "2026-10-03T10:00:00.123456+00:00";
 const NEXT_STAMP = "2026-10-03T10:05:00.654321+00:00";
@@ -71,9 +74,11 @@ class FakeQuery implements PromiseLike<Reply> {
     return this;
   }
 
+  insert = (...args: unknown[]) => this.record("insert", args);
   update = (...args: unknown[]) => this.record("update", args);
   select = (...args: unknown[]) => this.record("select", args);
   eq = (...args: unknown[]) => this.record("eq", args);
+  single = (...args: unknown[]) => this.record("single", args);
 
   then<A = Reply, B = never>(
     onfulfilled?: ((value: Reply) => A | PromiseLike<A>) | null,
@@ -95,9 +100,57 @@ class FakeQuery implements PromiseLike<Reply> {
   }
 }
 
+/** Lo que responde el Storage de pega: una respuesta, o un `Error` (la red cae: lanza). */
+type StorageOutcome = Reply | Error;
+
+/**
+ * El bucket de pega: anota lo que se le pide y responde lo que el test haya preparado (por
+ * defecto, que todo sale bien). `body` es lo que recibe de verdad `upload`, para comprobar qué
+ * bytes y con qué opciones se envían a Storage.
+ */
+class FakeBucket {
+  readonly uploads: Array<{ path: string; body: unknown; options: unknown }> = [];
+  readonly removes: string[][] = [];
+  readonly signs: Array<{ path: string; expiresIn: unknown }> = [];
+
+  uploadOutcome: StorageOutcome = { data: { path: "ok" }, error: null };
+  removeOutcome: StorageOutcome = { data: [], error: null };
+  signOutcome: StorageOutcome = { data: { signedUrl: SIGNED }, error: null };
+
+  private answer(outcome: StorageOutcome): Promise<Reply> {
+    return outcome instanceof Error ? Promise.reject(outcome) : Promise.resolve(outcome);
+  }
+
+  upload = (path: string, body: unknown, options: unknown) => {
+    this.uploads.push({ path, body, options });
+    return this.answer(this.uploadOutcome);
+  };
+
+  remove = (paths: string[]) => {
+    this.removes.push(paths);
+    return this.answer(this.removeOutcome);
+  };
+
+  createSignedUrl = (path: string, expiresIn: unknown) => {
+    this.signs.push({ path, expiresIn });
+    return this.answer(this.signOutcome);
+  };
+}
+
+class FakeStorage {
+  readonly bucket = new FakeBucket();
+  readonly names: string[] = [];
+
+  from(name: string): FakeBucket {
+    this.names.push(name);
+    return this.bucket;
+  }
+}
+
 class FakeDb {
   readonly queries: FakeQuery[] = [];
   readonly rpcs: Array<{ name: string; args: Record<string, unknown> }> = [];
+  readonly storage = new FakeStorage();
 
   constructor(private readonly replies: Reply[]) {}
 
@@ -719,5 +772,487 @@ describe.each([
     installDb(dbError("XX000", "boom"));
 
     await expect(run("club-a", { drillId: DRILL })).resolves.toEqual({ ok: false, error: "SAVE_FAILED" });
+  });
+});
+
+// ── uploadDrillDiagram ───────────────────────────────────────────────────────────────────
+
+/** Una cabecera seguida de relleno: lo que mira `sniffImageType` son los primeros bytes. */
+function imageBytes(kind: "png" | "jpg" | "webp", size = 1024): Uint8Array<ArrayBuffer> {
+  const header = {
+    png: [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a],
+    jpg: [0xff, 0xd8, 0xff, 0xe0],
+    webp: [0x52, 0x49, 0x46, 0x46, 0x24, 0x00, 0x00, 0x00, 0x57, 0x45, 0x42, 0x50],
+  }[kind];
+  const bytes = new Uint8Array(size);
+  bytes.set(header);
+  return bytes;
+}
+
+const SVG_BYTES = new TextEncoder().encode('<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>');
+
+function fileOf(bytes: Uint8Array<ArrayBuffer>, type = "image/png", name = "x.png"): File {
+  return new File([bytes], name, { type });
+}
+
+/** El formulario que manda el cliente: `drillId` y `file`. Un campo `null` no se manda. */
+function uploadForm(file: unknown, drillId: unknown = DRILL): FormData {
+  const form = new FormData();
+  if (drillId !== null) form.set("drillId", String(drillId));
+  if (file !== null) form.set("file", file as string | Blob);
+  return form;
+}
+
+function uploadWith(file: File, drillId: string = DRILL) {
+  return uploadDrillDiagram("club-a", uploadForm(file, drillId));
+}
+
+/** Un error de Storage, con la forma que tiene de verdad: el `status` HTTP es 400 en todos. */
+function storageError(statusCode: string, code: string): Reply {
+  return {
+    data: null,
+    error: Object.assign(new Error('mensaje con datos del club "x"'), {
+      name: "StorageApiError",
+      status: 400,
+      statusCode,
+      code,
+    }),
+  };
+}
+
+/** Prepara la base de datos con la ficha que devolverá el insert. */
+function installUploadDb() {
+  return installDb(reply({ id: MEDIA }));
+}
+
+const PATH_RE = new RegExp(`^org/${ORG}/drills/${DRILL}/[0-9a-f-]{36}\\.(png|jpg|webp)$`);
+
+describe("uploadDrillDiagram: quién sube", () => {
+  it.each(["player", "guardian"] as const)(
+    "%s recibe NOT_FOUND sin tocar la base de datos ni Storage",
+    async (role) => {
+      mocks.requireClub.mockResolvedValue(contextWithRole(role));
+
+      await expect(uploadWith(fileOf(imageBytes("png")))).resolves.toEqual({ ok: false, error: "NOT_FOUND" });
+
+      expect(mocks.createClient).not.toHaveBeenCalled();
+      expect(mocks.revalidatePath).not.toHaveBeenCalled();
+      expect(logged).toEqual([]);
+    },
+  );
+
+  it.each(["coach", "admin"] as const)("%s puede (RLS de Storage decide qué ejercicio)", async (role) => {
+    mocks.requireClub.mockResolvedValue(contextWithRole(role));
+    installUploadDb();
+
+    await expect(uploadWith(fileOf(imageBytes("png")))).resolves.toMatchObject({ ok: true });
+  });
+
+  it("un club que no existe lanza el 404, no lo traga", async () => {
+    mocks.requireClub.mockRejectedValue(NOT_FOUND);
+
+    await expect(uploadWith(fileOf(imageBytes("png")))).rejects.toBe(NOT_FOUND);
+
+    expect(mocks.createClient).not.toHaveBeenCalled();
+    expect(logged).toEqual([]);
+  });
+
+  it("pregunta por el club que le pasan", async () => {
+    installUploadDb();
+
+    await uploadDrillDiagram("club-b", uploadForm(fileOf(imageBytes("png"))));
+
+    expect(mocks.requireClub).toHaveBeenCalledWith("club-b");
+  });
+});
+
+describe("uploadDrillDiagram: lo que sube", () => {
+  it("un PNG válido: sube los bytes al bucket privado con el tipo detectado y sin pisar, e inserta la ficha", async () => {
+    const bytes = imageBytes("png", 1500);
+    const db = installUploadDb();
+
+    const result = await uploadWith(fileOf(bytes));
+
+    const [upload] = db.storage.bucket.uploads;
+    expect(db.storage.names[0]).toBe("club-media");
+    expect(db.storage.bucket.uploads).toHaveLength(1);
+    expect(upload.path).toMatch(PATH_RE);
+    expect(upload.options).toEqual({ contentType: "image/png", upsert: false });
+    expect(upload.body).toEqual(bytes);
+
+    expect(db.queries).toHaveLength(1);
+    expect(db.queries[0].table).toBe("media_assets");
+    expect(db.queries[0].sent("insert")).toEqual([
+      { organization_id: ORG, path: upload.path, kind: "image", mime: "image/png", bytes: 1500 },
+    ]);
+    expect(db.queries[0].sent("select")).toEqual(["id"]);
+
+    expect(result).toEqual({ ok: true, data: { mediaId: MEDIA, previewUrl: SIGNED } });
+  });
+
+  it("sube los bytes, no el File: con un File, Storage tomaría el tipo declarado por el cliente", async () => {
+    const db = installUploadDb();
+
+    await uploadWith(fileOf(imageBytes("png")));
+
+    const { body } = db.storage.bucket.uploads[0];
+    expect(body).toBeInstanceOf(Uint8Array);
+    expect(body).not.toBeInstanceOf(Blob);
+  });
+
+  it.each([
+    ["jpg", "image/jpeg"],
+    ["webp", "image/webp"],
+    ["png", "image/png"],
+  ] as const)("un %s: la extensión y el tipo salen de lo detectado (%s)", async (kind, mime) => {
+    const db = installUploadDb();
+
+    await uploadWith(fileOf(imageBytes(kind), mime, `lo-que-sea.${kind}`));
+
+    const [upload] = db.storage.bucket.uploads;
+    expect(upload.path.endsWith(`.${kind}`)).toBe(true);
+    expect(upload.options).toEqual({ contentType: mime, upsert: false });
+    expect(db.queries[0].sent("insert")).toEqual([expect.objectContaining({ mime, path: upload.path })]);
+  });
+
+  it("la ruta sale del club de la sesión y del ejercicio de la entrada; el nombre del fichero no cuenta", async () => {
+    const db = installUploadDb();
+    const form = uploadForm(fileOf(imageBytes("png"), "image/png", "../../org/otro-club/drills/x/evil.svg"));
+    form.set("organization_id", "otro-club");
+    form.set("path", "org/otro-club/drills/x/evil.png");
+    form.set("mime", "image/svg+xml");
+
+    await uploadDrillDiagram("club-a", form);
+
+    expect(db.storage.bucket.uploads[0].path).toMatch(PATH_RE);
+    expect(db.storage.bucket.uploads[0].path).not.toContain("evil");
+    expect(db.queries[0].sent("insert")).toEqual([
+      expect.objectContaining({ organization_id: ORG, path: db.storage.bucket.uploads[0].path, mime: "image/png" }),
+    ]);
+  });
+
+  it("cada subida saca un nombre nuevo: no pisa la anterior", async () => {
+    const db = installDb(reply({ id: MEDIA }), reply({ id: MEDIA }));
+
+    await uploadWith(fileOf(imageBytes("png")));
+    await uploadWith(fileOf(imageBytes("png")));
+
+    const [first, second] = db.storage.bucket.uploads;
+    expect(first.path).not.toBe(second.path);
+  });
+
+  it("la ficha guarda el tamaño real de lo que se subió", async () => {
+    const db = installUploadDb();
+
+    await uploadWith(fileOf(imageBytes("webp", 777), "image/webp"));
+
+    expect(db.queries[0].sent("insert")).toEqual([expect.objectContaining({ bytes: 777 })]);
+  });
+
+  it("2 MiB justos pasan", async () => {
+    const db = installUploadDb();
+
+    const result = await uploadWith(fileOf(imageBytes("png", MAX_DIAGRAM_BYTES)));
+
+    expect(result.ok).toBe(true);
+    expect(db.storage.bucket.uploads).toHaveLength(1);
+  });
+
+  it("no revalida nada: el diagrama no se ve hasta que el ejercicio se guarda con él", async () => {
+    installUploadDb();
+
+    await uploadWith(fileOf(imageBytes("png")));
+
+    expect(mocks.revalidatePath).not.toHaveBeenCalled();
+  });
+});
+
+describe("uploadDrillDiagram: lo que se rechaza antes de tocar Storage", () => {
+  const rejected = { ok: false, error: "INVALID", fieldErrors: { diagram: DIAGRAM_ERROR } };
+
+  it("un SVG llamado x.png con tipo image/png y 20 MB: INVALID con el mensaje, sin leerlo ni subirlo", async () => {
+    const svg = new Uint8Array(20 * 1024 * 1024);
+    svg.set(SVG_BYTES);
+
+    const result = await uploadWith(fileOf(svg, "image/png", "x.png"));
+
+    expect(result).toEqual(rejected);
+    expect(mocks.createClient).not.toHaveBeenCalled();
+  });
+
+  it("un SVG llamado x.png con tipo image/png y tamaño normal: los bytes lo delatan, no se sube", async () => {
+    const db = installUploadDb();
+
+    const result = await uploadWith(fileOf(SVG_BYTES, "image/png", "x.png"));
+
+    expect(result).toEqual(rejected);
+    expect(db.storage.bucket.uploads).toEqual([]);
+    expect(db.queries).toEqual([]);
+    expect(mocks.revalidatePath).not.toHaveBeenCalled();
+  });
+
+  it("un SVG declarado como image/svg+xml: INVALID por el tipo", async () => {
+    const result = await uploadWith(fileOf(SVG_BYTES, "image/svg+xml", "x.svg"));
+
+    expect(result).toEqual(rejected);
+    expect(mocks.createClient).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["png", "image/jpeg"],
+    ["png", "image/webp"],
+    ["jpg", "image/png"],
+    ["webp", "image/jpeg"],
+  ] as const)("bytes de %s declarados como %s: el tipo declarado y el detectado no coinciden", async (kind, declared) => {
+    const db = installUploadDb();
+
+    const result = await uploadWith(fileOf(imageBytes(kind), declared));
+
+    expect(result).toEqual(rejected);
+    expect(db.storage.bucket.uploads).toEqual([]);
+    expect(db.queries).toEqual([]);
+  });
+
+  it("texto cualquiera declarado como image/png no se sube", async () => {
+    const db = installUploadDb();
+
+    const result = await uploadWith(fileOf(new TextEncoder().encode("esto no es una imagen"), "image/png"));
+
+    expect(result).toEqual(rejected);
+    expect(db.storage.bucket.uploads).toEqual([]);
+  });
+
+  it("2 MiB y un byte: INVALID sin tocar la base de datos", async () => {
+    const result = await uploadWith(fileOf(imageBytes("png", MAX_DIAGRAM_BYTES + 1)));
+
+    expect(result).toEqual(rejected);
+    expect(mocks.createClient).not.toHaveBeenCalled();
+  });
+
+  it("un fichero vacío: INVALID", async () => {
+    const result = await uploadWith(fileOf(new Uint8Array(0)));
+
+    expect(result).toEqual(rejected);
+    expect(mocks.createClient).not.toHaveBeenCalled();
+  });
+
+  it("sin fichero, o con un texto en su lugar: INVALID en el diagrama", async () => {
+    for (const file of [null, "x.png", ""]) {
+      await expect(uploadDrillDiagram("club-a", uploadForm(file))).resolves.toEqual(rejected);
+    }
+
+    expect(mocks.createClient).not.toHaveBeenCalled();
+  });
+
+  it("un ejercicio que no es un uuid, o ausente: INVALID en drillId", async () => {
+    for (const drillId of ["no-es-un-uuid", "", null]) {
+      await expect(uploadDrillDiagram("club-a", uploadForm(fileOf(imageBytes("png")), drillId))).resolves.toEqual({
+        ok: false,
+        error: "INVALID",
+        fieldErrors: { drillId: "No encontramos este contenido." },
+      });
+    }
+
+    expect(mocks.createClient).not.toHaveBeenCalled();
+  });
+
+  it("los dos campos mal a la vez: los dos errores", async () => {
+    const result = await uploadDrillDiagram("club-a", uploadForm("x.png", "no-es-un-uuid"));
+
+    expect(result).toEqual({
+      ok: false,
+      error: "INVALID",
+      fieldErrors: { drillId: "No encontramos este contenido.", diagram: DIAGRAM_ERROR },
+    });
+  });
+
+  it("si la entrada no es un FormData (un cliente manipulado), INVALID y no lanza", async () => {
+    for (const input of [null, undefined, "texto", { drillId: DRILL, file: fileOf(imageBytes("png")) }, 7]) {
+      const result = await uploadDrillDiagram("club-a", input as unknown as FormData);
+
+      expect(result.ok ? null : result.error).toBe("INVALID");
+    }
+
+    expect(mocks.createClient).not.toHaveBeenCalled();
+  });
+
+  it("la validación va antes que el permiso y el club: nada del servidor se toca por una entrada inválida", async () => {
+    await uploadDrillDiagram("club-a", uploadForm("x.png", "no-es-un-uuid"));
+
+    expect(mocks.requireClub).not.toHaveBeenCalled();
+  });
+});
+
+describe("uploadDrillDiagram: cuando Storage dice que no", () => {
+  it("sin permiso (403 AccessDenied) es NOT_FOUND: no inserta nada ni deja rastro en el log", async () => {
+    const db = installUploadDb();
+    db.storage.bucket.uploadOutcome = storageError("403", "AccessDenied");
+
+    const result = await uploadWith(fileOf(imageBytes("png")));
+
+    expect(result).toEqual({ ok: false, error: "NOT_FOUND" });
+    expect(db.queries).toEqual([]);
+    expect(db.storage.bucket.removes).toEqual([]);
+    expect(mocks.revalidatePath).not.toHaveBeenCalled();
+    expect(logged).toEqual([]);
+  });
+
+  it("el HTTP 400 no distingue nada: sin statusCode, el code AccessDenied basta", async () => {
+    const db = installUploadDb();
+    db.storage.bucket.uploadOutcome = {
+      data: null,
+      error: Object.assign(new Error("denegado"), { name: "StorageApiError", status: 400, code: "AccessDenied" }),
+    };
+
+    await expect(uploadWith(fileOf(imageBytes("png")))).resolves.toEqual({ ok: false, error: "NOT_FOUND" });
+  });
+
+  it.each([
+    ["415", "InvalidMimeType"],
+    ["413", "EntityTooLarge"],
+  ])(
+    "el bucket rechaza el fichero (%s %s): INVALID con el mismo mensaje, y se registra porque las constantes no coinciden con el bucket",
+    async (statusCode, code) => {
+      const db = installUploadDb();
+      db.storage.bucket.uploadOutcome = storageError(statusCode, code);
+
+      const result = await uploadWith(fileOf(imageBytes("png")));
+
+      expect(result).toEqual({ ok: false, error: "INVALID", fieldErrors: { diagram: DIAGRAM_ERROR } });
+      expect(db.queries).toEqual([]);
+      expect(logged).toEqual([`[drills.upload-diagram] StorageApiError status=400 code=${code}`]);
+    },
+  );
+
+  it.each([
+    ["409", "KeyAlreadyExists"],
+    ["500", "InternalError"],
+  ])("cualquier otro error (%s %s) es SAVE_FAILED, registrado sin el mensaje", async (statusCode, code) => {
+    const db = installUploadDb();
+    db.storage.bucket.uploadOutcome = storageError(statusCode, code);
+
+    const result = await uploadWith(fileOf(imageBytes("png")));
+
+    expect(result).toEqual({ ok: false, error: "SAVE_FAILED" });
+    expect(db.queries).toEqual([]);
+    expect(logged).toEqual([`[drills.upload-diagram] StorageApiError status=400 code=${code}`]);
+  });
+
+  it("si la red cae al subir, SAVE_FAILED sin romperse y sin ficha", async () => {
+    const db = installUploadDb();
+    db.storage.bucket.uploadOutcome = new TypeError("fetch failed");
+
+    const result = await uploadWith(fileOf(imageBytes("png")));
+
+    expect(result).toEqual({ ok: false, error: "SAVE_FAILED" });
+    expect(db.queries).toEqual([]);
+    expect(logged).toEqual(["[drills.upload-diagram] TypeError"]);
+  });
+});
+
+describe("uploadDrillDiagram: cuando la ficha no se puede crear", () => {
+  it("la inserción falla: se borra el objeto recién subido y es SAVE_FAILED", async () => {
+    const db = installDb(dbError("XX000", 'fila con "texto del club"'));
+
+    const result = await uploadWith(fileOf(imageBytes("png")));
+
+    const [{ path }] = db.storage.bucket.uploads;
+    expect(db.storage.bucket.removes).toEqual([[path]]);
+    expect(result).toEqual({ ok: false, error: "SAVE_FAILED" });
+    expect(logged).toEqual(["[drills.upload-diagram] PostgrestError code=XX000"]);
+    expect(mocks.revalidatePath).not.toHaveBeenCalled();
+  });
+
+  it("borra el mismo objeto que subió, sea cual sea la extensión", async () => {
+    const db = installDb(dbError("XX000", "boom"));
+
+    await uploadWith(fileOf(imageBytes("webp"), "image/webp"));
+
+    expect(db.storage.bucket.removes).toEqual([[db.storage.bucket.uploads[0].path]]);
+    expect(db.storage.bucket.removes[0][0].endsWith(".webp")).toBe(true);
+  });
+
+  it("si RLS niega la ficha (42501) es NOT_FOUND, y también se limpia el objeto", async () => {
+    const db = installDb(dbError("42501", "new row violates row-level security policy"));
+
+    const result = await uploadWith(fileOf(imageBytes("png")));
+
+    expect(result).toEqual({ ok: false, error: "NOT_FOUND" });
+    expect(db.storage.bucket.removes).toHaveLength(1);
+  });
+
+  it("una respuesta sin fila ni error es SAVE_FAILED y también limpia: nunca un id inventado", async () => {
+    const db = installDb(reply(null));
+
+    const result = await uploadWith(fileOf(imageBytes("png")));
+
+    expect(result).toEqual({ ok: false, error: "SAVE_FAILED" });
+    expect(db.storage.bucket.removes).toHaveLength(1);
+    expect(logged).toHaveLength(1);
+  });
+
+  it("si además falla el borrado, el resultado sigue siendo el de la inserción y se registran los dos fallos", async () => {
+    const db = installDb(dbError("XX000", "boom"));
+    db.storage.bucket.removeOutcome = storageError("500", "InternalError");
+
+    const result = await uploadWith(fileOf(imageBytes("png")));
+
+    expect(result).toEqual({ ok: false, error: "SAVE_FAILED" });
+    expect(logged).toEqual([
+      "[drills.upload-diagram] PostgrestError code=XX000",
+      "[drills.upload-diagram.cleanup] StorageApiError status=400 code=InternalError",
+    ]);
+  });
+
+  it("si el borrado lanza, la limpieza no tapa el motivo del fallo: 42501 sigue siendo NOT_FOUND", async () => {
+    const db = installDb(dbError("42501", "denegado"));
+    db.storage.bucket.removeOutcome = new TypeError("fetch failed");
+
+    const result = await uploadWith(fileOf(imageBytes("png")));
+
+    expect(result).toEqual({ ok: false, error: "NOT_FOUND" });
+    expect(logged).toContain("[drills.upload-diagram.cleanup] TypeError");
+  });
+});
+
+describe("uploadDrillDiagram: la URL de vista previa", () => {
+  it("se firma el objeto recién subido, con los 600 s por defecto", async () => {
+    const db = installUploadDb();
+
+    await uploadWith(fileOf(imageBytes("png")));
+
+    expect(db.storage.bucket.signs).toEqual([{ path: db.storage.bucket.uploads[0].path, expiresIn: 600 }]);
+  });
+
+  it("si no se puede firmar, la subida cuenta igual: ok con el mediaId y previewUrl null, y no se borra nada", async () => {
+    const db = installUploadDb();
+    db.storage.bucket.signOutcome = storageError("404", "NoSuchKey");
+
+    const result = await uploadWith(fileOf(imageBytes("png")));
+
+    expect(result).toEqual({ ok: true, data: { mediaId: MEDIA, previewUrl: null } });
+    expect(db.storage.bucket.removes).toEqual([]);
+    expect(logged).toEqual(["[media.signed-url] StorageApiError status=400 code=NoSuchKey"]);
+  });
+
+  it("si firmar lanza, igual: ok con el mediaId y previewUrl null", async () => {
+    const db = installUploadDb();
+    db.storage.bucket.signOutcome = new TypeError("fetch failed");
+
+    const result = await uploadWith(fileOf(imageBytes("png")));
+
+    expect(result).toEqual({ ok: true, data: { mediaId: MEDIA, previewUrl: null } });
+    expect(db.storage.bucket.removes).toEqual([]);
+  });
+
+  it("si ni siquiera se puede crear el cliente para firmar, igual: la ficha ya existe y su id no se pierde", async () => {
+    const db = installUploadDb();
+    mocks.createClient.mockResolvedValueOnce(db).mockRejectedValueOnce(new Error("sin cookies"));
+
+    const result = await uploadWith(fileOf(imageBytes("png")));
+
+    expect(result).toEqual({ ok: true, data: { mediaId: MEDIA, previewUrl: null } });
+    expect(db.storage.bucket.removes).toEqual([]);
+    expect(logged).toEqual(["[drills.upload-diagram] Error"]);
   });
 });

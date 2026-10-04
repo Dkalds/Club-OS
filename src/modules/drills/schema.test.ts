@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { fromZodError } from "@/lib/action-result";
-import { drillInputSchema, updateDrillSchema, VIDEO_URL_RE, type DrillInput } from "./schema";
+import { DIAGRAM_ERROR } from "@/modules/media/diagram-file";
+import { diagramUploadSchema, drillInputSchema, updateDrillSchema, VIDEO_URL_RE, type DrillInput } from "./schema";
 
 // Lo que valida la entrada de las acciones de ejercicios, con los mensajes que ve la persona
 // (`fieldErrors`). Los límites son los CHECK de `20261103000100_drills.sql` y las claves de
@@ -551,5 +552,71 @@ describe("updateDrillSchema", () => {
 
     expect(parsed.drillId).toBe(DRILL);
     expect(parsed.expectedUpdatedAt).toBe(STAMP);
+  });
+});
+
+describe("diagramUploadSchema", () => {
+  const png = (overrides: { type?: string; size?: number } = {}) =>
+    new File([new Uint8Array(overrides.size ?? 1024)], "diagrama.png", { type: overrides.type ?? "image/png" });
+  const upload = (overrides: Record<string, unknown> = {}) => ({ drillId: DRILL, diagram: png(), ...overrides });
+  const uploadErrors = (input: unknown) => {
+    const parsed = diagramUploadSchema.safeParse(input);
+    if (parsed.success) return null;
+    const result = fromZodError(parsed.error);
+    return result.ok ? null : result.fieldErrors;
+  };
+
+  it("un uuid y un PNG de tamaño normal valen, y el fichero llega tal cual", () => {
+    const input = upload();
+    const parsed = diagramUploadSchema.parse(input);
+
+    expect(parsed.drillId).toBe(DRILL);
+    expect(parsed.diagram).toBe(input.diagram);
+  });
+
+  it.each(["image/png", "image/jpeg", "image/webp"])("%s vale", (type) => {
+    expect(uploadErrors(upload({ diagram: png({ type }) }))).toBeNull();
+  });
+
+  it("2 MiB justos valen y un byte más no", () => {
+    expect(uploadErrors(upload({ diagram: png({ size: 2_097_152 }) }))).toBeNull();
+    expect(uploadErrors(upload({ diagram: png({ size: 2_097_153 }) }))).toEqual({ diagram: DIAGRAM_ERROR });
+  });
+
+  it("un SVG, aunque se llame .png, no vale por su tipo", () => {
+    expect(uploadErrors(upload({ diagram: png({ type: "image/svg+xml" }) }))).toEqual({ diagram: DIAGRAM_ERROR });
+  });
+
+  it("un fichero vacío no vale", () => {
+    expect(uploadErrors(upload({ diagram: png({ size: 0 }) }))).toEqual({ diagram: DIAGRAM_ERROR });
+  });
+
+  it.each([["ausente", undefined], ["null", null], ["un texto", "x.png"], ["un número", 7], ["un objeto con tipo y tamaño", { type: "image/png", size: 10 }]])(
+    "el diagrama %s no vale: tiene que ser un fichero de verdad",
+    (_name, diagram) => {
+      expect(uploadErrors(upload({ diagram }))).toEqual({ diagram: DIAGRAM_ERROR });
+    },
+  );
+
+  it.each([["ausente", undefined], ["vacío", ""], ["un texto", "no-es-un-uuid"], ["un número", 12]])(
+    "el id del ejercicio %s no vale",
+    (_name, drillId) => {
+      expect(uploadErrors(upload({ drillId }))).toEqual({ drillId: NOT_FOUND });
+    },
+  );
+
+  it("los dos errores a la vez", () => {
+    expect(uploadErrors({ drillId: "x", diagram: null })).toEqual({ drillId: NOT_FOUND, diagram: DIAGRAM_ERROR });
+  });
+
+  it.each([null, undefined, "texto", 7, []])("una entrada que no es un objeto (%j) no lanza", (input) => {
+    expect(() => diagramUploadSchema.safeParse(input)).not.toThrow();
+    expect(diagramUploadSchema.safeParse(input).success).toBe(false);
+  });
+
+  it("lo demás que traiga (club, ruta, tipo) no pasa al resultado", () => {
+    const parsed = diagramUploadSchema.parse(upload({ organizationId: "otro", path: "org/otro/x.png", mime: "image/gif" }));
+
+    expect(Object.keys(parsed).sort()).toEqual(["diagram", "drillId"]);
   });
 });
