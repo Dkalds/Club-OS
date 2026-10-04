@@ -41,11 +41,19 @@ export function seedNow(): Date {
 }
 
 /**
- * Las cinco tablas de la metodología del club. Son las únicas que los e2e de escritura
- * (Gestión) y los borradores de los de lectura (The Way) pueden dejar con filas que el seed
- * no conoce. Cada fase que añade tablas que sus e2e escriben, la suma aquí.
+ * Las tablas que los e2e de escritura (Gestión, la ficha de ejercicio) y los borradores de los
+ * de lectura (The Way) pueden dejar con filas que el seed no conoce: los ejercicios y las
+ * cinco de la metodología del club. Cada fase que añade tablas que sus e2e escriben, la suma
+ * aquí.
+ *
+ * El orden importa: se borra en este orden. `drills` va primero porque sus vínculos
+ * (`drill_principles`, `drill_standards`) apuntan a `game_principles` y `standards` sin
+ * cascada, y sus puntos, variantes y vínculos se van con él (`on delete cascade`): así un
+ * principio o un Standard sobrante al que apunta un ejercicio sobrante se puede borrar después.
+ * Un ejercicio del seed no se toca, y con él se quedan sus vínculos.
  */
 const WRITABLE_TABLES = [
+  "drills",
   "principle_points",
   "game_principles",
   "club_values",
@@ -54,15 +62,16 @@ const WRITABLE_TABLES = [
 ] as const;
 
 /**
- * Deja la metodología de los clubes del seed exactamente como la deja `runSeed(now)`: borra,
- * en las cinco tablas de `WRITABLE_TABLES` y en los clubes del seed, toda fila cuyo id no sea
- * de `buildSeedData(now)`, y después siembra, que devuelve a lo suyo lo que el seed sí posee
- * (texto, estado, orden, número) y quita los puntos que sobren de sus principios.
+ * Deja la metodología y la biblioteca de ejercicios de los clubes del seed exactamente como las
+ * deja `runSeed(now)`: borra, en las tablas de `WRITABLE_TABLES` y en los clubes del seed, toda
+ * fila cuyo id no sea de `buildSeedData(now)`, y después siembra, que devuelve a lo suyo lo que
+ * el seed sí posee (texto, estado, orden, número) y quita los puntos que sobren de sus
+ * principios y los hijos que sobren de sus ejercicios.
  *
  * Es lo que hace que la suite se recupere sola de una ejecución abortada: lo que esta dejó a
- * medias (una sección, un Standard o un borrador de un spec) no vale como dato de la
- * siguiente, y quien lo ve falla sin que el fallo señale a la causa. Sin listas de slugs ni
- * de números escritas a mano: lo que no es del seed no sobrevive, se llame como se llame.
+ * medias (una sección, un Standard, un borrador o un ejercicio `E2E …` de un spec) no vale como
+ * dato de la siguiente, y quien lo ve falla sin que el fallo señale a la causa. Sin listas de
+ * slugs ni de números escritas a mano: lo que no es del seed no sobrevive, se llame como se llame.
  *
  * Borra contenido, así que:
  *  - Solo corre con un Supabase local, diga lo que diga `ALLOW_REMOTE_SEED`. Con otro lanza,
@@ -76,7 +85,7 @@ const WRITABLE_TABLES = [
 export async function restoreSeed(now: Date, client?: SupabaseClient<Database>): Promise<void> {
   if (!isLocalSupabaseUrl(readSupabaseEnv().url)) {
     throw new Error(
-      "restoreSeed borra contenido de la metodología: solo se ejecuta contra un Supabase local.",
+      "restoreSeed borra contenido de la metodología y de la biblioteca: solo se ejecuta contra un Supabase local.",
     );
   }
 
@@ -84,6 +93,7 @@ export async function restoreSeed(now: Date, client?: SupabaseClient<Database>):
   const data = buildSeedData(now);
   const organizationIds = data.organizations.map((organization) => organization.id);
   const seedIds = {
+    drills: data.drills.map((row) => row.id),
     principle_points: data.principle_points.map((row) => row.id),
     game_principles: data.game_principles.map((row) => row.id),
     club_values: data.club_values.map((row) => row.id),

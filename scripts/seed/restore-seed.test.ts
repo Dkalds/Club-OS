@@ -51,13 +51,14 @@ const NOW = new Date("2026-10-02T10:00:00Z");
 const data = buildSeedData(NOW);
 
 const SEED_IDS = {
+  drills: data.drills.map((row) => row.id),
   way_sections: data.way_sections.map((row) => row.id),
   club_values: data.club_values.map((row) => row.id),
   game_principles: data.game_principles.map((row) => row.id),
   principle_points: data.principle_points.map((row) => row.id),
   standards: data.standards.map((row) => row.id),
 };
-const METHODOLOGY_TABLES = Object.keys(SEED_IDS).sort();
+const WRITABLE_TABLES = Object.keys(SEED_IDS).sort();
 
 /** Los ids de un filtro `not.in` de PostgREST: `(a,b,c)`. */
 const idsOf = (list: unknown) => String(list).slice(1, -1).split(",").sort();
@@ -74,12 +75,13 @@ afterEach(() => {
 });
 
 describe("restoreSeed", () => {
-  it("borra, en las cinco tablas de la metodología y solo ahí, lo que el seed no conoce", async () => {
+  it("borra, en las cinco tablas de la metodología y en los ejercicios, y solo ahí, lo que el seed no conoce", async () => {
     const fake = fakeClient();
 
     await restoreSeed(NOW, fake.client);
 
-    expect(fake.deletes.map((call) => call.table).sort()).toEqual(METHODOLOGY_TABLES);
+    expect(fake.deletes.map((call) => call.table).sort()).toEqual(WRITABLE_TABLES);
+    expect(WRITABLE_TABLES).toContain("drills");
     for (const call of fake.deletes) {
       const keep = call.filters.find(([op]) => op === "not.in");
       expect(keep?.[1], call.table).toBe("id");
@@ -101,6 +103,32 @@ describe("restoreSeed", () => {
     }
   });
 
+  it("borra los ejercicios antes que los principios y los Standards a los que se vinculan", async () => {
+    const fake = fakeClient();
+
+    await restoreSeed(NOW, fake.client);
+
+    // `drill_principles` y `drill_standards` cuelgan de `game_principles` y `standards` sin
+    // cascada: sus filas se van con el ejercicio (en cascada), y solo entonces se puede
+    // borrar un principio o un Standard sobrante al que un ejercicio sobrante apuntaba.
+    const order = fake.deletes.map((call) => call.table);
+    expect(order.indexOf("drills")).toBeLessThan(order.indexOf("game_principles"));
+    expect(order.indexOf("drills")).toBeLessThan(order.indexOf("standards"));
+    expect(order.indexOf("principle_points")).toBeLessThan(order.indexOf("game_principles"));
+  });
+
+  it("de los ejercicios respeta todos los del seed (los dos clubes) y nada más", async () => {
+    const fake = fakeClient();
+
+    await restoreSeed(NOW, fake.client);
+
+    const drills = fake.deletes.find((call) => call.table === "drills");
+    const keep = drills?.filters.find(([op]) => op === "not.in");
+    expect(SEED_IDS.drills.length).toBeGreaterThan(18);
+    expect(idsOf(keep?.[2])).toEqual([...SEED_IDS.drills].sort());
+    expect(drills?.filters.filter(([op]) => op === "in")).toHaveLength(1);
+  });
+
   it("primero borra y después siembra, con el mismo instante y el mismo cliente", async () => {
     const fake = fakeClient();
     let deletedWhenSeeding = -1;
@@ -112,7 +140,7 @@ describe("restoreSeed", () => {
 
     expect(runSeed).toHaveBeenCalledTimes(1);
     expect(runSeed).toHaveBeenCalledWith(NOW, fake.client);
-    expect(deletedWhenSeeding).toBe(METHODOLOGY_TABLES.length);
+    expect(deletedWhenSeeding).toBe(WRITABLE_TABLES.length);
   });
 
   it("se niega con un Supabase que no es local: ni borra ni siembra", async () => {
