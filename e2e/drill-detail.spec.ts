@@ -83,7 +83,7 @@ test.afterEach(async () => {
  */
 async function createDrill(
   db: SupabaseClient<Database>,
-  drill: { title: string; status: "draft" | "published" },
+  drill: { title: string; status: "draft" | "published"; standards?: number },
 ): Promise<string> {
   const org = await db.from("organizations").select("id").eq("slug", ARCANGEL.slug).single();
   if (org.error) throw new Error(`No se pudo leer el club: ${org.error.message}`);
@@ -119,6 +119,25 @@ async function createDrill(
     focus_area_id: focus.data.id,
   });
   if (link.error) throw new Error(`No se pudo vincular el objetivo: ${link.error.message}`);
+
+  // Los primeros `standards` Standards del club, por número (los publicados del seed).
+  if (drill.standards) {
+    const standards = await db
+      .from("standards")
+      .select("id")
+      .eq("organization_id", org.data.id)
+      .order("number", { ascending: true })
+      .limit(drill.standards);
+    if (standards.error) throw new Error(`No se pudieron leer los Standards: ${standards.error.message}`);
+    expect(standards.data, "el club tiene Standards de sobra para el ejercicio").toHaveLength(drill.standards);
+    const rows = standards.data.map((standard) => ({
+      organization_id: org.data.id,
+      drill_id: inserted.data.id,
+      standard_id: standard.id,
+    }));
+    const linked = await db.from("drill_standards").insert(rows);
+    if (linked.error) throw new Error(`No se pudieron vincular los Standards: ${linked.error.message}`);
+  }
 
   return inserted.data.id;
 }
@@ -425,7 +444,10 @@ test("archivar", async ({ page }) => {
   await expect(page.getByRole("button", { name: "Archivar" })).toHaveCount(0);
   // Un archivado puede volver: dirección ve «Publicar».
   await expect(page.getByRole("button", { name: "Publicar" })).toBeVisible();
-  await expect(page.getByRole("status").filter({ hasText: "Ejercicio archivado." })).toHaveCount(1);
+  // El botón pulsado ya no existe: el foco va al título, que dice dónde se está, y el resultado
+  // se anuncia (la hoja modal ya está cerrada, así que el aviso se oye).
+  await expect(title(page)).toBeFocused();
+  await expect(page.getByRole("status")).toHaveText("Ejercicio archivado.");
 
   // Buscándolo ya no sale…
   await page.goto(search);
@@ -452,7 +474,7 @@ test("publicar", async ({ page, browserErrors }) => {
   const stem = `E2E borrador ${Date.now()}`;
   const name = `${stem} ${"W".repeat(80 - stem.length - 1)}`;
   expect(name).toHaveLength(80);
-  const id = await createDrill(createAdminClient(), { title: name, status: "draft" });
+  const id = await createDrill(createAdminClient(), { title: name, status: "draft", standards: 5 });
   const path = `${LIBRARY}/${id}`;
   const search = `${LIBRARY}?q=${encodeURIComponent(stem)}`;
 
@@ -468,6 +490,14 @@ test("publicar", async ({ page, browserErrors }) => {
   await expect(page.getByText("Borrador", { exact: true })).toBeVisible();
   await expect(page.getByText(DRAFT_NOTICE)).toBeVisible();
   await expect(page.getByRole("button", { name: "Archivar" })).toBeVisible();
+
+  // Con cinco Standards salen tres y «+2», que lleva a la página de los Standards del club.
+  const standards = page.getByRole("heading", { level: 2, name: STANDARDS_TERM }).locator("xpath=ancestor::section");
+  await expect(standards.getByRole("link", { name: /^0\d / })).toHaveCount(3);
+  const more = standards.getByRole("link", { name: `Ver 2 más en ${STANDARDS_TERM}` });
+  await expect(more).toHaveText("+2");
+  await expect(more).toHaveAttribute("href", `${CLUB}/way/standards`);
+
   await expectFitsMobile(page, "borrador largo");
 
   await page.getByRole("button", { name: "Publicar" }).click();
@@ -477,7 +507,9 @@ test("publicar", async ({ page, browserErrors }) => {
   await expect(page.getByText(DRAFT_NOTICE)).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Publicar" })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Archivar" })).toBeVisible();
-  await expect(page.getByRole("status").filter({ hasText: "Ejercicio publicado." })).toHaveCount(1);
+  // El botón pulsado ya no existe: el foco va al título y el resultado se anuncia.
+  await expect(title(page)).toBeFocused();
+  await expect(page.getByRole("status")).toHaveText("Ejercicio publicado.");
 
   // Y ya lo ve todo el cuerpo técnico, en la lista y en su ficha.
   await openAs(page, ALEX);
