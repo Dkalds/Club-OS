@@ -6,7 +6,9 @@
 -- de Storage deciden por la ruta, sin mirar `media_assets`:
 --   · se sube (y se borra) en la carpeta de un ejercicio del club de la ruta que el usuario
 --     puede editar: el admin, todos; un entrenador, sus borradores;
---   · se lee cualquier objeto de un club del que el usuario es miembro activo.
+--   · se lee lo que hay en la carpeta de un ejercicio del club de la ruta que el usuario puede
+--     ver: el cuerpo técnico, y los borradores solo su autor y el admin. Cualquier otra ruta
+--     del bucket no se lee: sin política no hay acceso.
 -- No hay política `update`: un objeto no se renombra ni se mueve de carpeta. Cambiar un
 -- diagrama es subir otro y apuntar el ejercicio a él.
 -- El tipo y el tamaño de lo que entra los aplica el propio bucket (la API de Storage); la
@@ -61,14 +63,15 @@ create index drills_organization_id_diagram_media_id_idx
 
 -- ── Funciones de RLS ─────────────────────────────────────────────────────────────────
 -- Como `can_see_drill`: `security definer`, leen las tablas como su propietario sin pasar
--- por RLS, y solo responden por el usuario de la sesión. Las dos que reciben una ruta tienen
--- que ser seguras con cualquier texto: se evalúan dentro de políticas de `storage.objects`,
--- donde una excepción no sería una denegación sino un error de la API. Por eso comprueban la
--- forma de la ruta con una expresión regular antes de convertir nada a `uuid`, y el `case`
--- garantiza ese orden (un `and` no lo garantiza).
+-- por RLS, y solo responden por el usuario de la sesión. Las que reciben una ruta tienen que
+-- ser seguras con cualquier texto: se evalúan dentro de políticas de `storage.objects`, donde
+-- una excepción no sería una denegación sino un error de la API. Por eso comprueban la forma
+-- de la ruta con una expresión regular antes de convertir nada a `uuid`, y el `case` garantiza
+-- ese orden (un `and` no lo garantiza).
 
 -- El club de una ruta de Storage, o null si no empieza por `org/<uuid en minúsculas>/`. No lee
--- ninguna tabla, pero se declara como las otras dos para que las tres sean iguales.
+-- ninguna tabla, pero se declara como las demás para que sean todas iguales. Las dos funciones
+-- que siguen la usan para el club de la ruta.
 create function private.storage_org_id(path text)
 returns uuid
 language sql
@@ -104,8 +107,36 @@ as $$
       select 1
       from public.drills as d
       where d.id = split_part(can_upload_drill_media.path, '/', 4)::uuid
-        and d.organization_id = split_part(can_upload_drill_media.path, '/', 2)::uuid
+        and d.organization_id = private.storage_org_id(can_upload_drill_media.path)
         and private.can_edit_drill(d.id)
+    )
+    else false
+  end;
+$$;
+
+-- ¿Puede el usuario leer este objeto? Sí si la ruta es de la carpeta de un ejercicio,
+-- `org/<club>/drills/<ejercicio>/…`, el ejercicio existe y es del club de la ruta, y el usuario
+-- puede verlo (`can_see_drill`). Quien puede editar un ejercicio puede verlo, así que quien
+-- sube un fichero puede leerlo de vuelta. A diferencia de la subida, no mira el nombre del
+-- fichero ni su extensión: leer no puede depender de ellos. Cualquier otra ruta da false.
+create function private.can_see_drill_media(path text)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select case
+    when can_see_drill_media.path ~ format(
+      '^org/%1$s/drills/%1$s/',
+      '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'
+    )
+    then exists (
+      select 1
+      from public.drills as d
+      where d.id = split_part(can_see_drill_media.path, '/', 4)::uuid
+        and d.organization_id = private.storage_org_id(can_see_drill_media.path)
+        and private.can_see_drill(d.id)
     )
     else false
   end;
@@ -148,9 +179,11 @@ $$;
 -- pasa por RLS y no las necesita.
 revoke all on function private.storage_org_id(text) from public, anon;
 revoke all on function private.can_upload_drill_media(text) from public, anon;
+revoke all on function private.can_see_drill_media(text) from public, anon;
 revoke all on function private.can_see_media(uuid) from public, anon;
 grant execute on function private.storage_org_id(text) to authenticated;
 grant execute on function private.can_upload_drill_media(text) to authenticated;
+grant execute on function private.can_see_drill_media(text) to authenticated;
 grant execute on function private.can_see_media(uuid) to authenticated;
 
 -- ── RLS y privilegios de media_assets ────────────────────────────────────────────────
@@ -214,17 +247,23 @@ set name = excluded.name,
 -- ── Políticas de storage.objects ─────────────────────────────────────────────────────
 -- Todas piden `bucket_id = 'club-media'`: las políticas de Storage se suman entre sí, y sin
 -- esa cláusula estas abrirían las rutas `org/…` de cualquier otro bucket.
--- Leer es de cualquier miembro activo del club de la ruta. La ficha (`media_assets`) es la que
--- reparte las rutas, y la ven solo el cuerpo técnico y quien ve el ejercicio. Subir y borrar son
--- de quien puede subir a esa ruta. Para `insert … returning` basta con la de lectura, que
--- también se mira por las columnas de la fila.
+-- Leer sigue al ejercicio: un objeto lo lee quien puede ver el ejercicio de su carpeta. No
+-- basta con ser miembro del club ni con que la ruta no se adivine: listar también obedece esta
+-- política (las funciones de Storage que listan carpetas, como `search`, se ejecutan con los
+-- privilegios de quien llama). Con una política más ancha, un jugador o un entrenador que no ve
+-- un borrador listaría la carpeta de su ejercicio, vería su id y firmaría su diagrama aunque
+-- `drills` y `media_assets` no le enseñen nada. Una ruta que no sea la carpeta de un ejercicio
+-- no tiene regla de lectura: nadie la lee hasta que una fase posterior le dé la suya.
+-- Subir y borrar son de quien puede subir a esa ruta. Quien puede subir puede ver el ejercicio,
+-- y `insert … returning` pide la fila de vuelta: la política mira el ejercicio de la ruta, que
+-- ya existe, y no la fila nueva.
 create policy club_media_read
   on storage.objects
   for select
   to authenticated
   using (
     bucket_id = 'club-media'
-    and private.is_member(private.storage_org_id(name))
+    and private.can_see_drill_media(name)
   );
 
 create policy club_media_insert

@@ -8,7 +8,9 @@
 --     (el club de la ruta es el del ejercicio);
 --   · por autor: dentro del club, solo se sube a la carpeta de un ejercicio que se puede
 --     editar (el admin edita todos; un entrenador, sus borradores).
--- Se lee cualquier objeto del club; la ficha `media_assets` solo la ven el admin, su autor y
+-- Se lee lo que hay en la carpeta de un ejercicio que se puede ver, al leer y al listar: el
+-- cuerpo técnico, lo publicado y lo archivado; un borrador, solo su autor y el admin. Cualquier
+-- otra ruta del bucket no la lee nadie. La ficha `media_assets` solo la ven el admin, su autor y
 -- quien ve el ejercicio del que es diagrama. Los objetos no se actualizan (sin política
 -- `update`) y las fichas no se cambian ni se borran desde la app.
 --
@@ -18,7 +20,7 @@
 -- chocan con los de `pnpm seed` ni con los de los otros tests.
 begin;
 
-select plan(127);
+select plan(152);
 
 -- ── Ayudas (solo existen en esta transacción) ────────────────────────────────────────
 -- Una ruta válida de la carpeta de un ejercicio, con un nombre de fichero nuevo. Los
@@ -30,6 +32,20 @@ set search_path = ''
 as $$
   select 'org/' || drill_path.org || '/drills/' || drill_path.drill || '/'
          || gen_random_uuid()::text || '.' || drill_path.ext;
+$$;
+
+-- Lo que lista Storage bajo un prefijo (un nivel): los nombres de las carpetas o de los
+-- ficheros. `storage.search` se ejecuta con los privilegios de quien llama, así que lista lo
+-- que la política de lectura de quien llama deja ver.
+create function tests.ls(prefix text)
+returns setof text
+language sql
+set search_path = ''
+as $$
+  select s.name
+  from storage.search(
+    prefix => ls.prefix, bucketname => 'club-media', limits => 100, levels => 1, offsets => 0
+  ) as s;
 $$;
 
 -- Lee todos los medios sin pasar por RLS: es la referencia con la que se compara lo que ve
@@ -55,8 +71,11 @@ $$;
 -- Club B
 --   coachB es coach. `d_b` (publicado, coachB) con el medio `m_b` (suyo) de diagrama.
 -- Storage: un objeto de `club-media` en la carpeta de d_pub (`o_pub` y `o_pub2`), en la de
---   d_draft (`o_draft`) y en la de d_b (`o_b`), y uno con una ruta válida de A en otro bucket
---   (`o_otro`, en `pgtap-otro`).
+--   d_draft (`o_draft`) y en la de d_b (`o_b`); dos con una ruta válida de A en otro bucket
+--   (`o_otro`, en la carpeta de d_draft, y `o_otro2`, en la de d_pub; los dos en `pgtap-otro`);
+--   `o_people`, en una carpeta de A que no es la de un ejercicio
+--   (`org/A/people/…`); y dos con el club de la ruta cambiado: `o_cross` (`org/B/…` con el
+--   ejercicio d_draft, que es de A) y `o_cross2` (`org/A/…` con el ejercicio d_b, que es de B).
 -- `p_new` es la ruta con la que c1 registra su medio nuevo (`m_new`, que se conoce después).
 --
 -- Los ids quedan en ajustes `fx.*` de la transacción. Los fixtures se insertan sin sesión
@@ -87,6 +106,10 @@ declare
   o_draft constant text := tests.drill_path(club_a::text, d_draft::text);
   o_b constant text := tests.drill_path(club_b::text, d_b::text);
   o_otro constant text := tests.drill_path(club_a::text, d_draft::text);
+  o_otro2 constant text := tests.drill_path(club_a::text, d_pub::text);
+  o_people constant text := 'org/' || club_a || '/people/' || gen_random_uuid()::text || '.png';
+  o_cross constant text := tests.drill_path(club_b::text, d_draft::text);
+  o_cross2 constant text := tests.drill_path(club_a::text, d_b::text);
   p_new constant text := tests.drill_path(club_a::text, d_draft::text);
 begin
   insert into organizations (id, slug, name) values
@@ -128,7 +151,11 @@ begin
     ('club-media', o_pub2),
     ('club-media', o_draft),
     ('club-media', o_b),
-    ('pgtap-otro', o_otro);
+    ('club-media', o_people),
+    ('club-media', o_cross),
+    ('club-media', o_cross2),
+    ('pgtap-otro', o_otro),
+    ('pgtap-otro', o_otro2);
 
   perform set_config('fx.club_a', club_a::text, true);
   perform set_config('fx.club_b', club_b::text, true);
@@ -150,6 +177,10 @@ begin
   perform set_config('fx.o_draft', o_draft, true);
   perform set_config('fx.o_b', o_b, true);
   perform set_config('fx.o_otro', o_otro, true);
+  perform set_config('fx.o_otro2', o_otro2, true);
+  perform set_config('fx.o_people', o_people, true);
+  perform set_config('fx.o_cross', o_cross, true);
+  perform set_config('fx.o_cross2', o_cross2, true);
   perform set_config('fx.p_new', p_new, true);
 end
 $$;
@@ -194,10 +225,11 @@ select is_empty(
       'ORG/' || current_setting('fx.club_a') || '/x.png',
       'org/' || upper(current_setting('fx.club_a')) || '/x.png',
       'org/' || substr(current_setting('fx.club_a'), 2) || '/x.png',
-      'org/' || current_setting('fx.club_a') || 'f/x.png'
+      'org/' || current_setting('fx.club_a') || 'f/x.png',
+      'org/gggggggg-gggg-4ggg-8ggg-gggggggggggg/x.png'
     ]) as t (p)
     where private.storage_org_id(p) is not null$$,
-  'storage_org_id devuelve null en toda ruta que no empiece por org/<uuid en minúsculas>/'
+  'storage_org_id devuelve null en toda ruta que no empiece por org/<uuid en hexadecimal minúsculo>/, sin error de conversión'
 );
 
 -- ── c1 (entrenador): sube a la carpeta de su borrador ────────────────────────────────
@@ -217,7 +249,8 @@ select lives_ok(
 );
 
 -- La API de Storage inserta y pide la fila de vuelta: la nueva también tiene que pasar la
--- política de lectura, que se mira por las columnas de la propia fila.
+-- política de lectura. Quien puede subir a la carpeta de un ejercicio puede verlo, así que quien
+-- sube lee lo que acaba de subir.
 select lives_ok(
   $$insert into storage.objects (bucket_id, name)
     values ('club-media', tests.drill_path(current_setting('fx.club_a'), current_setting('fx.d_draft')))
@@ -357,10 +390,38 @@ select is_empty(
       'org/no-uuid/drills/no-uuid/no-uuid.png',
       'org/' || current_setting('fx.club_a') || '/drills/no-uuid/' || gen_random_uuid()::text || '.png',
       'org/' || current_setting('fx.club_a') || '/drills/' || current_setting('fx.d_draft') || '/x.png',
-      'org/' || current_setting('fx.club_a') || '/drills/' || current_setting('fx.d_draft') || '/'
+      'org/' || current_setting('fx.club_a') || '/drills/' || current_setting('fx.d_draft') || '/',
+      'org/gggggggg-gggg-4ggg-8ggg-gggggggggggg/drills/gggggggg-gggg-4ggg-8ggg-gggggggggggg/gggggggg-gggg-4ggg-8ggg-gggggggggggg.png',
+      'org/' || current_setting('fx.club_a') || '/drills/gggggggg-gggg-4ggg-8ggg-gggggggggggg/gggggggg-gggg-4ggg-8ggg-gggggggggggg.png'
     ]) as t (p)
     where private.can_upload_drill_media(p)$$,
   'can_upload_drill_media responde false a rutas mal formadas, sin error de conversión'
+);
+
+-- Y la de lectura: ninguna de estas rutas es de la carpeta de un ejercicio que c1 pueda ver.
+-- Es la misma lista de arriba, sin el nombre de fichero como requisito, más los casos en que
+-- el club de la ruta no es el del ejercicio, o el ejercicio no existe.
+select is_empty(
+  $$select p
+    from unnest(array[
+      null::text,
+      '',
+      'org/',
+      'org/no-uuid/x.png',
+      'org/no-uuid/drills/no-uuid/no-uuid.png',
+      'org/' || current_setting('fx.club_a') || '/drills/',
+      'org/' || current_setting('fx.club_a') || '/drills/no-uuid/' || gen_random_uuid()::text || '.png',
+      'org/' || current_setting('fx.club_a') || '/drills/' || current_setting('fx.d_draft'),
+      '/org/' || current_setting('fx.club_a') || '/drills/' || current_setting('fx.d_draft') || '/x.png',
+      'org/' || current_setting('fx.club_a') || '/drills/' || upper(current_setting('fx.d_draft')) || '/x.png',
+      'org/' || current_setting('fx.club_a') || '/drills/' || gen_random_uuid()::text || '/x.png',
+      'org/' || current_setting('fx.club_b') || '/drills/' || current_setting('fx.d_draft') || '/x.png',
+      'org/' || current_setting('fx.club_a') || '/people/' || current_setting('fx.d_draft') || '/x.png',
+      'org/gggggggg-gggg-4ggg-8ggg-gggggggggggg/drills/gggggggg-gggg-4ggg-8ggg-gggggggggggg/x.png',
+      'org/' || current_setting('fx.club_a') || '/drills/gggggggg-gggg-4ggg-8ggg-gggggggggggg/x.png'
+    ]) as t (p)
+    where private.can_see_drill_media(p)$$,
+  'can_see_drill_media responde false a rutas mal formadas, sin error de conversión'
 );
 
 -- ── Otros usuarios: lo que cada uno sube ─────────────────────────────────────────────
@@ -463,12 +524,28 @@ select throws_ok(
 );
 
 -- ── Lectura de objetos ───────────────────────────────────────────────────────────────
+-- Un objeto lo lee quien puede ver el ejercicio de su carpeta. Listar obedece la misma regla
+-- (`tests.ls` llama a `storage.search`, que se ejecuta con los privilegios de quien llama),
+-- así que también se prueba por ahí: un borrador que no se ve en `drills` no puede salir al
+-- listar la carpeta de ejercicios, ni su id, ni los ficheros de dentro.
+-- Los objetos de A: `o_pub` y `o_pub2` en la carpeta del publicado, `o_draft` en la del borrador
+-- de c1, y `o_people` fuera de las carpetas de ejercicios.
 select tests.authenticate_as(current_setting('fx.c2')::uuid);
 
 select results_eq(
   $$select name from storage.objects where name = current_setting('fx.o_pub')$$,
   $$values (current_setting('fx.o_pub'))$$,
-  'c2 lee el objeto de su club'
+  'c2 lee el objeto de la carpeta de un ejercicio publicado de su club'
+);
+
+select is_empty(
+  $$select 1 from storage.objects where name = current_setting('fx.o_draft')$$,
+  'c2 no lee el objeto de la carpeta del borrador de c1'
+);
+
+select is_empty(
+  $$select 1 from storage.objects where name = current_setting('fx.o_people')$$,
+  'c2 no lee un objeto de su club que no está en la carpeta de un ejercicio'
 );
 
 select is_empty(
@@ -481,6 +558,95 @@ select is_empty(
 select is_empty(
   $$select 1 from storage.objects where bucket_id <> 'club-media'$$,
   'c2 no lee los objetos de otro bucket por la política de club-media'
+);
+
+select set_eq(
+  $$select tests.ls('org/' || current_setting('fx.club_a') || '/drills/')$$,
+  $$values (current_setting('fx.d_pub'))$$,
+  'c2 lista la carpeta del ejercicio publicado, y no la del borrador de c1'
+);
+
+select is_empty(
+  $$select tests.ls('org/' || current_setting('fx.club_a') || '/drills/' || current_setting('fx.d_draft') || '/')$$,
+  'c2 no lista los ficheros de la carpeta del borrador de c1'
+);
+
+select results_eq(
+  $$select f from tests.ls('org/' || current_setting('fx.club_a') || '/drills/' || current_setting('fx.d_pub') || '/') as f
+    where f = split_part(current_setting('fx.o_pub'), '/', 5)$$,
+  $$values (split_part(current_setting('fx.o_pub'), '/', 5))$$,
+  'c2 lista los ficheros de la carpeta del ejercicio publicado'
+);
+
+select set_eq(
+  $$select tests.ls('org/' || current_setting('fx.club_a') || '/')$$,
+  $$values ('drills')$$,
+  'c2 lista drills/ en la carpeta de su club, y no people/'
+);
+
+-- Leer no depende del nombre del fichero (subir sí).
+select is(
+  private.can_see_drill_media(
+    'org/' || current_setting('fx.club_a') || '/drills/' || current_setting('fx.d_pub') || '/notas.txt'
+  ),
+  true,
+  'can_see_drill_media no mira el nombre ni la extensión del fichero'
+);
+
+select is(
+  private.can_see_drill_media(
+    'org/' || current_setting('fx.club_a') || '/drills/' || current_setting('fx.d_draft') || '/x.png'
+  ),
+  false,
+  'can_see_drill_media da false a c2 en la carpeta del borrador de c1'
+);
+
+select tests.authenticate_as(current_setting('fx.c1')::uuid);
+
+select set_eq(
+  $$select name from storage.objects
+    where name in (current_setting('fx.o_pub'), current_setting('fx.o_draft'))$$,
+  $$values (current_setting('fx.o_pub')), (current_setting('fx.o_draft'))$$,
+  'c1 lee el objeto de la carpeta de su borrador y el del publicado'
+);
+
+select is_empty(
+  $$select 1 from storage.objects where name = current_setting('fx.o_people')$$,
+  'c1 no lee un objeto de su club que no está en la carpeta de un ejercicio'
+);
+
+-- El ejercicio d_draft es de A: una ruta de B que lo nombra no es una carpeta suya.
+select is_empty(
+  $$select 1 from storage.objects where name = current_setting('fx.o_cross')$$,
+  'c1 no lee org/B/… con el ejercicio de su borrador de A'
+);
+
+select set_eq(
+  $$select tests.ls('org/' || current_setting('fx.club_a') || '/drills/')$$,
+  $$values (current_setting('fx.d_pub')), (current_setting('fx.d_draft'))$$,
+  'c1 lista la carpeta del publicado y la de su borrador'
+);
+
+select tests.authenticate_as(current_setting('fx.admin_a')::uuid);
+
+select set_eq(
+  $$select name from storage.objects
+    where name in (current_setting('fx.o_pub'), current_setting('fx.o_draft'))$$,
+  $$values (current_setting('fx.o_pub')), (current_setting('fx.o_draft'))$$,
+  'adminA lee el objeto del publicado y el del borrador de c1'
+);
+
+-- Ni el admin lee una ruta que no sea la carpeta de un ejercicio, ni una que mezcle clubes.
+select is_empty(
+  $$select 1 from storage.objects
+    where name in (current_setting('fx.o_people'), current_setting('fx.o_cross'), current_setting('fx.o_cross2'))$$,
+  'adminA no lee un objeto de A fuera de las carpetas de ejercicios, ni los de ruta mezclada'
+);
+
+select set_eq(
+  $$select tests.ls('org/' || current_setting('fx.club_a') || '/drills/')$$,
+  $$values (current_setting('fx.d_pub')), (current_setting('fx.d_draft'))$$,
+  'adminA lista las carpetas de los dos ejercicios de A'
 );
 
 select tests.authenticate_as(current_setting('fx.coach_b')::uuid);
@@ -496,25 +662,56 @@ select is_empty(
   'coachB no lee ningún objeto de A'
 );
 
--- Miembro de los dos clubes: lee los de ambos.
+select is_empty(
+  $$select tests.ls('org/' || current_setting('fx.club_a') || '/drills/')$$,
+  'coachB no lista ninguna carpeta de A'
+);
+
+-- Entre los objetos de B hay uno con una ruta de B y el ejercicio d_draft, que es de A.
+select set_eq(
+  $$select tests.ls('org/' || current_setting('fx.club_b') || '/drills/')$$,
+  $$values (current_setting('fx.d_b'))$$,
+  'coachB lista la carpeta del ejercicio de B, y no la de la ruta mezclada'
+);
+
+-- Miembro de los dos clubes: lee los publicados de ambos.
 select tests.authenticate_as(current_setting('fx.multi')::uuid);
 
 select results_eq(
   $$select count(*)::int from storage.objects
     where name in (current_setting('fx.o_pub'), current_setting('fx.o_b'))$$,
   array[2],
-  'multi, que es miembro de A y de B, lee los objetos de los dos'
+  'multi, que es entrenador de A y admin de B, lee los objetos de los dos'
 );
 
--- La lectura es de cualquier miembro activo del club, también de quien juega: la ruta lleva
--- el ejercicio y un uuid que no se adivina, y solo el cuerpo técnico llega a ella, a través de
--- `media_assets`.
+select is_empty(
+  $$select 1 from storage.objects
+    where name in (current_setting('fx.o_draft'), current_setting('fx.o_people'))$$,
+  'multi no lee el borrador de c1 en A, donde es un entrenador sin ejercicios, ni lo que no es una carpeta de ejercicio'
+);
+
+-- d_b es de B y multi lo ve como admin de B, pero la ruta dice que es de A.
+select is_empty(
+  $$select 1 from storage.objects where name = current_setting('fx.o_cross2')$$,
+  'multi no lee org/A/… con un ejercicio de B que sí puede ver'
+);
+
+select set_eq(
+  $$select tests.ls('org/' || current_setting('fx.club_a') || '/drills/')$$,
+  $$values (current_setting('fx.d_pub'))$$,
+  'multi lista en A solo la carpeta del publicado'
+);
+
+-- Un jugador es del club, pero la biblioteca es del cuerpo técnico: no lee ni lista nada.
 select tests.authenticate_as(current_setting('fx.jug_a')::uuid);
 
-select results_eq(
-  $$select name from storage.objects where name = current_setting('fx.o_pub')$$,
-  $$values (current_setting('fx.o_pub'))$$,
-  'jugA, miembro activo de A, lee el objeto de su club'
+select is_empty(
+  $$select name from storage.objects
+    union all select tests.ls('org/' || current_setting('fx.club_a') || '/')
+    union all select tests.ls('org/' || current_setting('fx.club_a') || '/drills/')
+    union all select tests.ls('org/' || current_setting('fx.club_a') || '/drills/' || current_setting('fx.d_pub') || '/')
+    union all select tests.ls('org/' || current_setting('fx.club_a') || '/drills/' || current_setting('fx.d_draft') || '/')$$,
+  'jugA, que es del club pero juega, no lee ni lista nada de A'
 );
 
 select tests.clear_authentication();
@@ -523,6 +720,40 @@ select is_empty(
   $$select 1 from storage.objects$$,
   'anon no lee ningún objeto'
 );
+
+select is_empty(
+  $$select tests.ls('org/' || current_setting('fx.club_a') || '/drills/')$$,
+  'anon no lista ninguna carpeta'
+);
+
+-- La lectura sigue al ejercicio: cuando adminA publica el borrador de c1, c2 empieza a leer su
+-- objeto y a listar su carpeta. Después se deja el borrador como estaba.
+select tests.authenticate_as(current_setting('fx.admin_a')::uuid);
+
+select results_eq(
+  $$with u as (update drills set status = 'published'
+               where id = current_setting('fx.d_draft')::uuid returning status::text)
+    select * from u$$,
+  $$values ('published')$$,
+  'adminA publica el borrador de c1'
+);
+
+select tests.authenticate_as(current_setting('fx.c2')::uuid);
+
+select results_eq(
+  $$select name from storage.objects where name = current_setting('fx.o_draft')$$,
+  $$values (current_setting('fx.o_draft'))$$,
+  'c2 lee el objeto del borrador desde que se publica'
+);
+
+select set_eq(
+  $$select tests.ls('org/' || current_setting('fx.club_a') || '/drills/')$$,
+  $$values (current_setting('fx.d_pub')), (current_setting('fx.d_draft'))$$,
+  'c2 lista la carpeta del ejercicio de c1 desde que se publica'
+);
+
+reset role;
+update drills set status = 'draft' where id = current_setting('fx.d_draft')::uuid;
 
 -- ── Borrado de objetos y política update ─────────────────────────────────────────────
 -- La base de datos no deja borrar `storage.objects` a mano (un trigger de Storage lo corta
@@ -580,10 +811,10 @@ select results_eq(
 select tests.authenticate_as(current_setting('fx.multi')::uuid);
 
 select results_eq(
-  $$with d as (delete from storage.objects where name = current_setting('fx.o_draft') returning 1)
+  $$with d as (delete from storage.objects where name = current_setting('fx.o_pub') returning 1)
     select count(*)::int from d$$,
   array[0],
-  'multi no borra el objeto de un borrador de A: allí solo es entrenador'
+  'multi no borra el objeto del publicado de A: lo ve, pero allí solo es entrenador'
 );
 
 select tests.authenticate_as(current_setting('fx.c1')::uuid);
@@ -1279,17 +1510,19 @@ select set_eq(
   'las políticas: leer y crear medios, y leer, subir y borrar objetos; nada de update'
 );
 
--- Las tres funciones son solo de `authenticated`: las evalúan las políticas, y la clave de
+-- Las cuatro funciones son solo de `authenticated`: las evalúan las políticas, y la clave de
 -- servicio no pasa por ellas.
 select results_eq(
   $$select has_function_privilege('anon', 'private.storage_org_id(text)', 'execute'),
            has_function_privilege('authenticated', 'private.storage_org_id(text)', 'execute'),
            has_function_privilege('anon', 'private.can_upload_drill_media(text)', 'execute'),
            has_function_privilege('authenticated', 'private.can_upload_drill_media(text)', 'execute'),
+           has_function_privilege('anon', 'private.can_see_drill_media(text)', 'execute'),
+           has_function_privilege('authenticated', 'private.can_see_drill_media(text)', 'execute'),
            has_function_privilege('anon', 'private.can_see_media(uuid)', 'execute'),
            has_function_privilege('authenticated', 'private.can_see_media(uuid)', 'execute')$$,
-  $$values (false, true, false, true, false, true)$$,
-  'storage_org_id, can_upload_drill_media y can_see_media las ejecuta authenticated y no anon'
+  $$values (false, true, false, true, false, true, false, true)$$,
+  'storage_org_id, can_upload_drill_media, can_see_drill_media y can_see_media las ejecuta authenticated y no anon'
 );
 
 -- ── Índices ──────────────────────────────────────────────────────────────────────────
