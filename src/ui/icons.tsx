@@ -106,6 +106,34 @@ export function ChevronLeftIcon(props: IconProps) {
   );
 }
 
+/** Flecha hacia abajo: lo que abre una lista o una hoja de opciones. */
+export function ChevronDownIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="m6 9 6 6 6-6" />
+    </Icon>
+  );
+}
+
+/** Lupa: el campo de búsqueda. */
+export function SearchIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <circle cx="11" cy="11" r="7" />
+      <path d="m20 20-4-4" />
+    </Icon>
+  );
+}
+
+/** Aspa: borrar un texto. Va siempre dentro de un botón con nombre. */
+export function CloseIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M6 6l12 12M18 6 6 18" />
+    </Icon>
+  );
+}
+
 /** Aviso: triángulo con exclamación, para un fallo que impide mostrar el contenido. */
 export function AlertIcon(props: IconProps) {
   return (
