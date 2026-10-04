@@ -6,7 +6,7 @@ import { moveMethodologyItem, setMethodologyStatus } from "@/modules/methodology
 import type { ContentStatus, MethodologyKind } from "@/modules/methodology/types";
 import { CTAButton } from "@/ui/cta-button";
 import { FieldError } from "@/ui/form-field";
-import { useAction } from "./use-action";
+import { useAction } from "@/lib/use-action";
 
 type Control = "up" | "down" | "status";
 
