@@ -1368,11 +1368,13 @@ select is_empty(
   'anon no tiene ningún privilegio sobre las tablas'
 );
 
--- `drills` no se borra: sin `delete` para nadie salvo la clave de servicio.
+-- `drills` no se borra: sin `delete` para nadie salvo la clave de servicio. El `update` de
+-- `authenticated` es por columnas desde `20261103000400_save_drill.sql` (qué columnas, en
+-- `drill_save.test.sql`): aquí basta con que tenga alguna.
 select results_eq(
   $$select has_table_privilege('authenticated', 'public.drills', 'select'),
            has_table_privilege('authenticated', 'public.drills', 'insert'),
-           has_table_privilege('authenticated', 'public.drills', 'update'),
+           has_any_column_privilege('authenticated', 'public.drills', 'update'),
            has_table_privilege('authenticated', 'public.drills', 'delete')$$,
   $$values (true, true, true, false)$$,
   'authenticated lee, crea y cambia ejercicios, y no los borra'

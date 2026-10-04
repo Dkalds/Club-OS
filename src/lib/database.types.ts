@@ -683,6 +683,11 @@ isOneToOne: false
             "reorder_methodology":
 { Args: { "p_ids": (string)[],"p_kind": string,"p_org": string }; Returns: undefined
                            },
+"save_drill":
+{ Args: { "p_drill": string,"p_expected_updated_at": string,"p_org": string,"p_payload": Json }; Returns: {
+              "id": string,"updated_at": string
+            }[]
+                           },
 "save_game_principle":
 { Args: { "p_id": string,"p_points": (string)[],"p_summary": string,"p_title": string }; Returns: undefined
                            },
