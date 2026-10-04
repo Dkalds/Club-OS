@@ -133,6 +133,10 @@ const ownEvent = reply({ id: EVENT, practice_plans: [{ id: PLAN }] });
 const ownEventObject = reply({ id: EVENT, practice_plans: { id: PLAN } });
 /** ...o no lo encuentra, porque no existe o es de otro club... */
 const noEvent = reply(null);
+/** La lectura previa de `createPractice` «¿es un equipo de este club?»: lo encuentra... */
+const ownTeam = reply({ id: TEAM });
+/** ...o no, porque no existe o es de otro club. */
+const noTeam = reply(null);
 /** ...o lo encuentra sin plan (un entreno que no es una sesión). */
 const noPlan = reply({ id: EVENT, practice_plans: [] });
 
@@ -241,7 +245,7 @@ describe("quién gestiona", () => {
 
   it.each(["coach", "admin"] as const)("%s sí gestiona", async (role) => {
     mocks.requireClub.mockResolvedValue(clubContext(role));
-    useDb(reply(NEW_EVENT));
+    useDb(ownTeam, reply(NEW_EVENT));
 
     const result = await createPractice("club-a", create);
 
@@ -258,7 +262,7 @@ describe("quién gestiona", () => {
   });
 
   it("la acción pregunta por el club que le pasan", async () => {
-    useDb(reply(NEW_EVENT));
+    useDb(ownTeam, reply(NEW_EVENT));
 
     await createPractice("club-b", create);
 
@@ -276,7 +280,7 @@ describe("quién gestiona", () => {
 
 describe("tras escribir", () => {
   const WRITES: Array<[string, Reply[], () => Promise<ActionResult<unknown>>]> = [
-    ["createPractice", [reply(NEW_EVENT)], ACTIONS[0][1]],
+    ["createPractice", [ownTeam, reply(NEW_EVENT)], ACTIONS[0][1]],
     ["updatePracticeMeta", [ownEvent, reply(NEXT_STAMP)], ACTIONS[1][1]],
     ["savePracticeItems", [ownEvent, reply(NEXT_STAMP)], ACTIONS[2][1]],
     ["duplicatePractice", [ownEvent, reply(NEW_EVENT)], ACTIONS[3][1]],
@@ -345,7 +349,7 @@ describe("errores de la base de datos", () => {
   });
 
   it("un objetivo de otro club es una clave foránea rota (23503): SAVE_FAILED, y se registra", async () => {
-    useDb(dbError("23503", "Key (primary_focus_id)=(...) is not present in table"));
+    useDb(ownTeam, dbError("23503", "Key (primary_focus_id)=(...) is not present in table"));
 
     const result = await createPractice("club-a", { ...create, primaryFocusId: F1 });
 
@@ -354,7 +358,7 @@ describe("errores de la base de datos", () => {
   });
 
   it("un check de la tabla es INVALID y no se registra", async () => {
-    useDb(dbError("23514", "check"));
+    useDb(ownTeam, dbError("23514", "check"));
 
     const result = await createPractice("club-a", create);
 
@@ -363,7 +367,7 @@ describe("errores de la base de datos", () => {
   });
 
   it("un equipo que no se gestiona es NOT_FOUND y no se registra", async () => {
-    useDb(dbError("P0002", "NOT_FOUND"));
+    useDb(ownTeam, dbError("P0002", "NOT_FOUND"));
 
     const result = await createPractice("club-a", create);
 
@@ -372,7 +376,7 @@ describe("errores de la base de datos", () => {
   });
 
   it("un permiso denegado tras pasar `can` es NOT_FOUND y se registra", async () => {
-    useDb(dbError("42501", "new row violates row-level security policy"));
+    useDb(ownTeam, dbError("42501", "new row violates row-level security policy"));
 
     const result = await createPractice("club-a", create);
 
@@ -420,7 +424,7 @@ describe("errores de la base de datos", () => {
 
 describe("createPractice", () => {
   it("crea a la hora del club", async () => {
-    const db = useDb(reply(NEW_EVENT));
+    const db = useDb(ownTeam, reply(NEW_EVENT));
 
     const result = await createPractice("club-a", create);
 
@@ -440,16 +444,46 @@ describe("createPractice", () => {
     expect(mocks.revalidatePath).toHaveBeenCalledWith("/c/[club]/(app)", "layout");
   });
 
-  it("no hace ninguna lectura antes: el equipo lo comprueba la función", async () => {
-    const db = useDb(reply(NEW_EVENT));
+  it("lee antes el equipo de este club, y la función recibe ese mismo equipo", async () => {
+    const db = useDb(ownTeam, reply(NEW_EVENT));
 
     await createPractice("club-a", create);
 
-    expect(db.queries).toEqual([]);
+    expect(db.queries).toHaveLength(1);
+    expect(db.queries[0].table).toBe("teams");
+    expect(db.queries[0].sent("select")).toEqual(["id"]);
+    expect(db.queries[0].filters).toEqual([
+      ["organization_id", ORG],
+      ["id", TEAM],
+    ]);
+    expect(db.queries[0].calls.some((call) => call.method === "maybeSingle")).toBe(true);
+    expect(db.rpcs[0].args.p_team).toBe(TEAM);
+  });
+
+  it("un equipo que no es de este club es NOT_FOUND y no llega a la función", async () => {
+    const db = useDb(noTeam);
+
+    const result = await createPractice("club-a", create);
+
+    expect(result).toEqual({ ok: false, error: "NOT_FOUND" });
+    expect(db.rpcs).toEqual([]);
+    expect(mocks.revalidatePath).not.toHaveBeenCalled();
+    expect(logged).toEqual([]);
+  });
+
+  it("si falla esa lectura no llama a la función y se registra", async () => {
+    const db = useDb(dbError("XX000", "boom"));
+
+    const result = await createPractice("club-a", create);
+
+    expect(result).toEqual({ ok: false, error: "SAVE_FAILED" });
+    expect(db.rpcs).toEqual([]);
+    expect(mocks.revalidatePath).not.toHaveBeenCalled();
+    expect(logged).toEqual(["[practice.create-practice] PostgrestError code=XX000"]);
   });
 
   it("manda lo que se rellena, con los textos recortados", async () => {
-    const db = useDb(reply(NEW_EVENT));
+    const db = useDb(ownTeam, reply(NEW_EVENT));
 
     await createPractice("club-a", {
       ...create,
@@ -471,7 +505,7 @@ describe("createPractice", () => {
   });
 
   it("un opcional vacío, null o en blanco no se envía: la función lo toma como vacío", async () => {
-    const db = useDb(reply(NEW_EVENT), reply(NEW_EVENT));
+    const db = useDb(ownTeam, reply(NEW_EVENT), ownTeam, reply(NEW_EVENT));
 
     await createPractice("club-a", create);
     await createPractice("club-a", {
@@ -487,7 +521,7 @@ describe("createPractice", () => {
   });
 
   it("la hora de verano no es la de invierno: el desfase sale de la fecha y la zona del club", async () => {
-    const db = useDb(reply(NEW_EVENT));
+    const db = useDb(ownTeam, reply(NEW_EVENT));
 
     await createPractice("club-a", { ...create, date: "2026-07-14" });
 
@@ -503,7 +537,7 @@ describe("createPractice", () => {
       ...clubContext("coach"),
       org: { ...clubContext("coach").org, timezone: "America/Bogota" },
     } satisfies ClubContext);
-    const db = useDb(reply(NEW_EVENT));
+    const db = useDb(ownTeam, reply(NEW_EVENT));
 
     await createPractice("club-a", create);
 
@@ -515,7 +549,7 @@ describe("createPractice", () => {
   });
 
   it("el fin es el inicio más la duración, también a través del cambio de hora", async () => {
-    const db = useDb(reply(NEW_EVENT));
+    const db = useDb(ownTeam, reply(NEW_EVENT));
 
     // La noche del cambio a la hora de invierno (de las 03:00 a las 02:00 del domingo 25 oct).
     await createPractice("club-a", {
@@ -534,7 +568,7 @@ describe("createPractice", () => {
   });
 
   it("si solo se elige el secundario, pasa a ser el principal", async () => {
-    const db = useDb(reply(NEW_EVENT));
+    const db = useDb(ownTeam, reply(NEW_EVENT));
 
     await createPractice("club-a", { ...create, primaryFocusId: "", secondaryFocusId: F2 });
 
@@ -543,7 +577,7 @@ describe("createPractice", () => {
   });
 
   it("el principal solo se queda como está", async () => {
-    const db = useDb(reply(NEW_EVENT));
+    const db = useDb(ownTeam, reply(NEW_EVENT));
 
     await createPractice("club-a", { ...create, primaryFocusId: F1 });
 
@@ -619,7 +653,7 @@ describe("createPractice", () => {
   });
 
   it.each([15, 240])("una duración de %s minutos vale", async (durationMinutes) => {
-    const db = useDb(reply(NEW_EVENT));
+    const db = useDb(ownTeam, reply(NEW_EVENT));
 
     const result = await createPractice("club-a", { ...create, durationMinutes });
 
@@ -666,7 +700,7 @@ describe("createPractice", () => {
   });
 
   it("un título de 80 caracteres vale", async () => {
-    const db = useDb(reply(NEW_EVENT));
+    const db = useDb(ownTeam, reply(NEW_EVENT));
 
     const result = await createPractice("club-a", { ...create, title: "a".repeat(80) });
 
@@ -890,11 +924,9 @@ describe("updatePracticeMeta", () => {
       ...edit,
       title: " ",
       durationMinutes: 5,
-      secondaryFocusId: F1,
-      primaryFocusId: F1,
     });
 
-    expect(result).toMatchObject({
+    expect(result).toEqual({
       ok: false,
       error: "INVALID",
       fieldErrors: {
@@ -902,6 +934,22 @@ describe("updatePracticeMeta", () => {
         durationMinutes: "La duración tiene que estar entre 15 y 240 minutos.",
       },
     });
+    expect(mocks.createClient).not.toHaveBeenCalled();
+  });
+
+  it("el mismo objetivo dos veces señala el secundario", async () => {
+    const result = await updatePracticeMeta("club-a", {
+      ...edit,
+      primaryFocusId: F1,
+      secondaryFocusId: F1,
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      error: "INVALID",
+      fieldErrors: { secondaryFocusId: "El objetivo secundario tiene que ser distinto del principal." },
+    });
+    expect(mocks.createClient).not.toHaveBeenCalled();
   });
 });
 

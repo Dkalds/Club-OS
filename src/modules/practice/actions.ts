@@ -33,11 +33,12 @@ import type { PracticeItemDraft } from "./types";
 // No hay ningún insert ni update directo de `events`, `practice_plans` ni `practice_items`;
 // cancelar es el único `update`, y solo del estado.
 //
-// Todo va acotado al club de `clubSlug`: las funciones SQL que reciben un id sin el club
-// (`update_practice_session`, `save_practice_items`, `duplicate_practice`) no lo comprueban, así
-// que toda acción con `eventId` lee antes el entreno filtrando por el club, y cancelar filtra
-// el propio `update`. Las horas se calculan en la zona del club (`ctx.org.timezone`), nunca en
-// la del servidor.
+// Todo va acotado al club de `clubSlug`. Las funciones SQL no comparan con él: las que reciben
+// un id de entreno (`update_practice_session`, `save_practice_items`, `duplicate_practice`)
+// escriben donde está ese entreno, y `create_practice_session` deduce el club del equipo. Por
+// eso toda acción con `eventId` lee antes el entreno filtrando por el club, `createPractice`
+// lee antes el equipo, y cancelar filtra el propio `update`. Las horas se calculan en la zona
+// del club (`ctx.org.timezone`), nunca en la del servidor.
 
 /**
  * Lo que se revalida tras escribir: un patrón de ruta, no una URL (el porqué está en
@@ -105,6 +106,28 @@ function given<K extends string>(args: Record<K, string | null>): Partial<Record
 }
 
 /**
+ * `NOT_FOUND` si el equipo `teamId` no es de este club (no existe o es de otro). La función que
+ * crea la sesión deduce el club del equipo y no lo compara con el de quien llama: sin esta
+ * lectura previa, quien gestiona equipos en dos clubes crearía una sesión en el B llamando a la
+ * acción del A, con el permiso y la revalidación del A. Que además se gestione ese equipo lo
+ * comprueba la función.
+ */
+async function findTeam(
+  { db, ctx, fromDb }: Pick<Write<unknown>, "db" | "ctx" | "fromDb">,
+  teamId: string,
+): Promise<ActionResult<null>> {
+  const { data, error } = await db
+    .from("teams")
+    .select("id")
+    .eq("organization_id", ctx.org.id)
+    .eq("id", teamId)
+    .maybeSingle();
+  if (error) return fromDb(error);
+
+  return data ? ok(null) : fail("NOT_FOUND");
+}
+
+/**
  * El id del plan del entreno `eventId` si es un entreno de este club con plan; si no existe, es
  * de otro club, no es un entreno o no tiene plan, `NOT_FOUND` (el mismo 404 opaco para todos).
  * Las funciones SQL escriben por id sin recibir el club: sin esta lectura previa, quien
@@ -148,9 +171,10 @@ function toRpcItem(item: PracticeItemDraft): Json {
  * Un entreno programado en un equipo, con su plan en borrador y sin ítems, con
  * `create_practice_session`. Empieza a la `date` y `time` del reloj del club y acaba
  * `durationMinutes` después. Si la fecha o la hora no existen, `INVALID` en `date` sin llegar a
- * la base de datos. El equipo lo comprueba la función: uno que no se gestiona es `NOT_FOUND`.
- * Los objetivos y el lugar vacíos no se envían; el objetivo secundario sin principal pasa a ser
- * el principal (ver el esquema).
+ * la base de datos. Antes comprueba que el equipo es de este club: si no, `NOT_FOUND` sin
+ * llamar a la función, que es la que comprueba que además se gestiona (si no, `NOT_FOUND`
+ * también). Los objetivos y el lugar vacíos no se envían; el objetivo secundario sin principal
+ * pasa a ser el principal (ver el esquema).
  */
 export async function createPractice(
   clubSlug: string,
@@ -161,9 +185,14 @@ export async function createPractice(
     clubSlug,
     createPracticeSchema,
     input,
-    async ({ db, ctx, data, fromDb }) => {
+    async (run) => {
+      const { db, ctx, data, fromDb } = run;
+
       const start = startsAt(data.date, data.time, ctx.org.timezone);
       if (start === null) return fail("INVALID", INVALID_SLOT);
+
+      const team = await findTeam(run, data.teamId);
+      if (!team.ok) return team;
 
       const { data: eventId, error } = await db.rpc("create_practice_session", {
         p_team: data.teamId,
