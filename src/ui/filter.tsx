@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { BottomSheet } from "./bottom-sheet";
 import { CheckIcon, ChevronDownIcon } from "./icons";
 
@@ -40,13 +40,65 @@ const CHIP_ROW =
   "flex gap-(--space-2) overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden";
 
 /**
+ * Desplaza `row` en horizontal lo justo para que `chips` se vean enteros, sin tocar nada más:
+ * `scrollTo` de la propia fila, nunca `scrollIntoView` (que también mueve la página y puede
+ * llevarse el foco por delante). Si ya se ven, no hace nada. Si los chips no caben juntos se
+ * enseña el primero, y uno más ancho que la fila se alinea por su principio. Es instantáneo: no
+ * hay animación que respetar ni salto que se vea correr.
+ */
+function revealChips(row: HTMLElement, chips: HTMLElement[]) {
+  const origin = row.getBoundingClientRect().left;
+  const spans = chips.map((chip) => {
+    const { left, right } = chip.getBoundingClientRect();
+    return { start: left - origin, end: right - origin };
+  });
+
+  let start = Math.min(...spans.map((span) => span.start));
+  let end = Math.max(...spans.map((span) => span.end));
+  if (end - start > row.clientWidth) ({ start, end } = spans[0]);
+
+  // Los textos miden con decimales y el desplazamiento se redondea: se pide siempre un poco de
+  // más (hacia fuera), o quedaría una rendija de menos de un píxel sin ver.
+  if (start < 0) {
+    row.scrollTo({ left: row.scrollLeft + Math.floor(start), behavior: "instant" });
+  } else if (end > row.clientWidth) {
+    const missing = Math.min(Math.ceil(end - row.clientWidth), Math.floor(start));
+    row.scrollTo({ left: row.scrollLeft + missing, behavior: "instant" });
+  }
+}
+
+/**
  * Una fila de chips con su nombre, la misma que usa `Filter`: se desplaza en horizontal sin
  * barra y no pasa a una segunda línea. Para quien monta, junto a un `Filter`, chips sueltos
  * (los de `FilterSheetChip` o un `Chip`) y no quiere repetir las clases de la fila.
+ *
+ * Lleva a la vista el chip que se acaba de pulsar (`aria-pressed`): al cargar la fila con un
+ * filtro puesto (un enlace, una recarga, Atrás, que la montan desde el principio) el chip activo
+ * puede quedar fuera, y entonces ni «Todos» ni ningún otro se verían pulsados. Solo mira los
+ * chips que ACABAN de pulsarse (los que no lo estaban en el render anterior; al montar, todos): lo
+ * que la persona desplaza a mano no se deshace en el siguiente render, y tocar un chip que ya se
+ * ve no mueve la fila. Antes de pintar, para que no se vea la fila en su sitio y luego saltar.
  */
 export function FilterRow({ label, children }: { label: string; children: ReactNode }) {
+  const row = useRef<HTMLDivElement>(null);
+  const alreadyPressed = useRef<Set<Element>>(new Set());
+
+  useLayoutEffect(() => {
+    const element = row.current;
+    if (!element) return;
+
+    // Solo los botones de la fila: una hoja abierta cuelga de otro sitio, no de ella.
+    const pressed = Array.from(element.children).filter(
+      (child): child is HTMLElement => child.getAttribute("aria-pressed") === "true",
+    );
+    const fresh = pressed.filter((chip) => !alreadyPressed.current.has(chip));
+    alreadyPressed.current = new Set(pressed);
+
+    if (fresh.length > 0) revealChips(element, fresh);
+  });
+
   return (
-    <div role="group" aria-label={label} className={CHIP_ROW}>
+    <div ref={row} role="group" aria-label={label} className={CHIP_ROW}>
       {children}
     </div>
   );

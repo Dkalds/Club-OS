@@ -274,6 +274,106 @@ test("filtros combinados", async ({ page }) => {
   await expect(row(page, "Rebote + outlet")).toBeVisible();
 });
 
+/** Lo que lleva desplazada una fila de chips y lo que lleva desplazada la página. */
+async function scrolls(row: Locator, page: Page) {
+  return { row: await row.evaluate((element) => element.scrollLeft), page: await page.evaluate(() => window.scrollY) };
+}
+
+/**
+ * El chip se ve entero dentro de su fila: ni asoma por un lado ni queda tapado por el borde.
+ * Se deja un píxel de margen: el navegador redondea lo que una fila puede desplazarse, y el
+ * último chip puede quedar a una fracción de píxel del borde sin que nadie lo note.
+ */
+async function expectFullyInRow(chip: Locator, row: Locator) {
+  await expect(chip).toBeInViewport();
+  await expect
+    .poll(
+      async () => {
+        const [c, r] = [await chip.boundingBox(), await row.boundingBox()];
+        if (!c || !r) return Number.POSITIVE_INFINITY;
+        return Math.max(r.x - c.x, c.x + c.width - (r.x + r.width));
+      },
+      { message: "lo que el chip sobresale de su fila, en píxeles" },
+    )
+    .toBeLessThanOrEqual(1);
+}
+
+test("el objetivo activo queda a la vista al cargar", async ({ page }) => {
+  await openAs(page, ALEX);
+
+  // Sin filtro, los últimos objetivos asoman fuera de la fila (a 375 px solo caben «Todos» y los
+  // tres o cuatro primeros): es lo que hace falta para que el resto de la prueba signifique algo.
+  await page.goto(LIBRARY);
+  await expect(row(page, "Rebote + outlet")).toBeVisible();
+  for (const late of ["Rebote", "Ataque"]) {
+    await expect(focusFilter(page).getByRole("button", { name: late })).not.toBeInViewport();
+  }
+
+  // Con ese objetivo en la URL (recarga, enlace, Atrás) se ve pulsado, entero y sin que la
+  // página se mueva. Un objetivo que el club no tiene va el último y también.
+  for (const [slug, name] of [
+    ["rebote", "Rebote"],
+    ["ataque", "Ataque"],
+    ["no-existe", "no-existe"],
+  ]) {
+    await page.goto(`${LIBRARY}?focus=${slug}`);
+    const chip = focusFilter(page).getByRole("button", { name, exact: true });
+    await expect(chip).toHaveAttribute("aria-pressed", "true");
+    await expectFullyInRow(chip, focusFilter(page));
+    expect((await scrolls(focusFilter(page), page)).page, "la página no se mueve").toBe(0);
+  }
+});
+
+test("la fila sigue al objetivo al volver atrás y no salta al tocar uno que ya se ve", async ({ page }) => {
+  await openAs(page, ALEX);
+  // Sin resultados para Álex, con el enlace «Quitar filtros» que sí deja una entrada en el historial.
+  await page.goto(`${LIBRARY}?focus=rebote&age=10`);
+  const rebound = focusFilter(page).getByRole("button", { name: "Rebote", exact: true });
+  await expectFullyInRow(rebound, focusFilter(page));
+
+  // «Quitar filtros» deja «Todos» pulsado, y la fila lo recoge.
+  await page.getByRole("link", { name: "Quitar filtros" }).click();
+  await expect(page).toHaveURL(new RegExp(`${LIBRARY}$`));
+  await expectFullyInRow(focusFilter(page).getByRole("button", { name: "Todos" }), focusFilter(page));
+
+  // Atrás vuelve a `?focus=rebote&age=10` sin recargar la página: «Rebote» vuelve a la vista.
+  await page.goBack();
+  await expect(page).toHaveURL(new RegExp(`${LIBRARY}\\?focus=rebote&age=10$`));
+  await expect(rebound).toHaveAttribute("aria-pressed", "true");
+  await expectFullyInRow(rebound, focusFilter(page));
+
+  // Tocar un chip que ya se ve no mueve la fila: «Técnica» está entero desde el principio.
+  await page.goto(LIBRARY);
+  await expect(row(page, "Rebote + outlet")).toBeVisible();
+  const technique = focusFilter(page).getByRole("button", { name: "Técnica", exact: true });
+  await expectFullyInRow(technique, focusFilter(page));
+  await technique.click();
+  await expect(page).toHaveURL(new RegExp(`${LIBRARY}\\?focus=tecnica$`));
+  await expect(technique).toHaveAttribute("aria-pressed", "true");
+  expect(await scrolls(focusFilter(page), page)).toEqual({ row: 0, page: 0 });
+});
+
+test("el chip de hoja activo queda a la vista en una pantalla estrecha", async ({ page }) => {
+  await openAs(page, ALEX);
+  // A 300 px la fila de «Edad», «Jugadores» y «Duración» ya no cabe entera.
+  await page.setViewportSize({ width: 300, height: 700 });
+  const sheetRow = page.getByRole("group", { name: "Edad, jugadores y duración" });
+
+  await page.goto(LIBRARY);
+  await expect(row(page, "Rebote + outlet")).toBeVisible();
+  const box = { chip: await sheetChip(page, "Duración").boundingBox(), row: await sheetRow.boundingBox() };
+  expect((box.chip?.x ?? 0) + (box.chip?.width ?? 0), "sin filtro «Duración» sobresale").toBeGreaterThan(
+    (box.row?.x ?? 0) + (box.row?.width ?? 0) + 1,
+  );
+
+  await page.goto(`${LIBRARY}?minutes=15`);
+  const chip = sheetChip(page, "15 min");
+  await expect(chip).toHaveAttribute("aria-pressed", "true");
+  await expectFullyInRow(chip, sheetRow);
+  expect(await page.evaluate(() => window.scrollY), "la página no se mueve").toBe(0);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth), "sin desbordar").toBeLessThanOrEqual(300);
+});
+
 test("los filtros de la URL se pueden quitar aunque no sean opciones", async ({ page }) => {
   await openAs(page, ALEX);
 
@@ -469,7 +569,6 @@ test("cabe en el móvil", async ({ page }) => {
   expect(field?.height ?? 0, "campo de búsqueda").toBeGreaterThanOrEqual(44);
   const first = await rows(page).first().boundingBox();
   expect(first?.height ?? 0, "primera fila").toBeGreaterThanOrEqual(44);
-  await page.screenshot({ path: "test-results/drills-library-375.png" });
 });
 
 /** Nombre de un elemento sin texto (el campo, el botón de volver): su aria-label o su tipo. */

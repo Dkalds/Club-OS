@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { filterHref, MAX_QUERY_LENGTH } from "@/modules/drills/filters";
 import type { DrillFilters, FocusArea } from "@/modules/drills/types";
+import { installChipRowLayout, type ChipRowLayout } from "@/ui/chip-row-layout";
 
 const router = vi.hoisted(() => ({ replace: vi.fn() }));
 const navigation = vi.hoisted(() => ({ pathname: "/c/club-a/drills" }));
@@ -458,5 +459,86 @@ describe("mientras la URL cambia", () => {
 
     expect(searchbox()).toHaveValue("");
     expect(router.replace).not.toHaveBeenCalled();
+  });
+});
+
+// jsdom no tiene diseño: con `installChipRowLayout` cada fila mide 250 px y cada chip, 100. Tras
+// «Todos» (0–100) van «Defensa», «Rebote» y «Transición»: solo caben dos y medio. El efecto real
+// lo prueba el e2e de la biblioteca en un navegador.
+describe("el filtro activo queda a la vista", () => {
+  let layout: ChipRowLayout;
+  const scrollsOf = (name: string) =>
+    layout.scrollTo.mock.calls
+      .map(([options], index) => ({ options, row: layout.scrollTo.mock.contexts[index] as HTMLElement }))
+      .filter(({ row }) => row.getAttribute("aria-label") === name)
+      .map(({ options }) => options);
+
+  beforeEach(() => {
+    layout = installChipRowLayout({ rowWidth: 250, chipWidth: 100 });
+  });
+  afterEach(() => {
+    layout.restore();
+  });
+
+  it("un objetivo que queda fuera de la fila al cargar se trae a la vista", () => {
+    renderBar({ focus: "transicion" });
+
+    // «Transición» es el cuarto chip: 300–400.
+    expect(scrollsOf("Objetivo")).toEqual([{ left: 150, behavior: "instant" }]);
+    expect(within(focusGroup()).getByRole("button", { name: "Transición" })).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("un objetivo que el club no tiene va el último y también se trae", () => {
+    renderBar({ focus: "no-existe" });
+
+    expect(scrollsOf("Objetivo")).toEqual([{ left: 250, behavior: "instant" }]);
+  });
+
+  it("sin objetivo, «Todos» ya se ve y la fila no se mueve", () => {
+    renderBar({ age: 12 });
+
+    expect(scrollsOf("Objetivo")).toEqual([]);
+  });
+
+  it("un chip de hoja pulsado que queda fuera de la fila se trae a la vista", () => {
+    renderBar({ minutes: 15 });
+
+    // «Duración» es el tercer botón de su fila: 200–300.
+    expect(scrollsOf("Edad, jugadores y duración")).toEqual([{ left: 50, behavior: "instant" }]);
+    expect(scrollsOf("Objetivo")).toEqual([]);
+  });
+
+  it("el chip del principio, solo en su fila, no necesita moverla", () => {
+    renderBar({ principle: "salida" }, "Salida");
+
+    expect(scrollsOf("Principio")).toEqual([]);
+  });
+
+  it("al volver atrás a otro objetivo, la fila lo sigue; y tocar uno que ya se ve no la mueve", () => {
+    const view = renderBar({ focus: "transicion" });
+    expect(layout.scrollTo).toHaveBeenCalledTimes(1);
+
+    // Con la fila en 150 se ve de 150 a 400: «Rebote» (200–300) está dentro. Es lo que el
+    // navegador hace al pulsar Atrás y llegar otro `filters`.
+    view.rerender(bar({ focus: "rebote" }));
+    expect(layout.scrollTo).toHaveBeenCalledTimes(1);
+
+    // Y quitar el objetivo devuelve «Todos» a la vista.
+    view.rerender(bar({}));
+    expect(scrollsOf("Objetivo")).toEqual([
+      { left: 150, behavior: "instant" },
+      { left: 0, behavior: "instant" },
+    ]);
+  });
+
+  it("al pulsar «Todos» con la fila desplazada, se recoge al instante (el chip se marca sin esperar)", () => {
+    renderBar({ focus: "transicion" });
+
+    fireEvent.click(within(focusGroup()).getByRole("button", { name: "Todos" }));
+
+    expect(scrollsOf("Objetivo")).toEqual([
+      { left: 150, behavior: "instant" },
+      { left: 0, behavior: "instant" },
+    ]);
   });
 });
