@@ -416,6 +416,16 @@ describe("nextWeeklySlot", () => {
     );
   });
 
+  // El borde de la semana por la que se empieza a contar. Martes 6 oct, 18:00 CEST; ahora es el
+  // martes 27 a las 17:30 CET. Tras el cambio de hora las 18:00 son las 17:00Z: desde el inicio
+  // han pasado tres semanas de 168 h y media hora, y aun así la sesión de ese martes no ha
+  // llegado. Empezar una semana más tarde se la saltaría.
+  it("con tres semanas de 168 h ya cumplidas, la sesión de ese día que aún no ha llegado es la siguiente", () => {
+    expect(
+      nextWeeklySlot("2026-10-06T16:00:00.000Z", "2026-10-27T16:30:00.000Z", "Europe/Madrid"),
+    ).toBe("2026-10-27T17:00:00.000Z");
+  });
+
   it("cuenta las semanas desde el inicio: un hueco de cambio de hora no desplaza las siguientes", () => {
     // Domingo 22 mar 2026, 02:30 CET. El 29 las 02:30 no existen (03:30 CEST) y el 5 abr vuelven.
     expect(nextWeeklySlot("2026-03-22T01:30:00.000Z", "2026-03-28T12:00:00.000Z", MADRID)).toBe(
