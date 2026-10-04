@@ -11,7 +11,7 @@
 --   · el aislamiento: por autor (un entrenador solo guarda sus borradores), por club (`p_org`
 --     acota, no autoriza) y por estado (publicar y archivar no se cuelan en el payload);
 --   · el diagrama: vive en la carpeta del propio ejercicio, lo exige la tabla y no solo la
---     función;
+--     función, y lo exige después de RLS y sin delatar fichas de otros clubes;
 --   · las columnas que un cliente no reescribe (club, autor, fechas): privilegio por columnas.
 --
 -- Se ejecuta con `pnpm test:db` (`supabase test db` → pg_prove). Los helpers `tests.*`
@@ -20,7 +20,7 @@
 -- con los de `pnpm seed` ni con los de los otros tests.
 begin;
 
-select plan(100);
+select plan(109);
 
 -- ── Ayudas (solo existen en esta transacción) ────────────────────────────────────────
 -- Un payload válido y completo en lo obligatorio, sin listas. Cada prueba le mezcla lo suyo:
@@ -73,6 +73,37 @@ as $$
          || '/' || (select count(*) from public.drill_standards where drill_id = counts.d);
 $$;
 
+-- Ejecuta una sentencia como quien llama y devuelve cómo acabó: su SQLSTATE si falla, o «ok N»
+-- con las filas que tocó. Sirve para comparar de un golpe lo que contesta la base a varias
+-- peticiones que solo se diferencian en un valor.
+create function tests.outcome(code text)
+returns text
+language plpgsql
+set search_path = ''
+as $$
+declare
+  v_rows bigint;
+begin
+  execute outcome.code;
+  get diagnostics v_rows = row_count;
+  return 'ok ' || v_rows;
+exception when others then
+  return sqlstate;
+end;
+$$;
+
+-- Tres ids de ficha que un intruso podría probar: una de otro club, una de este club pero de la
+-- carpeta de otro ejercicio y una que no existe.
+create function tests.probe_media()
+returns setof uuid
+language sql
+set search_path = ''
+as $$
+  select current_setting('fx.m_b')::uuid
+  union all select current_setting('fx.m_pub')::uuid
+  union all select gen_random_uuid();
+$$;
+
 -- Una ruta de Storage de la carpeta de un ejercicio, con un nombre de fichero nuevo.
 create function tests.folder_path(org uuid, drill uuid)
 returns text
@@ -96,6 +127,7 @@ $$;
 -- Club B
 --   coachB es coach. `d_b` (publicado, coachB; con un punto). Objetivo fB, principio gB,
 --   Standard sB y el medio `m_b` (en la carpeta de d_b, de multi).
+-- `out` tiene cuenta pero no es miembro de ningún club.
 --
 -- Los ids quedan en ajustes `fx.*` de la transacción. Los fixtures se insertan sin sesión
 -- (`auth.uid()` es null), así que el autor va siempre explícito.
@@ -110,6 +142,7 @@ declare
   u_jug_a uuid := tests.create_user('jug-a@drillsave.pgtap.test');
   u_coach_b uuid := tests.create_user('coach-b@drillsave.pgtap.test');
   u_multi uuid := tests.create_user('multi@drillsave.pgtap.test');
+  u_out uuid := tests.create_user('out@drillsave.pgtap.test');
 
   f_a1 constant uuid := gen_random_uuid();
   f_a2 constant uuid := gen_random_uuid();
@@ -188,6 +221,7 @@ begin
   perform set_config('fx.jug_a', u_jug_a::text, true);
   perform set_config('fx.coach_b', u_coach_b::text, true);
   perform set_config('fx.multi', u_multi::text, true);
+  perform set_config('fx.out', u_out::text, true);
   perform set_config('fx.f_a1', f_a1::text, true);
   perform set_config('fx.f_a2', f_a2::text, true);
   perform set_config('fx.f_b', f_b::text, true);
@@ -289,6 +323,29 @@ select is(
   tests.counts(current_setting('fx.d_bare')::uuid),
   '0/0/0/0/0',
   'las listas ausentes del payload dejan el ejercicio sin hijos'
+);
+
+-- Los tres últimos parámetros tienen `default null`: crear es pasar solo el club y el payload,
+-- por nombre. Sin payload, entrada inválida.
+select lives_ok(
+  $$select set_config('fx.d_named', s.id::text, true)
+    from public.save_drill(
+      p_org => current_setting('fx.club_a')::uuid, p_payload => tests.payload()
+    ) as s$$,
+  'c1 crea un ejercicio pasando solo p_org y p_payload por nombre'
+);
+
+select results_eq(
+  $$select d.status::text, d.created_by, d.title
+    from public.drills as d where d.id = current_setting('fx.d_named')::uuid$$,
+  $$values ('draft', current_setting('fx.c1')::uuid, 'Rueda de pases')$$,
+  'el ejercicio creado por nombre es un borrador de c1 con el payload'
+);
+
+select throws_ok(
+  $$select public.save_drill(p_org => current_setting('fx.club_a')::uuid)$$,
+  '22023', 'INVALID',
+  'sin payload es entrada inválida'
 );
 
 -- ── Reemplazar los hijos, en orden ───────────────────────────────────────────────────
@@ -884,7 +941,9 @@ select throws_ok(
 
 -- ── El diagrama vive en la carpeta del propio ejercicio ──────────────────────────────
 -- La regla es de la tabla, no solo de la función: un `update` directo tampoco puede apuntar
--- un ejercicio a un medio ajeno. c1 trabaja con su borrador `d_c1`.
+-- un ejercicio a un medio ajeno. c1 trabaja con su borrador `d_c1`. Una ficha de otro club se
+-- comporta como una que no existe (23503 de la clave foránea); una de su club pero de la
+-- carpeta de otro ejercicio, 22023.
 select throws_ok(
   $$update public.drills set diagram_media_id = current_setting('fx.m_pub')::uuid
     where id = current_setting('fx.d_c1')::uuid$$,
@@ -900,8 +959,8 @@ select is_empty(
 select throws_ok(
   $$update public.drills set diagram_media_id = current_setting('fx.m_b')::uuid
     where id = current_setting('fx.d_c1')::uuid$$,
-  '22023', 'INVALID',
-  'un update directo no apunta un borrador de A al medio de un ejercicio de B'
+  '23503', null,
+  'un update directo a un medio de otro club responde como a uno que no existe: 23503'
 );
 
 select throws_ok(
@@ -925,8 +984,8 @@ select throws_ok(
       current_setting('fx.club_a')::uuid, current_setting('fx.d_c1')::uuid,
       tests.token(current_setting('fx.d_c1')::uuid),
       tests.payload(jsonb_build_object('diagram_media_id', current_setting('fx.m_b'))))$$,
-  '22023', 'INVALID',
-  'save_drill rechaza un diagrama de otro club'
+  '23503', null,
+  'save_drill con un diagrama de otro club responde como con uno que no existe: 23503'
 );
 
 select throws_ok(
@@ -974,7 +1033,7 @@ select results_eq(
   'un update directo sí apunta el borrador a un medio de su propia carpeta'
 );
 
--- También al crear con un update directo o un insert: el trigger es de `insert or update`.
+-- También al crear: el trigger es de `insert or update`.
 select throws_ok(
   $$insert into public.drills (
       id, organization_id, title, min_players, max_players, min_minutes, max_minutes, min_age,
@@ -996,6 +1055,63 @@ select lives_ok(
       4, 8, 10, 15, 10, current_setting('fx.m_pre')::uuid
     )$$,
   'un insert sí crea un ejercicio con un medio de su propia carpeta'
+);
+
+-- ── Quien no puede escribir la fila recibe lo de RLS, sea cual sea la ficha ───────────
+-- El trigger corre después de RLS y busca solo en el club del ejercicio: no sirve para
+-- averiguar qué ids de ficha existen ni en qué carpeta. Se prueba con tres ids (de otro club,
+-- de este club en otra carpeta e inexistente), que tienen que dar la misma respuesta.
+-- c1 puede escribir `d_c1` pero no dejarlo publicado: la comprobación `with check` de la
+-- política salta aquí, con el id de ficha que sea.
+select results_eq(
+  $$select tests.outcome(format(
+      'update public.drills set status = ''published'', diagram_media_id = %L where id = %L',
+      m, current_setting('fx.d_c1')))
+    from tests.probe_media() as m$$,
+  $$values ('42501'), ('42501'), ('42501')$$,
+  'c1 no publica su borrador: 42501 de RLS con una ficha de otro club, de otra carpeta o inexistente'
+);
+
+-- Quien no es miembro de ningún club, y un jugador del club A, no crean ni ven nada: el insert
+-- da el 42501 de la política, y el update no toca ninguna fila (no ven el ejercicio).
+select tests.authenticate_as(current_setting('fx.out')::uuid);
+
+select results_eq(
+  $$select tests.outcome(format(
+      'insert into public.drills (organization_id, title, min_players, max_players, min_minutes, max_minutes, min_age, diagram_media_id)
+       values (%L, ''Intruso'', 4, 8, 10, 15, 10, %L)',
+      current_setting('fx.club_a'), m))
+    from tests.probe_media() as m$$,
+  $$values ('42501'), ('42501'), ('42501')$$,
+  'un usuario sin club recibe el 42501 de RLS al crear con cualquier ficha, no un 22023 ni un 23503'
+);
+
+select results_eq(
+  $$select tests.outcome(format(
+      'update public.drills set diagram_media_id = %L where id = %L', m, current_setting('fx.d_c1')))
+    from tests.probe_media() as m$$,
+  $$values ('ok 0'), ('ok 0'), ('ok 0')$$,
+  'un usuario sin club no toca ninguna fila al actualizar, con cualquier ficha'
+);
+
+select tests.authenticate_as(current_setting('fx.jug_a')::uuid);
+
+select results_eq(
+  $$select tests.outcome(format(
+      'insert into public.drills (organization_id, title, min_players, max_players, min_minutes, max_minutes, min_age, diagram_media_id)
+       values (%L, ''Intruso'', 4, 8, 10, 15, 10, %L)',
+      current_setting('fx.club_a'), m))
+    from tests.probe_media() as m$$,
+  $$values ('42501'), ('42501'), ('42501')$$,
+  'un jugador recibe el 42501 de RLS al crear con cualquier ficha, no un 22023 ni un 23503'
+);
+
+select results_eq(
+  $$select tests.outcome(format(
+      'update public.drills set diagram_media_id = %L where id = %L', m, current_setting('fx.d_c1')))
+    from tests.probe_media() as m$$,
+  $$values ('ok 0'), ('ok 0'), ('ok 0')$$,
+  'un jugador no toca ninguna fila al actualizar, con cualquier ficha'
 );
 
 -- Tampoco el admin ni el dueño de la base saltan la regla.
@@ -1022,37 +1138,26 @@ select tests.clear_authentication();
 
 select throws_ok(
   $$select public.save_drill(current_setting('fx.club_a')::uuid, null, null, tests.payload())$$,
-  '42501', null,
+  '42501', 'permission denied for function save_drill',
   'anon no ejecuta save_drill'
 );
 
 reset role;
 
--- ── Defensa en profundidad: el club del medio ────────────────────────────────────────
--- Con el CHECK de `media_assets` en pie, una ficha cuya ruta empieza por `org/A/…` es de A, y
--- la cláusula del club del trigger es redundante con la de la carpeta (y la clave foránea
--- compuesta, con las dos). Para ver que la cláusula está, se quita el CHECK dentro de esta
--- transacción y se fabrica una ficha de B con la ruta de la carpeta de un ejercicio de A: el
--- trigger tiene que rechazarla él, con su 22023, antes de que la clave foránea diga 23503.
-alter table public.media_assets drop constraint media_assets_path_check;
-
-do $$
-begin
-  perform set_config('fx.m_cross', gen_random_uuid()::text, true);
-  insert into public.media_assets (id, organization_id, path, kind, mime, bytes)
-  values (
-    current_setting('fx.m_cross')::uuid, current_setting('fx.club_b')::uuid,
-    tests.folder_path(current_setting('fx.club_a')::uuid, current_setting('fx.d_c1')::uuid),
-    'image', 'image/png', 1000
-  );
-end
-$$;
+-- ── El trigger vale en cualquier insert o update ────────────────────────────────────
+-- No solo cuando cambia `diagram_media_id`. `d_pre` tiene de diagrama `m_pre`, de su carpeta;
+-- se traslada la ficha a la de otro ejercicio (como postgres: `media_assets` no tiene el
+-- trigger) y el diagrama deja de cumplir la regla. Tocar cualquier otra columna del ejercicio
+-- tiene que fallar.
+update public.media_assets
+set path = tests.folder_path(current_setting('fx.club_a')::uuid, current_setting('fx.d_pub')::uuid)
+where id = current_setting('fx.m_pre')::uuid;
 
 select throws_ok(
-  $$update public.drills set diagram_media_id = current_setting('fx.m_cross')::uuid
-    where id = current_setting('fx.d_c1')::uuid$$,
+  $$update public.drills set summary = 'Solo cambia el resumen'
+    where id = current_setting('fx.d_pre')::uuid$$,
   '22023', 'INVALID',
-  'una ficha de B con la ruta de la carpeta de un ejercicio de A la rechaza el trigger, no la clave foránea'
+  'un update de otra columna también comprueba el diagrama que el ejercicio ya tenía'
 );
 
 -- ── Catálogo: privilegios y forma ────────────────────────────────────────────────────
@@ -1088,10 +1193,10 @@ select results_eq(
     where p.oid = 'public.save_drill(uuid, uuid, timestamptz, jsonb)'::regprocedure$$,
   $$values (
     'v', false, 'plpgsql', true,
-    'p_org uuid, p_drill uuid, p_expected_updated_at timestamp with time zone, p_payload jsonb',
+    'p_org uuid, p_drill uuid DEFAULT NULL::uuid, p_expected_updated_at timestamp with time zone DEFAULT NULL::timestamp with time zone, p_payload jsonb DEFAULT NULL::jsonb',
     'TABLE(id uuid, updated_at timestamp with time zone)'
   )$$,
-  'save_drill es plpgsql security invoker con search_path vacío, con la firma del contrato'
+  'save_drill es plpgsql security invoker con search_path vacío, con la firma del contrato y los tres últimos parámetros a null por defecto'
 );
 
 select results_eq(
@@ -1116,21 +1221,22 @@ select results_eq(
 );
 
 select results_eq(
-  $$select (t.tgtype & 23) = 23, t.tgenabled::text collate "default"
+  $$select (t.tgtype & 23) = 21, t.tgenabled::text collate "default"
     from pg_trigger as t
     where t.tgrelid = 'public.drills'::regclass and t.tgname = 'drills_check_diagram'$$,
   $$values (true, 'O')$$,
-  'drills_check_diagram es un trigger por fila, antes de insert o update, y está activo'
+  'drills_check_diagram es un trigger por fila, después de insert o update (tras RLS), y está activo'
 );
 
 -- ── Defensa en profundidad: la política de update ────────────────────────────────────
--- El privilegio por columnas rechaza antes que RLS, así que los 42501 de arriba no dicen cuál
--- de las dos capas actuó. Para ver que la política de `update` sigue sosteniendo por sí sola
--- lo que ya sostenía (no ceder el borrador a otro autor ni sacarlo a un club donde no se es
--- miembro), se concede el privilegio de esas dos columnas dentro de esta transacción. No
--- cubre a quien es miembro de los dos clubes, como multi: ese caso es justo el que cierra el
--- privilegio por columnas. Se usa un borrador sin diagrama: con diagrama, el trigger rechazaría
--- antes el cambio de club.
+-- El privilegio por columnas rechaza antes que RLS, y los dos errores comparten código (42501):
+-- los 42501 de arriba no dicen cuál de las dos capas actuó. Para ver que la política de
+-- `update` sigue sosteniendo por sí sola lo que ya sostenía (no ceder el borrador a otro autor
+-- ni sacar un ejercicio a un club donde no se es miembro, ni siendo admin), se concede el
+-- privilegio de esas dos columnas dentro de esta transacción y se exige el mensaje de RLS: con
+-- el privilegio quitado, el mensaje sería «permission denied for table drills» y estas
+-- aserciones fallarían. No cubre a quien es miembro de los dos clubes, como multi: ese caso es
+-- justo el que cierra el privilegio por columnas.
 grant update (organization_id, created_by) on table public.drills to authenticated;
 
 select tests.authenticate_as(current_setting('fx.c1')::uuid);
@@ -1138,15 +1244,24 @@ select tests.authenticate_as(current_setting('fx.c1')::uuid);
 select throws_ok(
   $$update public.drills set organization_id = current_setting('fx.club_b')::uuid
     where id = current_setting('fx.d_bare')::uuid$$,
-  '42501', null,
-  'sin el privilegio por columnas, la política impide que c1 saque su borrador a B'
+  '42501', 'new row violates row-level security policy for table "drills"',
+  'la política impide que c1 saque su borrador a B'
 );
 
 select throws_ok(
   $$update public.drills set created_by = current_setting('fx.c2')::uuid
     where id = current_setting('fx.d_bare')::uuid$$,
-  '42501', null,
-  'sin el privilegio por columnas, la política impide que c1 ceda su borrador a otro autor'
+  '42501', 'new row violates row-level security policy for table "drills"',
+  'la política impide que c1 ceda su borrador a otro autor'
+);
+
+select tests.authenticate_as(current_setting('fx.admin_a')::uuid);
+
+select throws_ok(
+  $$update public.drills set organization_id = current_setting('fx.club_b')::uuid
+    where id = current_setting('fx.d_pub')::uuid$$,
+  '42501', 'new row violates row-level security policy for table "drills"',
+  'la política impide que adminA pase un ejercicio de A a B, donde no es miembro'
 );
 
 select * from finish();

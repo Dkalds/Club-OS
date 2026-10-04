@@ -12,13 +12,22 @@ import type { TablesInsert } from "@/lib/database.types";
 // del seed son los que Gestión habría generado para ese título, con su tope de 60 caracteres.
 import { slugify } from "@/modules/methodology/slug";
 import { type SeedSchedule, type SlotIso, seedSchedule, slotOnSameDay } from "./dates";
+import {
+  ARCANGEL_DRILLS,
+  buildDrillRows,
+  DEMO_DRILLS,
+  type DrillRows,
+  drillIdsByTitle,
+  type SeedDrill,
+  type SeedDrillRow,
+} from "./drills";
 import { seedId } from "./ids";
 
 export { seedId };
 
 // ── Tipos de salida ──────────────────────────────────────────────────────────────────
 
-type WithId<T extends { id?: string }> = Omit<T, "id"> & { id: string };
+export type WithId<T extends { id?: string }> = Omit<T, "id"> & { id: string };
 
 // La membresía se describe por email: el `user_id` solo existe cuando `run.ts` ha creado o
 // encontrado el usuario de Auth.
@@ -49,6 +58,14 @@ export type SeedData = {
   game_principles: WithId<TablesInsert<"game_principles">>[];
   principle_points: WithId<TablesInsert<"principle_points">>[];
   standards: WithId<TablesInsert<"standards">>[];
+  // La biblioteca. El autor de un ejercicio es un email, como el de las membresías: el
+  // `created_by` solo existe cuando `run.ts` ha creado o encontrado el usuario de Auth.
+  drills: SeedDrillRow[];
+  drill_coaching_points: DrillRows["drill_coaching_points"];
+  drill_variants: DrillRows["drill_variants"];
+  drill_focus_areas: DrillRows["drill_focus_areas"];
+  drill_principles: DrillRows["drill_principles"];
+  drill_standards: DrillRows["drill_standards"];
 };
 
 // ── Definiciones ─────────────────────────────────────────────────────────────────────
@@ -134,6 +151,7 @@ export type ClubDef = {
   categories: { key: string; name: string; ageBand: string; sort: number }[];
   teams: TeamDef[];
   methodology: MethodologyDef;
+  drills: SeedDrill[];
 };
 
 const SEASON = { key: "2026-27", name: "2026/27", startsOn: "2026-09-01", endsOn: "2027-06-30" };
@@ -481,6 +499,7 @@ export const ARCANGEL: ClubDef = {
   ],
   teams: [ALEVIN_A, BENJAMIN_A],
   methodology: ARCANGEL_METHODOLOGY,
+  drills: ARCANGEL_DRILLS,
 };
 
 export const CLUB_DEMO: ClubDef = {
@@ -504,6 +523,7 @@ export const CLUB_DEMO: ClubDef = {
   categories: [{ key: "infantil", name: "Infantil", ageBand: "U14", sort: 10 }],
   teams: [INFANTIL_A],
   methodology: CLUB_DEMO_METHODOLOGY,
+  drills: DEMO_DRILLS,
 };
 
 const CLUBS: ClubDef[] = [ARCANGEL, CLUB_DEMO];
@@ -535,6 +555,12 @@ function emptySeedData(): SeedData {
     game_principles: [],
     principle_points: [],
     standards: [],
+    drills: [],
+    drill_coaching_points: [],
+    drill_variants: [],
+    drill_focus_areas: [],
+    drill_principles: [],
+    drill_standards: [],
   };
 }
 
@@ -617,11 +643,35 @@ function addMethodology(
   });
 }
 
+// La biblioteca del club. Focos, principios y Standards a los que enlaza sus ejercicios se
+// buscan entre las filas que el club ya tiene en `data`, así que va después de la
+// metodología. Un enlace que no existe lanza (ver `buildDrillRows`).
+function addDrills(data: SeedData, club: ClubDef, organizationId: string): void {
+  const ofClub = <T extends { organization_id: string }>(rows: T[]) =>
+    rows.filter((row) => row.organization_id === organizationId);
+  const rows = buildDrillRows(club.drills, {
+    orgSlug: club.slug,
+    organizationId,
+    focusAreas: ofClub(data.focus_areas),
+    principles: ofClub(data.game_principles),
+    standards: ofClub(data.standards),
+  });
+  data.drills.push(...rows.drills);
+  data.drill_coaching_points.push(...rows.drill_coaching_points);
+  data.drill_variants.push(...rows.drill_variants);
+  data.drill_focus_areas.push(...rows.drill_focus_areas);
+  data.drill_principles.push(...rows.drill_principles);
+  data.drill_standards.push(...rows.drill_standards);
+}
+
 function addClub(data: SeedData, club: ClubDef, now: Date): void {
   const id = (key: string) => seedId(club.slug, key);
   const organizationId = id("organization");
   const schedule = seedSchedule(now, club.timezone);
   const seasonId = id(`season:${SEASON.key}`);
+  // Un ítem cuyo título es exactamente el de un ejercicio del club lleva su `drill_id`. El
+  // título del ítem (`title_override`) no se toca: el ejercicio se suma, no lo sustituye.
+  const drillIdByTitle = drillIdsByTitle(club.slug, club.drills);
 
   data.organizations.push({
     id: organizationId,
@@ -760,7 +810,7 @@ function addClub(data: SeedData, club: ClubDef, now: Date): void {
           plan_id: planId,
           sort,
           phase: item.phase,
-          drill_id: null,
+          drill_id: drillIdByTitle.get(item.title) ?? null,
           title_override: item.title,
           minutes: item.minutes,
           notes: null,
@@ -792,6 +842,7 @@ function addClub(data: SeedData, club: ClubDef, now: Date): void {
   }
 
   addMethodology(data, organizationId, id, club.methodology);
+  addDrills(data, club, organizationId);
 }
 
 /** Todas las filas del seed para el instante `now`. Pura y determinista. */

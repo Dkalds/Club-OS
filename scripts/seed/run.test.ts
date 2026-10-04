@@ -1,8 +1,15 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { Database } from "@/lib/database.types";
 import { buildSeedData } from "./data";
 import { runSeed } from "./run";
+
+// `buildSeedData` sigue siendo el de verdad; solo se envuelve en un espía para que un test
+// pueda darle a `runSeed` un seed con un autor que no existe.
+vi.mock("./data", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./data")>();
+  return { ...actual, buildSeedData: vi.fn(actual.buildSeedData) };
+});
 
 // Un supabase-js falso que solo registra llamadas. No sustituye al test de integración
 // (seed.int.test.ts, contra Supabase local): comprueba el orden, los argumentos y el manejo
@@ -150,12 +157,20 @@ const TABLES_IN_ORDER = [
   "events",
   "games",
   "practice_plans",
+  // Antes que los ítems: `practice_items (organization_id, drill_id)` apunta a `drills`.
+  "drills",
   "practice_items",
   "way_sections",
   "club_values",
   "game_principles",
   "principle_points",
   "standards",
+  // Al final: enlazan focos, principios y Standards, que tienen que existir ya.
+  "drill_coaching_points",
+  "drill_variants",
+  "drill_focus_areas",
+  "drill_principles",
+  "drill_standards",
 ];
 
 describe("runSeed", () => {
@@ -262,6 +277,7 @@ describe("runSeed", () => {
       events: "id",
       games: "event_id",
       practice_plans: "id",
+      drills: "id",
       // (plan_id, sort) es único pero diferible: no puede ser el árbitro de un ON CONFLICT.
       practice_items: "id",
       way_sections: "id",
@@ -269,6 +285,12 @@ describe("runSeed", () => {
       game_principles: "id",
       principle_points: "id",
       standards: "id",
+      // (drill_id, sort) es único: el árbitro es el id, y los hijos viejos se borran antes.
+      drill_coaching_points: "id",
+      drill_variants: "id",
+      drill_focus_areas: "drill_id,focus_area_id",
+      drill_principles: "drill_id,principle_id",
+      drill_standards: "drill_id,standard_id",
     });
   });
 
@@ -287,6 +309,52 @@ describe("runSeed", () => {
     expect(sent("game_principles")).toEqual(data.game_principles);
     expect(sent("principle_points")).toEqual(data.principle_points);
     expect(sent("standards")).toEqual(data.standards);
+    expect(sent("drill_coaching_points")).toEqual(data.drill_coaching_points);
+    expect(sent("drill_variants")).toEqual(data.drill_variants);
+    expect(sent("drill_focus_areas")).toEqual(data.drill_focus_areas);
+    expect(sent("drill_principles")).toEqual(data.drill_principles);
+    expect(sent("drill_standards")).toEqual(data.drill_standards);
+  });
+
+  it("drills va con el created_by del autor y sin la clave author_email", async () => {
+    const fake = fakeClient({
+      existingUsers: [{ id: "33333333-3333-4333-8333-333333333333", email: "Irene@Arcangel.test" }],
+    });
+    await runSeed(NOW, fake.client);
+    const rows = fake.calls.find((c) => c.table === "drills" && c.op === "upsert")?.rows ?? [];
+    expect(rows).toHaveLength(data.drills.length);
+    const userIdOf = (email: string) =>
+      fake.users.find((user) => user.email.toLowerCase() === email.toLowerCase())?.id;
+    for (const row of rows) {
+      expect(Object.keys(row)).not.toContain("author_email");
+      expect(row.created_by).toEqual(expect.any(String));
+    }
+    for (const { author_email, ...columns } of data.drills) {
+      expect(rows.find((r) => r.id === columns.id)).toEqual({
+        ...columns,
+        created_by: userIdOf(author_email),
+      });
+    }
+    // El borrador de Irene es de la cuenta que ya existía.
+    const draft = data.drills.find((d) => d.status === "draft");
+    expect(rows.find((r) => r.id === draft?.id)?.created_by).toBe(
+      "33333333-3333-4333-8333-333333333333",
+    );
+  });
+
+  it("un autor sin cuenta lanza el error con su email y no escribe nada", async () => {
+    const fake = fakeClient();
+    const seed = buildSeedData(NOW);
+    vi.mocked(buildSeedData).mockReturnValueOnce({
+      ...seed,
+      drills: seed.drills.map((drill, index) =>
+        index === 0 ? { ...drill, author_email: "nadie@arcangel.test" } : drill,
+      ),
+    });
+    await expect(runSeed(NOW, fake.client)).rejects.toThrow(
+      "Seed: no hay usuario de Auth para nadie@arcangel.test",
+    );
+    expect(fake.calls).toHaveLength(0);
   });
 
   // Lo creado a mano en Gestión (secciones y Standards que no son del seed) no se borra, pero el
@@ -467,11 +535,61 @@ describe("runSeed", () => {
     expect(deletes.every(({ call }) => call.filters.length >= 1)).toBe(true);
   });
 
+  // Guardar un ejercicio en la app reemplaza sus puntos y variantes por otros con ids nuevos
+  // (`unique (drill_id, sort)`) y rehace sus vínculos: un reseed tiene que dejarlos como los
+  // define el seed, así que borra los que sobran ANTES de escribir. La columna es la que
+  // identifica a cada fila de la tabla dentro de su ejercicio.
+  const DRILL_CHILDREN = [
+    ["drill_coaching_points", "id"],
+    ["drill_variants", "id"],
+    ["drill_focus_areas", "focus_area_id"],
+    ["drill_principles", "principle_id"],
+    ["drill_standards", "standard_id"],
+  ] as const;
+
+  it.each(DRILL_CHILDREN)(
+    "borra, antes de reescribir %s, lo que sobra de cada ejercicio del seed",
+    async (table, column) => {
+      const fake = fakeClient();
+      await runSeed(NOW, fake.client);
+      const upsert = fake.calls.findIndex((c) => c.table === table && c.op === "upsert");
+      const deletes = fake.calls
+        .map((call, index) => ({ call, index }))
+        .filter(({ call }) => call.table === table && call.op === "delete");
+      expect(deletes).toHaveLength(data.drills.length);
+      const rows: Record<string, unknown>[] = data[table];
+      for (const { call, index } of deletes) {
+        expect(index).toBeLessThan(upsert);
+        const drillFilter = call.filters.find(([op, col]) => op === "eq" && col === "drill_id");
+        const drill = data.drills.find((d) => d.id === drillFilter?.[2]);
+        expect(drill, "el borrado filtra por un ejercicio del seed").toBeDefined();
+        const keep = call.filters.find(([op, col]) => op === "not.in" && col === column);
+        const ids = rows.filter((r) => r.drill_id === drill?.id).map((r) => String(r[column]));
+        if (ids.length > 0) {
+          expect(keep?.[2]).toBe(`(${ids.join(",")})`);
+        } else {
+          // Un ejercicio sin filas de esta tabla en el seed pierde todas las que tenga.
+          expect(keep).toBeUndefined();
+        }
+      }
+      // Los borrados solo tocan ejercicios del seed: nunca hay un delete sin filtro.
+      expect(deletes.every(({ call }) => call.filters.length >= 1)).toBe(true);
+    },
+  );
+
   it("no borra ninguna otra tabla", async () => {
     const fake = fakeClient();
     await runSeed(NOW, fake.client);
     const deleted = new Set(fake.calls.filter((c) => c.op === "delete").map((c) => c.table));
-    expect([...deleted]).toEqual(["practice_items", "principle_points"]);
+    expect([...deleted]).toEqual([
+      "practice_items",
+      "principle_points",
+      "drill_coaching_points",
+      "drill_variants",
+      "drill_focus_areas",
+      "drill_principles",
+      "drill_standards",
+    ]);
   });
 
   it.each(TABLES_IN_ORDER)("un error al escribir %s se lanza con el nombre de la tabla", async (table) => {
@@ -492,6 +610,12 @@ describe("runSeed", () => {
     const fake = fakeClient({ failOnTable: "principle_points", failOnOp: "delete" });
     await expect(runSeed(NOW, fake.client)).rejects.toThrow(/principle_points.*fallo simulado/);
     expect(fake.calls.some((c) => c.table === "principle_points" && c.op === "upsert")).toBe(false);
+  });
+
+  it.each(DRILL_CHILDREN)("un error al borrar %s sobrantes también se lanza con la tabla", async (table) => {
+    const fake = fakeClient({ failOnTable: table, failOnOp: "delete" });
+    await expect(runSeed(NOW, fake.client)).rejects.toThrow(new RegExp(`${table}.*fallo simulado`));
+    expect(fake.calls.some((c) => c.table === table && c.op === "upsert")).toBe(false);
   });
 
   it("si falla la lista de usuarios, no escribe nada", async () => {

@@ -17,13 +17,26 @@
 -- ya hacen las políticas de Storage: la ficha es del club del ejercicio y su ruta empieza por
 -- `org/<club>/drills/<ejercicio>/`.
 --
--- `security definer` porque tiene que leer la ficha aunque quien guarda no la vea (justo el
--- caso que se rechaza). Si no existe ninguna ficha con ese id, no dice nada y la clave foránea
--- rechaza el id con su propio 23503. La cláusula del club es redundante con la de la ruta
--- mientras el CHECK de `media_assets` ate la ruta al club de la ficha; se mantiene para que la
--- regla no dependa de ese CHECK (el test lo comprueba quitándolo). Se evalúa en cada insert o
--- update: es una lectura por clave primaria, y la regla vale también para quien escribe con la
--- clave de servicio.
+-- Es un trigger `after`, no `before`, y la búsqueda se acota al club de la fila. Las dos cosas
+-- por lo mismo: la función es `security definer` (tiene que leer la ficha aunque quien guarda
+-- no la vea, justo el caso que se rechaza) y, si respondiera antes que RLS o por fichas de otros
+-- clubes, cualquiera con sesión sabría qué ids de ficha existen y en qué carpeta están, con un
+-- `insert` que RLS acabaría rechazando. Un trigger `before` corre antes de la comprobación
+-- `with check` de la política, y un `after` corre después: quien no puede escribir la fila
+-- recibe el 42501 de RLS, sea cual sea el id de ficha. Y una ficha de otro club no se ve: se
+-- comporta igual que una que no existe, y la responde la clave foránea compuesta con su
+-- 23503. Lo único que contesta el trigger, entonces, es lo que ve alguien que sí puede
+-- escribir la fila: una ficha de su club que no es de la carpeta del ejercicio, 22023.
+--
+-- No hace falta mirar el club de la ficha aparte: la búsqueda ya está acotada a él, y la ruta
+-- de una ficha empieza por su club (CHECK de `media_assets`). La clave foránea
+-- (`RI_ConstraintTrigger_*`) se dispara antes que este trigger por el orden alfabético de los
+-- nombres, pero el resultado no depende de ese orden: sin el acotado, una ficha de otro club
+-- sería un 22023 si el trigger llegara primero.
+--
+-- Se evalúa en cada insert o update: es una lectura por clave primaria, y la regla vale
+-- también para quien escribe con la clave de servicio. Devuelve `null` porque el valor de un
+-- trigger `after` se ignora; si alguien lo vuelve `before`, ese `null` descartaría la fila.
 create function private.check_drill_diagram()
 returns trigger
 language plpgsql
@@ -31,31 +44,32 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_media_org uuid;
   v_media_path text;
 begin
   if new.diagram_media_id is null then
-    return new;
+    return null;
   end if;
 
-  select ma.organization_id, ma.path
-  into v_media_org, v_media_path
+  select ma.path
+  into v_media_path
   from public.media_assets as ma
-  where ma.id = new.diagram_media_id;
+  where ma.id = new.diagram_media_id
+    and ma.organization_id = new.organization_id;
 
+  -- Sin ficha en el club del ejercicio no hay nada que comprobar: la clave foránea compuesta
+  -- rechaza el id con su 23503, exista o no en otro club.
   if not found then
-    return new;
+    return null;
   end if;
 
-  if v_media_org <> new.organization_id
-     or not starts_with(
-       v_media_path,
-       'org/' || new.organization_id::text || '/drills/' || new.id::text || '/'
-     ) then
+  if not starts_with(
+    v_media_path,
+    'org/' || new.organization_id::text || '/drills/' || new.id::text || '/'
+  ) then
     raise exception 'INVALID' using errcode = '22023';
   end if;
 
-  return new;
+  return null;
 end;
 $$;
 
@@ -63,7 +77,7 @@ $$;
 revoke all on function private.check_drill_diagram() from public, anon, authenticated;
 
 create trigger drills_check_diagram
-  before insert or update on public.drills
+  after insert or update on public.drills
   for each row execute function private.check_drill_diagram();
 
 -- ── Columnas que un cliente no reescribe ─────────────────────────────────────────────
@@ -84,7 +98,10 @@ grant update (
 
 -- ── save_drill ───────────────────────────────────────────────────────────────────────
 -- Crea (`p_drill` null) o guarda un ejercicio y devuelve su `id` y su `updated_at` nuevo, que
--- es la copia que tendrá quien siga editando.
+-- es la copia que tendrá quien siga editando. Todos los parámetros menos `p_org` tienen
+-- `default null`, sin cambiar su orden ni su tipo: así los tipos generados para el cliente los
+-- marcan opcionales y crear es llamarla con solo `p_org` y `p_payload`. Sin `p_payload` es una
+-- entrada inválida, como un payload nulo.
 --
 -- Es `security invoker`: se ejecuta con el usuario de la sesión y RLS decide, sin que la
 -- función repita permisos. Crear exige ser admin o entrenador del club (la política de alta);
@@ -121,9 +138,9 @@ grant update (
 -- diagrama vive en la carpeta del ejercicio, que no existe hasta que existe su id.
 create function public.save_drill(
   p_org uuid,
-  p_drill uuid,
-  p_expected_updated_at timestamptz,
-  p_payload jsonb
+  p_drill uuid default null,
+  p_expected_updated_at timestamptz default null,
+  p_payload jsonb default null
 )
 returns table (id uuid, updated_at timestamptz)
 language plpgsql

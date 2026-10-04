@@ -20,7 +20,7 @@
 -- chocan con los de `pnpm seed` ni con los de los otros tests.
 begin;
 
-select plan(153);
+select plan(152);
 
 -- ── Ayudas (solo existen en esta transacción) ────────────────────────────────────────
 -- Una ruta válida de la carpeta de un ejercicio, con un nombre de fichero nuevo. Los
@@ -1328,26 +1328,12 @@ select fk_ok(
   'drills_diagram_fk es compuesta: (organization_id, diagram_media_id)'
 );
 
--- Un medio de otro club lo rechaza antes el trigger del diagrama (`drill_save.test.sql` prueba
--- sus reglas); para ver que la clave foránea compuesta sigue ahí como segunda defensa, se
--- apaga el trigger mientras dura la comprobación.
-select throws_ok(
-  $$update drills set diagram_media_id = current_setting('fx.m_b')::uuid
-    where id = current_setting('fx.d_pub')::uuid$$,
-  '22023', 'INVALID',
-  'el trigger del diagrama rechaza que un ejercicio de A use de diagrama un medio de B'
-);
-
-alter table public.drills disable trigger drills_check_diagram;
-
 select throws_ok(
   $$update drills set diagram_media_id = current_setting('fx.m_b')::uuid
     where id = current_setting('fx.d_pub')::uuid$$,
   '23503', null,
   'FK compuesta: un ejercicio de A no usa de diagrama un medio de B'
 );
-
-alter table public.drills enable trigger drills_check_diagram;
 
 -- Quitar un medio no puede dejar el ejercicio sin club: solo se vacía el diagrama.
 select lives_ok(
