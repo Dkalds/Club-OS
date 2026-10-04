@@ -152,4 +152,14 @@ describe("AccountMenu", () => {
     expect(screen.getByRole("link", { name: "Gestión" }).className).toContain("min-h-(--target-min)");
     expect(screen.getByRole("button", { name: "Salir" }).className).toContain("min-h-(--target-min)");
   });
+
+  it("el ancho mínimo del panel sale de un token, no de la escala de Tailwind", () => {
+    render(<AccountMenu name="Ana Ruiz" adminHref={ADMIN_HREF} />);
+    openMenu();
+
+    const panel = document.getElementById(toggle().getAttribute("aria-controls") ?? "");
+    // Cuatro áreas táctiles de ancho: lo mismo que medía, pero atado a `target-min`.
+    expect(panel?.className).toContain("min-w-[calc(var(--target-min)*4)]");
+    expect(panel?.className).not.toMatch(/\bmin-w-\d/);
+  });
 });
