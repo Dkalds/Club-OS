@@ -83,12 +83,15 @@ type TextFieldProps = {
 } & (
   | { type?: "text"; maxLength: number; min?: never; max?: never }
   | { type: "number"; maxLength?: number; min?: number; max?: number }
+  | { type: "date" | "time"; maxLength?: never; min?: never; max?: never }
 );
 
 /**
  * Un campo de una línea. De texto exige `maxLength`: todo texto que se guarda tiene tope. De
  * tipo número no lo exige (el navegador ignora `maxlength` en un número) y admite `min` y
- * `max`, que son lo que ese campo puede decir de su rango.
+ * `max`, que son lo que ese campo puede decir de su rango. De tipo fecha y hora tampoco: el
+ * navegador abre su selector nativo y entrega `YYYY-MM-DD` y `HH:mm`, sin zona (el reloj es el
+ * del club, y lo aplica quien lo recibe).
  */
 export function TextField({
   label,

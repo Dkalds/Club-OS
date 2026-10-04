@@ -1,7 +1,7 @@
 import type { Locator, Page } from "@playwright/test";
 import { ARCANGEL, CLUB_DEMO, seedId } from "../scripts/seed/data";
 import { seedSchedule } from "../scripts/seed/dates";
-import { dayChip, localTime } from "../src/lib/time";
+import { dayChip, formatEventSlot, localTime } from "../src/lib/time";
 import { seedNow } from "./helpers/seed";
 import { openAs } from "./helpers/sessions";
 import { expect, test } from "./helpers/test";
@@ -10,9 +10,10 @@ import { expect, test } from "./helpers/test";
 // tests (Arcángel y Club Demo), deja el instante de esa siembra en `seedNow()` y guarda una
 // sesión por usuario: aquí nadie pasa por el login, cada test abre la app con `openAs`.
 //
-// Este archivo solo LEE: no crea ni cancela sesiones, así que sus tests corren en paralelo con
-// el resto de `mobile`. No abre ninguna sesión (`/train/{id}`) ni `/train/new`: esas pantallas
-// son de la tarea siguiente y aquí solo se comprueba a dónde llevan los enlaces.
+// Este archivo solo LEE: no crea, duplica ni cancela sesiones, así que sus tests corren en
+// paralelo con el resto de `mobile`. Abre el detalle de una sesión (`/train/{id}`), que solo se
+// mira; `/train/new` y lo que escribe (crear, duplicar, cancelar) está en
+// `practice-session.spec.ts`, del proyecto `admin`.
 //
 // Qué hay en la base de datos lo decide el instante de la SIEMBRA (`seedSchedule(seedNow())`),
 // y qué enseña la pantalla de ello, el «ahora» del servidor al pintarla. La sesión de
@@ -289,4 +290,91 @@ test("cabe en el móvil, con áreas táctiles de 44 px y sin errores de consola"
   await expectTouchTargets(rows(page));
 
   expect(browserErrors.seen).toEqual([]);
+});
+
+/** La sesión del seed con ese título en ese equipo, o un error claro si el seed ya no la tiene. */
+function sessionOf(teamKey: string, title: string) {
+  const session = teamOf(teamKey).sessions.find((candidate) => candidate.title === title);
+  if (!session) throw new Error(`El seed ya no tiene la sesión «${title}» de ${teamKey}.`);
+  return session;
+}
+
+test.describe("el detalle de una sesión", () => {
+  test("Álex abre su próximo entrenamiento desde Inicio y ve qué se trabaja, por fases", async ({ page }) => {
+    const [first] = seedSchedule(seedNow(), TZ).upcoming;
+    const { items } = sessionOf("alevin-a", "Transición + rebote defensivo");
+    const eventId = seedId(ARCANGEL.slug, "event:alevin-a:upcoming-0");
+
+    await openAs(page, ALEX);
+    await expect(page).toHaveURL(new RegExp(`${CLUB}$`));
+    await page
+      .getByRole("article")
+      .filter({ hasText: "Próximo entrenamiento" })
+      .getByRole("link", { name: "Abrir entrenamiento" })
+      .click();
+    await expect(page).toHaveURL(new RegExp(`${CLUB}/train/${eventId}$`));
+
+    // El título es el único `<h1>`; debajo, la franja en la zona del club y sus metadatos.
+    await expect(title(page)).toHaveCount(1);
+    await expect(title(page)).toHaveText("Transición + rebote defensivo");
+    const main = page.getByRole("main");
+    await expect(main).toContainText(formatEventSlot(first.startsAt, first.endsAt, TZ));
+    await expect(main).toContainText(ALEVIN_META);
+    await expect(main.getByRole("list", { name: "Objetivos" }).getByRole("listitem")).toHaveText([
+      "Transición",
+      "Rebote",
+    ]);
+    await expect(main.getByRole("link", { name: "Entrenar", exact: true })).toHaveAttribute("href", `${CLUB}/train`);
+
+    // Los ejercicios, en bloques de fase, numerados de 01 a 05 a lo largo de toda la sesión.
+    for (const { phase } of items) {
+      await expect(main.getByRole("heading", { level: 2, name: phase, exact: true }).first()).toBeVisible();
+    }
+    // Las filas son las listas de ejercicios (`role="list"` explícito de `Card as="ul"`), no la de
+    // objetivos de la cabecera ni la de Standards.
+    const rows = main.locator('ul[role="list"] > li');
+    await expect(rows).toHaveCount(items.length);
+    for (const [index, item] of items.entries()) {
+      const number = String(index + 1).padStart(2, "0");
+      await expect(rows.nth(index)).toContainText(number);
+      await expect(rows.nth(index)).toContainText(item.title);
+      await expect(rows.nth(index)).toContainText(`${item.minutes}'`);
+    }
+    await expect(main.getByText("Total", { exact: true }).locator("..")).toContainText("75'");
+
+    // Quien entrena puede editarla (la pantalla del constructor es de la tarea siguiente: aquí no se abre).
+    await expect(page.getByRole("link", { name: "Editar sesión" })).toHaveAttribute("href", `${CLUB}/train/${eventId}/edit`);
+    await expect(page.getByRole("button", { name: "Duplicar" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Cancelar sesión" })).toBeVisible();
+  });
+
+  test("una sesión hecha o cancelada no se edita ni se cancela: solo se duplica", async ({ page }) => {
+    await openAs(page, ALEX);
+
+    for (const [key, sessionTitle, state] of [
+      ["past-0", "Tiro tras bote", "Hecho"],
+      ["cancelled-0", "Tiro libre y finalizaciones", "Cancelada"],
+    ] as const) {
+      await page.goto(`${CLUB}/train/${seedId(ARCANGEL.slug, `event:alevin-a:${key}`)}`);
+
+      await expect(title(page)).toHaveText(sessionTitle);
+      await expect(page.getByRole("main")).toContainText(state);
+      await expect(page.getByRole("link", { name: "Editar sesión" })).toHaveCount(0);
+      await expect(page.getByRole("button", { name: "Cancelar sesión" })).toHaveCount(0);
+      await expect(page.getByRole("button", { name: "Duplicar" })).toBeVisible();
+    }
+  });
+
+  test("cabe en el móvil, con áreas táctiles de 44 px y sin errores de consola", async ({ page, browserErrors }) => {
+    await openAs(page, ALEX);
+    await page.goto(`${CLUB}/train/${seedId(ARCANGEL.slug, "event:alevin-a:upcoming-0")}`);
+    await expect(title(page)).toHaveText("Transición + rebote defensivo");
+    await expect(page.getByRole("button", { name: "Duplicar" })).toBeVisible();
+
+    await expectFitsMobile(page);
+    await expectTouchTargets(page.getByRole("main").locator("a, button"));
+    await page.screenshot({ path: "test-results/train-detail-375.png", fullPage: true });
+
+    expect(browserErrors.seen).toEqual([]);
+  });
 });

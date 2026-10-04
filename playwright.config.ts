@@ -18,7 +18,7 @@ const target = readE2eTarget(process.env);
 // de empezar, lo que una ejecución abortada dejara en la metodología (`restoreSeed`). Sin eso,
 // una ejecución de `admin` matada a medias haría fallar a `mobile`, y `admin` (que no corre si
 // `mobile` falla) no volvería a limpiar nunca.
-const ADMIN_SPECS = [/admin\.spec\.ts/];
+const ADMIN_SPECS = [/admin\.spec\.ts/, /practice-session\.spec\.ts/, /practice-builder\.spec\.ts/];
 
 // La pantalla de referencia del móvil.
 const MOBILE_VIEWPORT = { width: 375, height: 812 };
