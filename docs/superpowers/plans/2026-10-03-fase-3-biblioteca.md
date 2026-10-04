@@ -471,10 +471,10 @@ Reglas: solo en secciones `principles`. Bloque «Ejercicios relacionados» con h
 **Files:**
 - Modify: lo que salga de la revisión (sin funcionalidad nueva)
 
-- [ ] **Step 1:** `pnpm supabase db reset && pnpm seed && pnpm db:types`; `git diff --exit-code src/lib/database.types.ts` limpio.
-- [ ] **Step 2:** `pnpm lint && pnpm typecheck && pnpm check:guards && pnpm test && pnpm test:db && pnpm test:int && pnpm test:e2e` en verde; `pnpm supabase db lint` sin errores en las funciones nuevas.
-- [ ] **Step 3:** Revisión en móvil real con Álex (búsqueda, filtros, borrador con foto como diagrama), Irene, Raúl (publicar, archivar), Nora y Marta: marca del club, hojas inferiores, áreas táctiles, consola limpia.
-- [ ] **Step 4: Commit** `git commit -m "chore: cierre de la Fase 3"` y abrir PR de la Fase 3.
+- [x] **Step 1:** `pnpm supabase db reset && pnpm seed && pnpm db:types`; `git diff --exit-code src/lib/database.types.ts` limpio.
+- [x] **Step 2:** `pnpm lint && pnpm typecheck && pnpm check:guards && pnpm test && pnpm test:db && pnpm test:int && pnpm test:e2e` en verde; `pnpm supabase db lint` sin errores en las funciones nuevas.
+- [ ] **Step 3:** Revisión en móvil real con Álex (búsqueda, filtros, borrador con foto como diagrama), Irene, Raúl (publicar, archivar), Nora y Marta: marca del club, hojas inferiores, áreas táctiles, consola limpia. *Hecho el repaso con capturas a 375×812 de Álex, Irene, Raúl y Marta (sin defectos claros; ver `docs/superpowers/backlog.md`); pendiente la revisión en un móvil real con los usuarios del seed, incluida Nora, que es del propietario.*
+- [ ] **Step 4: Commit** `git commit -m "chore: cierre de la Fase 3"` (hecho) y abrir PR de la Fase 3 (pendiente: lo decide el propietario).
 
 ---
 
