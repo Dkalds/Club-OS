@@ -686,6 +686,35 @@ isOneToOne: false
 "save_game_principle":
 { Args: { "p_id": string,"p_points": (string)[],"p_summary": string,"p_title": string }; Returns: undefined
                            },
+"search_drills":
+{ Args: { "p_age"?: number,"p_focus"?: string,"p_minutes"?: number,"p_org": string,"p_players"?: number,"p_principle"?: string,"p_q"?: string }; Returns: {
+              "created_at": string,
+"created_by": string | null,
+"diagram_media_id": string | null,
+"equipment": (string)[],
+"id": string,
+"max_age": number | null,
+"max_minutes": number,
+"max_players": number,
+"min_age": number,
+"min_minutes": number,
+"min_players": number,
+"objective": string | null,
+"organization_id": string,
+"search": unknown,
+"setup_md": string | null,
+"status": Database["public"]['Enums']["drill_status"],
+"summary": string | null,
+"title": string,
+"updated_at": string,
+"video_url": string | null
+            }[]
+                          SetofOptions: {
+        from: "*"
+        to: "drills"
+        isOneToOne: false
+        isSetofReturn: true
+      } },
 "update_way_section":
 { Args: { "p_body_md": string,"p_content_kind": string,"p_expected_updated_at": string,"p_id": string,"p_summary": string,"p_title": string }; Returns: string
                            }
