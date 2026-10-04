@@ -41,15 +41,24 @@ function firstValue(params: SearchParams, key: string): string | undefined {
   return Array.isArray(value) ? value[0] : value;
 }
 
+/** Los caracteres de control (`\p{Cc}`): de NUL a US, DEL y la zona C1. */
+const CONTROL_CHARS_RE = /\p{Cc}/gu;
+
 /**
- * La búsqueda de texto: recortada, ausente si queda vacía y limitada a 80 caracteres. El
- * corte cuenta caracteres, no unidades UTF-16: partir un emoji por la mitad dejaría un
- * sustituto suelto con el que `encodeURIComponent` lanza una excepción.
+ * La búsqueda de texto: sin caracteres de control, recortada, ausente si queda vacía y
+ * limitada a 80 caracteres. Cada carácter de control se lee como un espacio: `?q=%00` llega
+ * como un NUL, que una columna `text` de Postgres no puede guardar, y la búsqueda fallaría
+ * con un error de la base de datos en vez de no encontrar nada. El corte cuenta caracteres,
+ * no unidades UTF-16: partir un emoji por la mitad dejaría un sustituto suelto con el que
+ * `encodeURIComponent` lanza una excepción.
  */
 function parseQuery(raw: string | undefined): string | undefined {
   if (raw === undefined) return undefined;
 
-  const text = Array.from(raw.trim()).slice(0, MAX_QUERY_LENGTH).join("").trim();
+  const text = Array.from(raw.replace(CONTROL_CHARS_RE, " ").trim())
+    .slice(0, MAX_QUERY_LENGTH)
+    .join("")
+    .trim();
 
   return text === "" ? undefined : text;
 }

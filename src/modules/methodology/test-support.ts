@@ -8,6 +8,10 @@
 // test ve qué filas salen: una consulta que pierde su filtro de club o de estado deja pasar
 // filas de otro club o borradores, y el test falla.
 //
+// Además de tablas, simula las funciones SQL que se llaman con `rpc()` (`search_drills`): su
+// «tabla» es la clave con el nombre de la función, y no filtra, devuelve las filas tal cual
+// las dejó el test, porque la función ya se prueba en la base de datos (pgTAP).
+//
 // Datos neutros: los tests de `src/` no pueden nombrar a ningún club (pnpm check:guards).
 
 import { clubContext } from "@/modules/tenancy/test-support";
@@ -18,12 +22,18 @@ export type Failure = { name: string; code: string; message: string };
 type Result = { data: Row[] | Row | null; count: number | null; error: Failure | null };
 type Sort = { column: string; ascending: boolean };
 
-/** Lo que pidió una consulta. `embedded` es lo pedido sobre una tabla anidada (`tabla.columna`). */
+/**
+ * Lo que pidió una consulta. `embedded` es lo pedido sobre una tabla anidada (`tabla.columna`).
+ * `args` son los argumentos de un `rpc()` (`table` es el nombre de la función) y `limit` el tope
+ * de filas, si lo hubo.
+ */
 export type Call = {
   table: string;
   eq: Record<string, unknown>;
   order: string[];
   embedded: Record<string, { eq: Record<string, unknown>; order: string[] }>;
+  args?: Record<string, unknown>;
+  limit?: number;
 };
 
 /** Más de una fila donde `maybeSingle` espera una: lo que responde PostgREST. */
@@ -58,14 +68,16 @@ class FakeQuery implements PromiseLike<Result> {
   private readonly embeddedFilters: Record<string, Array<(row: Row) => boolean>> = {};
   private readonly embeddedSorts: Record<string, Sort[]> = {};
   private head = false;
+  private max: number | null = null;
 
   constructor(
     table: string,
     private readonly rows: Row[],
     private readonly failure: Failure | null,
     calls: Call[],
+    args?: Record<string, unknown>,
   ) {
-    this.call = { table, eq: {}, order: [], embedded: {} };
+    this.call = { table, eq: {}, order: [], embedded: {}, ...(args && { args }) };
     calls.push(this.call);
   }
 
@@ -102,6 +114,12 @@ class FakeQuery implements PromiseLike<Result> {
     return this;
   }
 
+  limit(count: number) {
+    this.call.limit = count;
+    this.max = count;
+    return this;
+  }
+
   maybeSingle() {
     const { data, error } = this.run();
     if (error) return Promise.resolve({ data: null, error });
@@ -129,7 +147,10 @@ class FakeQuery implements PromiseLike<Result> {
     if (this.failure) return { data: null, error: this.failure };
 
     const matching = this.rows.filter((row) => this.filters.every((filter) => filter(row)));
-    const data = sortRows(matching, this.sorts).map((row) => this.withEmbedded(row));
+    const sorted = sortRows(matching, this.sorts);
+    const data = (this.max === null ? sorted : sorted.slice(0, this.max)).map((row) =>
+      this.withEmbedded(row),
+    );
     return { data, error: null };
   }
 
@@ -152,13 +173,16 @@ class FakeQuery implements PromiseLike<Result> {
 export type Store = Record<string, Row[]>;
 
 /**
- * Un cliente que lee de `store`. `failing` hace que las lecturas de una tabla devuelvan ese
- * error. `calls` guarda lo que pidió cada consulta, en el orden en que se hicieron.
+ * Un cliente que lee de `store`. `failing` hace que las lecturas de una tabla (o de una función
+ * llamada con `rpc`) devuelvan ese error. `calls` guarda lo que pidió cada consulta, en el orden
+ * en que se hicieron.
  */
 export function fakeSupabase(store: Store, failing: Record<string, Failure> = {}) {
   const calls: Call[] = [];
   const client = {
     from: (table: string) => new FakeQuery(table, store[table] ?? [], failing[table] ?? null, calls),
+    rpc: (name: string, args: Record<string, unknown>) =>
+      new FakeQuery(name, store[name] ?? [], failing[name] ?? null, calls, args),
   };
   return { client, calls };
 }

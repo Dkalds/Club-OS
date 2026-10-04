@@ -1,7 +1,20 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { can } from "@/lib/permissions";
+import type { ClubContext } from "@/modules/tenancy/queries";
 import { clubContext } from "@/modules/tenancy/test-support";
 import { drillPermissions } from "./permissions";
 import type { DrillStatus } from "./types";
+
+// `can` es el de verdad salvo donde un test lo cambia (ver «publicar y archivar siguen al guard»).
+vi.mock("@/lib/permissions", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/permissions")>();
+  return { ...actual, can: vi.fn(actual.can) };
+});
+const { can: realCan } = await vi.importActual<typeof import("@/lib/permissions")>("@/lib/permissions");
+
+afterEach(() => {
+  vi.mocked(can).mockImplementation(realCan);
+});
 
 type Result = ReturnType<typeof drillPermissions>;
 
@@ -60,5 +73,48 @@ describe("drillPermissions", () => {
 
     expect(Object.keys(result).sort()).toEqual(["archive", "edit", "publish"]);
     expect(Object.values(result).every((value) => typeof value === "boolean")).toBe(true);
+  });
+
+  // Los botones y el guard de la acción (`can(ctx, "drill.publish")`) son la misma regla: si
+  // la tabla de `ALLOWED_ROLES` cambia, el botón no se queda con la regla vieja.
+  describe("publicar y archivar siguen al guard de las acciones", () => {
+    /** `drill.publish` pasa a ser solo de `role` (de nadie con `null`); lo demás sigue igual. */
+    function publishOnlyFor(role: ClubContext["membership"]["role"] | null) {
+      vi.mocked(can).mockImplementation((ctx, action) =>
+        action === "drill.publish" ? ctx.membership.role === role : realCan(ctx, action),
+      );
+    }
+
+    it("si `drill.publish` pasa a ser del entrenador, el entrenador ve los botones de su estado", () => {
+      publishOnlyFor("coach");
+
+      const draft = drillPermissions(clubContext("coach"), { status: "draft", createdByMe: false });
+      const published = drillPermissions(clubContext("coach"), { status: "published", createdByMe: false });
+      const archived = drillPermissions(clubContext("coach"), { status: "archived", createdByMe: false });
+
+      expect(draft).toEqual({ edit: false, publish: true, archive: true });
+      expect(published).toEqual({ edit: false, publish: false, archive: true });
+      expect(archived).toEqual({ edit: false, publish: true, archive: false });
+    });
+
+    it("si `drill.publish` deja de ser del admin, el admin edita pero no publica ni archiva", () => {
+      publishOnlyFor(null);
+
+      for (const status of ["draft", "published", "archived"] as const) {
+        expect(drillPermissions(clubContext("admin"), { status, createdByMe: true })).toEqual({
+          edit: true,
+          publish: false,
+          archive: false,
+        });
+      }
+    });
+
+    it("pregunta por `drill.publish`, no por el rol", () => {
+      vi.mocked(can).mockClear();
+
+      drillPermissions(clubContext("admin"), { status: "draft", createdByMe: true });
+
+      expect(vi.mocked(can)).toHaveBeenCalledWith(expect.anything(), "drill.publish");
+    });
   });
 });

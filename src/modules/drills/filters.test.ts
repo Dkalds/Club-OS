@@ -110,6 +110,29 @@ describe("parseDrillFilters", () => {
       expect(parseDrillFilters({ q })).toEqual({ q: "a".repeat(79) });
     });
 
+    // `?q=%00` llega como un NUL, que una columna `text` de Postgres no puede guardar: la
+    // búsqueda fallaría con un error de la base de datos en vez de no encontrar nada.
+    it("un NUL (?q=%00) o cualquier carácter de control queda ausente, no llega a la búsqueda", () => {
+      expect(parseDrillFilters({ q: "\u0000" })).toEqual({});
+      expect(parseDrillFilters({ q: "\u0000\u0000" })).toEqual({});
+      expect(parseDrillFilters({ q: "\u001f\u007f\u0085" })).toEqual({});
+    });
+
+    it("los caracteres de control entre palabras se leen como un espacio", () => {
+      expect(parseDrillFilters({ q: "pase\u0000rapido" })).toEqual({ q: "pase rapido" });
+      expect(parseDrillFilters({ q: "pase\trapido\nsalida" })).toEqual({ q: "pase rapido salida" });
+      expect(parseDrillFilters({ q: "\u0000 pase \u0000" })).toEqual({ q: "pase" });
+    });
+
+    it("ningún carácter de control sobrevive en la q resultante", () => {
+      const controls = Array.from({ length: 32 }, (_, code) => String.fromCharCode(code)).join("");
+      const parsed = parseDrillFilters({ q: `a${controls}b\u007f\u0080\u009fc` });
+
+      // Cada carácter de control es un espacio: los 32 de ASCII, luego DEL y dos de C1.
+      expect(parsed.q).toBe(`a${" ".repeat(32)}b${" ".repeat(3)}c`);
+      expect(parsed.q).not.toMatch(/\p{Cc}/u);
+    });
+
     it("no parte un carácter fuera del plano básico (la URL resultante no falla)", () => {
       const parsed = parseDrillFilters({ q: `${"a".repeat(79)}😀😀` });
 
