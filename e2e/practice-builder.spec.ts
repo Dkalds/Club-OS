@@ -105,6 +105,15 @@ async function save(page: Page): Promise<void> {
   await expect(saveButton(page)).toBeDisabled();
 }
 
+/**
+ * Espera a que dnd-kit escuche el teclado tras coger una fila con Espacio. Engancha sus teclas
+ * un turno después (un temporizador a cero), y una tecla enviada antes se pierde: una persona
+ * no llega a tiempo, Playwright sí. Un temporizador puesto ahora corre detrás del suyo.
+ */
+async function keyboardDragReady(page: Page): Promise<void> {
+  await page.evaluate(() => new Promise((resolve) => setTimeout(resolve, 0)));
+}
+
 /** Vuelve a pedir el constructor al servidor y espera a que React lo tenga. */
 async function reloadBuilder(page: Page): Promise<void> {
   await page.reload();
@@ -196,6 +205,7 @@ test("reordenar de tres maneras", async ({ page }) => {
   await handle.focus();
   await page.keyboard.press("Space");
   await expect(page.getByText(`Has cogido ${C}.`)).toBeAttached();
+  await keyboardDragReady(page);
   await page.keyboard.press("ArrowDown");
   await expect(page.getByText(`${C} está en la posición 2 de 3.`)).toBeAttached();
   await page.keyboard.press("Space");
