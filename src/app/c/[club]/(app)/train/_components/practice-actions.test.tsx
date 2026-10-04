@@ -235,7 +235,8 @@ describe("PracticeActions · duplicar", () => {
     copy();
 
     const alert = await screen.findByText(ACTION_ERROR_COPY.INVALID);
-    expect(alert.closest('[role="alert"]')).toHaveFocus();
+    // El aviso se lleva el foco en un efecto, que corre un turno después de pintarse: se espera.
+    await waitFor(() => expect(alert.closest('[role="alert"]')).toHaveFocus());
     expect(screen.getByLabelText("Fecha")).toHaveAccessibleDescription("Elige una fecha y una hora válidas.");
     expect(screen.getByLabelText("Fecha")).toHaveValue("2026-10-14");
     expect(screen.getByLabelText("Hora")).toHaveValue("17:30");

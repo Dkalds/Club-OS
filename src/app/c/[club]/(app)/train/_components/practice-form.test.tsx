@@ -325,7 +325,8 @@ describe("PracticeForm · cuando falla", () => {
     create();
 
     const alert = await screen.findByText(ACTION_ERROR_COPY.INVALID);
-    expect(alert.closest('[role="alert"]')).toHaveFocus();
+    // El aviso se lleva el foco en un efecto, que corre un turno después de pintarse: se espera.
+    await waitFor(() => expect(alert.closest('[role="alert"]')).toHaveFocus());
 
     const under = (label: string, message: string) => {
       const field = screen.getByLabelText(label);
