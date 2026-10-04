@@ -10,8 +10,8 @@ import { AdminShell } from "@/ui/admin-shell";
  * anuncia a quien no puede entrar.
  *
  * Un layout no protege a sus páginas (Next puede pintar una página sin volver a ejecutar
- * su layout): cada página de Gestión pide también `requireClub` y `requireAdmin`
- * (`pnpm check:guards` lo comprueba), y los datos los protege RLS.
+ * su layout): cada página de Gestión hace la misma comprobación por su cuenta, exportándose
+ * con `adminPage` (`pnpm check:guards` lo exige), y los datos los protege RLS.
  */
 export default async function AdminLayout({ children, params }: LayoutProps<"/c/[club]/admin">) {
   const { club } = await params;

@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useState } from "react";
+import { useId, useRef, useState, type KeyboardEvent } from "react";
 import { FIELD_CONTROL_CLASS, FIELD_LABEL_CLASS, FieldError } from "./form-field";
 import { AlertIcon } from "./icons";
 import { MarkdownBody } from "./markdown-body";
@@ -11,6 +11,12 @@ const COUNT = new Intl.NumberFormat("es-ES", { useGrouping: "always" });
 
 type Mode = "write" | "preview";
 
+/** Las pestañas, en su orden: el modo y su nombre. */
+const TABS = [
+  ["write", "Escribir"],
+  ["preview", "Vista previa"],
+] as const satisfies ReadonlyArray<readonly [Mode, string]>;
+
 const TAB =
   "min-h-(--target-min) border-b-2 px-(--space-4) font-display text-title uppercase " +
   "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus-ring";
@@ -20,6 +26,9 @@ const TAB_IDLE = "border-transparent text-ink-2";
 /**
  * El editor del texto largo de una sección: Markdown en un área de texto y, en la otra
  * pestaña, cómo lo verá el entrenador (`MarkdownBody`, el mismo renderizador de The Way).
+ *
+ * Las dos pestañas siguen el patrón de teclado de unas pestañas: solo la seleccionada está en
+ * el orden de tabulación, y entre ellas se va con las flechas, Inicio y Fin.
  *
  * Con «Vista previa» el área de texto sigue montada, solo oculta: su texto, su selección y
  * el foco del formulario no se pierden al cambiar de pestaña. El contador cuenta los
@@ -49,6 +58,27 @@ export function MarkdownEditor({
   const tabId = (which: Mode) => `${id}-tab-${which}`;
   const panelId = (which: Mode) => `${id}-panel-${which}`;
 
+  const tabs = useRef<Partial<Record<Mode, HTMLButtonElement | null>>>({});
+
+  // Las flechas van de una pestaña a otra (de la última se vuelve a la primera), e Inicio y Fin
+  // a los extremos. La pestaña que recibe el foco queda seleccionada: su panel ya está pintado.
+  function onTabKeyDown(event: KeyboardEvent<HTMLDivElement>) {
+    const current = TABS.findIndex(([which]) => which === mode);
+    const last = TABS.length - 1;
+    const target = {
+      ArrowRight: current === last ? 0 : current + 1,
+      ArrowLeft: current === 0 ? last : current - 1,
+      Home: 0,
+      End: last,
+    }[event.key];
+    if (target === undefined) return;
+
+    event.preventDefault();
+    const [which] = TABS[target];
+    setMode(which);
+    tabs.current[which]?.focus();
+  }
+
   const tooLong = value.length > maxLength;
   const describedBy = [helpId, countId, error ? errorId : null].filter(Boolean).join(" ");
 
@@ -59,20 +89,24 @@ export function MarkdownEditor({
       </label>
 
       <div className="flex flex-col">
-        <div role="tablist" aria-label="Modo del editor" className="flex border-b border-line">
-          {(
-            [
-              ["write", "Escribir"],
-              ["preview", "Vista previa"],
-            ] as const
-          ).map(([which, name]) => (
+        <div
+          role="tablist"
+          aria-label="Modo del editor"
+          onKeyDown={onTabKeyDown}
+          className="flex border-b border-line"
+        >
+          {TABS.map(([which, name]) => (
             <button
               key={which}
+              ref={(node) => {
+                tabs.current[which] = node;
+              }}
               type="button"
               role="tab"
               id={tabId(which)}
               aria-selected={mode === which}
               aria-controls={panelId(which)}
+              tabIndex={mode === which ? 0 : -1}
               onClick={() => setMode(which)}
               className={`${TAB} ${mode === which ? TAB_ACTIVE : TAB_IDLE}`}
             >

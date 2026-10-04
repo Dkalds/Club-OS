@@ -23,6 +23,15 @@ type DbError = { code?: string; message?: string };
 /** Un `23505` (único) señala este campo con este mensaje; ver `fromDbError`. */
 export type UniqueField = { field: string; message: string };
 
+/** El SQLSTATE de un valor repetido en un único de la tabla. */
+export const UNIQUE_VIOLATION = "23505";
+
+/** Las veces que se intenta un alta que choca con otra simultánea antes de dejarlo. */
+const CREATE_ATTEMPTS = 3;
+
+/** Un intento de alta: su resultado, o el choque con un único de la tabla, que pide repetirlo. */
+export type Attempt<T> = { result: ActionResult<T> } | { conflict: DbError };
+
 /** Lo que cambia de un módulo a otro. */
 export type MutateConfig = {
   /** Cómo se llama la acción en el log del servidor: `modulo.accion` (`methodology.create-value`). */
@@ -56,6 +65,18 @@ export type Write<D> = {
    * rechazada) no deja rastro.
    */
   fromDb: (error: DbError, unique?: UniqueField) => ActionResult<never>;
+  /**
+   * Para las altas que calculan su número, su orden o su slug leyendo antes la lista del
+   * club. Leer y escribir no son atómicos: entre las dos, otra alta puede quedarse con lo
+   * recién calculado, y el único de la tabla rechaza esta. No es un error de quien escribe
+   * (no hay campo que corregir): `attempt` se repite entero, lectura incluida, y calcula
+   * sobre la lista nueva. Si choca `CREATE_ATTEMPTS` veces ya no es una carrera: se registra
+   * y es `SAVE_FAILED`.
+   *
+   * El intento devuelve `{ conflict }` solo ante un `UNIQUE_VIOLATION` de su insert; todo lo
+   * demás, `{ result }`. Quien no calcula nada antes de escribir no lo necesita.
+   */
+  retryOnConflict: <T>(attempt: () => Promise<Attempt<T>>) => Promise<ActionResult<T>>;
 };
 
 /**
@@ -88,9 +109,28 @@ export async function mutate<D, T>(
     return result;
   };
 
+  const retryOnConflict = async <R>(
+    attempt: () => Promise<Attempt<R>>,
+  ): Promise<ActionResult<R>> => {
+    let conflict: DbError | undefined;
+    for (let tries = 0; tries < CREATE_ATTEMPTS; tries += 1) {
+      const outcome = await attempt();
+      if ("result" in outcome) return outcome.result;
+      conflict = outcome.conflict;
+    }
+    logError(tag, conflict);
+    return fail("SAVE_FAILED");
+  };
+
   let result: ActionResult<T>;
   try {
-    result = await write({ db: await createClient(), ctx, data: parsed.data, fromDb });
+    result = await write({
+      db: await createClient(),
+      ctx,
+      data: parsed.data,
+      fromDb,
+      retryOnConflict,
+    });
   } catch (error) {
     unstable_rethrow(error);
     logError(tag, error);

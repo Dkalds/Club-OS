@@ -1,12 +1,14 @@
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { buildSeedData } from "./seed/data";
+import type { SeedReport } from "./seed/run";
 
 // `scripts/seed.ts` es el CLI de `pnpm seed`. Un `import "…/scripts/seed"` resuelve a ese
 // archivo (no a la carpeta `scripts/seed/`), así que importarlo no puede sembrar nada.
 // Aquí la escritura (`runSeed`) y el entorno van simulados: no se toca ninguna base de datos.
 
 const mocks = vi.hoisted(() => ({
-  runSeed: vi.fn(() => Promise.resolve()),
+  runSeed: vi.fn((): Promise<SeedReport> => Promise.resolve({ movedStandards: [] })),
   readSupabaseEnv: vi.fn(() => ({ url: "http://127.0.0.1:54321", serviceRoleKey: "clave-de-prueba" })),
 }));
 
@@ -63,5 +65,22 @@ describe("scripts/seed.ts", { timeout: IMPORT_TIMEOUT_MS }, () => {
     expect(mocks.runSeed).toHaveBeenCalledTimes(1);
     expect(mocks.runSeed).toHaveBeenCalledWith(expect.any(Date));
     expect(log).toHaveBeenNthCalledWith(1, "Seed listo en 127.0.0.1:54321.");
+  });
+
+  it("avisa de cada Standard creado a mano al que el seed cambia el número, con su club", async () => {
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    const [club] = buildSeedData(new Date()).organizations;
+    mocks.runSeed.mockResolvedValueOnce({
+      movedStandards: [{ organization_id: club.id, title: "A MANO", from: 3, to: 6 }],
+    });
+    process.argv = [originalArgv[0], CLI_PATH];
+
+    await import("./seed");
+    await vi.waitFor(() => expect(log).toHaveBeenCalledTimes(4));
+
+    expect(log).toHaveBeenNthCalledWith(
+      4,
+      `Standard «A MANO» (${club.slug}): pasa del 3 al 6; el 3 es del seed.`,
+    );
   });
 });

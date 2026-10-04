@@ -242,6 +242,79 @@ describe("errores de la base de datos (fromDb)", () => {
   });
 });
 
+// Las altas que leen la lista del club para calcular un número o un slug y después insertan:
+// otra alta puede colarse entre las dos. El esqueleto repite el intento entero; lo que cada
+// módulo calcula en él lo prueban sus tests (`methodology/actions.test.ts`).
+describe("altas que chocan con otra (retryOnConflict)", () => {
+  const clash = dbError("23505", "duplicate key value violates unique constraint");
+
+  /** Una escritura que es un alta con reintento: cada intento devuelve lo siguiente de `outcomes`. */
+  function creating<T>(...outcomes: Array<{ result: ActionResult<T> } | { conflict: typeof clash }>) {
+    const attempt = vi.fn(async () => {
+      const outcome = outcomes.shift();
+      if (outcome === undefined) throw new Error("un intento de más");
+      return outcome;
+    });
+    const write = ({ retryOnConflict }: Write<unknown>) => retryOnConflict(attempt);
+    return { attempt, write };
+  }
+
+  it("sin choque, un solo intento y su resultado", async () => {
+    const { attempt, write } = creating({ result: ok({ id: "uno" }) });
+
+    const result = await mutate(config, "club-a", schema, { name: "Uno" }, write);
+
+    expect(result).toEqual({ ok: true, data: { id: "uno" } });
+    expect(attempt).toHaveBeenCalledTimes(1);
+  });
+
+  it("si otra alta se adelanta, repite el intento entero y vuelve con su resultado, sin registrar", async () => {
+    const { attempt, write } = creating({ conflict: clash }, { result: ok({ id: "dos" }) });
+
+    const result = await mutate(config, "club-a", schema, { name: "Uno" }, write);
+
+    expect(result).toEqual({ ok: true, data: { id: "dos" } });
+    expect(attempt).toHaveBeenCalledTimes(2);
+    expect(logged).toEqual([]);
+    expect(mocks.revalidatePath).toHaveBeenCalledTimes(config.routes.length);
+  });
+
+  it("un intento que devuelve un error no se repite", async () => {
+    const { attempt, write } = creating({ result: fail("INVALID", { name: "Ese nombre ya existe." }) });
+
+    const result = await mutate(config, "club-a", schema, { name: "Uno" }, write);
+
+    expect(result).toEqual({ ok: false, error: "INVALID", fieldErrors: { name: "Ese nombre ya existe." } });
+    expect(attempt).toHaveBeenCalledTimes(1);
+    expect(mocks.revalidatePath).not.toHaveBeenCalled();
+  });
+
+  it("si el choque se repite tres veces lo deja: SAVE_FAILED, registrado con la etiqueta, sin revalidar", async () => {
+    const { attempt, write } = creating({ conflict: clash }, { conflict: clash }, { conflict: clash });
+
+    const result = await mutate(config, "club-a", schema, { name: "Uno" }, write);
+
+    expect(result).toEqual({ ok: false, error: "SAVE_FAILED" });
+    expect(attempt).toHaveBeenCalledTimes(3);
+    expect(logged).toEqual(["[demo.save] PostgrestError code=23505"]);
+    expect(mocks.revalidatePath).not.toHaveBeenCalled();
+  });
+
+  it("un intento que lanza corta los reintentos: SAVE_FAILED, como cualquier escritura que lanza", async () => {
+    const attempt = vi.fn(async (): Promise<{ result: ActionResult<null> }> => {
+      throw new TypeError("fetch failed");
+    });
+
+    const result = await mutate(config, "club-a", schema, { name: "Uno" }, ({ retryOnConflict }) =>
+      retryOnConflict(attempt),
+    );
+
+    expect(result).toEqual({ ok: false, error: "SAVE_FAILED" });
+    expect(attempt).toHaveBeenCalledTimes(1);
+    expect(logged).toEqual(["[demo.save] TypeError"]);
+  });
+});
+
 describe("una escritura que lanza", () => {
   it("se registra con la etiqueta y vuelve como SAVE_FAILED, sin revalidar", async () => {
     mocks.createClient.mockRejectedValue(new TypeError("fetch failed"));

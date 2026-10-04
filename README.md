@@ -70,20 +70,29 @@ El acceso es por invitación, con un código de 6 dígitos. No hay contraseñas 
 
 `pnpm seed` se puede repetir: no duplica nada y recalcula las fechas respecto a hoy.
 
+Si has usado Gestión en un club del seed, al volver a sembrar:
+
+- Lo que es del seed vuelve a su texto, su estado, su orden y su número.
+- Lo que creaste a mano se queda. Las secciones pasan detrás de las del seed, en el orden que tenían. Un Standard solo cambia de número si ocupaba uno de los del seed: pasa al primero libre, y `pnpm seed` lo dice al acabar.
+- Con los ejercicios, igual: los que creaste se quedan y los del seed vuelven a su versión original, sin diagrama ni vídeo (ver «Despliegue de la biblioteca de ejercicios»).
+
 ## Tests
 
 | Comando | Qué prueba | Qué necesita |
 | --- | --- | --- |
 | `pnpm lint`, `pnpm typecheck` | ESLint y TypeScript | Nada más |
-| `pnpm check:guards` | Reglas 2 y 3 de CLAUDE.md y tokens al día | Nada más |
+| `pnpm check:guards` | Reglas 2 y 3 de CLAUDE.md, que cada página de Gestión se exporta con `adminPage` y tokens al día | Nada más |
 | `pnpm test` | Unidad y componentes (Vitest) | Nada más |
 | `pnpm test:db` | RLS y aislamiento entre clubes (pgTAP) | Supabase local |
 | `pnpm test:int` | El seed, `generateLoginCode` (el código de acceso de los e2e) y Storage (`scripts/media/storage.int.test.ts`: el bucket `club-media` y sus políticas, con la sesión de cada usuario del seed) contra la base de datos | Supabase local con Storage, `.env.local` y el seed ya cargado (`pnpm seed`) |
-| `pnpm test:e2e` | La app en un móvil de 375×812 (Playwright) | Supabase local, `.env.local` y el puerto 3000 libre. Con `BASE_URL`, ver [Entorno remoto](#entorno-remoto) |
+| `pnpm test:e2e` | La app en un móvil de 375×812 (Playwright) | Supabase local, `.env.local` y un puerto libre: el 3000, o el de `PORT`. Con `BASE_URL`, ver [Entorno remoto](#entorno-remoto) |
 
 - La primera vez, instala el navegador de los e2e: `pnpm exec playwright install chromium`.
-- Los e2e compilan y arrancan la app por su cuenta (`pnpm build && pnpm start`). Si ya hay algo en el puerto 3000, lo usan tal cual. Con `BASE_URL` no arrancan nada: prueban esa URL.
-- Los e2e siembran solos al arrancar, y solo si Supabase es local. Contra un Supabase remoto no siembran ni crean usuarios: usan los datos que ya haya.
+- Los e2e compilan y arrancan la app por su cuenta (`pnpm build && pnpm start`). Si ya hay algo en el puerto, lo usan tal cual. Con `BASE_URL` no arrancan nada: prueban esa URL.
+- **Otro puerto.** `PORT=3100 pnpm test:e2e` arranca y prueba la app en el 3100. Úsalo si el 3000 está ocupado (por ejemplo, con `pnpm dev`) o si pasas los e2e en dos copias del repo a la vez.
+- **Dos proyectos de Playwright.** `mobile` lee y corre en paralelo. `admin` son los specs que escriben (Gestión, la ficha y el editor de ejercicios): van en serie y solo si `mobile` ha pasado. `pnpm test:e2e --project=mobile` lanza solo el primero.
+- **Los e2e borran contenido en local.** Al arrancar, y al empezar y acabar los specs de Gestión, dejan la metodología y la biblioteca de ejercicios de los clubes del seed como recién sembradas: todo lo que hayas creado a mano en esos clubes (secciones, valores, principios, Standards, ejercicios y los diagramas subidos) se borra. `pnpm seed` no borra nada; los e2e sí. Solo pasa con un Supabase local.
+- Los e2e siembran solos al arrancar, y solo si Supabase es local. Contra un Supabase remoto no siembran, no borran ni crean usuarios: usan los datos que ya haya, y los tests que escriben se saltan.
 - Ningún e2e crea usuarios. Si el usuario que necesita un test no existe, el test falla y pide sembrar ese entorno.
 
 ## Probar desde el móvil
@@ -112,17 +121,17 @@ Las migraciones nuevas van al remoto con las mismas versiones que tienen en el r
 
 El Supabase remoto lo comparten producción (se despliega sola con cada push a `main`) y las previews de los PR. Las cuatro migraciones de la Fase 3 (`20261103000100_drills`, `…000200_media_storage`, `…000300_drill_search` y `…000400_save_drill`) tienen que estar aplicadas **antes de usar la preview del PR** para revisar en el móvil y **antes de fusionar**: sin ellas, `/drills` falla en cada carga y `/train` ya enlaza a ella. Son aditivas y seguras con la app que hay desplegada hoy: sigue funcionando con ellas puestas.
 
-`supabase db push` aplica todo lo que falte en el remoto, no solo lo de la Fase 3: si las dos migraciones de la Fase 2 (The Way, `20261020000100_methodology` y `…000200_methodology_functions`) tampoco están, se aplican en el mismo paso, delante de las cuatro.
+`supabase db push` aplica todo lo que falte en el remoto, no solo lo de la Fase 3: si alguna de las tres migraciones de la Fase 2 (The Way: `20261020000100_methodology`, `…000200_methodology_functions` y, de la revisión de su PR, `20261021000100_methodology_integrity`) tampoco está, se aplica en el mismo paso, delante de las cuatro.
 
 Lista, en este orden:
 
-- [ ] **Ver qué falta por aplicar**: `pnpm supabase migration list` contra el proyecto enlazado (`pnpm supabase link --project-ref <ref>` si aún no lo está). Apunta cuáles faltan: las de la Fase 3 y, quizá, las dos de la Fase 2. El resto de la lista vale igual con las dos de la Fase 2 pendientes que con ninguna, y `db push` las aplica en orden de versión.
+- [ ] **Ver qué falta por aplicar**: `pnpm supabase migration list` contra el proyecto enlazado (`pnpm supabase link --project-ref <ref>` si aún no lo está). Apunta cuáles faltan: las de la Fase 3 y, quizá, alguna de las tres de la Fase 2. El resto de la lista vale igual con las de la Fase 2 pendientes que con ninguna, y `db push` las aplica en orden de versión.
 - [ ] **Comprobar el remoto** antes de aplicar nada:
   - `select count(*) from practice_items where drill_id is not null;` tiene que dar 0. La migración añade la clave foránea `practice_items (organization_id, drill_id) → drills`, y fallaría con ítems que ya apuntan a un ejercicio que aún no existe.
   - `select extname, extnamespace::regnamespace from pg_extension where extname = 'unaccent';` no tiene que devolver una fila de otro esquema que `extensions`. La migración hace `create extension if not exists unaccent with schema extensions`: si ya estuviera instalada en otro esquema se saltaría, y `extensions.unaccent` (que usa la búsqueda) no existiría.
   - Postgres 15 o posterior (`show server_version;`): la clave foránea del diagrama usa `on delete set null (columna)`. El `config.toml` local fija la 17.
   - El rol con el que se migra puede crear políticas en `storage.objects` y escribir en `storage.buckets`.
-- [ ] **Aplicar las migraciones** con `pnpm supabase db push`, como arriba. Antes de confirmar, comprueba que la lista que enseña es la que viste en `migration list`: las cuatro de la Fase 3 y, si faltaban, las dos de la Fase 2.
+- [ ] **Aplicar las migraciones** con `pnpm supabase db push`, como arriba. Antes de confirmar, comprueba que la lista que enseña es la que viste en `migration list`: las cuatro de la Fase 3 y, si faltaba alguna, las de la Fase 2.
 - [ ] **Volver a sembrar el demo** («Sembrar el demo», más abajo): sin los 20 ejercicios del seed la biblioteca sale vacía.
 - [ ] **Saber qué hace un nuevo seed con los ejercicios.** Devuelve cada ejercicio del seed a lo que dice el seed: texto, estado, puntos, variantes y vínculos, y pone a null su diagrama y su vídeo. Lo que alguien editó en la app sobre esos ejercicios se pierde, y un diagrama subido a uno de ellos queda desenlazado (su objeto de Storage y su ficha de `media_assets` no se borran).
 

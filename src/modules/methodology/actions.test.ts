@@ -517,6 +517,64 @@ describe("createWaySection", () => {
     expect(db.queries).toHaveLength(1);
     expect(logged).toEqual(["[methodology.create-way-section] PostgrestError code=XX000"]);
   });
+
+  // Leer la lista y escribir no son atómicos: otra alta puede colarse entre las dos y
+  // quedarse con el número o con el slug recién calculados. El único de la tabla la rechaza.
+  it("si otra alta se adelanta, vuelve a leer y crea con el número y el slug siguientes", async () => {
+    const db = useDb(
+      reply([{ number: 5, sort: 5, slug: "como-jugamos" }]),
+      dbError("23505", "duplicate key value violates unique constraint"),
+      reply([
+        { number: 5, sort: 5, slug: "como-jugamos" },
+        { number: 6, sort: 6, slug: "como-jugamos-2" },
+      ]),
+      reply({ id: NEW_ID }),
+    );
+
+    const result = await createWaySection("club-a", { title: "Cómo jugamos", contentKind: "text" });
+
+    expect(result).toEqual({ ok: true, data: { id: NEW_ID } });
+    expect(db.queries[1].sent("insert")).toEqual([
+      expect.objectContaining({ number: 6, sort: 6, slug: "como-jugamos-2" }),
+    ]);
+    expect(db.queries[3].sent("insert")).toEqual([
+      expect.objectContaining({ number: 7, sort: 7, slug: "como-jugamos-3" }),
+    ]);
+    expect(logged).toEqual([]);
+    expect(mocks.revalidatePath).toHaveBeenCalled();
+  });
+
+  it("si el choque se repite tres veces lo deja: SAVE_FAILED, sin campo que marcar, y se registra", async () => {
+    const taken = reply([{ number: 5, sort: 5, slug: "como-jugamos" }]);
+    const clash = dbError("23505", "duplicate key value violates unique constraint");
+    const db = useDb(taken, clash, taken, clash, taken, clash);
+
+    const result = await createWaySection("club-a", { title: "Cómo jugamos", contentKind: "text" });
+
+    expect(result).toEqual({ ok: false, error: "SAVE_FAILED" });
+    expect(db.queries).toHaveLength(6);
+    expect(logged).toEqual(["[methodology.create-way-section] PostgrestError code=23505"]);
+    expect(mocks.revalidatePath).not.toHaveBeenCalled();
+  });
+
+  it("con la sección 99 ya creada no inserta nada: SECTION_LIMIT", async () => {
+    const db = useDb(reply([{ number: 99, sort: 99, slug: "la-ultima" }]));
+
+    const result = await createWaySection("club-a", { title: "Una más", contentKind: "text" });
+
+    expect(result).toEqual({ ok: false, error: "SECTION_LIMIT" });
+    expect(db.queries).toHaveLength(1);
+    expect(logged).toEqual([]);
+  });
+
+  it("la sección 99 todavía se crea", async () => {
+    const db = useDb(reply([{ number: 98, sort: 98, slug: "penultima" }]), reply({ id: NEW_ID }));
+
+    const result = await createWaySection("club-a", { title: "La última", contentKind: "text" });
+
+    expect(result).toEqual({ ok: true, data: { id: NEW_ID } });
+    expect(db.queries[1].sent("insert")).toEqual([expect.objectContaining({ number: 99 })]);
+  });
 });
 
 describe("updateWaySection", () => {
@@ -1010,6 +1068,41 @@ describe("createPrinciple", () => {
     expect(db.queries[1].sent("insert")).toEqual([
       expect.objectContaining({ slug: "principio", summary: null, sort: 1 }),
     ]);
+  });
+
+  it("si otra alta se queda con el slug, vuelve a leer y crea con el siguiente", async () => {
+    const db = useDb(
+      reply([{ sort: 4, slug: "otro" }]),
+      dbError("23505", "duplicate key value violates unique constraint"),
+      reply([
+        { sort: 4, slug: "otro" },
+        { sort: 5, slug: "principio-uno" },
+      ]),
+      reply({ id: NEW_ID }),
+    );
+
+    const result = await createPrinciple("club-a", { title: "Principio uno", summary: null });
+
+    expect(result).toEqual({ ok: true, data: { id: NEW_ID } });
+    expect(db.queries[1].sent("insert")).toEqual([
+      expect.objectContaining({ slug: "principio-uno", sort: 5 }),
+    ]);
+    expect(db.queries[3].sent("insert")).toEqual([
+      expect.objectContaining({ slug: "principio-uno-2", sort: 6 }),
+    ]);
+    expect(logged).toEqual([]);
+  });
+
+  it("si el choque se repite tres veces lo deja: SAVE_FAILED y se registra", async () => {
+    const taken = reply([{ sort: 4, slug: "otro" }]);
+    const clash = dbError("23505", "duplicate key value violates unique constraint");
+    const db = useDb(taken, clash, taken, clash, taken, clash);
+
+    const result = await createPrinciple("club-a", { title: "Principio uno", summary: null });
+
+    expect(result).toEqual({ ok: false, error: "SAVE_FAILED" });
+    expect(db.queries).toHaveLength(6);
+    expect(logged).toEqual(["[methodology.create-principle] PostgrestError code=23505"]);
   });
 
   it("título vacío y resumen de más de 300 caracteres", async () => {

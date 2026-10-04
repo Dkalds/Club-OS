@@ -204,4 +204,62 @@ describe("MarkdownEditor", () => {
 
     expect(screen.getByRole("tab", { name: "Vista previa" })).toHaveAttribute("type", "button");
   });
+
+  // El patrón de teclado de unas pestañas: un lector de pantalla anuncia «pestaña, 1 de 2» y
+  // quien lo oye espera moverse con las flechas, no con Tab.
+  describe("con el teclado", () => {
+    const tab = (name: string) => screen.getByRole("tab", { name });
+
+    it("solo la pestaña seleccionada está en el orden de tabulación", () => {
+      render(<Harness initial="Hola" />);
+
+      expect(tab("Escribir")).toHaveAttribute("tabindex", "0");
+      expect(tab("Vista previa")).toHaveAttribute("tabindex", "-1");
+
+      fireEvent.click(tab("Vista previa"));
+
+      expect(tab("Escribir")).toHaveAttribute("tabindex", "-1");
+      expect(tab("Vista previa")).toHaveAttribute("tabindex", "0");
+    });
+
+    it.each([
+      ["ArrowRight", "Escribir", "Vista previa"],
+      ["ArrowLeft", "Vista previa", "Escribir"],
+      // De la última a la primera y de la primera a la última.
+      ["ArrowRight", "Vista previa", "Escribir"],
+      ["ArrowLeft", "Escribir", "Vista previa"],
+      ["End", "Escribir", "Vista previa"],
+      ["Home", "Vista previa", "Escribir"],
+    ])("%s desde «%s» selecciona «%s» y le lleva el foco", (key, from, to) => {
+      render(<Harness initial="Hola" />);
+      fireEvent.click(tab(from));
+      tab(from).focus();
+
+      fireEvent.keyDown(tab(from), { key });
+
+      expect(tab(to)).toHaveAttribute("aria-selected", "true");
+      expect(tab(from)).toHaveAttribute("aria-selected", "false");
+      expect(tab(to)).toHaveFocus();
+    });
+
+    it("la flecha enseña el panel de la pestaña a la que llega", () => {
+      render(<Harness initial="**Hola**" />);
+      tab("Escribir").focus();
+
+      fireEvent.keyDown(tab("Escribir"), { key: "ArrowRight" });
+
+      expect(screen.getByRole("tabpanel", { name: "Vista previa" })).toBeVisible();
+      expect(screen.getByText("Hola").tagName).toBe("STRONG");
+    });
+
+    it("otra tecla no cambia de pestaña ni se queda con el evento", () => {
+      render(<Harness initial="Hola" />);
+      tab("Escribir").focus();
+
+      const handled = !fireEvent.keyDown(tab("Escribir"), { key: "ArrowDown" });
+
+      expect(handled).toBe(false);
+      expect(tab("Escribir")).toHaveAttribute("aria-selected", "true");
+    });
+  });
 });

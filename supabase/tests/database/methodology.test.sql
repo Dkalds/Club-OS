@@ -12,7 +12,7 @@
 -- chocan con los de `pnpm seed` ni con los de los otros tests.
 begin;
 
-select plan(114);
+select plan(128);
 
 -- ── Fixtures (como postgres) ─────────────────────────────────────────────────────────
 -- Club A: adminA (admin) y coachA (coach, sin equipo ni persona enlazada).
@@ -25,7 +25,8 @@ select plan(114);
 -- Club B: adminB (admin) y coachB (coach). Una fila publicada en cada tabla: la sección
 --   `pub-b`, el valor `VALOR-B`, el principio `pub-pb` con el punto `pub-pb-1` y el
 --   Standard 1 (el mismo número que en A: es único por club, no global).
--- `multi` es admin de A y solo entrenador de B. `sinClub` tiene cuenta y ninguna membresía.
+-- `multi` es admin de A y solo entrenador de B. `ambos` es admin de A y de B. `sinClub` tiene
+-- cuenta y ninguna membresía.
 --
 -- Hacen de clave para leer las aserciones: `way_sections.slug`, `club_values.code`,
 -- `game_principles.slug`, `principle_points.text` y `standards.number`. Están elegidas
@@ -40,6 +41,7 @@ declare
   u_admin_b uuid := tests.create_user('admin-b@methodology.pgtap.test');
   u_coach_b uuid := tests.create_user('coach-b@methodology.pgtap.test');
   u_multi uuid := tests.create_user('multi@methodology.pgtap.test');
+  u_both uuid := tests.create_user('ambos@methodology.pgtap.test');
   u_sin_club uuid := tests.create_user('sin-club@methodology.pgtap.test');
 
   g_pub constant uuid := gen_random_uuid();
@@ -57,7 +59,9 @@ begin
     (club_b, u_admin_b, 'admin'),
     (club_b, u_coach_b, 'coach'),
     (club_a, u_multi, 'admin'),
-    (club_b, u_multi, 'coach');
+    (club_b, u_multi, 'coach'),
+    (club_a, u_both, 'admin'),
+    (club_b, u_both, 'admin');
 
   insert into way_sections (
     organization_id, number, slug, title, content_kind, status, sort, updated_at
@@ -94,6 +98,7 @@ begin
   perform set_config('fx.admin_b', u_admin_b::text, true);
   perform set_config('fx.coach_b', u_coach_b::text, true);
   perform set_config('fx.multi', u_multi::text, true);
+  perform set_config('fx.both', u_both::text, true);
   perform set_config('fx.sin_club', u_sin_club::text, true);
   perform set_config('fx.g_pub', g_pub::text, true);
   perform set_config('fx.g_draft', g_draft::text, true);
@@ -423,6 +428,70 @@ select throws_ok(
   'multi no pasa un Standard de A a B'
 );
 
+-- ── ambos: admin de A y de B ─────────────────────────────────────────────────────────
+-- El caso que ninguna política cierra: quien administra los dos clubes pasa el `using` por
+-- A y el `with check` por B. Lo cierran los privilegios por columna: `authenticated` no
+-- puede cambiar `organization_id` de ninguna fila, sea quien sea. Tampoco el slug, que es la
+-- dirección de la sección y el ancla del principio.
+select tests.authenticate_as(current_setting('fx.both')::uuid);
+
+select results_eq(
+  $$with edited as (
+      update way_sections set title = title where slug in ('pub-a', 'pub-b') returning 1
+    )
+    select count(*)::int from edited$$,
+  array[2],
+  'control: quien administra A y B edita secciones de los dos clubes'
+);
+
+select throws_ok(
+  $$update way_sections set organization_id = current_setting('fx.club_b')::uuid
+    where slug = 'draft-a'$$,
+  '42501', null,
+  'ni quien administra los dos clubes pasa una sección de A a B'
+);
+
+select throws_ok(
+  $$update club_values set organization_id = current_setting('fx.club_b')::uuid
+    where code = 'VALOR-PUB'$$,
+  '42501', null,
+  'ni quien administra los dos clubes pasa un valor de A a B'
+);
+
+select throws_ok(
+  $$update game_principles set organization_id = current_setting('fx.club_b')::uuid
+    where slug = 'pub-p'$$,
+  '42501', null,
+  'ni quien administra los dos clubes pasa un principio de A a B'
+);
+
+select throws_ok(
+  $$update principle_points set organization_id = current_setting('fx.club_b')::uuid
+    where id = current_setting('fx.pt_pub_1')::uuid$$,
+  '42501', null,
+  'ni quien administra los dos clubes pasa un punto de A a B'
+);
+
+-- El Standard 2: B no tiene ese número, así que no es el único de la tabla lo que lo frena.
+select throws_ok(
+  $$update standards set organization_id = current_setting('fx.club_b')::uuid
+    where organization_id = current_setting('fx.club_a')::uuid and number = 2$$,
+  '42501', null,
+  'ni quien administra los dos clubes pasa un Standard de A a B'
+);
+
+select throws_ok(
+  $$update way_sections set slug = 'otra-direccion' where slug = 'pub-a'$$,
+  '42501', null,
+  'el slug de una sección no se cambia'
+);
+
+select throws_ok(
+  $$update game_principles set slug = 'otra-ancla' where slug = 'pub-p'$$,
+  '42501', null,
+  'el slug de un principio no se cambia'
+);
+
 -- ── sinClub: con sesión pero sin membresía ───────────────────────────────────────────
 -- Control positivo: las filas existen; son las que ven los usuarios de arriba.
 select tests.authenticate_as(current_setting('fx.sin_club')::uuid);
@@ -690,6 +759,28 @@ select lives_ok(
   'el mismo slug de sección vale en otro club'
 );
 
+-- El número de una sección es su posición: único por club (B tiene también su sección 1 y
+-- su sección 2, de las fixtures y del control de arriba).
+select throws_ok(
+  $$insert into way_sections (organization_id, number, slug, title)
+    values (current_setting('fx.club_a')::uuid, 1, 'numero-repetido', 'Número repetido en A')$$,
+  '23505', null,
+  'número de sección único por club'
+);
+
+-- El único es diferible: se comprueba al acabar la sentencia, no fila a fila. Es lo que
+-- deja a `reorder_methodology` renumerar todas las secciones de golpe.
+select results_eq(
+  $$with swapped as (
+      update way_sections set number = 3 - number
+      where organization_id = current_setting('fx.club_a')::uuid and number in (1, 2)
+      returning 1
+    )
+    select count(*)::int from swapped$$,
+  array[2],
+  'dos secciones intercambian su número en una sola sentencia'
+);
+
 -- club_values
 select throws_ok(
   $$insert into club_values (organization_id, code, description)
@@ -791,6 +882,19 @@ select throws_ok(
     values (current_setting('fx.club_a')::uuid, 9, 'Descripción larga', repeat('a', 501))$$,
   '23514', null,
   'descripción de Standard de 501 caracteres rechazada'
+);
+
+-- También aquí el único es diferible: el seed devuelve su número a todos sus Standards en
+-- una sola sentencia, aunque dirección los haya intercambiado.
+select results_eq(
+  $$with swapped as (
+      update standards set number = 3 - number
+      where organization_id = current_setting('fx.club_a')::uuid and number in (1, 2)
+      returning 1
+    )
+    select count(*)::int from swapped$$,
+  array[2],
+  'dos Standards intercambian su número en una sola sentencia'
 );
 
 -- principle_points
@@ -996,14 +1100,50 @@ select is_empty(
 select results_eq(
   $$select count(*)::int
     from pg_class as c
-    cross join unnest(array['select', 'insert', 'update', 'delete']) as p (privilege)
+    cross join unnest(array['select', 'insert', 'delete']) as p (privilege)
     where c.relnamespace = 'public'::regnamespace
       and c.relname in (
         'way_sections', 'club_values', 'game_principles', 'principle_points', 'standards'
       )
       and has_table_privilege('authenticated', c.oid, p.privilege)$$,
-  array[20],
-  'authenticated puede leer y escribir las cinco tablas, con RLS por delante'
+  array[15],
+  'authenticated puede leer, crear y borrar en las cinco tablas, con RLS por delante'
+);
+
+-- `update` no se concede sobre la tabla entera sino columna a columna: solo lo que la app
+-- cambia. Fuera quedan `organization_id` (una fila no cambia de club), `id`, `created_at`,
+-- el slug y el principio de un punto. Una columna nueva no se puede cambiar hasta que una
+-- migración la añada aquí.
+select is_empty(
+  $$select c.relname
+    from pg_class as c
+    where c.relnamespace = 'public'::regnamespace
+      and c.relname in (
+        'way_sections', 'club_values', 'game_principles', 'principle_points', 'standards'
+      )
+      and has_table_privilege('authenticated', c.oid, 'update')$$,
+  'authenticated no tiene update sobre ninguna de las cinco tablas enteras'
+);
+
+select results_eq(
+  $$select c.relname::text collate "default",
+           string_agg(a.attname::text, ', ' order by a.attname)::text collate "default"
+    from pg_class as c
+    join pg_attribute as a on a.attrelid = c.oid and a.attnum > 0 and not a.attisdropped
+    where c.relnamespace = 'public'::regnamespace
+      and c.relname in (
+        'way_sections', 'club_values', 'game_principles', 'principle_points', 'standards'
+      )
+      and has_column_privilege('authenticated', c.oid, a.attnum, 'update')
+    group by c.relname
+    order by 1$$,
+  $$values
+    ('club_values', 'code, description, sort, status, title'),
+    ('game_principles', 'sort, status, summary, title'),
+    ('principle_points', 'sort, text'),
+    ('standards', 'description, number, sort, status, title'),
+    ('way_sections', 'body_md, content_kind, number, sort, status, summary, title, updated_at, updated_by')$$,
+  'las columnas que authenticated puede cambiar en cada tabla, y ninguna más'
 );
 
 -- El seed y los scripts escriben con la clave de servicio (nunca desde src/).
@@ -1050,6 +1190,20 @@ select results_eq(
     ('way_sections', 'way_sections_select_published_or_admin', 'SELECT', array['authenticated'], 'PERMISSIVE'),
     ('way_sections', 'way_sections_update_admin', 'UPDATE', array['authenticated'], 'PERMISSIVE')$$,
   'las políticas de las cinco tablas: leer, crear y editar, y borrar solo los puntos'
+);
+
+-- El número, único por club en las secciones y en los Standards. Diferible e inmediato: se
+-- comprueba al final de cada sentencia, no al cerrar la transacción.
+select results_eq(
+  $$select conrelid::regclass::text collate "default", condeferrable, condeferred
+    from pg_constraint
+    where connamespace = 'public'::regnamespace
+      and conname in (
+        'standards_organization_id_number_key', 'way_sections_organization_id_number_key'
+      )
+    order by 1$$,
+  $$values ('standards', true, false), ('way_sections', true, false)$$,
+  'el número es único por club y diferible en secciones y Standards'
 );
 
 select * from finish();

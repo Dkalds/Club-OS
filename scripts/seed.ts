@@ -2,7 +2,9 @@
 //   pnpm seed
 //
 // Se niega a correr contra un Supabase remoto salvo `ALLOW_REMOTE_SEED=true`. Es idempotente:
-// puede ejecutarse las veces que haga falta, y las horas se recalculan respecto a hoy.
+// puede ejecutarse las veces que haga falta, y las horas se recalculan respecto a hoy. Lo
+// que el seed posee vuelve a su texto, su orden y su número; lo creado a mano en Gestión se
+// queda, detrás de lo del seed.
 
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -17,12 +19,20 @@ async function main(): Promise<void> {
   assertSeedTarget(url, process.env);
 
   const now = new Date();
-  await runSeed(now);
+  const report = await runSeed(now);
 
   const data = buildSeedData(now);
   console.log(`Seed listo en ${new URL(url).host}.`);
   console.log(`Clubes: ${data.organizations.map((org) => org.slug).join(", ")}.`);
   console.log(`Usuarios de prueba: ${data.users.map((user) => user.email).join(", ")}.`);
+  // Lo creado a mano en Gestión se conserva; solo cambia de número el Standard que ocupaba
+  // uno de los del seed.
+  for (const move of report.movedStandards) {
+    const club = data.organizations.find((org) => org.id === move.organization_id)?.slug;
+    console.log(
+      `Standard «${move.title}» (${club}): pasa del ${move.from} al ${move.to}; el ${move.from} es del seed.`,
+    );
+  }
 }
 
 // Solo como CLI (`pnpm seed`). Un `import "…/scripts/seed"` resuelve a este archivo, no a
