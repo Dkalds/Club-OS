@@ -1,9 +1,8 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState, useTransition, type FormEvent, type MouseEvent } from "react";
+import { useEffect, useRef, useState, useTransition, type FormEvent } from "react";
 import { ACTION_ERROR_COPY } from "@/lib/action-result";
-import { UNSAVED_CHANGES, warnBeforeUnload } from "@/lib/unsaved-changes";
 import { useAction } from "@/lib/use-action";
 import { createDrill, updateDrill } from "@/modules/drills/actions";
 import type { DrillDetail, FocusArea } from "@/modules/drills/types";
@@ -12,6 +11,7 @@ import type { GamePrinciple, Standard } from "@/modules/methodology/types";
 import { CTAButton } from "@/ui/cta-button";
 import { FormAlert, SelectField, TextAreaField, TextField, FIELD_LABEL_CLASS } from "@/ui/form-field";
 import { Chip } from "@/ui/filter";
+import { LeaveGuardDialog, useLeaveGuard } from "@/ui/leave-guard";
 import { ChipGroup } from "./chip-group";
 import { DiagramField } from "./diagram-field";
 import {
@@ -85,14 +85,17 @@ function firstFieldWithError(form: HTMLFormElement | null, errors: Record<string
  *   token leído de la propiedad viva acompañaría a un contenido viejo y `save_drill` lo daría por
  *   bueno, sin avisar de que pisa lo de la otra persona.
  * - **Sin guardar no se pierde nada en silencio.** Mientras el formulario difiera de la última
- *   copia guardada (`dirty`: la que se abrió o, tras cada guardado, lo que se mandó), cerrar o
- *   recargar la pestaña pide confirmación (`beforeunload`) y «Cancelar» pregunta antes de salir.
- *   «Recargar», tras una copia obsoleta, no pregunta: quien pulsa ya ha decidido tirar lo suyo.
- *   Tampoco pregunta nada una vez guardado: al guardar bien, el aviso se quita en el acto y a
- *   mano (`leaving`), sin esperar a que la ficha llegue y el estado se repinte; si se escribió
- *   algo mientras guardaba, eso sigue sin guardar y el aviso se queda.
- *   El «Volver» de la cabecera y la navegación inferior no se interceptan: App Router no tiene
- *   gancho para bloquearlas (lo resolverá `ConfirmDialog`).
+ *   copia guardada (`dirty`: la que se abrió o, tras cada guardado, lo que se mandó),
+ *   `useLeaveGuard` pide confirmación al cerrar o recargar la pestaña (`beforeunload`) y
+ *   cualquier enlace que saque del formulario abre el diálogo «¿Salir sin guardar?» antes de
+ *   salir: «Cancelar» y también los que no son suyos, como el «Volver» de la cabecera y la
+ *   navegación inferior. Es el mismo aviso que el del constructor de sesiones.
+ *   «Recargar», tras una copia obsoleta, no pregunta: quien pulsa ya ha decidido tirar lo suyo,
+ *   y `release` quita los avisos antes de recargar. Tampoco pregunta nada una vez guardado: al
+ *   guardar bien, `release` los quita en el acto, antes de ir a la ficha y sin esperar a que
+ *   esta llegue y el estado se repinte; si se escribió algo mientras guardaba, eso sigue sin
+ *   guardar y los avisos se quedan. Los botones «atrás» y «adelante» del navegador no
+ *   preguntan (ver `useLeaveGuard`).
  * - **Si falla** no se pierde nada de lo escrito. `INVALID` señala cada campo y, a las listas, en
  *   la lista entera, y lleva el foco al primer campo con error (el aviso general se anuncia sin
  *   quitárselo). `SAVE_FAILED`, `STALE_COPY` y el resto enseñan el texto común en un aviso que sí
@@ -119,13 +122,10 @@ export function DrillForm({ clubSlug, mode, drill, options, standardsLabel }: Pr
   const form = useRef<HTMLFormElement>(null);
   // Lo último que hay escrito, para saber al volver de guardar si se ha tocado algo entremedias.
   const latest = useRef(state);
-  // Se guardó bien y se está yendo a la ficha: ya no hay nada que proteger. Es una referencia y
-  // no estado porque `dirty` se apaga con `setBaseline`, que va en la misma transición que la
-  // navegación y no se pinta hasta que llega la ficha; en ese rato la pestaña podría recargarse.
-  const leaving = useRef(false);
 
   const editing = mode === "edit" && loaded !== null;
   const dirty = hasUnsavedChanges(state, baseline);
+  const { guard, dialog, release } = useLeaveGuard(dirty);
   const busy = save.pending || navigating || upload.pending;
   const failure = save.failure;
   const errors = failure?.fieldErrors ?? {};
@@ -141,12 +141,6 @@ export function DrillForm({ clubSlug, mode, drill, options, standardsLabel }: Pr
     latest.current = state;
   }, [state]);
 
-  useEffect(() => {
-    if (!dirty || leaving.current) return;
-    window.addEventListener("beforeunload", warnBeforeUnload);
-    return () => window.removeEventListener("beforeunload", warnBeforeUnload);
-  }, [dirty]);
-
   function set<K extends keyof DrillFormState>(key: K) {
     return (value: DrillFormState[K]) => setState((current) => ({ ...current, [key]: value }));
   }
@@ -158,17 +152,17 @@ export function DrillForm({ clubSlug, mode, drill, options, standardsLabel }: Pr
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (busy) return;
-    leaving.current = false;
 
     // Lo que se manda es lo que queda guardado: si se escribe mientras guarda, eso sigue sin guardar.
     const sent = state;
     const input = toDrillInput(sent, loaded);
     const goToDrill = (id: string) => {
-      // Si mientras guardaba se ha escrito algo más, eso sigue sin guardar y el aviso se queda.
-      if (!hasUnsavedChanges(latest.current, sent)) {
-        leaving.current = true;
-        window.removeEventListener("beforeunload", warnBeforeUnload);
-      }
+      // Se guardó bien y se va a la ficha: ya no hay nada que proteger, y los avisos se sueltan
+      // antes de navegar. No basta con `setBaseline`: apaga `dirty`, pero va en la misma
+      // transición que la navegación y no se pinta hasta que llega la ficha; en ese rato la
+      // pestaña podría recargarse, o pulsarse un enlace. Si mientras guardaba se ha escrito
+      // algo más, eso sigue sin guardar y los avisos se quedan.
+      if (!hasUnsavedChanges(latest.current, sent)) release();
       setBaseline(sent);
       startNavigation(() => router.push(`/c/${clubSlug}/drills/${id}`));
     };
@@ -183,13 +177,9 @@ export function DrillForm({ clubSlug, mode, drill, options, standardsLabel }: Pr
     }
   }
 
-  function cancel(event: MouseEvent<HTMLAnchorElement>) {
-    if (dirty && !leaving.current && !window.confirm(UNSAVED_CHANGES)) event.preventDefault();
-  }
-
   function reload() {
     // Se quita el aviso a mano: si no, el navegador preguntaría justo al hacer lo que se pidió.
-    window.removeEventListener("beforeunload", warnBeforeUnload);
+    release();
     location.reload();
   }
 
@@ -361,11 +351,13 @@ export function DrillForm({ clubSlug, mode, drill, options, standardsLabel }: Pr
           href={editing ? `${base}/${loaded.id}` : base}
           block
           className="lg:w-auto"
-          onClick={cancel}
+          onClick={guard}
         >
           Cancelar
         </CTAButton>
       </div>
+
+      <LeaveGuardDialog {...dialog} />
     </form>
   );
 }
