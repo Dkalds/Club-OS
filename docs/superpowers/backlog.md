@@ -1,6 +1,6 @@
-# CLUB OS · Pendientes que deja la Fase 1
+# CLUB OS · Pendientes que dejan las fases cerradas
 
-Lo que las revisiones de la Fase 1 dejaron para más adelante, ordenado por la fase que debe recogerlo. Nada de esto bloquea la Fase 1. Cada plan de fase debería incorporar su bloque antes de empezar.
+Lo que las revisiones de las Fases 1 y 2 dejaron para más adelante, ordenado por la fase que debe recogerlo. Nada de esto bloquea una fase cerrada. Cada plan de fase debería incorporar su bloque antes de empezar. Si una fase se cierra sin recoger el suyo, lo que quede se pasa a otra en este fichero: aquí no hay pendientes sin dueño.
 
 Estado de la Fase 1: tareas 1–11 hechas y revisadas. Verificado contra Supabase local real y desde una base vacía: `test:db` 208/208, `seed` dos veces, `test:int` 9/9, unidad 577/577, `test:e2e` 16/16. Task 12 (entorno remoto): la parte del repositorio está hecha (con ella, unidad 617/617 y `test:int` 11/11). Pendiente: lo que queda en los paneles (lista de abajo), primera ejecución real de CI y revisión en un móvil real.
 
@@ -9,26 +9,36 @@ Estado de la Fase 1: tareas 1–11 hechas y revisadas. Verificado contra Supabas
 - **`runSeed` no está en `scripts/seed.ts`.** Vive en `scripts/seed/run.ts` con firma `runSeed(now, client?)`. `scripts/seed.ts` es solo la CLI. Los planes de las fases 2–4 dicen «Modify: `scripts/seed.ts` (`runSeed`)»: debe ser `scripts/seed/run.ts` y `scripts/seed/data.ts`.
 - **`ClubContext` y `getClubContext`** están en `src/modules/tenancy/queries.ts`. El marcador de pestañas vacías es `src/app/c/[club]/coming-soon.tsx`.
 - **E2E.** Los specs importan `test` de `e2e/helpers/test` y entran con `openAs` (sesión guardada por usuario). `loginAs` queda para probar el propio login. El `globalSetup` siembra y solo en local: el proyecto `admin` de la Fase 2 y cualquier `afterAll → runSeed` deben convivir con él.
-- **Cada página bajo `/c/[club]` se protege sola.** Un layout no protege a sus páginas en una navegación parcial. Hoy cada página hace `getClubContext` + `notFound()`. El `requireClub` de la Fase 2 debe sustituir esa convención en todas.
+- **Cada página bajo `/c/[club]` se protege sola.** Un layout no protege a sus páginas en una navegación parcial. Todas lo hacen con `requireClub` (`src/lib/guards.ts`); las de Gestión se exportan con `adminPage`, que además comprueba el permiso antes de ejecutar la página, y `pnpm check:guards` lo exige. Ninguna página nueva debe volver a `getClubContext` + `notFound()` a mano.
 - **Error frente a 404.** Una avería de Supabase lanza y llega a un límite de error; `null` y 404 quedan solo para «no existe o no eres miembro activo».
 - **Región.** La especificación aprobada (`docs/spec/club-os-primera-entrega.md`, fila «Región» de la tabla) dice Fráncfort. La decisión del 3 oct 2026 es Irlanda para Supabase y Dublín para las funciones de Vercel. La especificación no se ha editado.
 
-## Fase 2 · The Way
+## Fase 2 · The Way (cerrada)
 
-- El generador de tokens debe fallar con un alias desconocido (`{x}`) y validar la forma de `tokens.json`.
-- Decidir una convención única para tamaños y espaciados sin token (hoy hay medidas copiadas de `bundle.css` como valores arbitrarios).
-- Un test genérico de postura sobre todas las tablas de `public`: RLS activado, nada para `anon`, lo de `authenticated` contra una lista permitida. Opcional: `alter default privileges … revoke`.
-- Comprobación de hex en `src/**/*.tsx` dentro de `check:guards` (la regla 4 no tiene guarda hoy).
-- Un usuario de seed con dos clubes y su test: hoy nada fija el `organizations!inner(` de la consulta de contexto ni la lista del selector.
-- Política única de «quién es el usuario» y de errores de Auth en `guards.ts`: hoy hay tres (`session.ts`, `tenancy/queries.ts`, `select-club/page.tsx`). Añadir `.retry(false)` a la consulta de contexto: los reintentos de postgrest-js retrasan unos 7 s la pantalla de error.
-- `ListRow`: semántica de lista (`ul`/`li`) y documentar que las filas van como hijas directas de `Card flush`.
-- Campo de código que tolere pegar con espacios; botón primario del login y del 404 con `CTAButton`; etiqueta «The Way» por defecto definida una sola vez.
-- Test propio de `c/[club]/page.tsx` y usar `useSelectedLayoutSegment` en `error.tsx` al mover las rutas a `(app)`.
-- Menú de cuenta con «Salir» dentro del club. Hoy solo se puede salir desde el estado sin clubes. Ningún plan añade «cambiar de club».
-- Formateador de código y versión de Node fijada (`engines` o `.nvmrc`; CI usa 24).
+La Fase 2 se cerró sin recoger casi nada de su bloque. Lo que sigue pendiente está repartido en las fases de abajo, marcado con «(de la Fase 2)».
+
+Hecho, en la fase o al corregir su revisión:
+
+- Menú de cuenta con «Salir» dentro del club (`src/ui/account-menu.tsx`).
+- `requireClub` sustituye a `getClubContext` + `notFound()` en todas las páginas y layouts de `/c/[club]`.
+- Test propio de Inicio (`src/app/c/[club]/(app)/page.test.tsx`).
+
+Lo que arregló la corrección de la revisión de la Fase 2, por si una fase siguiente copia el patrón:
+
+- **`update` por columna.** En las tablas de la metodología, `authenticated` solo puede cambiar las columnas que la app edita: ni `organization_id`, ni `id`, ni el slug. Una tabla nueva que los usuarios editen debe hacer lo mismo: las políticas no pueden impedir que quien administra dos clubes pase una fila de uno a otro.
+- **Altas que calculan número o slug.** Leen la lista y luego insertan: el único de la tabla frena la carrera y la acción reintenta (`retryOnConflict` en `src/modules/methodology/actions.ts`). Un único que se renumera en bloque tiene que ser diferible.
+- **El seed y lo creado a mano.** `pnpm seed` no borra nada: recoloca lo que choca (`scripts/seed/strays.ts`). Una tabla nueva con un único que el seed escribe necesita el mismo cuidado.
+
+## Fase 3 · Biblioteca (en curso)
+
+- (de la Fase 2) Un test genérico de postura sobre todas las tablas de `public`: RLS activado, nada para `anon`, lo de `authenticated` contra una lista permitida (incluido qué columnas puede cambiar). Opcional: `alter default privileges … revoke`. La Fase 3 abre la primera tabla que escriben los entrenadores: si no entra en ella, pasa a la Fase 4 antes de abrir más escritura.
 
 ## Fase 4 · Practice Builder
 
+- (de la Fase 2) El generador de tokens debe fallar con un alias desconocido (`{x}`) y validar la forma de `tokens.json`.
+- (de la Fase 2) Decidir una convención única para tamaños sin token. Hoy conviven medidas de la escala de Tailwind copiadas de `bundle.css` (`size-10`, `w-11`, `h-15`…) con expresiones sobre tokens (`min-w-[calc(var(--target-min)*4)]`). La Fase 4 trae mucha interfaz nueva: decidirlo antes.
+- (de la Fase 2) Comprobación de hex en `src/**/*.tsx` dentro de `check:guards` (la regla 4 no tiene guarda hoy), y de medidas fuera de la convención que se decida.
+- (de la Fase 2) `ListRow`: semántica de lista (`ul`/`li`) y documentar que las filas van como hijas directas de `Card flush`. Las listas de ejercicios y de ítems de una sesión la van a usar.
 - **Atar el equipo del plan al de su evento.** Hoy el esquema acepta un plan de T2 sobre un evento de T1. Con escritura de usuarios, un entrenador de otro equipo podría ocupar el evento (`event_id` es único). Solución de esquema: `unique (organization_id, team_id, id)` en `events`, FK de tres columnas en `practice_plans` y `check (event_id is null or team_id is not null)`. El plan de la Fase 4 no lo recoge.
 - Una sola regla de «staff de un equipo» (`private.can_manage_team`): hoy está escrita tres veces (`is_team_staff`, `can_see_person`, `can_see_plan`).
 - El autor de un plan lo sigue viendo tras dejar el cuerpo técnico. Decidir antes de abrir la autoría.
@@ -46,6 +56,12 @@ Estado de la Fase 1: tareas 1–11 hechas y revisadas. Verificado contra Supabas
 
 ## Fase 7 · Gestión y cierre
 
+- (de la Fase 2) Un usuario de seed con dos clubes y su test: hoy nada fija el `organizations!inner(` de la consulta de contexto ni la lista del selector. Con él, «cambiar de club» en el menú de cuenta, que ningún plan añade.
+- (de la Fase 2) Política única de «quién es el usuario» y de errores de Auth en `guards.ts`: hoy hay tres (`session.ts`, `tenancy/queries.ts`, `select-club/page.tsx`). Añadir `.retry(false)` a la consulta de contexto: los reintentos de postgrest-js retrasan unos 7 s la pantalla de error.
+- Sesión caducada con un editor abierto. Al guardar, el proxy redirige la petición de la acción a `/login` y quien edita no llega a ver el login: decidir qué debe ver (ir al login conservando lo escrito) y hacerlo dentro de esa política única. Lo que sí está resuelto: si la acción responde con `notFound()` o una redirección propia, el editor ya no lo convierte en «No se pudo guardar».
+- (de la Fase 2) Campo de código que tolere pegar con espacios; botón primario del login y del 404 con `CTAButton`; etiqueta «The Way» por defecto definida una sola vez (hoy está en `tenancy/navigation.ts` y en `tenancy/queries.ts`).
+- (de la Fase 2) Usar `useSelectedLayoutSegment` en el `error.tsx` de `(app)`.
+- (de la Fase 2) Formateador de código y versión de Node fijada (`engines` o `.nvmrc`; CI usa 24).
 - `organizations.status = 'suspended'` no corta el acceso. La zona horaria del club no se valida.
 - Fixtures de la matriz RLS: admin y entrenador sin persona, usuario sin membresías.
 - Coste de las políticas con función por fila y avisos del asesor de Supabase (FKs compuestas sin índice).
