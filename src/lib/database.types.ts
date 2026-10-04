@@ -61,6 +61,174 @@ isOneToOne: false
       referencedColumns: ["id"]
     }
                   ]
+                },"drill_coaching_points": {
+                  Row: {
+                    "drill_id": string,"id": string,"is_key": boolean,"organization_id": string,"sort": number,"text": string
+                  }
+                  Insert: {
+                    "drill_id": string,"id"?: string,"is_key"?: boolean,"organization_id": string,"sort": number,"text": string
+                  }
+                  Update: {
+                    "drill_id"?: string,"id"?: string,"is_key"?: boolean,"organization_id"?: string,"sort"?: number,"text"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "drill_coaching_points_organization_id_drill_id_fkey"
+      columns: ["organization_id","drill_id"]
+isOneToOne: false
+      referencedRelation: "drills"
+      referencedColumns: ["organization_id","id"]
+    },{
+      foreignKeyName: "drill_coaching_points_organization_id_fkey"
+      columns: ["organization_id"]
+isOneToOne: false
+      referencedRelation: "organizations"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"drill_focus_areas": {
+                  Row: {
+                    "drill_id": string,"focus_area_id": string,"organization_id": string
+                  }
+                  Insert: {
+                    "drill_id": string,"focus_area_id": string,"organization_id": string
+                  }
+                  Update: {
+                    "drill_id"?: string,"focus_area_id"?: string,"organization_id"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "drill_focus_areas_organization_id_drill_id_fkey"
+      columns: ["organization_id","drill_id"]
+isOneToOne: false
+      referencedRelation: "drills"
+      referencedColumns: ["organization_id","id"]
+    },{
+      foreignKeyName: "drill_focus_areas_organization_id_fkey"
+      columns: ["organization_id"]
+isOneToOne: false
+      referencedRelation: "organizations"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "drill_focus_areas_organization_id_focus_area_id_fkey"
+      columns: ["organization_id","focus_area_id"]
+isOneToOne: false
+      referencedRelation: "focus_areas"
+      referencedColumns: ["organization_id","id"]
+    }
+                  ]
+                },"drill_principles": {
+                  Row: {
+                    "drill_id": string,"organization_id": string,"principle_id": string
+                  }
+                  Insert: {
+                    "drill_id": string,"organization_id": string,"principle_id": string
+                  }
+                  Update: {
+                    "drill_id"?: string,"organization_id"?: string,"principle_id"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "drill_principles_organization_id_drill_id_fkey"
+      columns: ["organization_id","drill_id"]
+isOneToOne: false
+      referencedRelation: "drills"
+      referencedColumns: ["organization_id","id"]
+    },{
+      foreignKeyName: "drill_principles_organization_id_fkey"
+      columns: ["organization_id"]
+isOneToOne: false
+      referencedRelation: "organizations"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "drill_principles_organization_id_principle_id_fkey"
+      columns: ["organization_id","principle_id"]
+isOneToOne: false
+      referencedRelation: "game_principles"
+      referencedColumns: ["organization_id","id"]
+    }
+                  ]
+                },"drill_standards": {
+                  Row: {
+                    "drill_id": string,"organization_id": string,"standard_id": string
+                  }
+                  Insert: {
+                    "drill_id": string,"organization_id": string,"standard_id": string
+                  }
+                  Update: {
+                    "drill_id"?: string,"organization_id"?: string,"standard_id"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "drill_standards_organization_id_drill_id_fkey"
+      columns: ["organization_id","drill_id"]
+isOneToOne: false
+      referencedRelation: "drills"
+      referencedColumns: ["organization_id","id"]
+    },{
+      foreignKeyName: "drill_standards_organization_id_fkey"
+      columns: ["organization_id"]
+isOneToOne: false
+      referencedRelation: "organizations"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "drill_standards_organization_id_standard_id_fkey"
+      columns: ["organization_id","standard_id"]
+isOneToOne: false
+      referencedRelation: "standards"
+      referencedColumns: ["organization_id","id"]
+    }
+                  ]
+                },"drill_variants": {
+                  Row: {
+                    "description": string | null,"drill_id": string,"id": string,"organization_id": string,"sort": number,"title": string
+                  }
+                  Insert: {
+                    "description"?: string | null,"drill_id": string,"id"?: string,"organization_id": string,"sort": number,"title": string
+                  }
+                  Update: {
+                    "description"?: string | null,"drill_id"?: string,"id"?: string,"organization_id"?: string,"sort"?: number,"title"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "drill_variants_organization_id_drill_id_fkey"
+      columns: ["organization_id","drill_id"]
+isOneToOne: false
+      referencedRelation: "drills"
+      referencedColumns: ["organization_id","id"]
+    },{
+      foreignKeyName: "drill_variants_organization_id_fkey"
+      columns: ["organization_id"]
+isOneToOne: false
+      referencedRelation: "organizations"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"drills": {
+                  Row: {
+                    "created_at": string,"created_by": string | null,"diagram_media_id": string | null,"equipment": (string)[],"id": string,"max_age": number | null,"max_minutes": number,"max_players": number,"min_age": number,"min_minutes": number,"min_players": number,"objective": string | null,"organization_id": string,"search": unknown,"setup_md": string | null,"status": Database["public"]['Enums']["drill_status"],"summary": string | null,"title": string,"updated_at": string,"video_url": string | null
+                  }
+                  Insert: {
+                    "created_at"?: string,"created_by"?: string | null,"diagram_media_id"?: string | null,"equipment"?: (string)[],"id"?: string,"max_age"?: number | null,"max_minutes": number,"max_players": number,"min_age": number,"min_minutes": number,"min_players": number,"objective"?: string | null,"organization_id": string,"search"?: never,"setup_md"?: string | null,"status"?: Database["public"]['Enums']["drill_status"],"summary"?: string | null,"title": string,"updated_at"?: string,"video_url"?: string | null
+                  }
+                  Update: {
+                    "created_at"?: string,"created_by"?: string | null,"diagram_media_id"?: string | null,"equipment"?: (string)[],"id"?: string,"max_age"?: number | null,"max_minutes"?: number,"max_players"?: number,"min_age"?: number,"min_minutes"?: number,"min_players"?: number,"objective"?: string | null,"organization_id"?: string,"search"?: never,"setup_md"?: string | null,"status"?: Database["public"]['Enums']["drill_status"],"summary"?: string | null,"title"?: string,"updated_at"?: string,"video_url"?: string | null
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "drills_diagram_fk"
+      columns: ["organization_id","diagram_media_id"]
+isOneToOne: false
+      referencedRelation: "media_assets"
+      referencedColumns: ["organization_id","id"]
+    },{
+      foreignKeyName: "drills_organization_id_fkey"
+      columns: ["organization_id"]
+isOneToOne: false
+      referencedRelation: "organizations"
+      referencedColumns: ["id"]
+    }
+                  ]
                 },"events": {
                   Row: {
                     "ends_at": string,"id": string,"kind": Database["public"]['Enums']["event_kind"],"location": string | null,"organization_id": string,"starts_at": string,"status": Database["public"]['Enums']["event_status"],"team_id": string
@@ -143,6 +311,25 @@ isOneToOne: false
       referencedColumns: ["organization_id","id"]
     },{
       foreignKeyName: "games_organization_id_fkey"
+      columns: ["organization_id"]
+isOneToOne: false
+      referencedRelation: "organizations"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"media_assets": {
+                  Row: {
+                    "bucket": string,"bytes": number,"contains_minor": boolean,"created_at": string,"created_by": string | null,"id": string,"kind": string,"mime": string,"organization_id": string,"path": string
+                  }
+                  Insert: {
+                    "bucket"?: string,"bytes": number,"contains_minor"?: boolean,"created_at"?: string,"created_by"?: string | null,"id"?: string,"kind": string,"mime": string,"organization_id": string,"path": string
+                  }
+                  Update: {
+                    "bucket"?: string,"bytes"?: number,"contains_minor"?: boolean,"created_at"?: string,"created_by"?: string | null,"id"?: string,"kind"?: string,"mime"?: string,"organization_id"?: string,"path"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "media_assets_organization_id_fkey"
       columns: ["organization_id"]
 isOneToOne: false
       referencedRelation: "organizations"
@@ -237,6 +424,12 @@ isOneToOne: false
                   }
                   Relationships: [
                     {
+      foreignKeyName: "practice_items_organization_id_drill_id_fkey"
+      columns: ["organization_id","drill_id"]
+isOneToOne: false
+      referencedRelation: "drills"
+      referencedColumns: ["organization_id","id"]
+    },{
       foreignKeyName: "practice_items_organization_id_fkey"
       columns: ["organization_id"]
 isOneToOne: false
@@ -493,12 +686,41 @@ isOneToOne: false
 "save_game_principle":
 { Args: { "p_id": string,"p_points": (string)[],"p_summary": string,"p_title": string }; Returns: undefined
                            },
+"search_drills":
+{ Args: { "p_age"?: number,"p_focus"?: string,"p_minutes"?: number,"p_org": string,"p_players"?: number,"p_principle"?: string,"p_q"?: string }; Returns: {
+              "created_at": string,
+"created_by": string | null,
+"diagram_media_id": string | null,
+"equipment": (string)[],
+"id": string,
+"max_age": number | null,
+"max_minutes": number,
+"max_players": number,
+"min_age": number,
+"min_minutes": number,
+"min_players": number,
+"objective": string | null,
+"organization_id": string,
+"search": unknown,
+"setup_md": string | null,
+"status": Database["public"]['Enums']["drill_status"],
+"summary": string | null,
+"title": string,
+"updated_at": string,
+"video_url": string | null
+            }[]
+                          SetofOptions: {
+        from: "*"
+        to: "drills"
+        isOneToOne: false
+        isSetofReturn: true
+      } },
 "update_way_section":
 { Args: { "p_body_md": string,"p_content_kind": string,"p_expected_updated_at": string,"p_id": string,"p_summary": string,"p_title": string }; Returns: string
                            }
           }
           Enums: {
-            "content_status": "draft"|"published","event_kind": "practice"|"game","event_status": "scheduled"|"done"|"cancelled","org_role": "admin"|"coach"|"player"|"guardian","staff_role": "head_coach"|"assistant"
+            "content_status": "draft"|"published","drill_status": "draft"|"published"|"archived","event_kind": "practice"|"game","event_status": "scheduled"|"done"|"cancelled","org_role": "admin"|"coach"|"player"|"guardian","staff_role": "head_coach"|"assistant"
           }
           CompositeTypes: {
             [_ in never]: never
@@ -618,7 +840,7 @@ export const Constants = {
           }
         },"public": {
           Enums: {
-            "content_status": ["draft", "published"],"event_kind": ["practice", "game"],"event_status": ["scheduled", "done", "cancelled"],"org_role": ["admin", "coach", "player", "guardian"],"staff_role": ["head_coach", "assistant"]
+            "content_status": ["draft", "published"],"drill_status": ["draft", "published", "archived"],"event_kind": ["practice", "game"],"event_status": ["scheduled", "done", "cancelled"],"org_role": ["admin", "coach", "player", "guardian"],"staff_role": ["head_coach", "assistant"]
           }
         }
 } as const

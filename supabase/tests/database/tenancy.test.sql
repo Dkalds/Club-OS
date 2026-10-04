@@ -259,13 +259,16 @@ select results_eq(
 
 update organizations set name = 'Club A renombrado' where id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 
+-- Las fixtures dejan `updated_at` en el año 2000. El trigger lo fija con `clock_timestamp()`
+-- (la biblioteca de ejercicios lo necesita así), que nunca es anterior al inicio de la
+-- transacción, `now()`.
 select ok(
-  (select updated_at = now() from organizations where id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'),
+  (select updated_at >= now() from organizations where id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'),
   'organizations.updated_at se actualiza al modificar'
 );
 
 select ok(
-  (select updated_at = now() from organization_branding
+  (select updated_at >= now() from organization_branding
    where organization_id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'),
   'organization_branding.updated_at se actualiza al modificar'
 );
