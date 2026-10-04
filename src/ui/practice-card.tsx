@@ -1,4 +1,5 @@
 import type { HomePractice } from "@/modules/home/types";
+import { itemsLabel } from "@/modules/practice/format";
 import { Card } from "./card";
 import { CTAButton } from "./cta-button";
 import { ChevronRightIcon } from "./icons";
@@ -6,15 +7,9 @@ import { ChevronRightIcon } from "./icons";
 /** Entre campos de los metadatos: espacio, U+00B7, espacio (el mismo que el resto de la app). */
 const FIELD_SEPARATOR = " · ";
 
-function drillsLabel(count: number): string {
-  if (count === 0) return "Sin ejercicios todavía";
-  if (count === 1) return "1 ejercicio";
-  return `${count} ejercicios`;
-}
-
 /** «75 min · 5 ejercicios · Pabellón 2»; sin lugar (o en blanco), sin el último campo. */
 function meta({ totalMinutes, drillCount, location }: HomePractice): string {
-  const fields = [`${totalMinutes} min`, drillsLabel(drillCount)];
+  const fields = [`${totalMinutes} min`, itemsLabel(drillCount)];
   const place = location?.trim();
   if (place) fields.push(place);
   return fields.join(FIELD_SEPARATOR);
