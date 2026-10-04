@@ -1,6 +1,6 @@
-# CLUB OS · Pendientes que dejan las fases cerradas
+# CLUB OS · Pendientes que deja la Fase 1
 
-Lo que las revisiones de las Fases 1 y 2 dejaron para más adelante, ordenado por la fase que debe recogerlo. Nada de esto bloquea una fase cerrada. Cada plan de fase debería incorporar su bloque antes de empezar. Si una fase se cierra sin recoger el suyo, lo que quede se pasa a otra en este fichero: aquí no hay pendientes sin dueño.
+Lo que las revisiones de la Fase 1 dejaron para más adelante, ordenado por la fase que debe recogerlo. Nada de esto bloquea la Fase 1. Cada plan de fase debería incorporar su bloque antes de empezar. Si una fase se cierra sin recoger el suyo, lo que quede se pasa a otra en este fichero: aquí no hay pendientes sin dueño.
 
 Estado de la Fase 1: tareas 1–11 hechas y revisadas. Verificado contra Supabase local real y desde una base vacía: `test:db` 208/208, `seed` dos veces, `test:int` 9/9, unidad 577/577, `test:e2e` 16/16. Task 12 (entorno remoto): la parte del repositorio está hecha (con ella, unidad 617/617 y `test:int` 11/11). Pendiente: lo que queda en los paneles (lista de abajo), primera ejecución real de CI y revisión en un móvil real.
 
@@ -15,19 +15,13 @@ Estado de la Fase 1: tareas 1–11 hechas y revisadas. Verificado contra Supabas
 
 ## Fase 2 · The Way (cerrada)
 
-La Fase 2 se cerró sin recoger casi nada de su bloque. Lo que sigue pendiente está repartido en las fases de abajo, marcado con «(de la Fase 2)».
+La Fase 2 se cerró sin recoger casi nada de este bloque. Lo que sigue pendiente está repartido en los bloques de las fases 3, 4 y 7 de aquí abajo, marcado con «(de la Fase 2)».
 
-Hecho, en la fase o al corregir su revisión:
+Hecho, en la fase o al corregir la revisión de su PR:
 
 - Menú de cuenta con «Salir» dentro del club (`src/ui/account-menu.tsx`).
 - `requireClub` sustituye a `getClubContext` + `notFound()` en todas las páginas y layouts de `/c/[club]`.
 - Test propio de Inicio (`src/app/c/[club]/(app)/page.test.tsx`).
-
-Lo que arregló la corrección de la revisión de la Fase 2, por si una fase siguiente copia el patrón:
-
-- **`update` por columna.** En las tablas de la metodología, `authenticated` solo puede cambiar las columnas que la app edita: ni `organization_id`, ni `id`, ni el slug. Una tabla nueva que los usuarios editen debe hacer lo mismo: las políticas no pueden impedir que quien administra dos clubes pase una fila de uno a otro.
-- **Altas que calculan número o slug.** Leen la lista y luego insertan: el único de la tabla frena la carrera y la acción reintenta (`retryOnConflict` en `src/modules/methodology/actions.ts`). Un único que se renumera en bloque tiene que ser diferible.
-- **El seed y lo creado a mano.** `pnpm seed` no borra nada: recoloca lo que choca (`scripts/seed/strays.ts`). Una tabla nueva con un único que el seed escribe necesita el mismo cuidado.
 
 ## Fase 3 · Biblioteca (en curso)
 
@@ -115,11 +109,19 @@ Estado de la Fase 2: tareas 1–11 hechas y revisadas, revisión final de toda l
 
 ## Del bloque que la Fase 1 dejó para la Fase 2
 
-El plan de la Fase 2 se ejecutó tal como estaba escrito, sin incorporar ese bloque. De sus once puntos:
+El plan de la Fase 2 se ejecutó tal como estaba escrito, sin incorporar ese bloque. Lo hecho y el reparto de lo que queda están arriba: «Fase 2 · The Way (cerrada)» y los bloques de las fases 3, 4 y 7.
 
-- Hecho: menú de cuenta con «Salir» dentro del club (sigue sin haber «cambiar de club»).
 - A medias: la etiqueta «The Way» por defecto está en `wayLabel` (`tenancy/navigation.ts`), pero el nombre por defecto de la metodología sigue aparte en `tenancy/queries.ts:51`.
-- Sigue pendiente el resto. En concreto, Inicio y las pestañas vacías (`(app)/page.tsx`, `(app)/coming-soon.tsx`) aún usan `getClubContext` + `notFound()` en lugar de `requireClub`; Inicio no tiene test propio; `(app)/error.tsx` no usa `useSelectedLayoutSegment`.
+- Sigue sin haber «cambiar de club» en el menú de cuenta, y `(app)/error.tsx` no usa `useSelectedLayoutSegment`.
+
+## Corregido tras la revisión del PR de la Fase 2
+
+La revisión del PR, ya fusionado, dejó hallazgos que se corrigieron en un PR aparte (migración `20261021000100_methodology_integrity`). Lo que una fase siguiente debe copiar de esos arreglos:
+
+- **`update` por columna.** En las tablas de la metodología, `authenticated` solo puede cambiar las columnas que la app edita: ni `organization_id`, ni `id`, ni el slug. Una tabla nueva que los usuarios editen debe hacer lo mismo: las políticas no pueden impedir que quien administra dos clubes pase una fila de uno a otro.
+- **Altas que calculan número o slug.** Leen la lista y luego insertan: el único de la tabla frena la carrera y la acción reintenta (`retryOnConflict` en `src/modules/methodology/actions.ts`). Un único que se renumera en bloque tiene que ser diferible.
+- **El seed y lo creado a mano.** `pnpm seed` no borra nada: recoloca lo que choca (`scripts/seed/strays.ts`). Una tabla nueva con un único que el seed escribe necesita el mismo cuidado.
+- **Páginas de Gestión.** Se exportan con `adminPage` (`src/lib/guards.ts`); `pnpm check:guards` rechaza una página de `/admin` que se proteja a mano.
 
 ## Antes de empezar la Fase 3
 
@@ -132,7 +134,6 @@ Piezas de la Fase 2 que las fases siguientes van a copiar o reutilizar. Más bar
 - Fixture de `ClubContext` para tests en un solo sitio: `tenancy/test-support.ts` ya lo ofrece, pero siguen teniendo el suyo `lib/guards.test.ts`, `lib/permissions.test.ts`, `methodology/actions.test.ts`, `tenancy/queries.test.ts`, `home/queries.test.ts` y `(app)/coming-soon.test.tsx`. Lo mismo para los fixtures de pgTAP: unas 90 líneas repetidas entre `methodology.test.sql` y `methodology_functions.test.sql`; un helper en `supabase/seed.sql` ahorra la copia a cada fase.
 - E2E del proyecto `admin`: `e2e/admin.spec.ts` tiene unas 790 líneas y sus helpers (`hydrated`, `field`, `title`, `openList`, `itemCard`) son locales. Moverlos a `e2e/helpers/` y partir el spec por pantalla, sumando los nuevos a `ADMIN_SPECS`. `hydrated()` lee el marcador interno `__reactProps$` de React: una subida de versión rompería todos los tests de Gestión a la vez.
 - `throwReadError` (`methodology/map-rows.ts`) y el `fail` privado de `home/queries.ts:16` son la misma función: una sola, junto a `src/lib/log.ts`.
-- El seed tiene su propio `slugify` (`scripts/seed/data.ts`) y el módulo otro (`methodology/slug.ts`). Coinciden en los títulos de hoy; difieren en el tope de 60 caracteres y en el slug reservado `standards`.
 
 ## Fase 3 · Biblioteca de ejercicios
 
@@ -147,9 +148,9 @@ Piezas de la Fase 2 que las fases siguientes van a copiar o reutilizar. Más bar
 
 ## Fase 7 · Gestión y cierre
 
-- **Pasada de accesibilidad.** Las pestañas «Escribir / Vista previa» son medio patrón de pestañas: sin `tabIndex` itinerante ni flechas, y el panel de vista previa no recibe foco. El botón del menú de cuenta se llama «Abrir menú de cuenta» también cuando está abierto. La pestaña activa de Gestión no se desplaza a la vista por debajo de `lg`. Los errores de campo siguen pintados después de editar. Al reordenar, el cambio de número no se anuncia. Con un error en una fila de punto, a partir de `lg` los botones se alinean con el error y no con el campo. Los enlaces dentro de un texto en Markdown miden 24 px de alto.
-- **Asesor de seguridad de Supabase.** El cierre de la Fase 2 pasó `supabase db lint`, no el asesor que nombra la tarea 12. Pasarlo contra el proyecto remoto cuando tenga las migraciones de metodología.
-- **Orden y numeración no atómicos.** `reorder_methodology` no se serializa frente a un alta: una fila creada entre la comprobación y el update conserva su `sort` y su `number` hasta el siguiente reordenado. Dos altas simultáneas pueden duplicar número, o chocar en el slug y devolver `INVALID` sin campo marcado. Dos reordenados a la vez: gana el último. Un movimiento sin efecto también revalida. Se corrige solo al reordenar; aceptable con una sola persona en dirección.
+- **Pasada de accesibilidad.** El panel de vista previa de las pestañas «Escribir / Vista previa» no recibe foco (el `tabIndex` itinerante y las flechas ya están). El botón del menú de cuenta se llama «Abrir menú de cuenta» también cuando está abierto. La pestaña activa de Gestión no se desplaza a la vista por debajo de `lg`. Los errores de campo siguen pintados después de editar. Al reordenar, el cambio de número no se anuncia. Con un error en una fila de punto, a partir de `lg` los botones se alinean con el error y no con el campo. Los enlaces dentro de un texto en Markdown miden 24 px de alto.
+- **Asesor de seguridad de Supabase.** El cierre de la Fase 2 pasó `supabase db lint`, no el asesor que nombra la tarea 12. Pasado contra el proyecto remoto el 4 oct 2026, ya con las dos migraciones de metodología: sin avisos. Volver a pasarlo con cada migración que llegue al remoto.
+- **Reordenar no se serializa.** `reorder_methodology` no se serializa frente a un alta: una fila creada entre la comprobación y el update conserva su `sort` y su `number` hasta el siguiente reordenado. Dos reordenados a la vez: gana el último. Un movimiento sin efecto también revalida. Aceptable con una sola persona en dirección. Las altas simultáneas ya no duplican el número ni chocan en el slug: los dos son únicos por club y el alta reintenta.
 - **Rastro de errores.** `fromDbError` no registra nada; lo hacen las acciones en el punto de llamada, solo para lo inesperado. El `catch` general de `mutate` convierte cualquier excepción en `SAVE_FAILED` y `logError` solo imprime el nombre del error: un fallo de programación queda como `[methodology.x] TypeError`. Si Supabase no responde, `requireClub` lanza dentro de la acción y el formulario muestra «No se pudo guardar».
 - Los mensajes por defecto de Zod, en inglés, pueden llegar a `fieldErrors` con un cliente manipulado (enums, `expectedUpdatedAt`, nulos). Los tests usan `toMatchObject` y no fijan el texto.
 - Los formularios de Gestión no tienen `method`: un envío antes de que React hidrate es un GET nativo, con los campos en la URL y los cambios perdidos.
@@ -168,7 +169,7 @@ Piezas de la Fase 2 que las fases siguientes van a copiar o reutilizar. Más bar
 - Los patrones de `revalidatePath` (`/c/[club]/(app)/way`, `/c/[club]/admin`) solo están fijados como cadenas. Todo bajo `/c/[club]` es dinámico, así que un patrón equivocado no se notaría hoy. Un test que compruebe que las dos carpetas existen lo ataría.
 - Tests que obligan a tocarlos en cada fase: `action-result.test.ts` fija toda la tabla de copy con `toStrictEqual` y `permissions.test.ts` escribe a mano la lista de acciones.
 - pgTAP de las funciones: sin aserción para `p_expected_updated_at` nulo (da `STALE_COPY`) ni para un elemento nulo en `p_points` (da `23502`, fuera del contrato). Las aserciones «nada cambió tras una llamada rechazada» no pueden fallar por sí solas.
-- Seed: `standards` hace upsert por `id` pero `(organization_id, number)` es único; intercambiar a mano dos números y volver a sembrar puede chocar. El test de integración de puntos deja la base sucia si falla antes de `runSeed`. `scripts/seed/data.ts` ronda las 810 líneas.
+- Seed: el test de integración de puntos deja la base sucia si falla antes de `runSeed`. `scripts/seed/data.ts` ronda las 800 líneas.
 - `e2e/admin.spec.ts`: un caso depende de la longitud de las etiquetas del seed para que las pestañas desborden; hay capturas sin aserción; ningún e2e comprueba el nombre real del avatar.
 - `src/lib/database.types.ts` es la salida cruda del generador, sin formatear. Un paso de formato en `db:types` haría legibles sus diffs; va con el formateador que ya pide el bloque de la Fase 1.
 
