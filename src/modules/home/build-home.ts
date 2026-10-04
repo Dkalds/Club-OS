@@ -7,6 +7,7 @@ import {
   localTime,
   startOfLocalDay,
 } from "@/lib/time";
+import { sessionMinutes } from "@/modules/practice/items";
 import type { HomeData, HomeEvent, HomeGame, HomeInput, HomePractice, WeekItem } from "./types";
 
 const PRACTICE_WITHOUT_PLAN = "Entrenamiento sin plan";
@@ -30,19 +31,17 @@ function byStart(a: Upcoming, b: Upcoming): number {
   return a.startMs - b.startMs || compareById(a.event.id, b.event.id);
 }
 
-function sum(values: number[]): number {
-  return values.reduce((total, value) => total + value, 0);
-}
-
 function toPractice(item: Upcoming, teamName: string, tz: string): HomePractice {
   const { event } = item;
   const { plan } = event;
+  // Lo que dura es lo que suman sus ítems y, sin ítems (con plan vacío o sin plan), su franja.
+  const items = (plan?.itemMinutes ?? []).map((minutes) => ({ minutes }));
   return {
     eventId: event.id,
     teamName,
     slotLabel: formatEventSlot(event.startsAt, event.endsAt, tz),
     title: plan ? plan.title : PRACTICE_WITHOUT_PLAN,
-    totalMinutes: plan ? sum(plan.itemMinutes) : Math.round((item.endMs - item.startMs) / 60_000),
+    totalMinutes: sessionMinutes(items, event.startsAt, event.endsAt),
     drillCount: plan ? plan.itemMinutes.length : 0,
     focus: plan ? [...plan.focus] : [],
     location: event.location,
@@ -106,9 +105,12 @@ export function buildHome(input: HomeInput, nowIso: string, tz: string): HomeDat
 
   // «Esta semana»: de las 00:00 locales de hoy a las 00:00 locales del día 7 siguiente
   // (un intervalo semiabierto). Los límites se calculan en días de calendario, no en horas.
-  const weekStart = startOfLocalDay(nowIso, tz);
-  const weekStartMs = new Date(weekStart).getTime();
-  const weekEndMs = new Date(addLocalDays(weekStart, WEEK_DAYS, tz)).getTime();
+  // El fin se busca sumando los días a `now` y tomando entonces el principio de ese día, y no
+  // sumándolos al principio de hoy: donde el cambio de hora cae a medianoche (Santiago, La
+  // Habana) las 00:00 de hoy pueden no existir y ese «principio» ya son las 01:00, que
+  // arrastrarían el fin de la semana una hora.
+  const weekStartMs = new Date(startOfLocalDay(nowIso, tz)).getTime();
+  const weekEndMs = new Date(startOfLocalDay(addLocalDays(nowIso, WEEK_DAYS, tz), tz)).getTime();
 
   const week: WeekItem[] = upcoming
     .filter(({ startMs }) => startMs >= weekStartMs && startMs < weekEndMs)

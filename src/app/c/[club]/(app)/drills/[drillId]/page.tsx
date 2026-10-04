@@ -1,13 +1,16 @@
 import { notFound } from "next/navigation";
 import { requireClub } from "@/lib/guards";
+import { can } from "@/lib/permissions";
 import { drillHeader } from "@/modules/drills/format";
 import { drillPermissions } from "@/modules/drills/permissions";
 import { getDrill } from "@/modules/drills/queries";
+import { listPractices } from "@/modules/practice/queries";
 import { standardsLabel } from "@/modules/tenancy/navigation";
 import { CoachingPointsList } from "@/ui/coaching-points-list";
 import { CourtDiagram } from "@/ui/court";
 import { MarkdownBody } from "@/ui/markdown-body";
 import { TopNavigation } from "@/ui/top-navigation";
+import { AddToPractice } from "./add-to-practice";
 import { DrillAdminActions } from "./drill-admin-actions";
 import {
   EquipmentSection,
@@ -37,6 +40,13 @@ import { DRILL_TITLE_ID } from "./title-id";
  * `TopNavigation`). Su título es un `<p>`, así que el `<h1>` es el del ejercicio. «Editar» y los
  * botones de dirección salen según `drillPermissions`, que solo muestra u oculta: lo que protege
  * es RLS y las Server Actions.
+ *
+ * «Añadir a sesión» sale a quien gestiona sesiones (`practice.manage`) y solo en un ejercicio
+ * publicado: un borrador no se ofrece a las sesiones de todo el equipo y un archivado ya no sale
+ * en la biblioteca. Va debajo de todo el contenido, antes de los botones de dirección, y es
+ * `secondary`: en esta pantalla el único primary posible es «Publicar», que no sale en un
+ * publicado. Sus sesiones son las próximas de quien mira (`listPractices`), leídas aquí y solo
+ * cuando se va a pintar; si no se pueden leer, lanza como el resto de lecturas de la ficha.
  */
 export default async function DrillPage({ params }: PageProps<"/c/[club]/drills/[drillId]">) {
   const { club, drillId } = await params;
@@ -49,6 +59,10 @@ export default async function DrillPage({ params }: PageProps<"/c/[club]/drills/
   const perms = drillPermissions(ctx, drill);
   const objective = drill.objective?.trim();
   const setup = drill.setupMd?.trim();
+  const upcoming =
+    can(ctx, "practice.manage") && drill.status === "published"
+      ? await listPractices(ctx, "upcoming", new Date().toISOString())
+      : null;
 
   return (
     <>
@@ -115,6 +129,15 @@ export default async function DrillPage({ params }: PageProps<"/c/[club]/drills/
         {drill.equipment.length > 0 ? <EquipmentSection equipment={drill.equipment} /> : null}
 
         {drill.videoUrl ? <VideoSection url={drill.videoUrl} /> : null}
+
+        {upcoming ? (
+          <AddToPractice
+            clubSlug={ctx.org.slug}
+            drillId={drill.id}
+            practices={upcoming.practices}
+            teamCount={upcoming.teamCount}
+          />
+        ) : null}
 
         <DrillAdminActions
           clubSlug={ctx.org.slug}

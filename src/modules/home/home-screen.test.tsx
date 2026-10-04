@@ -15,6 +15,15 @@ const PRACTICE: HomePractice = {
   location: "Pabellón 2",
 };
 
+/** El kicker de la card del entrenamiento: lo fijo y, tras el punto medio, el equipo. */
+const PRACTICE_KICKER = "Próximo entrenamiento · Equipo A";
+
+// Para afirmar que una card NO está se busca por el arranque de su kicker, no por el texto
+// entero: así la aserción falla con cualquier variante (otro equipo, sin equipo, algo detrás).
+// Con el texto entero pasaría pintara lo que pintara la pantalla.
+const ANY_PRACTICE_KICKER = /^Próximo entrenamiento/;
+const ANY_GAME_KICKER = /^Próximo partido/;
+
 const GAME: HomeGame = {
   eventId: "e-3",
   teamName: "Equipo A",
@@ -42,8 +51,19 @@ function home(overrides: Partial<HomeData> = {}): HomeData {
   };
 }
 
-function renderHome(data: HomeData, club = { clubSlug: "club-a", ownShortName: "CLA" }) {
-  return render(<HomeScreen home={data} clubSlug={club.clubSlug} ownShortName={club.ownShortName} />);
+function renderHome(
+  data: HomeData,
+  club = { clubSlug: "club-a", ownShortName: "CLA" },
+  canCreatePractice = false,
+) {
+  return render(
+    <HomeScreen
+      home={data}
+      clubSlug={club.clubSlug}
+      ownShortName={club.ownShortName}
+      canCreatePractice={canCreatePractice}
+    />,
+  );
 }
 
 /** `true` si `first` va antes que `second` en el documento. */
@@ -75,7 +95,7 @@ describe("HomeScreen con equipos", () => {
     renderHome(home());
 
     const greeting = screen.getByRole("heading", { level: 1 });
-    const practice = screen.getByText("Próximo entrenamiento");
+    const practice = screen.getByText(PRACTICE_KICKER);
     const game = screen.getByText("Próximo partido");
     const week = screen.getByRole("heading", { level: 2, name: "Esta semana" });
 
@@ -92,17 +112,17 @@ describe("HomeScreen con equipos", () => {
     expect(screen.getByText("Equipo A · Temporada 2026/27")).toBeInTheDocument();
   });
 
-  it("destaca un solo entrenamiento, con lo que llega de los datos y el enlace a Entrenar", () => {
+  it("destaca un solo entrenamiento, con lo que llega de los datos y el enlace a su sesión", () => {
     renderHome(home());
 
-    const cards = screen.getAllByRole("article").filter((card) => within(card).queryByText("Próximo entrenamiento"));
+    const cards = screen.getAllByRole("article").filter((card) => within(card).queryByText(PRACTICE_KICKER));
     expect(cards).toHaveLength(1);
     const card = within(cards[0]);
     expect(card.getByRole("heading", { level: 2, name: "Salida de presión" })).toBeInTheDocument();
     // La hora llega ya formateada en la zona del club: aquí no se calcula nada.
     expect(card.getByText("Martes 6 oct · 18:00–19:15")).toBeInTheDocument();
     expect(card.getByText("75 min · 5 ejercicios · Pabellón 2")).toBeInTheDocument();
-    expect(card.getByRole("link", { name: "Abrir entrenamiento" })).toHaveAttribute("href", "/c/club-a/train");
+    expect(card.getByRole("link", { name: "Abrir entrenamiento" })).toHaveAttribute("href", "/c/club-a/train/e-1");
   });
 
   it("el partido lleva la sigla del club en el lado propio", () => {
@@ -126,44 +146,63 @@ describe("HomeScreen con equipos", () => {
     ]);
   });
 
-  it("los entrenamientos de la semana llevan a Entrenar y los partidos a Partidos", () => {
+  it("los entrenamientos de la semana llevan a su sesión y los partidos a Partidos", () => {
     renderHome(home(), { clubSlug: "club-b", ownShortName: "CLB" });
 
     const rows = within(weekSection()).getAllByRole("link");
     expect(rows.map((row) => row.getAttribute("href"))).toEqual([
-      "/c/club-b/train",
-      "/c/club-b/train",
+      "/c/club-b/train/e-1",
+      "/c/club-b/train/e-2",
       "/c/club-b/games",
     ]);
   });
 
-  it("las filas son hijas directas de una misma card, que es lo que pinta sus separadores", () => {
+  it("las filas son hijas directas de una misma lista, la card que pinta sus separadores", () => {
     renderHome(home());
 
-    const rows = within(weekSection()).getAllByRole("link");
-    const card = rows[0].parentElement;
-    expect(card).toHaveClass("overflow-hidden");
-    for (const row of rows) expect(row.parentElement).toBe(card);
+    const list = within(weekSection()).getByRole("list");
+    expect(list).toHaveClass("overflow-hidden");
+    for (const row of within(list).getAllByRole("listitem")) {
+      expect(row.parentElement).toBe(list);
+      expect(within(row).getAllByRole("link")).toHaveLength(1);
+    }
   });
 
-  it("sin entrenamiento a la vista lo dice, sin destacar nada y sin ofrecer una acción que aún no existe", () => {
+  it("sin entrenamiento a la vista lo dice, sin destacar nada y sin ofrecer crear a quien no puede", () => {
     renderHome(home({ nextPractice: null }));
 
     const title = screen.getByRole("heading", { level: 2, name: "No hay entrenamientos programados" });
     expect(screen.getByText("Cuando haya una sesión en el calendario, la verás aquí.")).toBeInTheDocument();
-    expect(screen.queryByText("Próximo entrenamiento")).not.toBeInTheDocument();
+    expect(screen.queryByText(ANY_PRACTICE_KICKER)).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Abrir entrenamiento" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Nueva sesión" })).not.toBeInTheDocument();
     // Ocupa el sitio del entrenamiento: antes del partido y de la semana.
     expect(comesBefore(screen.getByRole("heading", { level: 1 }), title)).toBe(true);
     expect(comesBefore(title, screen.getByText("Próximo partido"))).toBe(true);
     expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
   });
 
+  it("sin entrenamiento a la vista y con permiso para crear, el aviso ofrece «Nueva sesión»", () => {
+    renderHome(home({ nextPractice: null }), { clubSlug: "club-b", ownShortName: "CLB" }, true);
+
+    const title = screen.getByRole("heading", { level: 2, name: "No hay entrenamientos programados" });
+    const create = screen.getByRole("link", { name: "Nueva sesión" });
+    expect(create).toHaveAttribute("href", "/c/club-b/train/new");
+    // La acción es del aviso: va dentro de su card, no suelta por la pantalla.
+    expect(title.parentElement).toContainElement(create);
+  });
+
+  it("con entrenamiento a la vista no ofrece «Nueva sesión» aunque pueda crear: el CTA es el del entrenamiento", () => {
+    renderHome(home(), { clubSlug: "club-a", ownShortName: "CLA" }, true);
+
+    expect(screen.queryByRole("link", { name: "Nueva sesión" })).not.toBeInTheDocument();
+  });
+
   it("sin partido no hay card de partido", () => {
     renderHome(home({ nextGame: null, week: WEEK.slice(0, 2) }));
 
-    expect(screen.queryByText("Próximo partido")).not.toBeInTheDocument();
-    expect(screen.getByText("Próximo entrenamiento")).toBeInTheDocument();
+    expect(screen.queryByText(ANY_GAME_KICKER)).not.toBeInTheDocument();
+    expect(screen.getByText(PRACTICE_KICKER)).toBeInTheDocument();
     expect(within(weekSection()).getAllByRole("link")).toHaveLength(2);
   });
 
@@ -196,7 +235,7 @@ describe("HomeScreen sin equipos", () => {
 
     expect(screen.getAllByRole("heading")).toHaveLength(2);
     expect(screen.queryByText("No hay entrenamientos programados")).not.toBeInTheDocument();
-    expect(screen.queryByText("Próximo partido")).not.toBeInTheDocument();
+    expect(screen.queryByText(ANY_GAME_KICKER)).not.toBeInTheDocument();
     expect(screen.queryByText("Esta semana")).not.toBeInTheDocument();
     expect(screen.queryByText("No hay nada más esta semana.")).not.toBeInTheDocument();
     expect(screen.queryByRole("link")).not.toBeInTheDocument();
@@ -205,8 +244,8 @@ describe("HomeScreen sin equipos", () => {
   it("aunque llegaran eventos, sin equipos no se pintan", () => {
     renderHome(home({ hasTeams: false }));
 
-    expect(screen.queryByText("Próximo entrenamiento")).not.toBeInTheDocument();
-    expect(screen.queryByText("Próximo partido")).not.toBeInTheDocument();
+    expect(screen.queryByText(ANY_PRACTICE_KICKER)).not.toBeInTheDocument();
+    expect(screen.queryByText(ANY_GAME_KICKER)).not.toBeInTheDocument();
     expect(screen.queryByText("Esta semana")).not.toBeInTheDocument();
   });
 

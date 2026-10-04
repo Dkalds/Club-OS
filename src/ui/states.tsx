@@ -11,7 +11,7 @@ import { AlertIcon } from "./icons";
 
 // design/components/bundle.css: `.cos-state` (padding space-12/space-6) y su texto a 280px.
 const STATE_CARD = "items-center px-(--space-6) py-(--space-12) text-center";
-const STATE_TEXT = "max-w-[280px]";
+const STATE_TEXT = "max-w-70";
 const ICON_CIRCLE = "flex size-14 items-center justify-center rounded-pill";
 
 /**
@@ -85,7 +85,7 @@ export function LoadingState({ rows = 3 }: { rows?: number }) {
             >
               <span className={`${block} h-15 w-20 shrink-0`} />
               <span className="flex min-w-0 flex-1 flex-col gap-(--space-2)">
-                <span className={`${block} h-[18px] w-[70%]`} />
+                <span className={`${block} h-4.5 w-7/10`} />
                 <span className={`${block} h-3 w-1/2`} />
               </span>
             </li>

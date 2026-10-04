@@ -72,11 +72,12 @@ describe("buildSeedData: números del brief", () => {
     expect(data.people.filter((p) => p.organization_id === orgId("club-demo"))).toHaveLength(4);
   });
 
-  it("Alevín A tiene 7 eventos: 2 próximos, 4 pasados y 1 partido", () => {
+  it("Alevín A tiene 8 eventos: 2 próximos, 4 pasados, 1 cancelado y 1 partido", () => {
     const events = eventsOf(teamId("arcangel", "Alevín A"));
-    expect(events).toHaveLength(7);
+    expect(events).toHaveLength(8);
     expect(events.filter((e) => e.kind === "practice" && e.status === "scheduled")).toHaveLength(2);
     expect(events.filter((e) => e.kind === "practice" && e.status === "done")).toHaveLength(4);
+    expect(events.filter((e) => e.kind === "practice" && e.status === "cancelled")).toHaveLength(1);
     expect(events.filter((e) => e.kind === "game" && e.status === "scheduled")).toHaveLength(1);
   });
 
@@ -127,6 +128,45 @@ describe("buildSeedData: números del brief", () => {
     expect(focusSlug(plan.secondary_focus_id)).toBe("rebote");
     expect(itemsOf(plan.id).map((i) => i.minutes)).toEqual([10, 15, 15, 15, 10, 10]);
     expect(minutes(plan.id)).toBe(75);
+  });
+
+  it("la sesión cancelada de Alevín A cae el día de upcoming[1], de 16:30 a 17:30 locales, y suma 45 min en 2 ítems", () => {
+    // upcoming[1] = jueves 8 oct; 16:30–17:30 en Madrid (UTC+2) = 14:30Z–15:30Z.
+    const event = eventAt(teamId("arcangel", "Alevín A"), "2026-10-08T14:30:00.000Z");
+    expect(event).toMatchObject({
+      kind: "practice",
+      status: "cancelled",
+      ends_at: "2026-10-08T15:30:00.000Z",
+      location: "Pabellón 2",
+    });
+    const plan = planOfEvent(event.id);
+    expect(plan).toMatchObject({
+      title: "Tiro libre y finalizaciones",
+      status: "ready",
+      team_id: event.team_id,
+      secondary_focus_id: null,
+    });
+    expect(focusSlug(plan.primary_focus_id)).toBe("tiro");
+    expect(itemsOf(plan.id).map((i) => [i.phase, i.title_override, i.minutes])).toEqual([
+      ["Tiro", "Rueda de tiros libres", 20],
+      ["Técnica", "Finalizaciones 1x0", 25],
+    ]);
+    expect(minutes(plan.id)).toBe(45);
+    // Los ids salen de la posición (`cancelled-0`), no de la fecha: un nuevo seed la mueve.
+    expect(event.id).toBe(seedId("arcangel", "event:alevin-a:cancelled-0"));
+    expect(plan.id).toBe(seedId("arcangel", "plan:alevin-a:cancelled-0"));
+  });
+
+  it("la sesión cancelada sigue en las 16:30 locales tras el cambio de hora", () => {
+    // Viernes 23 oct → jueves 29 oct, ya UTC+1: 16:30 locales = 15:30Z.
+    const later = buildSeedData(new Date("2026-10-23T10:00:00Z"));
+    const alevin = one(later.teams, (t) => t.name === "Alevín A", "Alevín A");
+    const cancelled = later.events.filter(
+      (e) => e.team_id === alevin.id && e.status === "cancelled",
+    );
+    expect(cancelled).toHaveLength(1);
+    expect(cancelled[0].starts_at).toBe("2026-10-29T15:30:00.000Z");
+    expect(cancelled[0].ends_at).toBe("2026-10-29T16:30:00.000Z");
   });
 
   it("la sesión de Benjamín A es de 17:00 a 18:00 locales el día de upcoming[0] y suma 60 min en 4 ítems", () => {
@@ -628,10 +668,10 @@ describe("buildSeedData: biblioteca de ejercicios", () => {
     rows.filter((row) => row.drill_id === drillIdValue);
   const bySort = (a: { sort: number }, b: { sort: number }) => a.sort - b.sort;
 
-  it("Arcángel tiene 18 ejercicios y Club Demo 2", () => {
-    expect(drillsOf("arcangel")).toHaveLength(18);
+  it("Arcángel tiene 21 ejercicios y Club Demo 2", () => {
+    expect(drillsOf("arcangel")).toHaveLength(21);
     expect(drillsOf("club-demo")).toHaveLength(2);
-    expect(data.drills).toHaveLength(20);
+    expect(data.drills).toHaveLength(23);
   });
 
   it("los fixtures llevan sus ejercicios (contrato entre fases)", () => {
@@ -645,7 +685,7 @@ describe("buildSeedData: biblioteca de ejercicios", () => {
       ["Bloqueo de rebote", "draft", "irene@arcangel.test"],
     ]);
     const published = states.filter(([, status]) => status === "published");
-    expect(published).toHaveLength(17);
+    expect(published).toHaveLength(20);
     expect(published.every(([, , email]) => email === "raul@arcangel.test")).toBe(true);
     expect(drillsOf("club-demo").map((d) => [d.title, d.status, d.author_email])).toEqual([
       ["Defensa individual", "published", "marta@demo.test"],
@@ -807,8 +847,36 @@ describe("buildSeedData: biblioteca de ejercicios", () => {
         (title) => [title, drillOf("arcangel", title).id],
       ),
     );
-    // Y son los únicos ítems enlazados de todo el seed.
-    expect(data.practice_items.filter((i) => i.drill_id !== null)).toHaveLength(5);
+  });
+
+  it("tres de los seis ítems de «Defensa presionante» apuntan a los ejercicios que suma la Fase 4", () => {
+    const plan = one(
+      data.practice_plans,
+      (p) => p.title === "Defensa presionante",
+      "plan de la segunda sesión",
+    );
+    const items = data.practice_items.filter((i) => i.plan_id === plan.id).sort(bySort);
+    expect(items.map((i) => i.title_override)).toEqual([
+      "Juegos de pies y reacción",
+      "Deslizamientos defensivos",
+      "Ayuda y recuperación 3x3",
+      "Presión al balón en medio campo",
+      "Bloqueo y rebote 3x3",
+      "4x4 con puntos por parada",
+    ]);
+    // Solo enlazan los que se llaman igual que un ejercicio de la biblioteca, y el título no se toca.
+    expect(items.map((i) => i.drill_id)).toEqual([
+      null,
+      null,
+      drillOf("arcangel", "Ayuda y recuperación 3x3").id,
+      drillOf("arcangel", "Presión al balón en medio campo").id,
+      drillOf("arcangel", "Bloqueo y rebote 3x3").id,
+      null,
+    ]);
+  });
+
+  it("los ítems enlazados de todo el seed son los cinco de la primera sesión y los tres de «Defensa presionante»", () => {
+    expect(data.practice_items.filter((i) => i.drill_id !== null)).toHaveLength(8);
   });
 });
 

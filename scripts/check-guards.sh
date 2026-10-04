@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Guards de CLUB OS (reglas 2, 3 y tokens sincronizados de CLAUDE.md).
+# Guards de CLUB OS (reglas 2, 3 y 4 de CLAUDE.md, y tokens sincronizados).
 # Sale con 1 si alguna comprobación falla e imprime las líneas culpables.
 # Se ejecuta desde la raíz del repo: `pnpm check:guards`.
 set -u
@@ -7,16 +7,26 @@ cd "$(dirname "$0")/.."
 
 fail=0
 
-# check_absent <descripción> <opciones de grep...>
-# Falla si grep encuentra algo en src/ (tests incluidos), y también si grep no ha podido
-# buscar: su estado 1 es «sin coincidencias» (pasa), 0 es «hay coincidencias» y 2 o más es
-# un error (src/ no existe o no se puede leer), que no puede contar como un pase.
-check_absent() {
-  local label="$1"
-  shift
+# check_absent_except <descripción> <excepción> <opciones de grep...>
+# Falla si grep encuentra algo en src/ (tests incluidos salvo que las opciones los excluyan), y
+# también si grep no ha podido buscar: su estado 1 es «sin coincidencias» (pasa), 0 es «hay
+# coincidencias» y 2 o más es un error (src/ no existe o no se puede leer), que no puede contar
+# como un pase.
+#
+# <excepción> es una regex extendida (vacía: ninguna) con las coincidencias que sí valen. Se
+# aplica sobre las líneas que grep ya ha encontrado, porque grep -E no tiene lookbehind y «una
+# medida salvo si va detrás de text-» no se escribe en una sola regex. El estado del filtro
+# sigue la misma regla que el de grep: 1 es que todo lo encontrado eran excepciones (pasa).
+check_absent_except() {
+  local label="$1" allowed="$2"
+  shift 2
   local found status
   found="$(grep "$@" src/)"
   status=$?
+  if [ "$status" -eq 0 ] && [ -n "$allowed" ]; then
+    found="$(printf '%s\n' "$found" | grep -vE "$allowed")"
+    status=$?
+  fi
   if [ "$status" -eq 1 ]; then
     return
   fi
@@ -32,6 +42,12 @@ check_absent() {
   fail=1
 }
 
+# check_absent <descripción> <opciones de grep...>
+# Lo mismo sin excepciones: todo lo que grep encuentre es un fallo.
+check_absent() {
+  check_absent_except "$1" "" "${@:2}"
+}
+
 # Regla 3: nada de un club escrito en src/. Los dos clubes del seed: nombre, slug y color
 # de acento, sin distinguir mayúsculas. Alternancia explícita (no [aá]) para que funcione
 # igual con cualquier locale.
@@ -40,6 +56,57 @@ check_absent "src/ menciona a un club (Arcángel / c9a45c / Club Demo / 3fb8af)"
 
 # Regla 2: la clave de servicio nunca entra en src/.
 check_absent "src/ menciona SERVICE_ROLE" -rn 'SERVICE_ROLE'
+
+# Regla 4: los colores, espacios y radios salen de los tokens. Las dos comprobaciones miran
+# solo los componentes (`.tsx`) y dejan fuera los tests: un test puede escribir un hex o una
+# medida para comprobar que no salen. `--include` va antes que `--exclude` porque, si un
+# archivo cumple los dos, grep hace caso al último.
+tsx_only=(--include='*.tsx' --exclude='*.test.tsx')
+
+# Nada de colores hex: `#` y 3, 4, 6 u 8 dígitos (#rgb, #rgba, #rrggbb, #rrggbbaa) que acaban
+# ahí, para no confundir `#12345` ni `#1234567` con un color. [[:xdigit:]] y no [0-9a-f]:
+# no depende del locale.
+#
+# Una línea de comentario no cuenta: un comentario que nombra un ancla (`/way#1abc`) o una
+# entidad no es un color de la interfaz, y el guard no puede distinguirlo de uno por su forma.
+# Lo que se salta, y solo eso, es la línea que es entera un comentario:
+#   - `//` como primer carácter que no es un espacio: todo lo que sigue es comentario.
+#   - `/*` o `{/*` (comentario de bloque o de JSX) o un `*` seguido de un espacio o del final
+#     de la línea (las líneas de en medio de un bloque), siempre que nada salvo espacios o un
+#     `}` cierre siga a un `*/`. Una línea con un `*/` y código detrás (`/* x */ const c = "#f00"`,
+#     `{/* x */}<div className="bg-[#f00]" />`, ` */ const c = ...`) es una línea de código con
+#     un comentario delante: se comprueba entera. El comentario con un `*/` en medio de la línea
+#     se marca aunque sea solo texto (un falso positivo visible: se reescribe y ya).
+# El `*` pide un espacio o el final de la línea detrás porque `*:` y `**:` son variantes de
+# Tailwind (`*:bg-[#f00]`) y una clase puede ir en una línea suya.
+#
+# Lo que NO se salta: el comentario que sigue a código en su misma línea (`x(); // #1abc`), un
+# hex dentro de código (un `className`, un `style`), y la línea de en medio de un bloque que no
+# empieza por `*` (su primer carácter no la delata como comentario: empiézala por `*` para que
+# se salte). Tampoco distingue qué hay dentro de una cadena: un ` * { color: #fff }` en un CSS
+# dentro de una plantilla de texto se salta como si fuera un comentario, y no hay forma de
+# evitarlo mirando solo cómo empieza la línea.
+#
+# La excepción se aplica sobre la salida de grep (`archivo:línea:texto`), de ahí el prefijo.
+# Es una regex extendida POSIX (sin `-P`, sin rangos que dependan del locale). La parte de
+# después del abridor es «texto sin ningún `*/`» (`[^*]` o una racha de `*` que no cierra),
+# y solo puede acabar en un `*/` seguido de espacios o `}` hasta el final de la línea.
+check_absent_except "src/ lleva un color hex (usa un token de color: bg-surface-1, text-ink...)" \
+  '^[^:]*:[0-9]+:[[:space:]]*(//|(/\*|\{/\*|\*([[:space:]]|$))([^*]|\*+[^*/])*(\*+/[[:space:]}]*)?$)' \
+  -rnE "${tsx_only[@]}" '#([[:xdigit:]]{3,4}|[[:xdigit:]]{6}|[[:xdigit:]]{8})\b'
+
+# Nada de medidas entre corchetes con unidad (`min-h-[220px]`, `w-[70%]`). Las medidas son un
+# token, o la escala de Tailwind (`min-h-55`, `w-7/10`), que es la rejilla de 4px; ver
+# «Espaciado y layout» en design/README.md. Solo la tipografía (`text-`, `leading-`, `tracking-`)
+# admite un literal con unidad, cuando bundle.css fija una medida sin estilo de texto.
+#
+# Se piden las clases (`-o`), no las líneas: una línea puede llevar `text-[24px]` (vale) y
+# `h-[18px]` (no) a la vez, y el filtro de excepciones debe verlas por separado. El prefijo
+# `[A-Za-z0-9-]*` no cruza el `:` de una variante, así que `lg:text-[24px]` sale como
+# `text-[24px]`. `calc()`, `env()` y `var()` no empiezan por un número: no son un literal.
+check_absent_except "src/ lleva una medida entre corchetes (usa un token o la escala de Tailwind; solo text-, leading- y tracking- admiten un literal con unidad)" \
+  ':(text|leading|tracking)-\[' \
+  -rnoE "${tsx_only[@]}" '[A-Za-z0-9-]*-\[-?[0-9.]+(px|rem|em|%)[^] ]*\]'
 
 # Gestión: el export por defecto de cada página de /admin es `adminPage(...)` (src/lib/guards.ts),
 # que comprueba el club y el permiso antes de ejecutar nada de la página. Un layout no protege

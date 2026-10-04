@@ -1,12 +1,12 @@
 import { useState, type FormEvent, type ReactNode, type Ref } from "react";
 import { ACTION_ERROR_COPY } from "@/lib/action-result";
+import type { Failure } from "@/lib/use-action";
 import type { ContentStatus } from "@/modules/methodology/types";
 import { Card } from "@/ui/card";
 import { CTAButton } from "@/ui/cta-button";
 import { FormAlert } from "@/ui/form-field";
 import { CheckIcon } from "@/ui/icons";
 import { StatusPill } from "./status-pill";
-import type { Failure } from "@/lib/use-action";
 
 // Lo común a los tres editores de la metodología (valores, principios, Standards): el armazón
 // de su card y de su formulario, y la confirmación de lo que sale bien. Qué campos lleva cada

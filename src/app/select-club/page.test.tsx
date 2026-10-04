@@ -113,13 +113,15 @@ describe("/select-club con varios clubes", () => {
     expect(container.querySelector("[style]")).toBeNull();
   });
 
-  it("las filas son hijas directas de una misma card, que es lo que pinta sus separadores", async () => {
+  it("las filas son hijas directas de una misma lista, la card que pinta sus separadores", async () => {
     render(await SelectClubPage());
 
-    const rows = within(screen.getByRole("main")).getAllByRole("link");
-    const card = rows[0].parentElement;
-    expect(card).toHaveClass("overflow-hidden");
-    for (const row of rows) expect(row.parentElement).toBe(card);
+    const list = within(screen.getByRole("main")).getByRole("list");
+    expect(list).toHaveClass("overflow-hidden");
+    for (const row of within(list).getAllByRole("listitem")) {
+      expect(row.parentElement).toBe(list);
+      expect(within(row).getAllByRole("link")).toHaveLength(1);
+    }
   });
 
   it("solo cuentan las membresías propias y activas, aunque RLS deje leer más", async () => {

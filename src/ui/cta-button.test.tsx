@@ -63,6 +63,28 @@ describe("CTAButton", () => {
     expect(ghost).not.toHaveClass("bg-brand-accent");
   });
 
+  it("danger lleva borde y texto danger sobre fondo transparente, y se tinta al pulsar", () => {
+    render(<CTAButton variant="danger">Quitar</CTAButton>);
+
+    const button = screen.getByRole("button", { name: "Quitar" });
+    expect(button).toHaveClass("border-danger", "text-danger", "bg-transparent");
+    expect(button).toHaveClass("not-disabled:active:bg-danger-soft");
+    // Ni el acento del club ni el relleno: lo destructivo no se pinta con la marca.
+    expect(button).not.toHaveClass("bg-brand-accent", "text-brand-accent", "border-line-strong");
+  });
+
+  it("danger y secondary comparten padding: son botones hermanos en una misma fila", () => {
+    render(
+      <>
+        <CTAButton variant="danger">Quitar</CTAButton>
+        <CTAButton variant="secondary">Duplicar</CTAButton>
+      </>,
+    );
+
+    expect(screen.getByRole("button", { name: "Quitar" })).toHaveClass("px-(--space-5)");
+    expect(screen.getByRole("button", { name: "Duplicar" })).toHaveClass("px-(--space-5)");
+  });
+
   it("mide como mínimo el área táctil; `live` llega a la del modo en directo", () => {
     render(
       <>

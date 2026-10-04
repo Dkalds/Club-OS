@@ -84,12 +84,15 @@ export type PlayerDef = { firstName: string; lastName: string; number: number; p
 export type ItemDef = { phase: string; title: string; minutes: number };
 export type SlotOf = (schedule: SeedSchedule, tz: string) => SlotIso;
 
+// Estado de una sesión. Es el del evento; el del plan sale de él (ver `addClub`).
+export type SessionStatus = "scheduled" | "done" | "cancelled";
+
 export type SessionDef = {
-  // Posición dentro del calendario (`upcoming-0`, `past-2`…): forma parte del id, así que
-  // un nuevo seed mueve la sesión de fecha en vez de crear otra.
+  // Posición dentro del calendario (`upcoming-0`, `past-2`, `cancelled-0`…): forma parte del
+  // id, así que un nuevo seed mueve la sesión de fecha en vez de crear otra.
   slotKey: string;
   slot: SlotOf;
-  done: boolean;
+  status: SessionStatus;
   title: string;
   focus: FocusSlug;
   secondaryFocus: FocusSlug | null;
@@ -162,11 +165,11 @@ const pastSlot =
   (schedule) =>
     schedule.past[index];
 const gameSlot: SlotOf = (schedule) => schedule.game;
-// El mismo día que `upcoming[0]`, a otra hora local.
-const sameDayAsNext =
-  (start: string, end: string): SlotOf =>
+// El mismo día que `upcoming[index]`, a otra hora local.
+const sameDayAsUpcoming =
+  (index: number, start: string, end: string): SlotOf =>
   (schedule, tz) =>
-    slotOnSameDay(schedule.upcoming[0], tz, start, end);
+    slotOnSameDay(schedule.upcoming[index], tz, start, end);
 
 // Las sesiones pasadas comparten esqueleto (activación, bloque principal, competición):
 // 10 + 35 + 25 = 70 min. Solo importa que existan con título, estado y algo de contenido.
@@ -180,7 +183,7 @@ function pastSession(
   return {
     slotKey: `past-${index}`,
     slot: pastSlot(index),
-    done: true,
+    status: "done",
     title,
     focus,
     secondaryFocus,
@@ -220,7 +223,7 @@ const ALEVIN_A: TeamDef = {
     {
       slotKey: "upcoming-0",
       slot: upcomingSlot(0),
-      done: false,
+      status: "scheduled",
       title: "Transición + rebote defensivo",
       focus: "transicion",
       secondaryFocus: "rebote",
@@ -236,7 +239,7 @@ const ALEVIN_A: TeamDef = {
     {
       slotKey: "upcoming-1",
       slot: upcomingSlot(1),
-      done: false,
+      status: "scheduled",
       title: "Defensa presionante",
       focus: "defensa",
       secondaryFocus: "rebote",
@@ -270,6 +273,22 @@ const ALEVIN_A: TeamDef = {
       { phase: "Rebote", title: "Bloqueo y rebote ofensivo 3x3", minutes: 35 },
       "5x5 con punto extra por rebote ofensivo",
     ]),
+    // La sesión cancelada: el mismo día que `upcoming[1]`, antes de su entreno. Da al
+    // histórico y al detalle de solo lectura algo que mostrar. El evento queda `cancelled` y
+    // el plan, `ready`: se canceló el entreno, el plan estaba listo.
+    {
+      slotKey: "cancelled-0",
+      slot: sameDayAsUpcoming(1, "16:30", "17:30"),
+      status: "cancelled",
+      title: "Tiro libre y finalizaciones",
+      focus: "tiro",
+      secondaryFocus: null,
+      location: "Pabellón 2",
+      items: [
+        { phase: "Tiro", title: "Rueda de tiros libres", minutes: 20 },
+        { phase: "Técnica", title: "Finalizaciones 1x0", minutes: 25 },
+      ],
+    },
   ],
   game: {
     slotKey: "game",
@@ -295,8 +314,8 @@ const BENJAMIN_A: TeamDef = {
   sessions: [
     {
       slotKey: "upcoming-0",
-      slot: sameDayAsNext("17:00", "18:00"),
-      done: false,
+      slot: sameDayAsUpcoming(0, "17:00", "18:00"),
+      status: "scheduled",
       title: "Bote y control",
       focus: "tecnica",
       secondaryFocus: null,
@@ -327,7 +346,7 @@ const INFANTIL_A: TeamDef = {
     {
       slotKey: "upcoming-0",
       slot: upcomingSlot(0),
-      done: false,
+      status: "scheduled",
       title: "Defensa individual",
       focus: "defensa",
       secondaryFocus: "tecnica",
@@ -782,10 +801,12 @@ function addClub(data: SeedData, club: ClubDef, now: Date): void {
         starts_at: slot.startsAt,
         ends_at: slot.endsAt,
         location: session.location,
-        status: session.done ? "done" : "scheduled",
+        status: session.status,
       });
 
-      // R13: el equipo del plan es siempre el de su evento; el esquema no lo garantiza.
+      // El equipo del plan es siempre el de su evento: lo garantiza la clave foránea
+      // `practice_plans_event_fkey` (club, equipo, tipo y evento). El plan solo está
+      // `done` si se entrenó; uno cancelado sigue `ready`, como estaba.
       data.practice_plans.push({
         id: planId,
         organization_id: organizationId,
@@ -796,7 +817,7 @@ function addClub(data: SeedData, club: ClubDef, now: Date): void {
         secondary_focus_id: session.secondaryFocus === null ? null : focusId(session.secondaryFocus),
         notes: null,
         is_template: false,
-        status: session.done ? "done" : "ready",
+        status: session.status === "done" ? "done" : "ready",
       });
 
       session.items.forEach((item, index) => {

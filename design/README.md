@@ -50,6 +50,13 @@ Principio de producto: *Everyone knows what's next. Everyone knows why.* El QUÉ
 - Áreas táctiles de `target-min` (44px) como mínimo; `target-live` (72px) en el Live Mode.
 - Contenido móvil hasta `content-max`. La gestión (admin) usa un layout de escritorio con los mismos tokens: desde `lg` (1024px), columna de navegación de `admin-nav` y contenido hasta `admin-content-max`; debajo, pestañas desplazables encima del contenido.
 - Pocas acciones por pantalla: una principal, como mucho dos secundarias.
+- Medidas en código, por este orden:
+  1. Si la medida es un token, el token: `p-(--space-4)`, `min-h-(--target-min)`.
+  2. Si no, la escala de Tailwind, que es la rejilla de 4px: `size-10`, `w-11`, `min-h-55`, `h-4.5`, `w-7/10`. Se copia la medida de `design/components/bundle.css` (220px es `min-h-55`).
+  3. Un valor entre corchetes con unidad solo en tipografía (`text-[24px]`, `leading-[…]`, `tracking-[0.04em]`), cuando `bundle.css` fija una medida sin estilo de texto.
+  4. `calc()` y `env()` sobre tokens, sin restricción: `pb-[calc(var(--nav-height)+env(safe-area-inset-bottom))]`.
+
+  `pnpm check:guards` falla con un color hex y con un literal con unidad (`px`, `rem`, `em`, `%`) que no sea de tipografía.
 
 ## Imagen y menores
 
@@ -71,7 +78,7 @@ Principio de producto: *Everyone knows what's next. Everyone knows why.* El QUÉ
 ## Componentes y estados
 
 - Monta cada pantalla con `AppShell`, `TopNavigation` y `BottomNavigation`; no crees contenedores propios.
-- Listas: `Card` `flush` con `ListRow`, `PlayerCard`, `DrillCard` o `PracticeItem`.
+- Listas: `Card` `flush` con `ListRow`, `PlayerCard`, `DrillCard` o `PracticeItem`. `ListRow` pinta un `<li>` y va como hija directa de `<Card variant="flush" as="ul">`, que es la lista.
 - Toda vista con datos tiene sus tres estados: `LoadingState` (esqueleto con la forma real), `EmptyState` (con una salida) y `ErrorState` (con reintento).
 - `PracticeItem` y `ListRow` son adiciones al inventario del brief: los repiten varias pantallas.
 

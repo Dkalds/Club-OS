@@ -1,10 +1,50 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
+import type { ReactNode } from "react";
 import { describe, expect, it } from "vitest";
+import { Card } from "./card";
 import { DateChip, ListRow } from "./list-row";
 
+/** Las filas siempre van como hijas directas de una card `flush` que es una lista. */
+function renderRows(rows: ReactNode) {
+  return render(
+    <Card variant="flush" as="ul">
+      {rows}
+    </Card>,
+  );
+}
+
 describe("ListRow", () => {
+  it("es un elemento de lista con un único enlace dentro", () => {
+    renderRows(<ListRow href="/c/club-a/train" lead={<span>01</span>} title="Entrenamiento" />);
+
+    const item = screen.getByRole("listitem");
+    expect(within(item).getByRole("link", { name: /Entrenamiento/ })).toBeInTheDocument();
+    // Una sola fila, y es la card la que es la lista.
+    expect(screen.getByRole("list")).toContainElement(item);
+    expect(within(item).getAllByRole("link")).toHaveLength(1);
+  });
+
+  it("el separador es el borde del elemento de lista, salvo en la primera fila", () => {
+    renderRows(
+      <>
+        <ListRow href="/a" lead={<span>01</span>} title="Uno" />
+        <ListRow href="/b" lead={<span>02</span>} title="Dos" />
+      </>,
+    );
+
+    const items = screen.getAllByRole("listitem");
+    expect(items).toHaveLength(2);
+    for (const item of items) {
+      expect(item).toHaveClass("border-t", "border-line", "first:border-t-0");
+    }
+    // El enlace no repite el borde: sería un separador doble.
+    for (const link of screen.getAllByRole("link")) {
+      expect(link).not.toHaveClass("border-t");
+    }
+  });
+
   it("es un único enlace al href dado, con todo el contenido dentro", () => {
-    render(
+    renderRows(
       <ListRow
         href="/c/club-a/train"
         lead={<DateChip dow="Mar" day="6" />}
@@ -23,7 +63,7 @@ describe("ListRow", () => {
   });
 
   it("sin subtítulo ni trail solo pinta el título y el chevron", () => {
-    render(<ListRow href="/x" lead={<span>01</span>} title="Nuestra cultura" />);
+    renderRows(<ListRow href="/x" lead={<span>01</span>} title="Nuestra cultura" />);
 
     const link = screen.getByRole("link");
     expect(link).toHaveTextContent("01Nuestra cultura");
@@ -31,7 +71,7 @@ describe("ListRow", () => {
   });
 
   it("el título y el subtítulo largos se truncan en vez de desbordar la fila", () => {
-    render(
+    renderRows(
       <ListRow
         href="/x"
         lead={<span>01</span>}
@@ -45,14 +85,14 @@ describe("ListRow", () => {
   });
 
   it("toda la fila es el área táctil, de al menos 44 px", () => {
-    render(<ListRow href="/x" lead={<span>01</span>} title="Fila" />);
+    renderRows(<ListRow href="/x" lead={<span>01</span>} title="Fila" />);
 
     // `min-h-14` son 56 px (design/components/ListRow).
     expect(screen.getByRole("link")).toHaveClass("min-h-14");
   });
 
   it("pulsada, lo que va en ink-3 pasa a ink-2: ink-3 no va sobre surface-3", () => {
-    render(
+    renderRows(
       <ListRow
         href="/x"
         lead={<DateChip dow="Mar" day="6" />}
@@ -81,7 +121,7 @@ describe("ListRow", () => {
   });
 
   it("conserva el anillo de foco, por dentro de la card", () => {
-    render(<ListRow href="/x" lead={<span>01</span>} title="Fila" />);
+    renderRows(<ListRow href="/x" lead={<span>01</span>} title="Fila" />);
 
     expect(screen.getByRole("link")).toHaveClass(
       "focus-visible:outline-2",

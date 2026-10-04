@@ -2,15 +2,14 @@ import { notFound } from "next/navigation";
 import type { ComponentType } from "react";
 import { requireClub } from "@/lib/guards";
 import { navItems, type NavKey } from "@/modules/tenancy/navigation";
-import { GamesIcon, TeamIcon, TrainIcon, WayIcon, type IconProps } from "@/ui/icons";
+import { GamesIcon, TeamIcon, type IconProps } from "@/ui/icons";
 import { EmptyState } from "@/ui/states";
 
-type Tab = Exclude<NavKey, "home">;
+/** Las pestañas que aún no tienen pantalla. Las demás ya pintan la suya. */
+type Tab = Extract<NavKey, "games" | "team">;
 
 /** El mismo icono que la pestaña lleva en la navegación. */
 const ICONS: Record<Tab, ComponentType<IconProps>> = {
-  way: WayIcon,
-  train: TrainIcon,
   games: GamesIcon,
   team: TeamIcon,
 };
@@ -18,9 +17,9 @@ const ICONS: Record<Tab, ComponentType<IconProps>> = {
 /**
  * Contenido provisional de una pestaña que todavía no tiene pantalla.
  *
- * El título usa la etiqueta de la pestaña, que sale de la terminología del club, y es el
- * `<h1>` de la pantalla: aquí el estado vacío es todo el contenido. No lleva acción: no hay
- * nada que crear todavía, y la salida es la navegación del club.
+ * El título usa la etiqueta que la pestaña lleva en la navegación, y es el `<h1>` de la
+ * pantalla: aquí el estado vacío es todo el contenido. No lleva acción: no hay nada que crear
+ * todavía, y la salida es la navegación del club.
  *
  * Pide el contexto ella misma antes de pintar nada: un layout no protege a sus páginas.
  */

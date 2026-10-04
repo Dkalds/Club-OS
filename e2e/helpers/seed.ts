@@ -41,21 +41,30 @@ export function seedNow(): Date {
 }
 
 /**
- * Las tablas que los e2e de escritura (Gestión, la ficha y el editor de ejercicios) y los
- * borradores de los de lectura (The Way) pueden dejar con filas que el seed no conoce: los
- * ejercicios, las fichas de medios (`media_assets`) y las cinco de la metodología del club. Cada
- * fase que añade tablas que sus e2e escriben, la suma aquí.
+ * Las tablas que los e2e de escritura pueden dejar con filas que el seed no conoce: las de las
+ * sesiones (el constructor crea sesiones, planes e ítems), los ejercicios (la ficha y el editor
+ * crean y cambian los suyos), las fichas de medios (`media_assets`) y las cinco de la
+ * metodología del club (Gestión escribe sus contenidos y The Way, sus borradores). Cada fase que
+ * añade tablas que sus e2e escriben, la suma aquí.
  *
- * El orden importa: se borra en este orden. `drills` va primero porque sus vínculos
- * (`drill_principles`, `drill_standards`) apuntan a `game_principles` y `standards` sin
- * cascada, y sus puntos, variantes y vínculos se van con él (`on delete cascade`): así un
- * principio o un Standard sobrante al que apunta un ejercicio sobrante se puede borrar después.
- * `media_assets` va justo después: `drills.diagram_media_id` apunta a ella con `on delete set
- * null`, de modo que cualquier orden valdría para la base de datos, pero así un ejercicio
- * sobrante ya no existe cuando su diagrama se desliga. Un ejercicio del seed no se toca, y con
- * él se quedan sus vínculos.
+ * El orden es el del borrado, y importa:
+ *  - Las sesiones van primero: un ítem cuelga de su plan y un plan, de su evento, así que van
+ *    ítems, planes y, al final, eventos. Y los ítems, antes que `drills`: apuntan a un ejercicio
+ *    por clave foránea sin cascada, y un ejercicio al que todavía apunta un ítem no se puede
+ *    borrar.
+ *  - `drills` va antes que la metodología porque sus vínculos (`drill_principles`,
+ *    `drill_standards`) apuntan a `game_principles` y `standards` sin cascada, y sus puntos,
+ *    variantes y vínculos se van con él (`on delete cascade`): así un principio o un Standard
+ *    sobrante al que apunta un ejercicio sobrante se puede borrar después.
+ *  - `media_assets` va justo después de `drills`: `drills.diagram_media_id` apunta a ella con
+ *    `on delete set null`, de modo que cualquier orden valdría para la base de datos, pero así un
+ *    ejercicio sobrante ya no existe cuando su diagrama se desliga. Un ejercicio del seed no se
+ *    toca, y con él se quedan sus vínculos.
  */
 const WRITABLE_TABLES = [
+  "practice_items",
+  "practice_plans",
+  "events",
   "drills",
   "media_assets",
   "principle_points",
@@ -116,16 +125,21 @@ async function clearMediaObjects(db: SupabaseClient<Database>, organizationIds: 
 }
 
 /**
- * Deja la metodología y la biblioteca de ejercicios de los clubes del seed exactamente como las
- * deja `runSeed(now)`: borra, en las tablas de `WRITABLE_TABLES` y en los clubes del seed, toda
- * fila cuyo id no sea de `buildSeedData(now)`, y después siembra, que devuelve a lo suyo lo que
- * el seed sí posee (texto, estado, orden, número) y quita los puntos que sobren de sus
- * principios y los hijos que sobren de sus ejercicios.
+ * Deja los clubes del seed exactamente como los deja `runSeed(now)`: borra, en las tablas de
+ * `WRITABLE_TABLES` y en los clubes del seed, toda fila cuyo id no sea de `buildSeedData(now)`,
+ * y después siembra, que devuelve a lo suyo lo que el seed sí posee (texto, estado, orden,
+ * número) y quita los puntos que sobren de sus principios y los hijos que sobren de sus
+ * ejercicios.
  *
  * Es lo que hace que la suite se recupere sola de una ejecución abortada: lo que esta dejó a
- * medias (una sección, un Standard, un borrador o un ejercicio `E2E …` de un spec) no vale como
- * dato de la siguiente, y quien lo ve falla sin que el fallo señale a la causa. Sin listas de
- * slugs ni de números escritas a mano: lo que no es del seed no sobrevive, se llame como se llame.
+ * medias (una sección, un Standard, un borrador, un ejercicio `E2E …` o una sesión de un spec)
+ * no vale como dato de la siguiente, y quien lo ve falla sin que el fallo señale a la causa. Sin
+ * listas de slugs ni de números escritas a mano: lo que no es del seed no sobrevive, se llame
+ * como se llame.
+ *
+ * De `events` solo se borran los entrenos (`kind = 'practice'`): un partido que no es del seed
+ * no se toca. Los planes sin equipo (las plantillas privadas) que no son del seed se borran como
+ * los demás: son del club por `organization_id`.
  *
  * Borra contenido, así que:
  *  - Solo corre con un Supabase local, diga lo que diga `ALLOW_REMOTE_SEED`. Con otro lanza,
@@ -140,7 +154,7 @@ async function clearMediaObjects(db: SupabaseClient<Database>, organizationIds: 
 export async function restoreSeed(now: Date, client?: SupabaseClient<Database>): Promise<void> {
   if (!isLocalSupabaseUrl(readSupabaseEnv().url)) {
     throw new Error(
-      "restoreSeed borra contenido de la metodología, de la biblioteca y de Storage: solo se ejecuta contra un Supabase local.",
+      "restoreSeed borra contenido de la metodología, de la biblioteca, de las sesiones y de Storage: solo se ejecuta contra un Supabase local.",
     );
   }
 
@@ -148,6 +162,9 @@ export async function restoreSeed(now: Date, client?: SupabaseClient<Database>):
   const data = buildSeedData(now);
   const organizationIds = data.organizations.map((organization) => organization.id);
   const seedIds = {
+    practice_items: data.practice_items.map((row) => row.id),
+    practice_plans: data.practice_plans.map((row) => row.id),
+    events: data.events.map((row) => row.id),
     drills: data.drills.map((row) => row.id),
     // El seed no posee ninguna ficha de medios (sus ejercicios no llevan diagrama): todas las de
     // sus clubes son de un e2e abortado.
@@ -162,6 +179,9 @@ export async function restoreSeed(now: Date, client?: SupabaseClient<Database>):
   for (const table of WRITABLE_TABLES) {
     const keep = seedIds[table];
     let strays = db.from(table).delete().in("organization_id", organizationIds);
+    // `filter` y no `eq`: `kind` no está en todas las tablas del bucle y `eq` solo acepta
+    // columnas de la unión de sus filas. Es el mismo `kind=eq.practice` de PostgREST.
+    if (table === "events") strays = strays.filter("kind", "eq", "practice");
     if (keep.length > 0) strays = strays.not("id", "in", `(${keep.join(",")})`);
     const { error } = await strays;
     if (error) {

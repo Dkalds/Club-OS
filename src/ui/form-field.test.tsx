@@ -101,6 +101,53 @@ describe("TextField", () => {
     expect(screen.getByLabelText("Número")).toHaveAttribute("max", "99");
   });
 
+  it.each(["date", "time"] as const)(
+    "de tipo %s es un campo nativo con su etiqueta enlazada, sin longitud máxima ni teclado numérico",
+    (type) => {
+      render(<TextField label="Cuándo" name="when" type={type} value="" onChange={() => {}} />);
+
+      const input = screen.getByLabelText("Cuándo");
+      expect(input.tagName).toBe("INPUT");
+      expect(input).toHaveAttribute("type", type);
+      expect(input).toHaveAttribute("name", "when");
+      // El navegador ignora `maxlength` en una fecha y en una hora, y no hay nada que teclear.
+      expect(input).not.toHaveAttribute("maxlength");
+      expect(input).not.toHaveAttribute("inputmode");
+    },
+  );
+
+  it("de tipo fecha y hora enseña el valor en formato de formulario y avisa con él", () => {
+    const onChange = vi.fn();
+    const { rerender } = render(
+      <TextField label="Fecha" name="date" type="date" value="2026-10-06" onChange={onChange} />,
+    );
+    expect(screen.getByLabelText("Fecha")).toHaveValue("2026-10-06");
+
+    fireEvent.change(screen.getByLabelText("Fecha"), { target: { value: "2026-10-07" } });
+    expect(onChange).toHaveBeenLastCalledWith("2026-10-07");
+
+    rerender(<TextField label="Hora" name="time" type="time" value="18:00" onChange={onChange} />);
+    expect(screen.getByLabelText("Hora")).toHaveValue("18:00");
+  });
+
+  it("de tipo fecha con error: aria-invalid y aria-describedby apuntan al mensaje", () => {
+    render(
+      <TextField
+        label="Fecha"
+        name="date"
+        type="date"
+        value=""
+        onChange={() => {}}
+        error="Elige una fecha."
+      />,
+    );
+
+    const input = screen.getByLabelText("Fecha");
+    const message = screen.getByText("Elige una fecha.");
+    expect(input).toHaveAttribute("aria-invalid", "true");
+    expect(input).toHaveAttribute("aria-describedby", message.id);
+  });
+
   it("de tipo texto lleva su longitud máxima y ningún mínimo ni máximo", () => {
     render(<TextField label="Título" name="title" value="" onChange={() => {}} maxLength={80} />);
 

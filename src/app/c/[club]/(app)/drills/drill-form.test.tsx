@@ -1,5 +1,6 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from "vitest";
+import Link from "next/link";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ACTION_ERROR_COPY, fail, ok, type ActionResult } from "@/lib/action-result";
 import type { DrillDetail, FocusArea } from "@/modules/drills/types";
 import type { GamePrinciple, Standard } from "@/modules/methodology/types";
@@ -1242,13 +1243,11 @@ describe("DrillForm · guardar", () => {
 // ── Cambios sin guardar ──────────────────────────────────────────────────────────────
 
 // Quien teclea un ejercicio en el móvil espera un aviso antes de perderlo. «Cancelar» está justo
-// debajo del botón de guardar y cerrar o recargar la pestaña tampoco guardan nada: mientras el
-// formulario difiera de la copia que se abrió (o de la última que se guardó), las dos cosas
-// preguntan, igual que el editor de Gestión. «Volver» de la cabecera y la navegación inferior
-// no se interceptan: App Router no tiene gancho para bloquearlas (lo resolverá `ConfirmDialog`).
+// debajo del botón de guardar, la navegación inferior queda a un dedo, y cerrar o recargar la
+// pestaña tampoco guardan nada: mientras el formulario difiera de la copia que se abrió (o de la
+// última que se guardó), todo eso pregunta, igual que el constructor de sesiones y el editor de
+// Gestión (`useLeaveGuard`). Los botones «atrás» y «adelante» del navegador no preguntan.
 describe("DrillForm · cambios sin guardar", () => {
-  const UNSAVED = "Tienes cambios sin guardar. Si sales ahora, se pierden.";
-
   /**
    * Lo que haría el navegador al cerrar o recargar la pestaña: lanza `beforeunload` y dice si
    * algo pidió confirmación (cancelando el evento).
@@ -1260,63 +1259,84 @@ describe("DrillForm · cambios sin guardar", () => {
   }
 
   /**
-   * Pulsa «Cancelar» y dice si el clic llegó a navegar. jsdom no implementa la navegación (la
+   * Pulsa un enlace y dice si el clic llegó a navegar. jsdom no implementa la navegación (la
    * registra como error): el clic se corta en `document`, ya después de que React y el
    * componente lo hayan visto, y se mira si el componente lo había cancelado.
    */
-  function clickCancel(): "navega" | "se queda" {
+  function clickLink(link: HTMLElement): "navega" | "se queda" {
     let outcome: "navega" | "se queda" = "navega";
     const cut = (event: Event) => {
       outcome = event.defaultPrevented ? "se queda" : "navega";
       event.preventDefault();
     };
     document.addEventListener("click", cut);
-    fireEvent.click(screen.getByRole("link", { name: "Cancelar" }));
+    fireEvent.click(link);
     document.removeEventListener("click", cut);
     return outcome;
   }
 
-  let confirm: MockInstance<Window["confirm"]>;
+  const clickCancel = () => clickLink(screen.getByRole("link", { name: "Cancelar" }));
+  const leaveDialog = () => screen.queryByRole("alertdialog", { name: "¿Salir sin guardar?" });
 
-  beforeEach(() => {
-    confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
-  });
-
-  afterEach(() => {
-    confirm.mockRestore();
-  });
+  /**
+   * El formulario de edición junto a un enlace que no es suyo (la navegación de la app, de
+   * `next/link`, como la de `BottomNavigation`). Devuelve ese enlace.
+   */
+  function renderWithNav(): HTMLElement {
+    render(
+      <>
+        <nav aria-label="Principal">
+          <Link href="/c/club-a/way" prefetch={false}>
+            The Way
+          </Link>
+        </nav>
+        {editForm()}
+      </>,
+    );
+    return screen.getByRole("link", { name: "The Way" });
+  }
 
   describe("«Cancelar»", () => {
     it("sin cambios navega al momento, sin preguntar: en el alta y al editar", () => {
       const { unmount } = renderNew();
       expect(clickCancel()).toBe("navega");
+      expect(leaveDialog()).not.toBeInTheDocument();
       unmount();
 
       renderEdit();
       expect(clickCancel()).toBe("navega");
 
-      expect(confirm).not.toHaveBeenCalled();
+      expect(leaveDialog()).not.toBeInTheDocument();
+      expect(mocks.push).not.toHaveBeenCalled();
     });
 
-    it("con cambios pregunta con el texto de siempre; si se acepta, navega", () => {
+    it("con cambios pregunta en el diálogo y no navega; «Salir sin guardar» lleva a la ficha", () => {
       renderEdit();
       change("Título", "Otro título");
 
-      expect(clickCancel()).toBe("navega");
+      expect(clickCancel()).toBe("se queda");
 
-      expect(confirm).toHaveBeenCalledTimes(1);
-      expect(confirm).toHaveBeenCalledWith(UNSAVED);
+      expect(leaveDialog()).toHaveAccessibleDescription("Tienes cambios sin guardar. Si sales, se pierden.");
+      expect(mocks.push).not.toHaveBeenCalled();
+
+      press("Salir sin guardar");
+
+      expect(mocks.push).toHaveBeenCalledTimes(1);
+      expect(mocks.push).toHaveBeenCalledWith(`/c/club-a/drills/${DRILL_ID}`);
+      expect(leaveDialog()).not.toBeInTheDocument();
     });
 
-    it("con cambios pregunta; si se rechaza, no navega y lo escrito sigue ahí", () => {
-      confirm.mockReturnValue(false);
+    it("con cambios pregunta; «Seguir editando» no navega y lo escrito sigue ahí", () => {
       renderNew();
       change("Título", "Mi borrador");
 
       expect(clickCancel()).toBe("se queda");
+      expect(leaveDialog()).toBeInTheDocument();
 
-      expect(confirm).toHaveBeenCalledTimes(1);
-      expect(confirm).toHaveBeenCalledWith(UNSAVED);
+      press("Seguir editando");
+
+      expect(leaveDialog()).not.toBeInTheDocument();
+      expect(mocks.push).not.toHaveBeenCalled();
       expect(field("Título")).toHaveValue("Mi borrador");
     });
 
@@ -1327,7 +1347,50 @@ describe("DrillForm · cambios sin guardar", () => {
       change("Título", "Un ejercicio");
 
       expect(clickCancel()).toBe("navega");
-      expect(confirm).not.toHaveBeenCalled();
+      expect(leaveDialog()).not.toBeInTheDocument();
+    });
+  });
+
+  // El «Volver» de la cabecera y la navegación inferior no son del formulario: los pinta la
+  // página. Un toque fallido en ellos tampoco puede tirar un formulario largo.
+  describe("salir por un enlace que no es el suyo", () => {
+    it("sin cambios navega al momento, sin preguntar", () => {
+      const outside = renderWithNav();
+
+      expect(clickLink(outside)).toBe("navega");
+
+      expect(leaveDialog()).not.toBeInTheDocument();
+      expect(mocks.push).not.toHaveBeenCalled();
+    });
+
+    it("con cambios abre el diálogo y no navega; al confirmar, navega a ese enlace", () => {
+      const outside = renderWithNav();
+      change("Título", "Otro título");
+
+      expect(clickLink(outside)).toBe("se queda");
+
+      expect(leaveDialog()).toBeInTheDocument();
+      expect(mocks.push).not.toHaveBeenCalled();
+      expect(field("Título")).toHaveValue("Otro título");
+
+      press("Salir sin guardar");
+
+      expect(mocks.push).toHaveBeenCalledTimes(1);
+      expect(mocks.push).toHaveBeenCalledWith("/c/club-a/way");
+    });
+
+    it("«Seguir editando» deja el formulario como estaba, y otro toque vuelve a preguntar", () => {
+      const outside = renderWithNav();
+      change("Título", "Otro título");
+      clickLink(outside);
+
+      press("Seguir editando");
+
+      expect(leaveDialog()).not.toBeInTheDocument();
+      expect(mocks.push).not.toHaveBeenCalled();
+      expect(field("Título")).toHaveValue("Otro título");
+      expect(clickLink(outside)).toBe("se queda");
+      expect(leaveDialog()).toBeInTheDocument();
     });
   });
 
@@ -1427,7 +1490,7 @@ describe("DrillForm · cambios sin guardar", () => {
 
       await waitFor(() => expect(unloadAsks()).toBe(false));
       expect(clickCancel()).toBe("navega");
-      expect(confirm).not.toHaveBeenCalled();
+      expect(leaveDialog()).not.toBeInTheDocument();
     });
 
     it("lo mismo al crear un borrador", async () => {
@@ -1440,7 +1503,7 @@ describe("DrillForm · cambios sin guardar", () => {
 
       await waitFor(() => expect(unloadAsks()).toBe(false));
       expect(clickCancel()).toBe("navega");
-      expect(confirm).not.toHaveBeenCalled();
+      expect(leaveDialog()).not.toBeInTheDocument();
     });
 
     // En la app real `router.push` dentro de una transición no termina hasta que llega la ficha,
@@ -1490,7 +1553,20 @@ describe("DrillForm · cambios sin guardar", () => {
         await waitFor(() => expect(mocks.push).toHaveBeenCalledWith(`/c/club-a/drills/${NEW_ID}`));
 
         expect(clickCancel()).toBe("navega");
-        expect(confirm).not.toHaveBeenCalled();
+        expect(leaveDialog()).not.toBeInTheDocument();
+      });
+
+      it("un enlace de fuera tampoco pregunta: lo escrito acaba de guardarse", async () => {
+        const outside = renderWithNav();
+        change("Título", "Otro título");
+        expect(clickLink(outside)).toBe("se queda");
+        press("Seguir editando");
+
+        saveEdit();
+        await waitFor(() => expect(mocks.push).toHaveBeenCalledWith(`/c/club-a/drills/${DRILL_ID}`));
+
+        expect(clickLink(outside)).toBe("navega");
+        expect(leaveDialog()).not.toBeInTheDocument();
       });
 
       it("lo que se escribe mientras guarda sigue preguntando, también con la ficha por llegar", async () => {
@@ -1506,8 +1582,8 @@ describe("DrillForm · cambios sin guardar", () => {
         await waitFor(() => expect(mocks.push).toHaveBeenCalledTimes(1));
 
         expect(unloadAsks()).toBe(true);
-        expect(clickCancel()).toBe("navega");
-        expect(confirm).toHaveBeenCalledWith(UNSAVED);
+        expect(clickCancel()).toBe("se queda");
+        expect(leaveDialog()).toBeInTheDocument();
       });
     });
 
@@ -1535,8 +1611,8 @@ describe("DrillForm · cambios sin guardar", () => {
       await screen.findByRole("alert");
 
       expect(unloadAsks()).toBe(true);
-      expect(clickCancel()).toBe("navega");
-      expect(confirm).toHaveBeenCalledTimes(1);
+      expect(clickCancel()).toBe("se queda");
+      expect(leaveDialog()).toBeInTheDocument();
     });
   });
 
@@ -1557,6 +1633,6 @@ describe("DrillForm · cambios sin guardar", () => {
 
     expect(mocks.reload).toHaveBeenCalledTimes(1);
     expect(askedWhileReloading).toBe(false);
-    expect(confirm).not.toHaveBeenCalled();
+    expect(leaveDialog()).not.toBeInTheDocument();
   });
 });

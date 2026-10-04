@@ -93,11 +93,26 @@ function title(page: Page) {
 const PUBLISHED = ARCANGEL.drills.filter((drill) => drill.status === "published");
 const DRAFT = ARCANGEL.drills.find((drill) => drill.status === "draft");
 
+/**
+ * Los filtros de una URL que, con el objetivo `rebote`, solo encuentran el borrador de Irene:
+ * «canasta» está en su organización y en la de ningún otro ejercicio de rebote. Los filtros de
+ * edad, jugadores y minutos ya no lo separan de «Bloqueo y rebote 3x3», que tiene los mismos
+ * rangos.
+ */
+const ONLY_THE_DRAFT = "focus=rebote&q=canasta";
+
 test("el seed tiene lo que estos tests suponen", () => {
   // Sin esto, una prueba de «no ve el borrador» pasaría aunque el borrador no existiera.
   expect(DRAFT?.title).toBe("Bloqueo de rebote");
   expect(DRAFT?.author).toBe(IRENE);
   expect(PUBLISHED.map((drill) => drill.title)).toContain("Rebote + outlet");
+  // Lo que supone `ONLY_THE_DRAFT`: ningún otro ejercicio de rebote, publicado o no, dice «canasta».
+  const saysBasket = ARCANGEL.drills.filter(
+    (drill) =>
+      drill.focus.includes("rebote") &&
+      [drill.title, drill.objective, drill.setupMd].join(" ").toLowerCase().includes("canasta"),
+  );
+  expect(saysBasket.map((drill) => drill.title)).toEqual(["Bloqueo de rebote"]);
 });
 
 test("desde Entrenar se llega a la biblioteca", async ({ page }) => {
@@ -327,7 +342,7 @@ test("el objetivo activo queda a la vista al cargar", async ({ page }) => {
 test("la fila sigue al objetivo al volver atrás y no salta al tocar uno que ya se ve", async ({ page }) => {
   await openAs(page, ALEX);
   // Sin resultados para Álex, con el enlace «Quitar filtros» que sí deja una entrada en el historial.
-  await page.goto(`${LIBRARY}?focus=rebote&age=10`);
+  await page.goto(`${LIBRARY}?${ONLY_THE_DRAFT}`);
   const rebound = focusFilter(page).getByRole("button", { name: "Rebote", exact: true });
   await expectFullyInRow(rebound, focusFilter(page));
 
@@ -336,9 +351,9 @@ test("la fila sigue al objetivo al volver atrás y no salta al tocar uno que ya 
   await expect(page).toHaveURL(new RegExp(`${LIBRARY}$`));
   await expectFullyInRow(focusFilter(page).getByRole("button", { name: "Todos" }), focusFilter(page));
 
-  // Atrás vuelve a `?focus=rebote&age=10` sin recargar la página: «Rebote» vuelve a la vista.
+  // Atrás vuelve a esa misma dirección sin recargar la página: «Rebote» vuelve a la vista.
   await page.goBack();
-  await expect(page).toHaveURL(new RegExp(`${LIBRARY}\\?focus=rebote&age=10$`));
+  await expect(page).toHaveURL(new RegExp(`${LIBRARY}\\?${ONLY_THE_DRAFT}$`));
   await expect(rebound).toHaveAttribute("aria-pressed", "true");
   await expectFullyInRow(rebound, focusFilter(page));
 
@@ -442,10 +457,10 @@ test("un principio que no existe se ve y se quita", async ({ page }) => {
 
 test("sin resultados", async ({ page }) => {
   await openAs(page, ALEX);
-  await page.goto(`${LIBRARY}?focus=rebote&age=10`);
+  await page.goto(`${LIBRARY}?${ONLY_THE_DRAFT}`);
 
-  // Con los filtros del enlace no hay nada para Álex: el único ejercicio de rebote para U10
-  // es el borrador de Irene.
+  // Con los filtros del enlace no hay nada para Álex: lo único que encuentran es el borrador de
+  // Irene.
   await expect(page.getByRole("heading", { level: 2, name: "No hay ejercicios con estos filtros" })).toBeVisible();
   await expect(page.getByText("Prueba con otra búsqueda o con menos filtros.")).toBeVisible();
   await expect(rows(page)).toHaveCount(0);

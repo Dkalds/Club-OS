@@ -31,7 +31,7 @@ export default function DrillLoading() {
       <div role="status" aria-busy="true" aria-label="Cargando" className="px-(--space-4)">
         <div aria-hidden="true" className="flex flex-col gap-(--space-6)">
           <div className="flex flex-col gap-(--space-3)">
-            <span className={`${BLOCK} h-8 w-[70%] rounded-sm`} />
+            <span className={`${BLOCK} h-8 w-7/10 rounded-sm`} />
             <span className="flex gap-(--space-2)">
               <span className={`${BLOCK} h-8 w-16 rounded-pill`} />
               <span className={`${BLOCK} h-8 w-28 rounded-pill`} />
@@ -42,7 +42,7 @@ export default function DrillLoading() {
           <div className="flex flex-col gap-(--space-2)">
             <span className={`${BLOCK} h-4 w-1/3 rounded-sm`} />
             <span className={`${BLOCK} h-4 w-full rounded-sm`} />
-            <span className={`${BLOCK} h-4 w-[85%] rounded-sm`} />
+            <span className={`${BLOCK} h-4 w-17/20 rounded-sm`} />
           </div>
         </div>
       </div>

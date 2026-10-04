@@ -65,13 +65,44 @@ describe("seed contra Supabase local", () => {
     expect(count).toBe(19);
   });
 
-  it("Alevín A tiene 7 eventos", async () => {
-    const { count, error } = await admin
+  it("Alevín A tiene 8 eventos, uno de ellos cancelado", async () => {
+    const { data: events, error } = await admin
       .from("events")
-      .select("*", { count: "exact", head: true })
+      .select("id, kind, status")
       .eq("team_id", teamId("arcangel", "Alevín A"));
     expect(error).toBeNull();
-    expect(count).toBe(7);
+    expect(events).toHaveLength(8);
+    const cancelled = (events ?? []).filter((event) => event.status === "cancelled");
+    expect(cancelled).toEqual([
+      { id: seedId("arcangel", "event:alevin-a:cancelled-0"), kind: "practice", status: "cancelled" },
+    ]);
+  });
+
+  it("la sesión cancelada de Alevín A es «Tiro libre y finalizaciones», con su plan listo y 2 ítems", async () => {
+    const eventId = seedId("arcangel", "event:alevin-a:cancelled-0");
+    const { data: plan, error } = await admin
+      .from("practice_plans")
+      .select("id, title, status, team_id")
+      .eq("event_id", eventId)
+      .single();
+    expect(error).toBeNull();
+    expect(plan).toEqual({
+      id: seedId("arcangel", "plan:alevin-a:cancelled-0"),
+      title: "Tiro libre y finalizaciones",
+      status: "ready",
+      team_id: teamId("arcangel", "Alevín A"),
+    });
+    const { data: items, error: itemsError } = await admin
+      .from("practice_items")
+      .select("phase, title_override, minutes, drill_id")
+      .eq("plan_id", plan?.id ?? "")
+      .order("sort");
+    expect(itemsError).toBeNull();
+    // Ninguno lleva ejercicio: sus títulos no son los de la biblioteca.
+    expect(items).toEqual([
+      { phase: "Tiro", title_override: "Rueda de tiros libres", minutes: 20, drill_id: null },
+      { phase: "Técnica", title_override: "Finalizaciones 1x0", minutes: 25, drill_id: null },
+    ]);
   });
 
   it("hay 6 usuarios .test en Auth, los del seed", async () => {
@@ -388,14 +419,14 @@ describe("seed contra Supabase local", () => {
     return counts;
   }
 
-  it("18 ejercicios de Arcángel y 1 borrador de Irene; Club Demo tiene 2", async () => {
+  it("21 ejercicios de Arcángel, 20 publicados y 1 borrador de Irene; Club Demo tiene 2", async () => {
     const { data: arcangel, error } = await admin
       .from("drills")
       .select("title, status, created_by, diagram_media_id")
       .eq("organization_id", orgId("arcangel"));
     expect(error).toBeNull();
-    expect(arcangel).toHaveLength(18);
-    expect(arcangel?.filter((d) => d.status === "published")).toHaveLength(17);
+    expect(arcangel).toHaveLength(21);
+    expect(arcangel?.filter((d) => d.status === "published")).toHaveLength(20);
     const drafts = arcangel?.filter((d) => d.status === "draft");
     expect(drafts).toEqual([
       expect.objectContaining({
@@ -508,6 +539,23 @@ describe("seed contra Supabase local", () => {
       .in("title_override", (titles ?? []).map((d) => d.title));
     expect(unlinkedError).toBeNull();
     expect(unlinked).toEqual([]);
+  });
+
+  it("«Defensa presionante» tiene 3 ítems con drill_id, y su título no cambia", async () => {
+    const plan = data.practice_plans.find((p) => p.title === "Defensa presionante");
+    const { data: items, error } = await admin
+      .from("practice_items")
+      .select("title_override, drill_id")
+      .eq("plan_id", plan?.id ?? "")
+      .order("sort");
+    expect(error).toBeNull();
+    expect(items).toHaveLength(6);
+    expect(items?.filter((item) => item.drill_id !== null)).toEqual(
+      ["Ayuda y recuperación 3x3", "Presión al balón en medio campo", "Bloqueo y rebote 3x3"].map((title) => ({
+        title_override: title,
+        drill_id: drillOf("arcangel", title).id,
+      })),
+    );
   });
 
   it("idempotente: los mismos recuentos de ejercicios, hijos y vínculos tras otra ejecución", async () => {

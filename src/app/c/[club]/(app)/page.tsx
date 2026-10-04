@@ -1,4 +1,5 @@
 import { requireClub } from "@/lib/guards";
+import { can } from "@/lib/permissions";
 import { HomeScreen } from "@/modules/home/home-screen";
 import { getHomeData } from "@/modules/home/queries";
 
@@ -12,6 +13,9 @@ import { getHomeData } from "@/modules/home/queries";
  * «próximo» y qué es «esta semana», y formatea todas las horas en la zona del club: nada
  * se calcula en el navegador. Si los datos no se pueden leer, `getHomeData` lanza y lo
  * recoge `error.tsx`; mientras llegan, se ve `loading.tsx`.
+ *
+ * `can` solo muestra u oculta «Nueva sesión» en el aviso sin entrenamiento: lo que protege es
+ * RLS y la acción de crear.
  */
 export default async function ClubHomePage({ params }: PageProps<"/c/[club]">) {
   const { club } = await params;
@@ -19,5 +23,12 @@ export default async function ClubHomePage({ params }: PageProps<"/c/[club]">) {
 
   const home = await getHomeData(ctx, new Date().toISOString());
 
-  return <HomeScreen home={home} clubSlug={ctx.org.slug} ownShortName={ctx.branding.shortName} />;
+  return (
+    <HomeScreen
+      home={home}
+      clubSlug={ctx.org.slug}
+      ownShortName={ctx.branding.shortName}
+      canCreatePractice={can(ctx, "practice.manage")}
+    />
+  );
 }

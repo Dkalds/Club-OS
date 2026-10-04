@@ -22,6 +22,9 @@ function contextWithRole(role: Role): ClubContext {
   };
 }
 
+/** Las acciones que solo hace administración. */
+const ADMIN_ONLY: Action[] = ["way.manage", "admin.access", "drill.publish"];
+
 /**
  * Los roles que pueden cada acción, escritos a mano. Al ser un `Record<Action, …>`, una
  * acción nueva no compila hasta que alguien decide aquí quién puede hacerla.
@@ -32,8 +35,10 @@ const EXPECTED: Record<Action, Record<Role, boolean>> = {
   "drill.view": { admin: true, coach: true, player: false, guardian: false },
   "drill.create": { admin: true, coach: true, player: false, guardian: false },
   "drill.publish": { admin: true, coach: false, player: false, guardian: false },
+  "practice.manage": { admin: true, coach: true, player: false, guardian: false },
 };
 
+/** Todas las acciones: quien administra las puede todas. */
 const ACTIONS = Object.keys(EXPECTED) as Action[];
 const ROLES: Role[] = ["admin", "coach", "player", "guardian"];
 
@@ -47,6 +52,14 @@ describe("can", () => {
 
   it.each(ACTIONS)("un admin puede %s", (action) => {
     expect(can(contextWithRole("admin"), action)).toBe(true);
+  });
+
+  it.each(ADMIN_ONLY)("un entrenador no puede %s", (action) => {
+    expect(can(contextWithRole("coach"), action)).toBe(false);
+  });
+
+  it("un entrenador puede gestionar sesiones", () => {
+    expect(can(contextWithRole("coach"), "practice.manage")).toBe(true);
   });
 
   it.each(["player", "guardian"] as const)("un %s no puede ninguna acción", (role) => {

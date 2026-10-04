@@ -1,5 +1,5 @@
 import type { Page } from "@playwright/test";
-import { ARCANGEL, CLUB_DEMO } from "../scripts/seed/data";
+import { ARCANGEL, CLUB_DEMO, seedId } from "../scripts/seed/data";
 import { seedSchedule, type SlotIso } from "../scripts/seed/dates";
 import { addLocalDays, formatEventSlot, startOfLocalDay } from "../src/lib/time";
 import { seedNow } from "./helpers/seed";
@@ -95,17 +95,18 @@ test("el entrenador ve su próximo entrenamiento", async ({ page }) => {
 
   const card = practiceCard(page);
   await expect(card).toHaveCount(1);
-  await expect(card.getByText("Próximo entrenamiento")).toBeVisible();
+  // El kicker dice también a qué equipo toca.
+  await expect(card.getByText("Próximo entrenamiento · Alevín A")).toBeVisible();
   await expect(
     card.getByRole("heading", { level: 2, name: "Transición + rebote defensivo" }),
   ).toBeVisible();
   await expect(card.getByText("75 min · 5 ejercicios · Pabellón 2")).toBeVisible();
   // La hora, en la zona del club (regla 7), no en la del navegador ni en la del servidor.
   await expect(card.getByText(formatEventSlot(next.startsAt, next.endsAt, TZ))).toBeVisible();
-  // Hasta la Fase 4, el entrenamiento se abre en la pestaña Entrenar.
+  // El entrenamiento se abre en su sesión, no en la pestaña Entrenar.
   await expect(card.getByRole("link", { name: "Abrir entrenamiento" })).toHaveAttribute(
     "href",
-    `${CLUB}/train`,
+    `${CLUB}/train/${seedId(ARCANGEL.slug, "event:alevin-a:upcoming-0")}`,
   );
 });
 
@@ -124,7 +125,13 @@ test("ve el próximo partido y su semana", async ({ page }) => {
   const week = weekSection(page);
   await expect(week).toBeVisible();
   // El próximo entrenamiento es dentro de cinco días como mucho: siempre cae en la semana.
-  await expect(week.getByRole("link").filter({ hasText: "Entrenamiento" }).first()).toBeVisible();
+  const firstPractice = week.getByRole("link").filter({ hasText: "Entrenamiento" }).first();
+  await expect(firstPractice).toBeVisible();
+  // La fila de un entrenamiento lleva a su sesión; la del partido, a Partidos.
+  await expect(firstPractice).toHaveAttribute(
+    "href",
+    `${CLUB}/train/${seedId(ARCANGEL.slug, "event:alevin-a:upcoming-0")}`,
+  );
   const after = new Date();
 
   // El partido no siempre: sembrado un sábado después de las 10:30, es el del sábado
@@ -136,6 +143,7 @@ test("ve el próximo partido y su semana", async ({ page }) => {
     const gameRow = week.getByRole("link").filter({ hasText: "Partido" }).first();
     await expect(gameRow).toBeVisible();
     await expect(gameRow).toContainText("Ribera");
+    await expect(gameRow).toHaveAttribute("href", `${CLUB}/games`);
   }
 });
 
@@ -267,7 +275,7 @@ test("sin errores de consola", async ({ page, browserErrors }) => {
   await expect(tabs).toHaveText(["Inicio", "Nuestra forma", "Entrenar", "Partidos", "Equipo"]);
   for (const [label, path, heading] of [
     ["Nuestra forma", "/way", "The Demo Way"],
-    ["Entrenar", "/train", "Entrenar llega en una próxima fase"],
+    ["Entrenar", "/train", "Entrenar"],
     ["Partidos", "/games", "Partidos llega en una próxima fase"],
     ["Equipo", "/team", "Equipo llega en una próxima fase"],
   ]) {

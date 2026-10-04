@@ -1,4 +1,4 @@
-import { logError } from "@/lib/log";
+import { throwReadError } from "@/lib/read-error";
 import { createClient } from "@/lib/supabase/server";
 import type { ClubContext } from "@/modules/tenancy/queries";
 import { buildHome } from "./build-home";
@@ -9,23 +9,14 @@ import type { HomeData } from "./types";
 const EVENT_LIMIT = 30;
 
 /**
- * Un error de Supabase no se traga ni se convierte en datos vacíos: se registra (sin datos
- * personales, ver `logError`) y se lanza para que lo recoja el error de la página. No se
- * adjunta como `cause`: su mensaje puede llevar el contenido de una fila.
- */
-function fail(tag: string, error: unknown): never {
-  logError(tag, error);
-  throw new Error(`${tag}: no se pudo leer de la base de datos`);
-}
-
-/**
  * Los datos de Inicio de quien tiene la sesión: su nombre, sus equipos y los eventos de
  * esos equipos que aún no han terminado.
  *
  * Lee con la sesión de la persona (todo pasa por RLS) y filtra siempre por club y por
  * equipos: las políticas de RLS ejecutan una función por fila, y una consulta sin filtro
  * crecería con las filas de todos los clubes. Las horas salen en la zona del club.
- * Con cualquier error de lectura, lanza.
+ * Con cualquier error de lectura, lanza (`throwReadError`: lo registra y no lo convierte en
+ * datos vacíos).
  */
 export async function getHomeData(ctx: ClubContext, nowIso: string): Promise<HomeData> {
   const { personId } = ctx.membership;
@@ -51,8 +42,8 @@ export async function getHomeData(ctx: ClubContext, nowIso: string): Promise<Hom
       .eq("organization_id", orgId)
       .eq("person_id", personId),
   ]);
-  if (person.error) fail("home.person", person.error);
-  if (staff.error) fail("home.teams", staff.error);
+  if (person.error) throwReadError("home.person", person.error);
+  if (staff.error) throwReadError("home.teams", staff.error);
 
   const firstName = person.data?.first_name ?? "";
   const teams = toTeams(staff.data);
@@ -83,7 +74,7 @@ export async function getHomeData(ctx: ClubContext, nowIso: string): Promise<Hom
     .order("starts_at", { ascending: true })
     .order("id", { ascending: true })
     .limit(EVENT_LIMIT);
-  if (events.error) fail("home.events", events.error);
+  if (events.error) throwReadError("home.events", events.error);
 
   return buildHome({ firstName, teams, events: toHomeEvents(events.data) }, nowIso, tz);
 }

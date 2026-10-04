@@ -130,8 +130,9 @@ begin
     (s_a2, club_a, 2, 'Standard 2 de A', 'Descripción del Standard 2 de A.', 'published'),
     (s_b, club_b, 1, 'Standard 1 de B', 'Descripción del Standard 1 de B.', 'published');
 
-  -- El plan pasado no tiene autor, como los del seed: el último bloque del test borra la
-  -- cuenta de c1 y `practice_plans.created_by` no se desengancha solo.
+  -- El plan pasado no tiene autor, como los del seed. El último bloque del test borra la
+  -- cuenta de c1; con autor tampoco fallaría: `practice_plans.created_by` pasa a null al
+  -- borrarse la cuenta (`20261117000100_practice_integrity.sql`).
   insert into practice_plans (id, organization_id, team_id, title, status, created_by) values
     (plan_done, club_a, t1, 'Entrenamiento pasado de T1', 'done', null);
 

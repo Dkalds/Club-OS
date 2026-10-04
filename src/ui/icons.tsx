@@ -115,6 +115,15 @@ export function ChevronDownIcon(props: IconProps) {
   );
 }
 
+/** Flecha hacia arriba: subir un elemento de una lista ordenada. */
+export function ChevronUpIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="m6 15 6-6 6 6" />
+    </Icon>
+  );
+}
+
 /** Lupa: el campo de búsqueda. */
 export function SearchIcon(props: IconProps) {
   return (
@@ -125,11 +134,54 @@ export function SearchIcon(props: IconProps) {
   );
 }
 
-/** Aspa: borrar un texto. Va siempre dentro de un botón con nombre. */
+/** Aspa: borrar un texto, o marcar lo cancelado. Va siempre junto a un nombre o una palabra. */
 export function CloseIcon(props: IconProps) {
   return (
     <Icon {...props}>
       <path d="M6 6l12 12M18 6 6 18" />
+    </Icon>
+  );
+}
+
+/** Más: sumar minutos, o añadir algo a una lista. */
+export function PlusIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M12 5v14M5 12h14" />
+    </Icon>
+  );
+}
+
+/** Menos: restar minutos. */
+export function MinusIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M5 12h14" />
+    </Icon>
+  );
+}
+
+/** Asa de arrastre: seis puntos, para lo que se reordena arrastrando. */
+export function GripIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <circle cx="9" cy="6" r="1" />
+      <circle cx="15" cy="6" r="1" />
+      <circle cx="9" cy="12" r="1" />
+      <circle cx="15" cy="12" r="1" />
+      <circle cx="9" cy="18" r="1" />
+      <circle cx="15" cy="18" r="1" />
+    </Icon>
+  );
+}
+
+/** Papelera: quitar algo de una lista. Va siempre junto a la palabra que lo dice. */
+export function TrashIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M4 7h16M10 11v6M14 11v6" />
+      <path d="m6 7 1 12.2a1 1 0 0 0 1 .8h8a1 1 0 0 0 1-.8L18 7" />
+      <path d="M9 7V4.5a.5.5 0 0 1 .5-.5h5a.5.5 0 0 1 .5.5V7" />
     </Icon>
   );
 }

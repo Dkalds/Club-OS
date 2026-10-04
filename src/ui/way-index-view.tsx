@@ -38,8 +38,8 @@ export function WayIndexView({
 
       <div className="px-(--space-4)">
         {sections.length > 0 ? (
-          <Card variant="flush">
-            {/* Las filas van directas dentro de la card: así pinta sus separadores. */}
+          <Card variant="flush" as="ul">
+            {/* Las filas (`<li>`) van directas dentro de la lista: pintan sus separadores. */}
             {sections.map((section) => (
               <ListRow
                 key={section.id}

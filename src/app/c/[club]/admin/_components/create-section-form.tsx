@@ -3,12 +3,12 @@
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import { ACTION_ERROR_COPY } from "@/lib/action-result";
+import { useAction } from "@/lib/use-action";
 import { createWaySection } from "@/modules/methodology/actions";
 import { CONTENT_KIND_OPTIONS, type ContentKind } from "@/modules/methodology/types";
 import { Card } from "@/ui/card";
 import { CTAButton } from "@/ui/cta-button";
 import { FormAlert, SelectField, TextField } from "@/ui/form-field";
-import { useAction } from "@/lib/use-action";
 
 /**
  * Alta de una sección: el título y el tipo. Todo lo demás (su número, su orden y su slug) lo

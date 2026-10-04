@@ -11,7 +11,7 @@
  */
 export function Hero({ kicker, title }: { kicker: string | null; title: string }) {
   return (
-    <section className="relative flex min-h-[220px] flex-col justify-end overflow-hidden bg-surface-1 p-(--space-4)">
+    <section className="relative flex min-h-55 flex-col justify-end overflow-hidden bg-surface-1 p-(--space-4)">
       <svg
         aria-hidden="true"
         focusable="false"

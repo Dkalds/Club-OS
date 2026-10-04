@@ -139,7 +139,7 @@ describe("buildHome · próximo entrenamiento", () => {
     expect(home.week[0]?.subtitle).toBe("Sin plan");
   });
 
-  it("un plan sin ítems tiene 0 min y 0 ejercicios, con su título", () => {
+  it("un plan sin ítems dura su franja y tiene 0 ejercicios, con su título", () => {
     const home = buildHome(
       input([
         practice("empty", "2026-10-06T16:00:00Z", "2026-10-06T17:15:00Z", {
@@ -150,7 +150,22 @@ describe("buildHome · próximo entrenamiento", () => {
       TZ,
     );
 
-    expect(home.nextPractice).toMatchObject({ title: "Plan vacío", totalMinutes: 0, drillCount: 0 });
+    // De 18:00 a 19:15: 75 min, no 0.
+    expect(home.nextPractice).toMatchObject({ title: "Plan vacío", totalMinutes: 75, drillCount: 0 });
+  });
+
+  it("un plan con ítems dura lo que suman, aunque su franja sea otra", () => {
+    const home = buildHome(
+      input([
+        practice("short", "2026-10-06T16:00:00Z", "2026-10-06T17:00:00Z", {
+          plan: { title: "Plan", focus: [], itemMinutes: [10, 15, 15, 20, 15] },
+        }),
+      ]),
+      NOW,
+      TZ,
+    );
+
+    expect(home.nextPractice).toMatchObject({ totalMinutes: 75, drillCount: 5 });
   });
 
   it("elige el más temprano aunque lleguen desordenados y no toca la entrada", () => {
@@ -392,6 +407,24 @@ describe("buildHome · esta semana", () => {
       ["before", "Dom", "25", "00:30"],
       ["after", "Dom", "25", "10:00"],
       ["monday", "Lun", "26", "09:00"],
+    ]);
+  });
+
+  it("si el cambio de hora cae a medianoche, la semana sigue acabando a las 00:00 locales del día 7", () => {
+    // America/Santiago: el domingo 6 sep 2026 los relojes pasan de las 00:00 a las 01:00, así que
+    // las 00:00 de ese día no existen y «el principio del día» ya son las 01:00. Sumarle 7 días
+    // a esa hora cerraría la semana a las 01:00 del día 13 y colaría un evento de las 00:30.
+    const home = buildHome(
+      input([
+        practice("late-sat", "2026-09-13T02:30:00.000Z", "2026-09-13T03:15:00.000Z"), // sáb 12, 23:30 local
+        practice("early-sun", "2026-09-13T03:30:00.000Z", "2026-09-13T04:15:00.000Z"), // dom 13, 00:30 local
+      ]),
+      "2026-09-06T15:00:00.000Z", // dom 6 sep, 12:00 local
+      "America/Santiago",
+    );
+
+    expect(home.week.map((item) => [item.eventId, item.dow, item.day, item.time])).toEqual([
+      ["late-sat", "Sáb", "12", "23:30"],
     ]);
   });
 

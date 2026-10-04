@@ -20,17 +20,27 @@ const VARIANT_CLASS: Record<CardVariant, string> = {
  *
  * Sin sombras ni bordes de color. `className` es para encajar la card en su sitio (como
  * alinear su contenido); los colores y los radios salen siempre de la variante.
+ *
+ * Con `as="ul"` la card es una lista y sus hijas directas son `<li>` (las filas de `ListRow`).
+ * Lleva `role="list"` explícito: Tailwind le quita las viñetas y, sin ellas, Safari con
+ * VoiceOver deja de anunciarla como lista.
  */
 export function Card({
+  as: Tag = "div",
   variant = "default",
   className,
   children,
 }: {
+  as?: "div" | "ul";
   variant?: CardVariant;
   className?: string;
   children: ReactNode;
 }) {
   const classes = [BASE, VARIANT_CLASS[variant], className].filter(Boolean).join(" ");
 
-  return <div className={classes}>{children}</div>;
+  return (
+    <Tag className={classes} role={Tag === "ul" ? "list" : undefined}>
+      {children}
+    </Tag>
+  );
 }

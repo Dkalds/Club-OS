@@ -35,7 +35,7 @@ Plataforma SaaS multi-club para clubes de baloncesto de formación. CB Arcángel
 - `pnpm seed`: datos de ejemplo (Arcángel + Club Demo); se niega a correr contra un Supabase remoto salvo `ALLOW_REMOTE_SEED=true`
 - `pnpm tokens`: regenera `src/ui/tokens.css` desde `design/tokens.json`
 - `pnpm db:types`: regenera `src/lib/database.types.ts`
-- `pnpm check:guards`: reglas 2, 3 y tokens sincronizados
+- `pnpm check:guards`: reglas 2, 3 y 4 (ni colores hex ni medidas entre corchetes en componentes), páginas de Gestión exportadas con `adminPage` y tokens sincronizados
 
 ## Forma de trabajar
 

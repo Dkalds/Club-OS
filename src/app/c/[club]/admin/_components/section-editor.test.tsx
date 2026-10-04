@@ -1,11 +1,17 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import Link from "next/link";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ACTION_ERROR_COPY, fail, ok, type ActionResult } from "@/lib/action-result";
 import type { WaySection } from "@/modules/methodology/types";
 
-const mocks = vi.hoisted(() => ({ updateWaySection: vi.fn(), reload: vi.fn() }));
+const mocks = vi.hoisted(() => ({ updateWaySection: vi.fn(), reload: vi.fn(), push: vi.fn() }));
 
 vi.mock("@/modules/methodology/actions", () => ({ updateWaySection: mocks.updateWaySection }));
+// Solo el router es de pega: `useAction` usa el `unstable_rethrow` de verdad.
+vi.mock("next/navigation", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("next/navigation")>()),
+  useRouter: () => ({ push: mocks.push }),
+}));
 
 import { SectionEditor } from "./section-editor";
 
@@ -38,8 +44,6 @@ function renderEditor(overrides: Partial<WaySection> = {}) {
 const save = () => fireEvent.click(screen.getByRole("button", { name: "Guardar cambios" }));
 const body = () => screen.getByLabelText("Contenido");
 
-const UNSAVED = "Tienes cambios sin guardar. Si sales ahora, se pierden.";
-
 /**
  * Lo que haría el navegador al cerrar o recargar la pestaña: lanza `beforeunload` y dice si
  * algo pidió confirmación (cancelando el evento).
@@ -51,21 +55,24 @@ function unloadAsks(): boolean {
 }
 
 /**
- * Pulsa «Volver» y dice si el clic llegó a navegar. jsdom no implementa la navegación (la
- * registra como error): el clic se corta en `document`, ya después de que React y el
- * componente lo hayan visto, y se mira si el componente lo había cancelado.
+ * Pulsa un enlace (por defecto, «Volver») y dice si el clic llegó a navegar. jsdom no
+ * implementa la navegación (la registra como error): el clic se corta en `document`, ya
+ * después de que React y el componente lo hayan visto, y se mira si el componente lo había
+ * cancelado.
  */
-function clickBack(): "navega" | "se queda" {
+function clickLink(name = "Volver"): "navega" | "se queda" {
   let outcome: "navega" | "se queda" = "navega";
   const cut = (event: Event) => {
     outcome = event.defaultPrevented ? "se queda" : "navega";
     event.preventDefault();
   };
   document.addEventListener("click", cut);
-  fireEvent.click(screen.getByRole("link", { name: "Volver" }));
+  fireEvent.click(screen.getByRole("link", { name }));
   document.removeEventListener("click", cut);
   return outcome;
 }
+
+const leaveDialog = () => screen.queryByRole("alertdialog", { name: "¿Salir sin guardar?" });
 
 beforeEach(() => {
   vi.resetAllMocks();
@@ -374,18 +381,41 @@ describe("SectionEditor", () => {
   });
 });
 
-// Quien escribe un texto largo espera un aviso antes de perderlo. «Volver» es un enlace normal a
-// la lista y cerrar o recargar la pestaña tampoco guardan nada: mientras algún campo difiera de
-// la última copia guardada, las dos cosas preguntan. (La navegación interna por las pestañas de
-// Gestión no se intercepta: App Router no tiene gancho para bloquearla.)
+// Quien escribe un texto largo espera un aviso antes de perderlo. «Volver» y el enlace a la lista
+// de valores, principios o Standards son enlaces normales, y cerrar o recargar la pestaña
+// tampoco guardan nada: mientras algún campo difiera de la última copia guardada, todo eso
+// pregunta (los enlaces con el diálogo de la app, la pestaña con el aviso del navegador). También
+// los enlaces que el editor no pinta, como las pestañas de Gestión.
 describe("SectionEditor · cambios sin guardar", () => {
+  it("con cambios, un enlace de fuera del editor (una pestaña de Gestión) también pregunta", () => {
+    render(
+      <>
+        <nav aria-label="Gestión">
+          <Link href="/c/club-a/admin/values" prefetch={false}>
+            Valores
+          </Link>
+        </nav>
+        <SectionEditor clubSlug="club-a" section={section()} />
+      </>,
+    );
+    expect(clickLink("Valores")).toBe("navega");
+
+    fireEvent.change(body(), { target: { value: "Texto nuevo." } });
+    expect(clickLink("Valores")).toBe("se queda");
+    expect(leaveDialog()).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Salir sin guardar" }));
+    expect(mocks.push).toHaveBeenCalledTimes(1);
+    expect(mocks.push).toHaveBeenCalledWith("/c/club-a/admin/values");
+  });
+
   it("sin cambios no hay aviso: ni al cerrar la pestaña ni al volver", () => {
-    const confirm = vi.spyOn(window, "confirm");
     renderEditor();
 
     expect(unloadAsks()).toBe(false);
-    expect(clickBack()).toBe("navega");
-    expect(confirm).not.toHaveBeenCalled();
+    expect(clickLink()).toBe("navega");
+    expect(leaveDialog()).not.toBeInTheDocument();
+    expect(mocks.push).not.toHaveBeenCalled();
   });
 
   it("con cambios, cerrar o recargar la pestaña pide confirmación", () => {
@@ -396,18 +426,81 @@ describe("SectionEditor · cambios sin guardar", () => {
     expect(unloadAsks()).toBe(true);
   });
 
-  it("con cambios, «Volver» pregunta con su texto; cancelar no navega y aceptar sí", () => {
-    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+  it("con cambios, «Volver» se detiene y abre el diálogo con su pregunta", () => {
     renderEditor();
     fireEvent.change(body(), { target: { value: "Texto sin guardar." } });
 
-    expect(clickBack()).toBe("se queda");
-    expect(confirm).toHaveBeenCalledTimes(1);
-    expect(confirm).toHaveBeenCalledWith(UNSAVED);
+    expect(clickLink()).toBe("se queda");
 
-    confirm.mockReturnValue(true);
-    expect(clickBack()).toBe("navega");
-    expect(confirm).toHaveBeenCalledTimes(2);
+    const dialog = leaveDialog();
+    expect(dialog).toBeInTheDocument();
+    expect(dialog).toHaveAccessibleDescription("Tienes cambios sin guardar. Si sales, se pierden.");
+    expect(screen.getByRole("button", { name: "Salir sin guardar" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Seguir editando" })).toBeInTheDocument();
+    expect(mocks.push).not.toHaveBeenCalled();
+  });
+
+  it("«Seguir editando» cierra el diálogo sin navegar y deja lo escrito donde estaba", () => {
+    renderEditor();
+    fireEvent.change(body(), { target: { value: "Texto sin guardar." } });
+    clickLink();
+
+    fireEvent.click(screen.getByRole("button", { name: "Seguir editando" }));
+
+    expect(leaveDialog()).not.toBeInTheDocument();
+    expect(mocks.push).not.toHaveBeenCalled();
+    expect(body()).toHaveValue("Texto sin guardar.");
+    // Sigue habiendo cambios sin guardar: el aviso de la pestaña sigue puesto.
+    expect(unloadAsks()).toBe(true);
+  });
+
+  it("«Salir sin guardar» navega a la lista con router.push", () => {
+    renderEditor();
+    fireEvent.change(body(), { target: { value: "Texto sin guardar." } });
+    clickLink();
+
+    fireEvent.click(screen.getByRole("button", { name: "Salir sin guardar" }));
+
+    expect(mocks.push).toHaveBeenCalledTimes(1);
+    expect(mocks.push).toHaveBeenCalledWith("/c/club-a/admin/way");
+    expect(leaveDialog()).not.toBeInTheDocument();
+  });
+
+  it("no usa window.confirm: la pregunta es el diálogo de la app", () => {
+    const confirm = vi.spyOn(window, "confirm");
+    renderEditor();
+    fireEvent.change(body(), { target: { value: "Texto sin guardar." } });
+
+    clickLink();
+
+    expect(confirm).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["values", "Ir a los valores", "/c/club-a/admin/values"],
+    ["principles", "Ir a los principios", "/c/club-a/admin/principles"],
+    ["standards", "Ir a los Standards", "/c/club-a/admin/standards"],
+  ] as const)(
+    "con cambios, en una sección de %s el enlace «%s» pregunta igual y confirmar lleva a su lista",
+    (contentKind, linkName, path) => {
+      renderEditor({ contentKind });
+      fireEvent.change(body(), { target: { value: "Texto sin guardar." } });
+
+      expect(clickLink(linkName)).toBe("se queda");
+      expect(leaveDialog()).toBeInTheDocument();
+      expect(mocks.push).not.toHaveBeenCalled();
+
+      fireEvent.click(screen.getByRole("button", { name: "Salir sin guardar" }));
+      expect(mocks.push).toHaveBeenCalledWith(path);
+    },
+  );
+
+  it("sin cambios, el enlace a la lista de valores navega sin preguntar", () => {
+    renderEditor({ contentKind: "values" });
+
+    expect(clickLink("Ir a los valores")).toBe("navega");
+    expect(leaveDialog()).not.toBeInTheDocument();
+    expect(mocks.push).not.toHaveBeenCalled();
   });
 
   it("cuenta cualquier campo: título, resumen, tipo y contenido", () => {
@@ -440,7 +533,6 @@ describe("SectionEditor · cambios sin guardar", () => {
   });
 
   it("tras guardar, vuelve a no haber aviso", async () => {
-    const confirm = vi.spyOn(window, "confirm");
     renderEditor();
     fireEvent.change(body(), { target: { value: "Texto nuevo." } });
     expect(unloadAsks()).toBe(true);
@@ -449,8 +541,32 @@ describe("SectionEditor · cambios sin guardar", () => {
     await screen.findByText("Cambios guardados.");
 
     expect(unloadAsks()).toBe(false);
-    expect(clickBack()).toBe("navega");
-    expect(confirm).not.toHaveBeenCalled();
+    expect(clickLink()).toBe("navega");
+    expect(leaveDialog()).not.toBeInTheDocument();
+  });
+
+  // El resultado de guardar se pinta en una transición, y los efectos de esa pintura corren en
+  // un turno posterior. `findByText` resuelve en cuanto el texto entra en el documento, y el test
+  // de arriba, que mira el aviso después, depende de quién llegue antes (el turno de React o el
+  // temporizador de Testing Library; bajo carga, a veces el segundo). Aquí se mira en el mismo
+  // instante en que aparece «Cambios guardados.»: ya no hay aviso en la pestaña y «Volver» no pregunta.
+  it("al aparecer «Cambios guardados.», el aviso de la pestaña ya está quitado y «Volver» no pregunta", async () => {
+    renderEditor();
+    fireEvent.change(body(), { target: { value: "Texto nuevo." } });
+    expect(unloadAsks()).toBe(true);
+
+    let seen: { tabAsks: boolean; backAsks: boolean } | null = null;
+    const observer = new MutationObserver(() => {
+      if (seen === null && screen.queryByText("Cambios guardados.")) {
+        seen = { tabAsks: unloadAsks(), backAsks: clickLink() === "se queda" };
+      }
+    });
+    observer.observe(document.body, { childList: true, characterData: true, subtree: true });
+    save();
+    await screen.findByText("Cambios guardados.");
+    observer.disconnect();
+
+    expect(seen).toEqual({ tabAsks: false, backAsks: false });
   });
 
   it("lo guardado es la nueva copia: escribir otra vez después de guardar vuelve a avisar", async () => {
@@ -487,7 +603,6 @@ describe("SectionEditor · cambios sin guardar", () => {
 
   it("«Recargar» tras una copia obsoleta se salta el aviso: quien recarga ya ha decidido", async () => {
     mocks.updateWaySection.mockResolvedValue(fail("STALE_COPY"));
-    const confirm = vi.spyOn(window, "confirm");
     let askedWhileReloading: boolean | null = null;
     mocks.reload.mockImplementation(() => {
       askedWhileReloading = unloadAsks();
@@ -503,7 +618,7 @@ describe("SectionEditor · cambios sin guardar", () => {
 
     expect(mocks.reload).toHaveBeenCalledTimes(1);
     expect(askedWhileReloading).toBe(false);
-    expect(confirm).not.toHaveBeenCalled();
+    expect(leaveDialog()).not.toBeInTheDocument();
   });
 });
 
