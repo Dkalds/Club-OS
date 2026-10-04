@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { Filter, FilterSheetChip, FilterTag } from "./filter";
+import { Chip, Filter, FilterRow, FilterSheetChip, FilterTag } from "./filter";
 import { FilterTag as DirectFilterTag } from "./filter-tag";
 
 // Opciones ficticias: en producción salen de la taxonomía del club, nunca del código.
@@ -145,6 +145,101 @@ describe("Filter", () => {
       "group-focus-visible:-outline-offset-2",
       "group-focus-visible:outline-focus-ring",
     );
+  });
+});
+
+describe("FilterRow", () => {
+  it("es un grupo con el nombre dado que agrupa los chips que lleva dentro", () => {
+    render(
+      <FilterRow label="Más filtros">
+        <Chip pressed={false} onClick={() => {}}>
+          Uno
+        </Chip>
+        <Chip pressed onClick={() => {}}>
+          Dos
+        </Chip>
+      </FilterRow>,
+    );
+
+    expect(chipNames(screen.getByRole("group", { name: "Más filtros" }))).toEqual(["Uno", "Dos"]);
+  });
+
+  it("es la misma fila que usa Filter: desplaza en horizontal sin barra, sin segunda fila", () => {
+    render(
+      <>
+        <FilterRow label="Fila">
+          <Chip pressed={false} onClick={() => {}}>
+            Uno
+          </Chip>
+        </FilterRow>
+        <Filter label="Objetivo" options={FOCUS} value={null} onChange={() => {}} />
+      </>,
+    );
+
+    const row = screen.getByRole("group", { name: "Fila" });
+    const filter = screen.getByRole("group", { name: "Objetivo" });
+    expect(row.className).toBe(filter.className);
+    expect(row).toHaveClass("flex", "overflow-x-auto");
+    expect(row).not.toHaveClass("flex-wrap");
+  });
+});
+
+describe("Chip", () => {
+  it("es un botón normal con aria-pressed según el estado", () => {
+    const { rerender } = render(
+      <Chip pressed={false} onClick={() => {}}>
+        Uno
+      </Chip>,
+    );
+
+    const chip = screen.getByRole("button", { name: "Uno" });
+    expect(chip).toHaveAttribute("type", "button");
+    expect(chip).toHaveAttribute("aria-pressed", "false");
+    expect(chip).not.toHaveAttribute("aria-haspopup");
+    expect(chip).not.toHaveAttribute("aria-label");
+
+    rerender(
+      <Chip pressed onClick={() => {}}>
+        Uno
+      </Chip>,
+    );
+    expect(screen.getByRole("button", { name: "Uno" })).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("pulsarlo llama a onClick", () => {
+    const onClick = vi.fn();
+    render(
+      <Chip pressed={false} onClick={onClick}>
+        Uno
+      </Chip>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Uno" }));
+
+    expect(onClick).toHaveBeenCalledTimes(1);
+  });
+
+  it("con `label`, el nombre accesible es ese y no el texto que se ve", () => {
+    render(
+      <Chip pressed label="Quitar filtro de uno" onClick={() => {}}>
+        Uno: valor
+      </Chip>,
+    );
+
+    const chip = screen.getByRole("button", { name: "Quitar filtro de uno" });
+    expect(chip).toHaveTextContent("Uno: valor");
+  });
+
+  it("mide 36 px y su área táctil, 44 px", () => {
+    render(
+      <Chip pressed={false} onClick={() => {}}>
+        Uno
+      </Chip>,
+    );
+
+    const chip = screen.getByRole("button", { name: "Uno" });
+    expect(chip).toHaveClass("min-h-(--target-min)");
+    expect(chip.firstElementChild).toHaveClass("h-9", "rounded-pill");
   });
 });
 
