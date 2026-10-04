@@ -1,8 +1,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/database.types";
+import { throwReadError } from "@/lib/read-error";
 import { createClient } from "@/lib/supabase/server";
+import { UUID_RE } from "@/lib/uuid";
 import { signedUrl } from "@/modules/media/storage";
-import { throwReadError } from "@/modules/methodology/map-rows";
 import { getPrinciples, getStandards } from "@/modules/methodology/queries";
 import type { GamePrinciple, Standard } from "@/modules/methodology/types";
 import type { ClubContext } from "@/modules/tenancy/queries";
@@ -30,9 +31,6 @@ import type { DrillDetail, DrillFilters, DrillSearchResult, DrillSummary, FocusA
 
 type Db = SupabaseClient<Database>;
 type SearchArgs = Database["public"]["Functions"]["search_drills"]["Args"];
-
-/** Un uuid escrito con guiones, sin mirar versión ni variante. Lo demás no puede ser un id. */
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
  * Un texto de filtro, o `undefined` si está vacío o en blanco. Para `search_drills` un texto

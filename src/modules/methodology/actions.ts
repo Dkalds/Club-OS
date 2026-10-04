@@ -5,6 +5,7 @@ import type { z } from "zod";
 import { fail, ok, type ActionResult } from "@/lib/action-result";
 import type { Database } from "@/lib/database.types";
 import { mutate as runMutation, type UniqueField, type Write } from "@/lib/mutate";
+import { WAY_ROUTE } from "@/lib/routes";
 import type { ClubContext } from "@/modules/tenancy/queries";
 import { moveId } from "./order";
 import {
@@ -48,9 +49,8 @@ import { slugify, uniqueSlug } from "./slug";
 // `MutateConfig.routes`, de `@/lib/mutate`).
 //
 // Siguen las carpetas: `(app)` es el grupo al que se mueven las pestañas del entrenador
-// (convención C3) y `admin` es el área de Gestión. Si se renombran o se mueven, se cambian aquí.
-/** The Way: el índice, cada sección y la página de los Standards. */
-const WAY_ROUTE = "/c/[club]/(app)/way";
+// (convención C3) y `admin` es el área de Gestión. Si se renombran o se mueven, se cambian aquí
+// y, la de The Way (`WAY_ROUTE`), en `@/lib/routes`, que comparte con la biblioteca.
 /** Gestión: cada lista y cada formulario. */
 const ADMIN_ROUTE = "/c/[club]/admin";
 

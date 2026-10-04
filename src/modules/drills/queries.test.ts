@@ -5,16 +5,13 @@ import {
   FAILURE,
   ORG,
   OTHER_ORG,
-  pointRow,
-  principleRow,
-  sectionRow,
-  standardRow,
   tag,
   uuid,
   type Failure,
   type Row,
   type Store,
-} from "@/modules/methodology/test-support";
+} from "@/lib/test-support";
+import { pointRow, principleRow, sectionRow, standardRow } from "@/modules/methodology/test-support";
 
 const mocks = vi.hoisted(() => ({
   createClient: vi.fn(),
@@ -29,7 +26,7 @@ vi.mock("@/modules/media/storage", () => ({ signedUrl: mocks.signedUrl }));
 import { getDrill, getDrillFormOptions, getFocusAreas, getRelatedDrills, searchDrills } from "./queries";
 
 // Las lecturas de la biblioteca, contra un doble de la base de datos que aplica los filtros y el
-// orden que recibe (ver `methodology/test-support.ts`). Lo que se fija aquí es lo que RLS no
+// orden que recibe (ver `lib/test-support.ts`). Lo que se fija aquí es lo que RLS no
 // garantiza a quien es miembro de dos clubes o administra el suyo: que la app filtra por club y
 // por estado por su cuenta, que devuelve las filas en su orden y que una avería no se confunde
 // con «no existe». La función `search_drills` en sí se prueba en la base de datos (pgTAP).
