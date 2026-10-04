@@ -20,6 +20,7 @@ vi.mock("./drill-admin-actions", () => ({
 }));
 
 import DrillPage from "./page";
+import { DRILL_TITLE_ID } from "./title-id";
 
 // Datos neutros: los tests de `src/` no pueden nombrar a ningún club (pnpm check:guards).
 const DRILL_ID = "00000000-0000-4000-8000-0000000000d1";
@@ -171,6 +172,15 @@ describe("la cabecera", () => {
     expect(headings[0]).toHaveTextContent("Rebote + outlet");
   });
 
+  it("el título es el destino del foco tras publicar o archivar: tiene su id y se puede enfocar por programa", async () => {
+    await renderPage();
+
+    const title = screen.getByRole("heading", { level: 1 });
+    expect(title).toHaveAttribute("id", DRILL_TITLE_ID);
+    // `-1`: se le lleva el foco desde el código, pero no entra en el orden del tabulador.
+    expect(title).toHaveAttribute("tabindex", "-1");
+  });
+
   it("«Editar» lleva a su formulario y sale a quien puede editar", async () => {
     mocks.getClubContext.mockResolvedValue(clubContext("admin"));
 
@@ -320,26 +330,59 @@ describe("Standards y principios", () => {
     expect(screen.queryByText(/^\+\d/)).not.toBeInTheDocument();
   });
 
-  it("más de tres Standards: enseña los tres primeros por número y «+N» con los demás", async () => {
-    const more: Standard[] = [
+  describe("más de tres Standards", () => {
+    const MORE: Standard[] = [
       ...STANDARDS,
       { id: "st-6", number: 6, title: "SEXTO STANDARD", description: "Descripción del sexto." },
       { id: "st-7", number: 7, title: "SÉPTIMO STANDARD", description: "Descripción del séptimo." },
     ];
-    mocks.getDrill.mockResolvedValue(full({ standards: more }));
 
-    await renderPage();
+    function standardsSection() {
+      return screen.getByRole("heading", { level: 2, name: /Standards|Estándares/ }).closest("section") as HTMLElement;
+    }
 
-    const section = screen.getByRole("heading", { level: 2, name: "Standards" }).closest("section") as HTMLElement;
-    expect(within(section).getAllByRole("link").map((link) => link.getAttribute("href"))).toEqual([
-      "/c/club-a/way/standards#standard-03",
-      "/c/club-a/way/standards#standard-04",
-      "/c/club-a/way/standards#standard-05",
-    ]);
-    expect(within(section).getByText("+2")).toBeInTheDocument();
-    // Quien escucha la pantalla oye qué significa.
-    expect(within(section).getByText("y 2 más")).toHaveClass("sr-only");
-    expect(screen.queryByText("SEXTO STANDARD")).not.toBeInTheDocument();
+    it("enseña los tres primeros por número y «+N» con los demás", async () => {
+      mocks.getDrill.mockResolvedValue(full({ standards: MORE }));
+
+      await renderPage();
+
+      const links = within(standardsSection()).getAllByRole("link");
+      expect(links.map((link) => link.getAttribute("href"))).toEqual([
+        "/c/club-a/way/standards#standard-03",
+        "/c/club-a/way/standards#standard-04",
+        "/c/club-a/way/standards#standard-05",
+        "/c/club-a/way/standards",
+      ]);
+      expect(within(standardsSection()).getByText("+2")).toBeInTheDocument();
+      expect(screen.queryByText("SEXTO STANDARD")).not.toBeInTheDocument();
+    });
+
+    it("«+N» lleva a la página de los Standards, con un nombre que dice qué es y 44 px de área", async () => {
+      mocks.getDrill.mockResolvedValue(full({ standards: MORE }));
+
+      await renderPage();
+
+      const more = within(standardsSection()).getByRole("link", { name: "Ver 2 más en Standards" });
+      expect(more).toHaveAttribute("href", "/c/club-a/way/standards");
+      expect(more).toHaveTextContent("+2");
+      expect(more).toHaveClass("min-h-(--target-min)", "min-w-(--target-min)");
+    });
+
+    it("el nombre de «+N» usa el término del club para sus Standards", async () => {
+      mocks.getClubContext.mockResolvedValue(clubContext("coach", { standards: "Estándares del club" }));
+      mocks.getDrill.mockResolvedValue(full({ standards: MORE.slice(0, 4) }));
+
+      await renderPage();
+
+      expect(screen.getByRole("link", { name: "Ver 1 más en Estándares del club" })).toHaveTextContent("+1");
+    });
+
+    it("con tres o menos no hay «+N»", async () => {
+      await renderPage();
+
+      expect(screen.queryByText(/^\+\d/)).not.toBeInTheDocument();
+      expect(screen.queryByRole("link", { name: /Ver \d+ más/ })).not.toBeInTheDocument();
+    });
   });
 
   it("cada principio enlaza a su sitio en la sección de principios de The Way", async () => {

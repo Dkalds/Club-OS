@@ -19,6 +19,7 @@ import {
   VariantsSection,
   VideoSection,
 } from "./drill-sections";
+import { DRILL_TITLE_ID } from "./title-id";
 
 /**
  * La ficha de un ejercicio: su diagrama, qué trabaja (objetivo, Standards y principios: la
@@ -60,7 +61,15 @@ export default async function DrillPage({ params }: PageProps<"/c/[club]/drills/
 
       <div className="flex flex-col gap-(--space-6) px-(--space-4)">
         <div className="flex flex-col gap-(--space-3)">
-          <h1 className="font-display text-display-l wrap-break-word uppercase">{drill.title}</h1>
+          {/* `tabIndex={-1}`: tras publicar o archivar, `DrillAdminActions` le lleva el foco desde el
+              código (ver allí por qué); no entra en el orden del tabulador. */}
+          <h1
+            id={DRILL_TITLE_ID}
+            tabIndex={-1}
+            className="font-display text-display-l wrap-break-word uppercase focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+          >
+            {drill.title}
+          </h1>
           <StatusNotice status={drill.status} />
           <MetaPills header={drillHeader(drill)} />
         </div>

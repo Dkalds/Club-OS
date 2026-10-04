@@ -72,8 +72,11 @@ export function MetaPills({ header }: { header: { age: string; players: string; 
 
 /**
  * Los Standards que trabaja el ejercicio (la parte «por qué»), como chips que enlazan a su sitio
- * en la página de Standards de The Way. Se enseñan hasta tres, por número; el resto se cuenta
- * («+2»). `title` es el nombre que el club da a sus Standards.
+ * en la página de Standards de The Way. Se enseñan hasta tres, por número; el resto se cuenta en
+ * «+2», que lleva a la página de los Standards del club para verlos: sin ese enlace, lo que el
+ * ejercicio trabaja y no cabe quedaría fuera de alcance. `title` es el nombre que el club da a
+ * sus Standards, y es lo que nombra el enlace («Ver 2 más en Standards»): el texto visible solo
+ * dice «+2».
  */
 export function StandardsSection({
   title,
@@ -100,10 +103,16 @@ export function StandardsSection({
           </li>
         ))}
         {rest > 0 ? (
-          <li className="text-body-s font-semibold text-ink-2">
-            {/* Para quien lo oye, «+2» solo no dice nada. */}
-            <span aria-hidden="true">+{rest}</span>
-            <span className="sr-only">y {rest} más</span>
+          <li>
+            <Link
+              href={`/c/${clubSlug}/way/standards`}
+              // Sin prefetch: el destino es una ruta dinámica detrás del proxy de sesión.
+              prefetch={false}
+              aria-label={`Ver ${rest} más en ${title}`}
+              className="inline-flex min-h-(--target-min) min-w-(--target-min) items-center justify-center rounded-sm px-(--space-2) text-body-s font-semibold text-brand-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+            >
+              +{rest}
+            </Link>
           </li>
         ) : null}
       </ul>
