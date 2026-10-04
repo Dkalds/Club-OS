@@ -552,17 +552,18 @@ drop policy events_select_member_simulada on events;
 -- Control positivo: las fixtures de arriba, todas dentro de su club, se insertaron; y las
 -- plantillas privadas entraron con equipo, evento y focos a null (MATCH SIMPLE).
 
--- El plan es de A: decir que la fila es de B no basta para colgarle un ítem.
+-- El plan es de A: decir que la fila es de B no basta para colgarle un ítem. El ítem lleva
+-- título, como exige la tabla: lo que falla es la clave foránea.
 select throws_ok(
-  $$insert into practice_items (organization_id, plan_id, sort, minutes)
-    values (current_setting('fx.club_b')::uuid, current_setting('fx.plan_t1')::uuid, 9, 10)$$,
+  $$insert into practice_items (organization_id, plan_id, sort, minutes, title_override)
+    values (current_setting('fx.club_b')::uuid, current_setting('fx.plan_t1')::uuid, 9, 10, 'cruzado')$$,
   '23503', null,
   'FK compuesta: un ítem de B no entra en un plan de A'
 );
 
 select throws_ok(
-  $$insert into practice_items (organization_id, plan_id, sort, minutes)
-    values (current_setting('fx.club_a')::uuid, current_setting('fx.plan_tb')::uuid, 9, 10)$$,
+  $$insert into practice_items (organization_id, plan_id, sort, minutes, title_override)
+    values (current_setting('fx.club_a')::uuid, current_setting('fx.plan_tb')::uuid, 9, 10, 'cruzado')$$,
   '23503', null,
   'FK compuesta: un ítem de A no entra en un plan de B'
 );
@@ -727,8 +728,8 @@ select throws_ok(
 -- La posición de un ítem es única por plan y la comprobación es diferida: se mira al
 -- cerrar la transacción (aquí, al pasar las restricciones a `immediate`).
 select throws_ok(
-  $$insert into practice_items (organization_id, plan_id, sort, minutes)
-    values (current_setting('fx.club_a')::uuid, current_setting('fx.plan_t1')::uuid, 1, 10);
+  $$insert into practice_items (organization_id, plan_id, sort, minutes, title_override)
+    values (current_setting('fx.club_a')::uuid, current_setting('fx.plan_t1')::uuid, 1, 10, 'repetido');
     set constraints all immediate$$,
   '23505', null,
   'dos ítems de un plan no comparten posición'

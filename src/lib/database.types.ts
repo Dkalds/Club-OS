@@ -445,21 +445,21 @@ isOneToOne: false
                   ]
                 },"practice_plans": {
                   Row: {
-                    "actual_minutes": number | null,"created_at": string,"created_by": string | null,"event_id": string | null,"id": string,"is_template": boolean,"notes": string | null,"organization_id": string,"primary_focus_id": string | null,"secondary_focus_id": string | null,"status": string,"team_id": string | null,"title": string
+                    "actual_minutes": number | null,"created_at": string,"created_by": string | null,"event_id": string | null,"event_kind": Database["public"]['Enums']["event_kind"],"id": string,"is_template": boolean,"notes": string | null,"organization_id": string,"primary_focus_id": string | null,"secondary_focus_id": string | null,"status": string,"team_id": string | null,"title": string,"updated_at": string,"updated_by": string | null
                   }
                   Insert: {
-                    "actual_minutes"?: number | null,"created_at"?: string,"created_by"?: string | null,"event_id"?: string | null,"id"?: string,"is_template"?: boolean,"notes"?: string | null,"organization_id": string,"primary_focus_id"?: string | null,"secondary_focus_id"?: string | null,"status"?: string,"team_id"?: string | null,"title": string
+                    "actual_minutes"?: number | null,"created_at"?: string,"created_by"?: string | null,"event_id"?: string | null,"event_kind"?: Database["public"]['Enums']["event_kind"],"id"?: string,"is_template"?: boolean,"notes"?: string | null,"organization_id": string,"primary_focus_id"?: string | null,"secondary_focus_id"?: string | null,"status"?: string,"team_id"?: string | null,"title": string,"updated_at"?: string,"updated_by"?: string | null
                   }
                   Update: {
-                    "actual_minutes"?: number | null,"created_at"?: string,"created_by"?: string | null,"event_id"?: string | null,"id"?: string,"is_template"?: boolean,"notes"?: string | null,"organization_id"?: string,"primary_focus_id"?: string | null,"secondary_focus_id"?: string | null,"status"?: string,"team_id"?: string | null,"title"?: string
+                    "actual_minutes"?: number | null,"created_at"?: string,"created_by"?: string | null,"event_id"?: string | null,"event_kind"?: Database["public"]['Enums']["event_kind"],"id"?: string,"is_template"?: boolean,"notes"?: string | null,"organization_id"?: string,"primary_focus_id"?: string | null,"secondary_focus_id"?: string | null,"status"?: string,"team_id"?: string | null,"title"?: string,"updated_at"?: string,"updated_by"?: string | null
                   }
                   Relationships: [
                     {
-      foreignKeyName: "practice_plans_organization_id_event_id_fkey"
-      columns: ["organization_id","event_id"]
+      foreignKeyName: "practice_plans_event_fkey"
+      columns: ["organization_id","team_id","event_kind","event_id"]
 isOneToOne: false
       referencedRelation: "events"
-      referencedColumns: ["organization_id","id"]
+      referencedColumns: ["organization_id","team_id","kind","id"]
     },{
       foreignKeyName: "practice_plans_organization_id_fkey"
       columns: ["organization_id"]
