@@ -430,6 +430,75 @@ describe("variantes", () => {
   });
 });
 
+// Un error en una lista no esconde los de orden (máximo menor que mínimo): quien arregla la
+// lista y vuelve a enviar no debería descubrir entonces un segundo error que ya estaba.
+describe("un error en una lista no esconde los errores de orden", () => {
+  const fourKeys = Array.from({ length: 4 }, (_, i) => ({ text: `Punto ${i + 1}`, isKey: true }));
+  const reversed = { minPlayers: 8, maxPlayers: 4, minMinutes: 20, maxMinutes: 10, minAge: 14, maxAge: 10 };
+
+  it("puntos de coaching con 4 clave y jugadores al revés: los dos", () => {
+    expect(errorsOf(drill({ coachingPoints: fourKeys, minPlayers: 8, maxPlayers: 4 }))).toEqual({
+      coachingPoints: KEY_POINTS,
+      maxPlayers: PLAYERS_ORDER,
+    });
+  });
+
+  it("un punto vacío con minutos y edad al revés: los tres", () => {
+    const errors = errorsOf(
+      drill({
+        coachingPoints: [{ text: "", isKey: false }],
+        minMinutes: 20,
+        maxMinutes: 10,
+        minAge: 14,
+        maxAge: 10,
+      }),
+    );
+
+    expect(errors).toEqual({ coachingPoints: POINT_EMPTY, maxMinutes: MINUTES_ORDER, maxAge: AGE_ORDER });
+  });
+
+  it("una variante sin título con jugadores al revés: los dos", () => {
+    expect(
+      errorsOf(drill({ variants: [{ title: "", description: null }], minPlayers: 8, maxPlayers: 4 })),
+    ).toEqual({ variants: "Escribe el título de la variante o quítala.", maxPlayers: PLAYERS_ORDER });
+  });
+
+  it("las dos listas mal y los tres rangos al revés: las cinco claves", () => {
+    const errors = errorsOf(
+      drill({ coachingPoints: fourKeys, variants: [{ title: "", description: null }], ...reversed }),
+    );
+
+    expect(errors).toEqual({
+      coachingPoints: KEY_POINTS,
+      variants: "Escribe el título de la variante o quítala.",
+      maxPlayers: PLAYERS_ORDER,
+      maxMinutes: MINUTES_ORDER,
+      maxAge: AGE_ORDER,
+    });
+  });
+
+  it("al editar también", () => {
+    const errors = errorsOf(
+      { drillId: DRILL, expectedUpdatedAt: STAMP, drill: { ...VALID, coachingPoints: fourKeys, ...reversed } },
+      updateDrillSchema,
+    );
+
+    expect(errors).toEqual({
+      coachingPoints: KEY_POINTS,
+      maxPlayers: PLAYERS_ORDER,
+      maxMinutes: MINUTES_ORDER,
+      maxAge: AGE_ORDER,
+    });
+  });
+
+  it("un tipo mal (no un número) sigue ahorrando la comparación de ese par", () => {
+    // `minPlayers` no es un número: se enseña su error, no una comparación sin sentido.
+    const errors = errorsOf(drill({ coachingPoints: fourKeys, minPlayers: "8", maxPlayers: 4 }));
+
+    expect(errors).toEqual({ coachingPoints: KEY_POINTS, minPlayers: PLAYERS_RANGE });
+  });
+});
+
 describe("updateDrillSchema", () => {
   const update = (overrides: Record<string, unknown> = {}) => ({
     drillId: DRILL,

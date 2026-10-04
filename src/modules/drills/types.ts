@@ -34,10 +34,19 @@ export type DrillSummary = {
 /**
  * La ficha completa de un ejercicio. `diagramUrl` es una URL firmada de corta vida, no la
  * ruta del objeto. `principlesSectionSlug` es el slug de la sección publicada de The Way que
- * lista los principios (para enlazarlos), o `null` si no hay. `principles` y `standards` solo
- * traen lo publicado. `createdByMe` lo resuelve la consulta con el usuario de la sesión.
- * `updatedAt` es el texto tal cual lo devuelve PostgREST (con microsegundos): sirve de
- * `expectedUpdatedAt` al guardar y no debe pasar nunca por `Date`.
+ * lista los principios (para enlazarlos), o `null` si no hay. `createdByMe` lo resuelve la
+ * consulta con el usuario de la sesión. `updatedAt` es el texto tal cual lo devuelve PostgREST
+ * (con microsegundos): sirve de `expectedUpdatedAt` al guardar y no debe pasar nunca por
+ * `Date`.
+ *
+ * Principios y Standards vienen en dos pares con usos distintos:
+ * - `principles` y `standards` son para MOSTRAR: solo lo publicado, con su texto. Pasar un
+ *   Standard o un principio a borrador («archivarlo») lo saca de la ficha, y puede volver a
+ *   publicarse.
+ * - `principleIds` y `standardIds` son para GUARDAR: TODOS los vínculos del ejercicio, se vea
+ *   o no el elemento. Un formulario de edición parte de ellos, no de lo que muestra la ficha;
+ *   si no, al guardar desvincularía en silencio lo que está en borrador. Igual que
+ *   `focusAreaIds`, sin orden con significado.
  */
 export type DrillDetail = DrillSummary & {
   summary: string | null;
@@ -50,6 +59,8 @@ export type DrillDetail = DrillSummary & {
   coachingPoints: Array<{ text: string; isKey: boolean }>;
   variants: Array<{ title: string; description: string | null }>;
   focusAreaIds: string[];
+  principleIds: string[];
+  standardIds: string[];
   principles: Array<{ id: string; slug: string; title: string }>;
   principlesSectionSlug: string | null;
   standards: Standard[];

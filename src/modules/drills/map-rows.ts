@@ -23,14 +23,17 @@ export const SUMMARY_COLUMNS = `id, title, status, created_by,
 /**
  * Las de la ficha. Los principios y los Standards piden `status`: RLS le esconde lo no
  * publicado a quien entrena (llega `null`), pero la dirección lo ve todo, y en la ficha solo
- * sale lo publicado. El diagrama anida su ficha de `media_assets` por la clave compuesta.
+ * sale lo publicado. Piden además el id de la propia fila de vínculos (`principle_id`,
+ * `standard_id`): es lo único que sobrevive cuando el elemento anidado no llega, y de ahí
+ * salen `principleIds` y `standardIds`, con todos los vínculos. El diagrama anida su ficha de
+ * `media_assets` por la clave compuesta.
  */
 export const DETAIL_COLUMNS = `id, title, status, created_by,
   min_age, max_age, min_players, max_players, min_minutes, max_minutes,
   summary, objective, setup_md, equipment, video_url, diagram_media_id, updated_at,
   drill_focus_areas(focus_areas(id, slug, name, sort)),
-  drill_principles(game_principles(id, slug, title, sort, status)),
-  drill_standards(standards(id, number, title, description, status)),
+  drill_principles(principle_id, game_principles(id, slug, title, sort, status)),
+  drill_standards(standard_id, standards(id, number, title, description, status)),
   drill_coaching_points(text, is_key, sort),
   drill_variants(title, description, sort),
   media_assets(path)`;
@@ -63,8 +66,8 @@ export type DetailRow = Omit<SummaryRow, "drill_focus_areas"> &
     "summary" | "objective" | "setup_md" | "equipment" | "video_url" | "diagram_media_id" | "updated_at"
   > & {
     drill_focus_areas: Array<{ focus_areas: (FocusEmbed & { id: string }) | null }>;
-    drill_principles: Array<{ game_principles: PrincipleEmbed | null }>;
-    drill_standards: Array<{ standards: StandardEmbed | null }>;
+    drill_principles: Array<{ principle_id: string; game_principles: PrincipleEmbed | null }>;
+    drill_standards: Array<{ standard_id: string; standards: StandardEmbed | null }>;
     drill_coaching_points: Array<Pick<Tables["drill_coaching_points"]["Row"], "text" | "is_key" | "sort">>;
     drill_variants: Array<Pick<Tables["drill_variants"]["Row"], "title" | "description" | "sort">>;
     media_assets: { path: string } | null;
@@ -90,6 +93,11 @@ function visible<L, T>(links: L[], pick: (link: L) => T | null): T[] {
   });
 }
 
+/** Los ids sin orden con significado: se ordenan por texto para que la salida sea estable. */
+function sortedIds(ids: string[]): string[] {
+  return [...ids].sort(compareText);
+}
+
 function orderedFocus<T extends FocusEmbed>(links: Array<{ focus_areas: T | null }>): T[] {
   return visible(links, (link) => link.focus_areas).sort(
     (a, b) => a.sort - b.sort || compareText(a.slug, b.slug),
@@ -113,8 +121,10 @@ export function toDrillSummary(row: SummaryRow): DrillSummary {
 }
 
 /**
- * La ficha completa. `updatedAt` queda tal cual lo da PostgREST. Solo salen los principios y
- * los Standards publicados.
+ * La ficha completa. `updatedAt` queda tal cual lo da PostgREST. `principles` y `standards`
+ * (para mostrar) solo traen lo publicado; `principleIds` y `standardIds` (para guardar)
+ * traen todos los vínculos, salgan o no el principio o el Standard: se leen de las filas de
+ * vínculos, no de lo anidado.
  */
 export function toDrillDetail(row: DetailRow, extras: DetailExtras): DrillDetail {
   const focus = orderedFocus(row.drill_focus_areas);
@@ -145,6 +155,8 @@ export function toDrillDetail(row: DetailRow, extras: DetailExtras): DrillDetail
       .sort((a, b) => a.sort - b.sort)
       .map((variant) => ({ title: variant.title, description: variant.description })),
     focusAreaIds: focus.map((area) => area.id),
+    principleIds: sortedIds(row.drill_principles.map((link) => link.principle_id)),
+    standardIds: sortedIds(row.drill_standards.map((link) => link.standard_id)),
     principles,
     principlesSectionSlug: extras.principlesSectionSlug,
     standards,

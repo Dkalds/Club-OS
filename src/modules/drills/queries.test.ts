@@ -88,6 +88,20 @@ function focusLink(id: string, sort: number): Row {
   return { focus_areas: { id, slug: `objetivo-${tag(id)}`, name: `Objetivo ${tag(id)}`, sort } };
 }
 
+/** Un vínculo con un principio: el id de la fila de vínculos y, anidado, el principio. */
+function principleLink(id: string, slug: string, sort: number, status = "published"): Row {
+  const title = slug.charAt(0).toUpperCase() + slug.slice(1);
+  return { principle_id: id, game_principles: { id, slug, title, sort, status } };
+}
+
+/** Un vínculo con un Standard: el id de la fila de vínculos y, anidado, el Standard. */
+function standardLink(id: string, number: number, status = "published"): Row {
+  return {
+    standard_id: id,
+    standards: { id, number, title: `STANDARD ${number}`, description: `Texto ${number}.`, status },
+  };
+}
+
 /** Un ejercicio tal como lo devuelve la lectura de la ficha; lo que no se pide, vacío. */
 function drillRow(id: string, organization_id: string, overrides: Row = {}): Row {
   return {
@@ -394,12 +408,24 @@ describe("getDrill", () => {
       updated_at: "2026-10-03T10:00:00.123456+00:00",
       drill_focus_areas: [focusLink(F2, 2), focusLink(F1, 1)],
       drill_principles: [
-        { game_principles: { id: uuid(22), slug: "segundo", title: "Segundo", sort: 2, status: "published" } },
-        { game_principles: { id: uuid(21), slug: "primero", title: "Primero", sort: 1, status: "published" } },
+        {
+          principle_id: uuid(22),
+          game_principles: { id: uuid(22), slug: "segundo", title: "Segundo", sort: 2, status: "published" },
+        },
+        {
+          principle_id: uuid(21),
+          game_principles: { id: uuid(21), slug: "primero", title: "Primero", sort: 1, status: "published" },
+        },
       ],
       drill_standards: [
-        { standards: { id: uuid(32), number: 5, title: "CINCO", description: "Texto cinco.", status: "published" } },
-        { standards: { id: uuid(31), number: 3, title: "TRES", description: "Texto tres.", status: "published" } },
+        {
+          standard_id: uuid(32),
+          standards: { id: uuid(32), number: 5, title: "CINCO", description: "Texto cinco.", status: "published" },
+        },
+        {
+          standard_id: uuid(31),
+          standards: { id: uuid(31), number: 3, title: "TRES", description: "Texto tres.", status: "published" },
+        },
       ],
       drill_coaching_points: [
         { text: "Tercero", is_key: false, sort: 2 },
@@ -453,6 +479,8 @@ describe("getDrill", () => {
           { title: "Segunda", description: null },
         ],
         focusAreaIds: [F1, F2],
+        principleIds: [uuid(21), uuid(22)],
+        standardIds: [uuid(31), uuid(32)],
         principles: [
           { id: uuid(21), slug: "primero", title: "Primero" },
           { id: uuid(22), slug: "segundo", title: "Segundo" },
@@ -491,6 +519,8 @@ describe("getDrill", () => {
         coachingPoints: [],
         variants: [],
         focusAreaIds: [],
+        principleIds: [],
+        standardIds: [],
         principles: [],
         principlesSectionSlug: null,
         standards: [],
@@ -504,14 +534,14 @@ describe("getDrill", () => {
             {
               ...full,
               drill_principles: [
-                { game_principles: null },
-                { game_principles: { id: uuid(23), slug: "borrador", title: "Borrador", sort: 0, status: "draft" } },
-                { game_principles: { id: uuid(21), slug: "primero", title: "Primero", sort: 1, status: "published" } },
+                { principle_id: uuid(24), game_principles: null },
+                principleLink(uuid(23), "borrador", 0, "draft"),
+                principleLink(uuid(21), "primero", 1),
               ],
               drill_standards: [
-                { standards: null },
-                { standards: { id: uuid(33), number: 1, title: "UNO", description: "Texto.", status: "draft" } },
-                { standards: { id: uuid(31), number: 3, title: "TRES", description: "Texto tres.", status: "published" } },
+                { standard_id: uuid(34), standards: null },
+                standardLink(uuid(33), 1, "draft"),
+                standardLink(uuid(31), 3),
               ],
             },
           ],
@@ -523,8 +553,66 @@ describe("getDrill", () => {
 
       expect(detail?.principles).toEqual([{ id: uuid(21), slug: "primero", title: "Primero" }]);
       expect(detail?.standards).toEqual([
-        { id: uuid(31), number: 3, title: "TRES", description: "Texto tres." },
+        { id: uuid(31), number: 3, title: "STANDARD 3", description: "Texto 3." },
       ]);
+      // Lo que no se enseña sigue vinculado: ver «los ids vinculados no dependen de lo que se ve».
+      expect(detail?.principleIds).toEqual([uuid(21), uuid(23), uuid(24)]);
+      expect(detail?.standardIds).toEqual([uuid(31), uuid(33), uuid(34)]);
+    });
+
+    // «Archivar» un Standard o un principio es pasarlo a borrador, y puede volver a publicarse.
+    // La ficha solo enseña lo publicado, pero un formulario de edición que reconstruyera los
+    // vínculos desde lo que enseña desvincularía en silencio lo que está en borrador al
+    // guardar: `principleIds` y `standardIds` llevan TODOS los vínculos, vea o no la persona el
+    // elemento.
+    describe("los ids vinculados no dependen de lo que se ve", () => {
+      it("un Standard publicado y uno en borrador: se enseña uno, pero los dos siguen vinculados", async () => {
+        const drill = drillRow(DRILL_ID, ORG, {
+          drill_standards: [standardLink(uuid(32), 5, "draft"), standardLink(uuid(31), 3)],
+        });
+        install({ drills: [drill] }, { userId: ME });
+
+        const detail = await getDrill(CTX, DRILL_ID);
+
+        expect(detail?.standards.map((standard) => standard.id)).toEqual([uuid(31)]);
+        expect(detail?.standardIds).toEqual([uuid(31), uuid(32)]);
+      });
+
+      it("un principio publicado y uno en borrador: igual", async () => {
+        const drill = drillRow(DRILL_ID, ORG, {
+          drill_principles: [principleLink(uuid(22), "segundo", 2, "draft"), principleLink(uuid(21), "primero", 1)],
+        });
+        install({ drills: [drill] }, { userId: ME });
+
+        const detail = await getDrill(CTX, DRILL_ID);
+
+        expect(detail?.principles.map((principle) => principle.id)).toEqual([uuid(21)]);
+        expect(detail?.principleIds).toEqual([uuid(21), uuid(22)]);
+      });
+
+      it("lo que RLS esconde a quien entrena (llega null) también sigue vinculado", async () => {
+        const drill = drillRow(DRILL_ID, ORG, {
+          drill_principles: [{ principle_id: uuid(22), game_principles: null }, principleLink(uuid(21), "primero", 1)],
+          drill_standards: [{ standard_id: uuid(32), standards: null }, standardLink(uuid(31), 3)],
+        });
+        install({ drills: [drill] }, { userId: ME });
+
+        const detail = await getDrill(CTX, DRILL_ID);
+
+        expect(detail?.principles).toHaveLength(1);
+        expect(detail?.principleIds).toEqual([uuid(21), uuid(22)]);
+        expect(detail?.standards).toHaveLength(1);
+        expect(detail?.standardIds).toEqual([uuid(31), uuid(32)]);
+      });
+
+      it("un ejercicio sin vínculos: listas vacías", async () => {
+        install({ drills: [drillRow(DRILL_ID, ORG)] }, { userId: ME });
+
+        const detail = await getDrill(CTX, DRILL_ID);
+
+        expect(detail?.principleIds).toEqual([]);
+        expect(detail?.standardIds).toEqual([]);
+      });
     });
 
     it("un objetivo que no se ve (null) se descarta de la lista y de los ids", async () => {
