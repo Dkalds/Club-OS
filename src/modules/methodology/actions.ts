@@ -1,8 +1,15 @@
 "use server";
 
+import type { SupabaseClient } from "@supabase/supabase-js";
 import type { z } from "zod";
 import { fail, ok, type ActionResult } from "@/lib/action-result";
-import { mutate as runMutation, UNIQUE_VIOLATION, type Db, type UniqueField, type Write } from "@/lib/mutate";
+import type { Database } from "@/lib/database.types";
+import {
+  mutate as runMutation,
+  UNIQUE_VIOLATION,
+  type UniqueField,
+  type Write,
+} from "@/lib/mutate";
 import { WAY_ROUTE } from "@/lib/routes";
 import type { ClubContext } from "@/modules/tenancy/queries";
 import { moveId } from "./order";
@@ -52,6 +59,11 @@ import { slugify, uniqueSlug } from "./slug";
 /** Gestión: cada lista y cada formulario. */
 const ADMIN_ROUTE = "/c/[club]/admin";
 
+type Db = SupabaseClient<Database>;
+
+/** El mayor número de una sección: el CHECK de `way_sections.number`. */
+const MAX_SECTION_NUMBER = 99;
+
 /**
  * El esqueleto de `@/lib/mutate` con lo de esta área: el permiso de Gestión, la etiqueta
  * `methodology.<acción>` del log y las rutas de The Way y de Gestión.
@@ -71,9 +83,6 @@ function mutate<D, T>(
     write,
   );
 }
-
-/** El mayor número de una sección: el CHECK de `way_sections.number`. */
-const MAX_SECTION_NUMBER = 99;
 
 /** El siguiente puesto de una lista: uno más que el mayor que ya hay (1 si está vacía). */
 function nextPosition(current: number[]): number {

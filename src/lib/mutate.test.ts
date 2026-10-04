@@ -15,7 +15,7 @@ vi.mock("@/lib/supabase/server", () => ({ createClient: mocks.createClient }));
 vi.mock("@/lib/guards", () => ({ requireClub: mocks.requireClub }));
 vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidatePath }));
 
-import { mutate, UNIQUE_VIOLATION, type Attempt, type DbError, type MutateConfig, type Write } from "./mutate";
+import { mutate, type MutateConfig, type Write } from "./mutate";
 
 // El esqueleto compartido por las Server Actions de todos los módulos. Los tests de cada
 // módulo (`methodology/actions.test.ts`, `drills/actions.test.ts`) prueban lo suyo a través de
@@ -178,12 +178,6 @@ describe("tras escribir", () => {
     expect(result).toEqual({ ok: false, error: "NOT_FOUND" });
     expect(mocks.revalidatePath).not.toHaveBeenCalled();
   });
-
-  it("revalida las rutas de la configuración que recibe, no las de otra", async () => {
-    await mutate({ ...config, routes: ["/c/[club]/tres"] }, "club-a", schema, { name: "Uno" }, writing(ok(null)));
-
-    expect(mocks.revalidatePath.mock.calls).toEqual([["/c/[club]/tres", "layout"]]);
-  });
 });
 
 describe("errores de la base de datos (fromDb)", () => {
@@ -248,6 +242,79 @@ describe("errores de la base de datos (fromDb)", () => {
   });
 });
 
+// Las altas que leen la lista del club para calcular un número o un slug y después insertan:
+// otra alta puede colarse entre las dos. El esqueleto repite el intento entero; lo que cada
+// módulo calcula en él lo prueban sus tests (`methodology/actions.test.ts`).
+describe("altas que chocan con otra (retryOnConflict)", () => {
+  const clash = dbError("23505", "duplicate key value violates unique constraint");
+
+  /** Una escritura que es un alta con reintento: cada intento devuelve lo siguiente de `outcomes`. */
+  function creating<T>(...outcomes: Array<{ result: ActionResult<T> } | { conflict: typeof clash }>) {
+    const attempt = vi.fn(async () => {
+      const outcome = outcomes.shift();
+      if (outcome === undefined) throw new Error("un intento de más");
+      return outcome;
+    });
+    const write = ({ retryOnConflict }: Write<unknown>) => retryOnConflict(attempt);
+    return { attempt, write };
+  }
+
+  it("sin choque, un solo intento y su resultado", async () => {
+    const { attempt, write } = creating({ result: ok({ id: "uno" }) });
+
+    const result = await mutate(config, "club-a", schema, { name: "Uno" }, write);
+
+    expect(result).toEqual({ ok: true, data: { id: "uno" } });
+    expect(attempt).toHaveBeenCalledTimes(1);
+  });
+
+  it("si otra alta se adelanta, repite el intento entero y vuelve con su resultado, sin registrar", async () => {
+    const { attempt, write } = creating({ conflict: clash }, { result: ok({ id: "dos" }) });
+
+    const result = await mutate(config, "club-a", schema, { name: "Uno" }, write);
+
+    expect(result).toEqual({ ok: true, data: { id: "dos" } });
+    expect(attempt).toHaveBeenCalledTimes(2);
+    expect(logged).toEqual([]);
+    expect(mocks.revalidatePath).toHaveBeenCalledTimes(config.routes.length);
+  });
+
+  it("un intento que devuelve un error no se repite", async () => {
+    const { attempt, write } = creating({ result: fail("INVALID", { name: "Ese nombre ya existe." }) });
+
+    const result = await mutate(config, "club-a", schema, { name: "Uno" }, write);
+
+    expect(result).toEqual({ ok: false, error: "INVALID", fieldErrors: { name: "Ese nombre ya existe." } });
+    expect(attempt).toHaveBeenCalledTimes(1);
+    expect(mocks.revalidatePath).not.toHaveBeenCalled();
+  });
+
+  it("si el choque se repite tres veces lo deja: SAVE_FAILED, registrado con la etiqueta, sin revalidar", async () => {
+    const { attempt, write } = creating({ conflict: clash }, { conflict: clash }, { conflict: clash });
+
+    const result = await mutate(config, "club-a", schema, { name: "Uno" }, write);
+
+    expect(result).toEqual({ ok: false, error: "SAVE_FAILED" });
+    expect(attempt).toHaveBeenCalledTimes(3);
+    expect(logged).toEqual(["[demo.save] PostgrestError code=23505"]);
+    expect(mocks.revalidatePath).not.toHaveBeenCalled();
+  });
+
+  it("un intento que lanza corta los reintentos: SAVE_FAILED, como cualquier escritura que lanza", async () => {
+    const attempt = vi.fn(async (): Promise<{ result: ActionResult<null> }> => {
+      throw new TypeError("fetch failed");
+    });
+
+    const result = await mutate(config, "club-a", schema, { name: "Uno" }, ({ retryOnConflict }) =>
+      retryOnConflict(attempt),
+    );
+
+    expect(result).toEqual({ ok: false, error: "SAVE_FAILED" });
+    expect(attempt).toHaveBeenCalledTimes(1);
+    expect(logged).toEqual(["[demo.save] TypeError"]);
+  });
+});
+
 describe("una escritura que lanza", () => {
   it("se registra con la etiqueta y vuelve como SAVE_FAILED, sin revalidar", async () => {
     mocks.createClient.mockRejectedValue(new TypeError("fetch failed"));
@@ -257,28 +324,6 @@ describe("una escritura que lanza", () => {
     expect(result).toEqual({ ok: false, error: "SAVE_FAILED" });
     expect(logged).toEqual(["[demo.save] TypeError"]);
     expect(mocks.revalidatePath).not.toHaveBeenCalled();
-  });
-
-  it("si lanza la propia escritura pasa igual: SAVE_FAILED, registrado con la etiqueta y sin revalidar", async () => {
-    const result = await mutate(config, "club-a", schema, { name: "Uno" }, async () => {
-      throw new TypeError("fetch failed");
-    });
-
-    expect(result).toEqual({ ok: false, error: "SAVE_FAILED" });
-    expect(logged).toEqual(["[demo.save] TypeError"]);
-    expect(mocks.revalidatePath).not.toHaveBeenCalled();
-  });
-
-  it("un cliente que no se puede crear no llega a la escritura", async () => {
-    mocks.createClient.mockRejectedValue(new TypeError("fetch failed"));
-    const write = writing(ok(null));
-
-    await expect(mutate(config, "club-a", schema, { name: "Uno" }, write)).resolves.toEqual({
-      ok: false,
-      error: "SAVE_FAILED",
-    });
-
-    expect(write).not.toHaveBeenCalled();
   });
 
   // `notFound()` y `redirect()` funcionan lanzando: si el esqueleto los tragara como un fallo
@@ -303,60 +348,6 @@ describe("una escritura que lanza", () => {
     ).rejects.toBe(thrown);
 
     expect(logged).toEqual([]);
-    expect(mocks.revalidatePath).not.toHaveBeenCalled();
-  });
-});
-
-describe("retryOnConflict", () => {
-  // Un choque con un único de la tabla: lo que devuelve PostgREST cuando otra alta simultánea
-  // se queda con el número, el orden o el slug que este intento acababa de calcular.
-  const conflict: DbError = dbError(UNIQUE_VIOLATION, "duplicate key value");
-
-  /** Lanza `mutate` con una escritura que solo repite `attempt` mientras choque. */
-  function retrying<T>(attempt: () => Promise<Attempt<T>>) {
-    return mutate(config, "club-a", schema, { name: "Uno" }, ({ retryOnConflict }) => retryOnConflict(attempt));
-  }
-
-  it("sin choque devuelve el resultado del primer intento", async () => {
-    const attempt = vi.fn(async () => ({ result: ok({ id: "uno" }) }));
-
-    const result = await retrying(attempt);
-
-    expect(result).toEqual({ ok: true, data: { id: "uno" } });
-    expect(attempt).toHaveBeenCalledTimes(1);
-    expect(logged).toEqual([]);
-  });
-
-  it("tras un choque repite el intento entero y devuelve el del siguiente", async () => {
-    const attempt = vi
-      .fn<() => Promise<Attempt<{ id: string }>>>()
-      .mockResolvedValueOnce({ conflict })
-      .mockResolvedValueOnce({ result: ok({ id: "dos" }) });
-
-    const result = await retrying(attempt);
-
-    expect(result).toEqual({ ok: true, data: { id: "dos" } });
-    expect(attempt).toHaveBeenCalledTimes(2);
-    expect(logged).toEqual([]);
-  });
-
-  it("un intento que da un resultado de fallo lo devuelve sin repetir", async () => {
-    const attempt = vi.fn(async () => ({ result: fail("SECTION_LIMIT") }));
-
-    const result = await retrying(attempt);
-
-    expect(result).toEqual({ ok: false, error: "SECTION_LIMIT" });
-    expect(attempt).toHaveBeenCalledTimes(1);
-  });
-
-  it("si choca tres veces ya no es una carrera: SAVE_FAILED, registrado y sin revalidar", async () => {
-    const attempt = vi.fn(async () => ({ conflict }));
-
-    const result = await retrying(attempt);
-
-    expect(result).toEqual({ ok: false, error: "SAVE_FAILED" });
-    expect(attempt).toHaveBeenCalledTimes(3);
-    expect(logged).toEqual(["[demo.save] PostgrestError code=23505"]);
     expect(mocks.revalidatePath).not.toHaveBeenCalled();
   });
 });

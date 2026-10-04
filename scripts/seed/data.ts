@@ -8,9 +8,6 @@
 // valores de club viven aquí, en `scripts/`; nunca en `src/`.
 
 import type { TablesInsert } from "@/lib/database.types";
-// La misma función con la que la app calcula el slug de una sección o de un principio: los
-// del seed son los que Gestión habría generado para ese título, con su tope de 60 caracteres.
-import { slugify } from "@/modules/methodology/slug";
 import { type SeedSchedule, type SlotIso, seedSchedule, slotOnSameDay } from "./dates";
 import {
   ARCANGEL_DRILLS,
@@ -21,7 +18,7 @@ import {
   type SeedDrill,
   type SeedDrillRow,
 } from "./drills";
-import { seedId } from "./ids";
+import { seedId, slugify } from "./ids";
 
 export { seedId };
 

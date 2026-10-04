@@ -6,9 +6,9 @@ import { fail, type ActionError, type ActionResult } from "@/lib/action-result";
 export type Failure = { error: ActionError; fieldErrors: Record<string, string> };
 
 /**
- * Lo común a todo lo que llama a una Server Action desde un componente de cliente, en Gestión
- * o fuera de ella: el estado de espera, el fallo y la mecánica de lanzarla. Cada componente
- * decide qué hace con lo que sale bien (`onSuccess`) y qué enseña del fallo.
+ * Lo común a todo lo que llama a una Server Action desde un componente de cliente (Gestión, la
+ * ficha de ejercicio, su formulario): el estado de espera, el fallo y la mecánica de lanzarla.
+ * Cada componente decide qué hace con lo que sale bien (`onSuccess`) y qué enseña del fallo.
  *
  * `run(call, onSuccess)`:
  * - Quita el fallo anterior y lanza `call` dentro de una transición: `pending` es verdadero

@@ -15,11 +15,10 @@ import type { ClubContext } from "@/modules/tenancy/queries";
 // cada acción es lo único que cambia.
 //
 // Este módulo NO es `'use server'`: no exporta acciones, las ayuda. Los módulos `'use server'`
-// que lo importan siguen exportando solo funciones asíncronas (un archivo `'use server'` solo
-// puede exportar funciones asíncronas, y aquí se exportan además tipos y constantes).
+// que lo importan siguen exportando solo funciones asíncronas.
 
-export type Db = SupabaseClient<Database>;
-export type DbError = { code?: string; message?: string };
+type Db = SupabaseClient<Database>;
+type DbError = { code?: string; message?: string };
 
 /** Un `23505` (único) señala este campo con este mensaje; ver `fromDbError`. */
 export type UniqueField = { field: string; message: string };
@@ -73,6 +72,9 @@ export type Write<D> = {
    * (no hay campo que corregir): `attempt` se repite entero, lectura incluida, y calcula
    * sobre la lista nueva. Si choca `CREATE_ATTEMPTS` veces ya no es una carrera: se registra
    * y es `SAVE_FAILED`.
+   *
+   * El intento devuelve `{ conflict }` solo ante un `UNIQUE_VIOLATION` de su insert; todo lo
+   * demás, `{ result }`. Quien no calcula nada antes de escribir no lo necesita.
    */
   retryOnConflict: <T>(attempt: () => Promise<Attempt<T>>) => Promise<ActionResult<T>>;
 };
@@ -107,7 +109,9 @@ export async function mutate<D, T>(
     return result;
   };
 
-  const retryOnConflict = async <R>(attempt: () => Promise<Attempt<R>>): Promise<ActionResult<R>> => {
+  const retryOnConflict = async <R>(
+    attempt: () => Promise<Attempt<R>>,
+  ): Promise<ActionResult<R>> => {
     let conflict: DbError | undefined;
     for (let tries = 0; tries < CREATE_ATTEMPTS; tries += 1) {
       const outcome = await attempt();
@@ -120,7 +124,13 @@ export async function mutate<D, T>(
 
   let result: ActionResult<T>;
   try {
-    result = await write({ db: await createClient(), ctx, data: parsed.data, fromDb, retryOnConflict });
+    result = await write({
+      db: await createClient(),
+      ctx,
+      data: parsed.data,
+      fromDb,
+      retryOnConflict,
+    });
   } catch (error) {
     unstable_rethrow(error);
     logError(tag, error);

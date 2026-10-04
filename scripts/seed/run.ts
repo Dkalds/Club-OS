@@ -7,7 +7,10 @@
 //
 // Un club del seed se puede haber usado: dirección reordena, renumera y crea contenido en
 // Gestión. El seed devuelve lo suyo a su sitio y no borra nada de lo creado a mano; lo único
-// que le cambia es el número cuando choca con uno suyo (ver `strays.ts`).
+// que le cambia es el número cuando choca con uno suyo (ver `strays.ts`). Lo que sí reemplaza
+// son los hijos de sus propias filas (los puntos de sus principios, los ítems de sus sesiones
+// y los puntos, variantes y vínculos de sus ejercicios): un ejercicio o un principio creados
+// a mano no se tocan.
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/database.types";

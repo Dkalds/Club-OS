@@ -74,6 +74,7 @@ Si has usado Gestión en un club del seed, al volver a sembrar:
 
 - Lo que es del seed vuelve a su texto, su estado, su orden y su número.
 - Lo que creaste a mano se queda. Las secciones pasan detrás de las del seed, en el orden que tenían. Un Standard solo cambia de número si ocupaba uno de los del seed: pasa al primero libre, y `pnpm seed` lo dice al acabar.
+- Con los ejercicios, igual: los que creaste se quedan y los del seed vuelven a su versión original, sin diagrama ni vídeo (ver «Despliegue de la biblioteca de ejercicios»).
 
 Con las sesiones de entrenamiento pasa lo mismo: las del seed vuelven a lo que dice el seed (título, estado, lugar y ejercicios) y cambian de fecha con él; las que creaste en la app se quedan.
 
@@ -122,17 +123,17 @@ Las migraciones nuevas van al remoto con las mismas versiones que tienen en el r
 
 El Supabase remoto lo comparten producción (se despliega sola con cada push a `main`) y las previews de los PR. Las cuatro migraciones de la Fase 3 (`20261103000100_drills`, `…000200_media_storage`, `…000300_drill_search` y `…000400_save_drill`) tienen que estar aplicadas **antes de usar la preview del PR** para revisar en el móvil y **antes de fusionar**: sin ellas, `/drills` falla en cada carga y `/train` ya enlaza a ella. Son aditivas y seguras con la app que hay desplegada hoy: sigue funcionando con ellas puestas.
 
-`supabase db push` aplica todo lo que falte en el remoto, no solo lo de la Fase 3: si las dos migraciones de la Fase 2 (The Way, `20261020000100_methodology` y `…000200_methodology_functions`) tampoco están, se aplican en el mismo paso, delante de las cuatro.
+`supabase db push` aplica todo lo que falte en el remoto, no solo lo de la Fase 3: si alguna de las tres migraciones de la Fase 2 (The Way: `20261020000100_methodology`, `…000200_methodology_functions` y, de la revisión de su PR, `20261021000100_methodology_integrity`) tampoco está, se aplica en el mismo paso, delante de las cuatro.
 
 Lista, en este orden:
 
-- [ ] **Ver qué falta por aplicar**: `pnpm supabase migration list` contra el proyecto enlazado (`pnpm supabase link --project-ref <ref>` si aún no lo está). Apunta cuáles faltan: las de la Fase 3 y, quizá, las dos de la Fase 2. El resto de la lista vale igual con las dos de la Fase 2 pendientes que con ninguna, y `db push` las aplica en orden de versión.
+- [ ] **Ver qué falta por aplicar**: `pnpm supabase migration list` contra el proyecto enlazado (`pnpm supabase link --project-ref <ref>` si aún no lo está). Apunta cuáles faltan: las de la Fase 3 y, quizá, alguna de las tres de la Fase 2. El resto de la lista vale igual con las de la Fase 2 pendientes que con ninguna, y `db push` las aplica en orden de versión.
 - [ ] **Comprobar el remoto** antes de aplicar nada:
   - `select count(*) from practice_items where drill_id is not null;` tiene que dar 0. La migración añade la clave foránea `practice_items (organization_id, drill_id) → drills`, y fallaría con ítems que ya apuntan a un ejercicio que aún no existe.
   - `select extname, extnamespace::regnamespace from pg_extension where extname = 'unaccent';` no tiene que devolver una fila de otro esquema que `extensions`. La migración hace `create extension if not exists unaccent with schema extensions`: si ya estuviera instalada en otro esquema se saltaría, y `extensions.unaccent` (que usa la búsqueda) no existiría.
   - Postgres 15 o posterior (`show server_version;`): la clave foránea del diagrama usa `on delete set null (columna)`. El `config.toml` local fija la 17.
   - El rol con el que se migra puede crear políticas en `storage.objects` y escribir en `storage.buckets`.
-- [ ] **Aplicar las migraciones** con `pnpm supabase db push`, como arriba. Antes de confirmar, comprueba que la lista que enseña es la que viste en `migration list`: las cuatro de la Fase 3 y, si faltaban, las dos de la Fase 2.
+- [ ] **Aplicar las migraciones** con `pnpm supabase db push`, como arriba. Antes de confirmar, comprueba que la lista que enseña es la que viste en `migration list`: las cuatro de la Fase 3 y, si faltaba alguna, las de la Fase 2.
 - [ ] **Volver a sembrar el demo** («Sembrar el demo», más abajo): sin los ejercicios del seed (23 desde la Fase 4) la biblioteca sale vacía.
 - [ ] **Saber qué hace un nuevo seed con los ejercicios.** Devuelve cada ejercicio del seed a lo que dice el seed: texto, estado, puntos, variantes y vínculos, y pone a null su diagrama y su vídeo. Lo que alguien editó en la app sobre esos ejercicios se pierde, y un diagrama subido a uno de ellos queda desenlazado (su objeto de Storage y su ficha de `media_assets` no se borran).
 

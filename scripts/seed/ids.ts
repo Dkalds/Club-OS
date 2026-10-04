@@ -14,12 +14,9 @@ export function seedId(orgSlug: string, key: string): string {
  * Clave legible de un texto: minúsculas, sin tildes y con `-` entre palabras
  * («Bloqueo de rebote» → `bloqueo-de-rebote`). Con ella se nombran las filas del seed cuyo
  * id sale del título (secciones, principios, ejercicios) y los slugs de las que lo tienen.
+ *
+ * No es una copia: es la misma función con la que la app calcula el slug de una sección o de
+ * un principio, así que los del seed son los que Gestión habría generado para ese título, con
+ * su tope de 60 caracteres. El seed entero la toma de aquí.
  */
-export function slugify(text: string): string {
-  return text
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-}
+export { slugify } from "@/modules/methodology/slug";
