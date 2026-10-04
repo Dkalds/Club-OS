@@ -1,8 +1,9 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState, useTransition, type FormEvent } from "react";
+import { useEffect, useRef, useState, useTransition, type FormEvent, type MouseEvent } from "react";
 import { ACTION_ERROR_COPY } from "@/lib/action-result";
+import { UNSAVED_CHANGES, warnBeforeUnload } from "@/lib/unsaved-changes";
 import { useAction } from "@/lib/use-action";
 import { createDrill, updateDrill } from "@/modules/drills/actions";
 import type { DrillDetail, FocusArea } from "@/modules/drills/types";
@@ -16,6 +17,7 @@ import { DiagramField } from "./diagram-field";
 import {
   AGE_CHOICES,
   hasFieldError,
+  hasUnsavedChanges,
   initialFormState,
   toDrillInput,
   toggleId,
@@ -78,7 +80,16 @@ function firstFieldWithError(form: HTMLFormElement | null, errors: Record<string
  * - **Qué se manda** sale del estado del formulario, que parte del ejercicio una sola vez: al
  *   guardar, la ficha se repinta con datos nuevos y eso no debe pisar lo que se esté escribiendo.
  *   Quien edita manda la copia que cargó (`expectedUpdatedAt`, el texto tal cual, sin `Date`); si
- *   otra persona guardó entremedias llega `STALE_COPY`.
+ *   otra persona guardó entremedias llega `STALE_COPY`. Esa copia se guarda en estado al montar,
+ *   igual que el contenido: si la ruta se repinta bajo el formulario con una copia más nueva, un
+ *   token leído de la propiedad viva acompañaría a un contenido viejo y `save_drill` lo daría por
+ *   bueno, sin avisar de que pisa lo de la otra persona.
+ * - **Sin guardar no se pierde nada en silencio.** Mientras el formulario difiera de la última
+ *   copia guardada (`dirty`: la que se abrió o, tras cada guardado, lo que se mandó), cerrar o
+ *   recargar la pestaña pide confirmación (`beforeunload`) y «Cancelar» pregunta antes de salir.
+ *   «Recargar», tras una copia obsoleta, no pregunta: quien pulsa ya ha decidido tirar lo suyo.
+ *   El «Volver» de la cabecera y la navegación inferior no se interceptan: App Router no tiene
+ *   gancho para bloquearlas (lo resolverá `ConfirmDialog`).
  * - **Si falla** no se pierde nada de lo escrito. `INVALID` señala cada campo y, a las listas, en
  *   la lista entera, y lleva el foco al primer campo con error (el aviso general se anuncia sin
  *   quitárselo). `SAVE_FAILED`, `STALE_COPY` y el resto enseñan el texto común en un aviso que sí
@@ -96,10 +107,16 @@ export function DrillForm({ clubSlug, mode, drill, options, standardsLabel }: Pr
   const upload = useAction();
   // La acción ha terminado, pero la ficha aún no ha llegado: el botón sigue esperando.
   const [navigating, startNavigation] = useTransition();
-  const [state, setState] = useState<DrillFormState>(() => initialFormState(drill));
+  // El ejercicio tal como se abrió. De aquí salen el token de concurrencia y todo lo que se
+  // sabe de él al guardar; la propiedad viva solo cuenta al montar.
+  const [loaded] = useState(drill);
+  // La última copia guardada: contra ella se mide si hay cambios sin guardar.
+  const [baseline, setBaseline] = useState<DrillFormState>(() => initialFormState(loaded));
+  const [state, setState] = useState<DrillFormState>(baseline);
   const form = useRef<HTMLFormElement>(null);
 
-  const editing = mode === "edit" && drill !== null;
+  const editing = mode === "edit" && loaded !== null;
+  const dirty = hasUnsavedChanges(state, baseline);
   const busy = save.pending || navigating || upload.pending;
   const failure = save.failure;
   const errors = failure?.fieldErrors ?? {};
@@ -110,6 +127,12 @@ export function DrillForm({ clubSlug, mode, drill, options, standardsLabel }: Pr
     if (!failure || failure.error !== "INVALID") return;
     firstFieldWithError(form.current, failure.fieldErrors)?.focus();
   }, [failure]);
+
+  useEffect(() => {
+    if (!dirty) return;
+    window.addEventListener("beforeunload", warnBeforeUnload);
+    return () => window.removeEventListener("beforeunload", warnBeforeUnload);
+  }, [dirty]);
 
   function set<K extends keyof DrillFormState>(key: K) {
     return (value: DrillFormState[K]) => setState((current) => ({ ...current, [key]: value }));
@@ -123,17 +146,32 @@ export function DrillForm({ clubSlug, mode, drill, options, standardsLabel }: Pr
     event.preventDefault();
     if (busy) return;
 
-    const input = toDrillInput(state, drill);
-    const goToDrill = (id: string) => startNavigation(() => router.push(`/c/${clubSlug}/drills/${id}`));
+    // Lo que se manda es lo que queda guardado: si se escribe mientras guarda, eso sigue sin guardar.
+    const sent = state;
+    const input = toDrillInput(sent, loaded);
+    const goToDrill = (id: string) => {
+      setBaseline(sent);
+      startNavigation(() => router.push(`/c/${clubSlug}/drills/${id}`));
+    };
 
     if (editing) {
       save.run(
-        () => updateDrill(clubSlug, { drillId: drill.id, expectedUpdatedAt: drill.updatedAt, drill: input }),
-        () => goToDrill(drill.id),
+        () => updateDrill(clubSlug, { drillId: loaded.id, expectedUpdatedAt: loaded.updatedAt, drill: input }),
+        () => goToDrill(loaded.id),
       );
     } else {
       save.run(() => createDrill(clubSlug, input), ({ id }) => goToDrill(id));
     }
+  }
+
+  function cancel(event: MouseEvent<HTMLAnchorElement>) {
+    if (dirty && !window.confirm(UNSAVED_CHANGES)) event.preventDefault();
+  }
+
+  function reload() {
+    // Se quita el aviso a mano: si no, el navegador preguntaría justo al hacer lo que se pidió.
+    window.removeEventListener("beforeunload", warnBeforeUnload);
+    location.reload();
   }
 
   const base = `/c/${clubSlug}/drills`;
@@ -143,7 +181,7 @@ export function DrillForm({ clubSlug, mode, drill, options, standardsLabel }: Pr
       {failure ? (
         <FormAlert message={ACTION_ERROR_COPY[failure.error]} focus={!pointsAtField}>
           {failure.error === "STALE_COPY" ? (
-            <CTAButton variant="secondary" className="self-start" onClick={() => location.reload()}>
+            <CTAButton variant="secondary" className="self-start" onClick={reload}>
               Recargar
             </CTAButton>
           ) : null}
@@ -284,9 +322,9 @@ export function DrillForm({ clubSlug, mode, drill, options, standardsLabel }: Pr
       {editing ? (
         <DiagramField
           clubSlug={clubSlug}
-          drillId={drill.id}
+          drillId={loaded.id}
           mediaId={state.diagramMediaId}
-          initialPreviewUrl={drill.diagramUrl}
+          initialPreviewUrl={loaded.diagramUrl}
           upload={upload}
           disabled={save.pending || navigating}
           onMediaChange={set("diagramMediaId")}
@@ -301,9 +339,10 @@ export function DrillForm({ clubSlug, mode, drill, options, standardsLabel }: Pr
         </CTAButton>
         <CTAButton
           variant="secondary"
-          href={editing ? `${base}/${drill.id}` : base}
+          href={editing ? `${base}/${loaded.id}` : base}
           block
           className="lg:w-auto"
+          onClick={cancel}
         >
           Cancelar
         </CTAButton>

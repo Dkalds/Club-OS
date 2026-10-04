@@ -82,6 +82,44 @@ export function toggleId(ids: string[], id: string): string[] {
   return ids.includes(id) ? ids.filter((current) => current !== id) : [...ids, id];
 }
 
+/** ¿Tienen las dos listas los mismos ids, marcados en el orden que sea? Un chip es un conjunto. */
+function sameIds(a: string[], b: string[]): boolean {
+  return a.every((id) => b.includes(id)) && b.every((id) => a.includes(id));
+}
+
+/** ¿Tienen los mismos coaching points, en el mismo orden? Sin la `key`, que es de esta pantalla. */
+function samePoints(a: PointRow[], b: PointRow[]): boolean {
+  return a.length === b.length && a.every((row, i) => row.text === b[i].text && row.isKey === b[i].isKey);
+}
+
+/** ¿Tienen las mismas variantes, en el mismo orden? Sin la `key`, como los coaching points. */
+function sameVariants(a: VariantRow[], b: VariantRow[]): boolean {
+  return a.length === b.length && a.every((row, i) => row.title === b[i].title && row.description === b[i].description);
+}
+
+/**
+ * ¿Difiere lo que hay en pantalla de la copia contra la que se mide (`baseline`)? Es lo que
+ * decide si salir pierde algo: la copia es la que se abrió o, tras cada guardado, lo que se
+ * mandó. Se compara el contenido, no que se haya tocado algo: escribir una letra y borrarla,
+ * añadir una fila y quitarla, o desmarcar un chip y volver a marcarlo lo deja sin cambios.
+ *
+ * - Los ids de los chips son un conjunto (el orden en que se marcaron no importa).
+ * - Los coaching points y las variantes cuentan por contenido y por orden; su `key` es de esta
+ *   pantalla y no es contenido.
+ */
+export function hasUnsavedChanges(state: DrillFormState, baseline: DrillFormState): boolean {
+  const { coachingPoints, variants, focusAreaIds, principleIds, standardIds, ...scalars } = state;
+
+  return (
+    (Object.keys(scalars) as Array<keyof typeof scalars>).some((name) => scalars[name] !== baseline[name]) ||
+    !samePoints(coachingPoints, baseline.coachingPoints) ||
+    !sameVariants(variants, baseline.variants) ||
+    !sameIds(focusAreaIds, baseline.focusAreaIds) ||
+    !sameIds(principleIds, baseline.principleIds) ||
+    !sameIds(standardIds, baseline.standardIds)
+  );
+}
+
 /**
  * El material como lo escribe quien lo teclea, una sola caja: separado por comas, cada elemento
  * recortado, sin vacíos y sin repetidos (el primero que aparece manda).

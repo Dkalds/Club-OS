@@ -12,6 +12,7 @@ import { CTAButton } from "@/ui/cta-button";
 import { FormAlert, SelectField, TextAreaField, TextField } from "@/ui/form-field";
 import { CheckIcon } from "@/ui/icons";
 import { MarkdownEditor } from "@/ui/markdown-editor";
+import { UNSAVED_CHANGES, warnBeforeUnload } from "@/lib/unsaved-changes";
 import { useAction } from "@/lib/use-action";
 
 /** Lo que enseña una sección que no es de texto y dónde se edita: su lista y su página. */
@@ -20,20 +21,6 @@ const LIST_PAGES = {
   principles: { noun: "los principios", path: "principles" },
   standards: { noun: "los Standards", path: "standards" },
 } as const satisfies Record<Exclude<ContentKind, "text">, { noun: string; path: string }>;
-
-/** Lo que dice `window.confirm` al volver con cambios sin guardar (hasta que llegue `ConfirmDialog`). */
-const UNSAVED_CHANGES = "Tienes cambios sin guardar. Si sales ahora, se pierden.";
-
-/**
- * Pide al navegador que confirme antes de cerrar o recargar la pestaña. Es una función suelta,
- * y no una dentro del componente, para que quien la pone y quien la quita (`Recargar`) hablen
- * de la misma. Los navegadores enseñan su propio texto, no el nuestro.
- */
-function warnBeforeUnload(event: BeforeUnloadEvent) {
-  event.preventDefault();
-  // Los navegadores antiguos solo preguntan si se asigna `returnValue`.
-  event.returnValue = "";
-}
 
 /**
  * El editor de una sección de The Way: título, resumen, tipo y texto en Markdown.

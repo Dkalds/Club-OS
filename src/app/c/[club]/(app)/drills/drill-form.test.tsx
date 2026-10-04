@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from "vitest";
 import { ACTION_ERROR_COPY, fail, ok, type ActionResult } from "@/lib/action-result";
 import type { DrillDetail, FocusArea } from "@/modules/drills/types";
 import type { GamePrinciple, Standard } from "@/modules/methodology/types";
@@ -123,6 +123,18 @@ function renderEdit(overrides: Partial<DrillDetail> = {}, props: Partial<Props> 
       standardsLabel="Standards"
       {...props}
     />,
+  );
+}
+
+function editForm(overrides: Partial<DrillDetail> = {}) {
+  return (
+    <DrillForm
+      clubSlug="club-a"
+      mode="edit"
+      drill={drill(overrides)}
+      options={OPTIONS}
+      standardsLabel="Standards"
+    />
   );
 }
 
@@ -856,6 +868,24 @@ describe("DrillForm · cuando guardar falla", () => {
     expect(mocks.updateDrill.mock.calls[1][1].expectedUpdatedAt).toBe(LOADED);
   });
 
+  it("si la ficha se repinta bajo el formulario con otra copia más nueva, sigue mandando la que cargó", async () => {
+    // Un refresco del servidor (una acción que cambia cookies, por ejemplo) vuelve a pintar la
+    // ruta con lo último de la base de datos mientras el formulario sigue montado con lo viejo.
+    // Mandar entonces el token nuevo con el contenido viejo pisaría en silencio lo de la otra
+    // persona: tiene que llegar `STALE_COPY`, y para eso el token es el de la copia cargada.
+    const NEWER = "2026-10-03T10:30:00.999999+00:00";
+    const { rerender } = renderEdit();
+    change("Título", "Mi versión");
+
+    rerender(editForm({ updatedAt: NEWER, title: "Lo que escribió otra persona" }));
+    saveEdit();
+
+    await waitFor(() => expect(mocks.updateDrill).toHaveBeenCalledTimes(1));
+    const [, sent] = lastCall(mocks.updateDrill);
+    expect(sent.expectedUpdatedAt).toBe(LOADED);
+    expect(sent.drill.title).toBe("Mi versión");
+  });
+
   it("NOT_FOUND: enseña su texto común", async () => {
     mocks.updateDrill.mockResolvedValue(fail("NOT_FOUND"));
     renderEdit();
@@ -1202,5 +1232,260 @@ describe("DrillForm · guardar", () => {
     expect(screen.getByRole("button", { name: "Quitar diagrama" })).toBeDisabled();
     pending.resolve(ok({ updatedAt: "2026-10-03T10:05:00.654321+00:00" }));
     await waitFor(() => expect(mocks.push).toHaveBeenCalledTimes(1));
+  });
+});
+
+// ── Cambios sin guardar ──────────────────────────────────────────────────────────────
+
+// Quien teclea un ejercicio en el móvil espera un aviso antes de perderlo. «Cancelar» está justo
+// debajo del botón de guardar y cerrar o recargar la pestaña tampoco guardan nada: mientras el
+// formulario difiera de la copia que se abrió (o de la última que se guardó), las dos cosas
+// preguntan, igual que el editor de Gestión. «Volver» de la cabecera y la navegación inferior
+// no se interceptan: App Router no tiene gancho para bloquearlas (lo resolverá `ConfirmDialog`).
+describe("DrillForm · cambios sin guardar", () => {
+  const UNSAVED = "Tienes cambios sin guardar. Si sales ahora, se pierden.";
+
+  /**
+   * Lo que haría el navegador al cerrar o recargar la pestaña: lanza `beforeunload` y dice si
+   * algo pidió confirmación (cancelando el evento).
+   */
+  function unloadAsks(): boolean {
+    const event = new Event("beforeunload", { cancelable: true });
+    window.dispatchEvent(event);
+    return event.defaultPrevented;
+  }
+
+  /**
+   * Pulsa «Cancelar» y dice si el clic llegó a navegar. jsdom no implementa la navegación (la
+   * registra como error): el clic se corta en `document`, ya después de que React y el
+   * componente lo hayan visto, y se mira si el componente lo había cancelado.
+   */
+  function clickCancel(): "navega" | "se queda" {
+    let outcome: "navega" | "se queda" = "navega";
+    const cut = (event: Event) => {
+      outcome = event.defaultPrevented ? "se queda" : "navega";
+      event.preventDefault();
+    };
+    document.addEventListener("click", cut);
+    fireEvent.click(screen.getByRole("link", { name: "Cancelar" }));
+    document.removeEventListener("click", cut);
+    return outcome;
+  }
+
+  let confirm: MockInstance<Window["confirm"]>;
+
+  beforeEach(() => {
+    confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
+  });
+
+  afterEach(() => {
+    confirm.mockRestore();
+  });
+
+  describe("«Cancelar»", () => {
+    it("sin cambios navega al momento, sin preguntar: en el alta y al editar", () => {
+      const { unmount } = renderNew();
+      expect(clickCancel()).toBe("navega");
+      unmount();
+
+      renderEdit();
+      expect(clickCancel()).toBe("navega");
+
+      expect(confirm).not.toHaveBeenCalled();
+    });
+
+    it("con cambios pregunta con el texto de siempre; si se acepta, navega", () => {
+      renderEdit();
+      change("Título", "Otro título");
+
+      expect(clickCancel()).toBe("navega");
+
+      expect(confirm).toHaveBeenCalledTimes(1);
+      expect(confirm).toHaveBeenCalledWith(UNSAVED);
+    });
+
+    it("con cambios pregunta; si se rechaza, no navega y lo escrito sigue ahí", () => {
+      confirm.mockReturnValue(false);
+      renderNew();
+      change("Título", "Mi borrador");
+
+      expect(clickCancel()).toBe("se queda");
+
+      expect(confirm).toHaveBeenCalledTimes(1);
+      expect(confirm).toHaveBeenCalledWith(UNSAVED);
+      expect(field("Título")).toHaveValue("Mi borrador");
+    });
+
+    it("volver a dejar el formulario como estaba quita la pregunta", () => {
+      renderEdit();
+
+      change("Título", "Otro título");
+      change("Título", "Un ejercicio");
+
+      expect(clickCancel()).toBe("navega");
+      expect(confirm).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("cerrar o recargar la pestaña", () => {
+    it("sin cambios no pide confirmación, ni en el alta ni al editar", () => {
+      const { unmount } = renderNew();
+      expect(unloadAsks()).toBe(false);
+      unmount();
+
+      renderEdit();
+      expect(unloadAsks()).toBe(false);
+    });
+
+    it("con cambios, sí; y deja de pedirla al volver a dejarlo como estaba", () => {
+      renderEdit();
+
+      change("Resumen", "Otro resumen.");
+      expect(unloadAsks()).toBe(true);
+      change("Resumen", "Su resumen.");
+
+      expect(unloadAsks()).toBe(false);
+    });
+
+    it("registra el aviso al haber cambios y lo quita al salir de la pantalla", () => {
+      const add = vi.spyOn(window, "addEventListener");
+      const remove = vi.spyOn(window, "removeEventListener");
+      const count = (spy: typeof add) => spy.mock.calls.filter(([type]) => type === "beforeunload").length;
+      const { unmount } = renderNew();
+      expect(count(add)).toBe(0);
+
+      change("Título", "Mi borrador");
+      expect(count(add)).toBe(1);
+      expect(count(remove)).toBe(0);
+
+      unmount();
+      expect(count(remove)).toBe(1);
+      expect(unloadAsks()).toBe(false);
+      add.mockRestore();
+      remove.mockRestore();
+    });
+  });
+
+  describe("cualquier cosa del formulario cuenta", () => {
+    const edits: Array<[string, () => void]> = [
+      ["un campo de texto", () => change("Resumen", "Otro resumen.")],
+      ["una edad", () => change("Edad mínima", "12")],
+      ["un número", () => change("Mín.", "5", group("Jugadores"))],
+      ["un chip de objetivo", () => fireEvent.click(chip("Objetivos", "Objetivo dos"))],
+      ["un chip de principio", () => fireEvent.click(chip("Principios", "Principio tres"))],
+      ["un chip de Standard", () => fireEvent.click(chip("Standards", "03 TRES"))],
+      ["un coaching point nuevo", () => press("Añadir punto")],
+      ["un coaching point marcado como clave", () => press("Clave punto 2")],
+      ["subir de orden un coaching point", () => press("Subir punto 2")],
+      ["una variante nueva", () => press("Añadir variante")],
+      ["quitar una variante", () => press("Quitar variante 1")],
+      ["quitar el diagrama", () => press("Quitar diagrama")],
+    ];
+
+    it.each(edits)("%s", (_name, edit) => {
+      renderEdit();
+      expect(unloadAsks()).toBe(false);
+
+      edit();
+
+      expect(unloadAsks()).toBe(true);
+    });
+
+    it("un diagrama recién subido cuenta: hasta «Guardar cambios» no queda en el ejercicio", async () => {
+      renderEdit();
+      expect(unloadAsks()).toBe(false);
+
+      pick(png());
+
+      await waitFor(() =>
+        expect(screen.getByRole("img", { name: "Vista previa del diagrama" })).toHaveAttribute("src", PREVIEW),
+      );
+      expect(unloadAsks()).toBe(true);
+    });
+
+    it("añadir una fila y quitarla otra vez deja el formulario como estaba", () => {
+      renderEdit();
+
+      press("Añadir punto");
+      press("Quitar punto 3");
+
+      expect(unloadAsks()).toBe(false);
+    });
+  });
+
+  describe("guardar", () => {
+    it("tras guardar bien ya no pregunta: lo guardado es la nueva copia", async () => {
+      renderEdit();
+      change("Título", "Otro título");
+      expect(unloadAsks()).toBe(true);
+
+      saveEdit();
+      await waitFor(() => expect(mocks.push).toHaveBeenCalledWith(`/c/club-a/drills/${DRILL_ID}`));
+
+      await waitFor(() => expect(unloadAsks()).toBe(false));
+      expect(clickCancel()).toBe("navega");
+      expect(confirm).not.toHaveBeenCalled();
+    });
+
+    it("lo mismo al crear un borrador", async () => {
+      renderNew();
+      fillMinimum("Mi borrador");
+      expect(unloadAsks()).toBe(true);
+
+      saveNew();
+      await waitFor(() => expect(mocks.push).toHaveBeenCalledWith(`/c/club-a/drills/${NEW_ID}`));
+
+      await waitFor(() => expect(unloadAsks()).toBe(false));
+      expect(clickCancel()).toBe("navega");
+      expect(confirm).not.toHaveBeenCalled();
+    });
+
+    it("lo que se escribe mientras guarda sigue sin guardar", async () => {
+      const pending = deferred<ActionResult<{ updatedAt: string }>>();
+      mocks.updateDrill.mockReturnValue(pending.promise);
+      renderEdit();
+      change("Título", "Primera versión");
+      saveEdit();
+      await waitFor(() => expect(mocks.updateDrill).toHaveBeenCalledTimes(1));
+
+      change("Título", "Escrito mientras guardaba");
+      pending.resolve(ok({ updatedAt: "2026-10-03T10:05:00.654321+00:00" }));
+      await waitFor(() => expect(mocks.push).toHaveBeenCalledTimes(1));
+
+      expect(unloadAsks()).toBe(true);
+    });
+
+    it("si guardar falla, lo escrito sigue sin guardar y el aviso se queda", async () => {
+      mocks.updateDrill.mockResolvedValue(fail("SAVE_FAILED"));
+      renderEdit();
+      change("Título", "Otro título");
+
+      saveEdit();
+      await screen.findByRole("alert");
+
+      expect(unloadAsks()).toBe(true);
+      expect(clickCancel()).toBe("navega");
+      expect(confirm).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it("«Recargar» tras una copia obsoleta se salta el aviso: quien recarga ya ha decidido", async () => {
+    mocks.updateDrill.mockResolvedValue(fail("STALE_COPY"));
+    let askedWhileReloading: boolean | null = null;
+    mocks.reload.mockImplementation(() => {
+      askedWhileReloading = unloadAsks();
+    });
+    renderEdit();
+    change("Título", "Versión B");
+    saveEdit();
+    await screen.findByRole("alert");
+    // Sigue habiendo cambios sin guardar: el aviso está puesto hasta que se pulsa «Recargar».
+    expect(unloadAsks()).toBe(true);
+
+    press("Recargar");
+
+    expect(mocks.reload).toHaveBeenCalledTimes(1);
+    expect(askedWhileReloading).toBe(false);
+    expect(confirm).not.toHaveBeenCalled();
   });
 });
