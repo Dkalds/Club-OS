@@ -264,11 +264,11 @@ Datos: Alevín A gana la sesión `cancelled-0` «Tiro libre y finalizaciones» (
 **Interfaces:**
 - Produces:
   - `type Write<D> = { db: SupabaseClient<Database>; ctx: ClubContext; data: D; fromDb: (error: DbError, unique?: UniqueField) => ActionResult<never>; retryOnConflict: <T>(attempt: () => Promise<Attempt<T>>) => Promise<ActionResult<T>> }`, con `DbError`, `UniqueField`, `Attempt<T>` y `UNIQUE_VIOLATION` exportados.
-  - `createMutate(options: { module: string; permission: Action; revalidate: readonly string[] }): <D, T>(name: string, clubSlug: string, schema: z.ZodType<D>, input: unknown, write: (run: Write<D>) => Promise<ActionResult<T>>) => Promise<ActionResult<T>>`
+  - `type MutateConfig = { tag: string; permission: Action; routes: readonly string[] }` y `mutate<D, T>(config: MutateConfig, clubSlug: string, schema: z.ZodType<D>, input: unknown, write: (run: Write<D>) => Promise<ActionResult<T>>): Promise<ActionResult<T>>` (la forma de la Fase 3, que extrajo lo mismo en paralelo; al fusionarla sustituyó al `createMutate` con que se implementó esta tarea)
   - `ActionError` añade `'SESSION_CLOSED'`: «Esta sesión ya está cerrada y no se puede cambiar. Duplícala para reutilizarla.»
   - `Action` añade `'practice.manage'` (`admin` y `coach`).
 
-Reglas: `createMutate` es el `mutate` de `methodology/actions.ts` movido tal cual, con el permiso, la etiqueta de log (`{module}.{name}`) y las rutas a revalidar (`revalidatePath(ruta, 'layout')`) como parámetros. `methodology/actions.ts` pasa a `const mutate = createMutate({ module: 'methodology', permission: 'way.manage', revalidate: [WAY_ROUTE, ADMIN_ROUTE] })`; su test no cambia.
+Reglas: `mutate` es el de `methodology/actions.ts` movido tal cual, con la etiqueta de log, el permiso y las rutas a revalidar (`revalidatePath(ruta, 'layout')`) en `config`. Cada módulo lo envuelve en un `mutate(name, …)` local con lo suyo, como `methodology/actions.ts` (`{ tag: 'methodology.<name>', permission: 'way.manage', routes: [WAY_ROUTE, ADMIN_ROUTE] }`); su test no cambia.
 
 - [ ] **Step 1: Tests que fallan**
   - `mutate.test.ts` (mocks de `createClient`, `requireClub`, `revalidatePath`): entrada inválida → `INVALID` sin pedir el club; sin permiso → `NOT_FOUND` sin crear cliente; `write` que lanza → `SAVE_FAILED` y `logError('modulo.nombre', …)`; `notFound()` dentro de `write` se relanza; con `ok` revalida cada ruta con `'layout'` y con fallo ninguna; `retryOnConflict` repite hasta 3 veces y entonces `SAVE_FAILED`.
@@ -350,7 +350,7 @@ Reglas:
 - Create: `src/modules/practice/schema.ts`, `actions.ts`, `actions.test.ts`
 
 **Interfaces:**
-- Consumes: `createMutate` (Task 7), funciones SQL (Task 5), `zonedDateTimeToIso` (Task 2), `limits.ts` (Task 8).
+- Consumes: `mutate`, `MutateConfig`, `Write` de `src/lib/mutate.ts` (Task 7), funciones SQL (Task 5), `zonedDateTimeToIso` (Task 2), `limits.ts` (Task 8).
 - Produces (`'use server'`; firma `(clubSlug: string, input)`):
   - `createPractice({ teamId, date, time, durationMinutes, title, primaryFocusId: string | null, secondaryFocusId: string | null, location: string | null })` → `ActionResult<{ eventId: string }>`
   - `updatePracticeMeta({ eventId, expectedUpdatedAt, date, time, durationMinutes, title, primaryFocusId, secondaryFocusId, location, notes: string | null })` → `ActionResult<{ updatedAt: string }>`
@@ -360,7 +360,7 @@ Reglas:
   - Esquemas `<acción>Schema` y sus tipos de entrada en `schema.ts`.
 
 Reglas:
-- `const mutate = createMutate({ module: 'practice', permission: 'practice.manage', revalidate: ['/c/[club]/(app)'] })`.
+- Un `mutate(name, clubSlug, schema, input, write)` local, no exportado, que llama al de `src/lib/mutate.ts` con `{ tag: 'practice.<name>', permission: 'practice.manage', routes: ['/c/[club]/(app)'] }` (como el de `methodology/actions.ts`).
 - Inicio = `zonedDateTimeToIso(date, time, ctx.org.timezone)`; fin = inicio + `durationMinutes`. Si lanza `RangeError` → `INVALID` con `fieldErrors.date = 'Elige una fecha y una hora válidas.'`.
 - Toda acción con `eventId` lee antes el evento `practice` de este club con su plan (`organization_id`, `id`, `kind`); si no está, `NOT_FOUND` sin RPC.
 - `savePracticeItems` envía `p_items` como `[{ id?, drill_id, title, phase, minutes, notes }]`, en el orden recibido. Los argumentos opcionales de las funciones se omiten cuando son `null`.
@@ -597,7 +597,7 @@ Reglas:
 ## Cambios propuestos al contrato
 
 - **SQL:** `private.can_manage_team`, `private.can_edit_plan`; `public.update_practice_session` (los datos de una sesión son dos tablas); argumentos opcionales al final con `default null`; `practice_plans.event_kind` y la FK de cuatro columnas a `events`; `updated_at` por trigger (`private.set_updated_at` de la Fase 3); error de dominio `SESSION_CLOSED`; `save_practice_items` conserva el `id` de los ítems que siguen y fija `status` (`ready` con ítems, `draft` sin ellos); checks de longitud. `can_see_plan`: el autor que deja el cuerpo técnico deja de ver los planes del equipo.
-- **TS:** `createMutate` y `useAction` en `src/lib/`; `SavedPracticeItem`, `PracticeStatus`, `TeamOption`, `FocusOption`, `PhaseBlock`, `limits.ts`, `format.ts`; `listPractices(ctx, scope, nowIso)` devuelve `{ practices, teamCount }`; `listManageableTeams`, `getPracticeFormOptions`; `changeMinutes` avanza por múltiplos de 5 (1, 5, 10 … 120); `addDrillToPractice(clubSlug, { eventId, drillId })` y `findDrills` (C2); `HomeScreen` gana `canCreatePractice`.
+- **TS:** `mutate` (la forma de la Fase 3, con `retryOnConflict`) y `useAction` en `src/lib/`; `SavedPracticeItem`, `PracticeStatus`, `TeamOption`, `FocusOption`, `PhaseBlock`, `limits.ts`, `format.ts`; `listPractices(ctx, scope, nowIso)` devuelve `{ practices, teamCount }`; `listManageableTeams`, `getPracticeFormOptions`; `changeMinutes` avanza por múltiplos de 5 (1, 5, 10 … 120); `addDrillToPractice(clubSlug, { eventId, drillId })` y `findDrills` (C2); `HomeScreen` gana `canCreatePractice`.
 - **UI:** `ConfirmDialog` sobre Radix AlertDialog; `useLeaveGuard` y `LeaveGuardDialog`; `PracticeItemView`, `PracticeTotal`; variante `danger` de `CTAButton`; `TextField` con `date` y `time`; `Card` con `as="ul"` y `ListRow` como `<li>`; `PracticeBuilder`, `PracticeEditor`, `PracticeForm`, `PracticeActions`, `DrillPicker` y `AddToPractice` viven junto a sus rutas (`train/_components/`, `drills/[drillId]/`).
 - **Seed y e2e:** `SessionDef.status`; `restoreSeed` limpia las sesiones que no son del seed; `irene@arcangel.test` en `SESSION_USERS`; `posture.test.sql` con la lista de privilegios, que cada fase amplía con sus tablas.
 - **Otros:** convención de medidas y guards de hex y de medidas en `check:guards`; `validateTokens`.
