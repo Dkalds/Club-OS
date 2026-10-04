@@ -32,6 +32,13 @@ export type DrillSummary = {
 };
 
 /**
+ * Lo que devuelve la búsqueda: como mucho `SEARCH_LIMIT` ejercicios, por título, y si hay más
+ * que no se traen. Sin `hasMore` no se sabe distinguir «justo 100» de «los primeros 100 de
+ * más».
+ */
+export type DrillSearchResult = { drills: DrillSummary[]; hasMore: boolean };
+
+/**
  * La ficha completa de un ejercicio. `diagramUrl` es una URL firmada de corta vida, no la
  * ruta del objeto. `principlesSectionSlug` es el slug de la sección publicada de The Way que
  * lista los principios (para enlazarlos), o `null` si no hay. `createdByMe` lo resuelve la

@@ -211,13 +211,13 @@ describe("searchDrills", () => {
     expect(calls[0].args).toEqual({ p_org: ORG, p_focus: "rebote" });
   });
 
-  it("ordena por título y se queda con 100 como mucho", async () => {
+  it("ordena por título y pide uno más que el tope para saber si hay más", async () => {
     const calls = install({ search_drills: rows });
 
     await searchDrills(CTX, {});
 
     expect(calls[0].order).toEqual(["title"]);
-    expect(calls[0].limit).toBe(100);
+    expect(calls[0].limit).toBe(101);
   });
 
   it("devuelve los ejercicios en el orden del título", async () => {
@@ -229,28 +229,61 @@ describe("searchDrills", () => {
       ],
     });
 
-    const result = await searchDrills(CTX, {});
+    const { drills } = await searchDrills(CTX, {});
 
-    expect(result.map((drill) => drill.title)).toEqual(["Ataque", "Defensa", "Zona"]);
+    expect(drills.map((drill) => drill.title)).toEqual(["Ataque", "Defensa", "Zona"]);
   });
 
-  it("se queda con los primeros 100", async () => {
-    const many = Array.from({ length: 120 }, (_, i) =>
-      drillRow(uuid(1000 + i), ORG, { title: `Ejercicio ${String(i).padStart(3, "0")}` }),
-    );
-    install({ search_drills: many });
+  describe("el tope de 100", () => {
+    const many = (count: number) =>
+      Array.from({ length: count }, (_, i) =>
+        drillRow(uuid(1000 + i), ORG, { title: `Ejercicio ${String(i).padStart(3, "0")}` }),
+      );
 
-    const result = await searchDrills(CTX, {});
+    it("con más de 100 se queda con los primeros 100 y dice que hay más", async () => {
+      install({ search_drills: many(120) });
 
-    expect(result).toHaveLength(100);
-    expect(result[0].title).toBe("Ejercicio 000");
-    expect(result[99].title).toBe("Ejercicio 099");
+      const { drills, hasMore } = await searchDrills(CTX, {});
+
+      expect(drills).toHaveLength(100);
+      expect(drills[0].title).toBe("Ejercicio 000");
+      expect(drills[99].title).toBe("Ejercicio 099");
+      expect(hasMore).toBe(true);
+    });
+
+    it("con justo 101 enseña 100 y hay más: el 101 es la prueba", async () => {
+      install({ search_drills: many(101) });
+
+      const { drills, hasMore } = await searchDrills(CTX, {});
+
+      expect(drills).toHaveLength(100);
+      expect(drills.at(-1)?.title).toBe("Ejercicio 099");
+      expect(hasMore).toBe(true);
+    });
+
+    it("con justo 100 los enseña todos y no hay más", async () => {
+      install({ search_drills: many(100) });
+
+      const { drills, hasMore } = await searchDrills(CTX, {});
+
+      expect(drills).toHaveLength(100);
+      expect(hasMore).toBe(false);
+    });
+
+    it("con menos de 100 no hay más", async () => {
+      install({ search_drills: many(99) });
+
+      const { drills, hasMore } = await searchDrills(CTX, {});
+
+      expect(drills).toHaveLength(99);
+      expect(hasMore).toBe(false);
+    });
   });
 
   it("cada ejercicio sale como un DrillSummary, con sus objetivos en el orden del club", async () => {
     install({ search_drills: rows });
 
-    const [drill] = await searchDrills(CTX, {});
+    const [drill] = (await searchDrills(CTX, {})).drills;
 
     expect(drill).toEqual({
       id: uuid(2),
@@ -273,7 +306,7 @@ describe("searchDrills", () => {
   it("la edad máxima abierta (null) y un autor desconocido (null) se conservan", async () => {
     install({ search_drills: [drillRow(uuid(2), ORG, { max_age: null, created_by: null })] });
 
-    const [drill] = await searchDrills(CTX, {});
+    const [drill] = (await searchDrills(CTX, {})).drills;
 
     expect(drill.maxAge).toBeNull();
     expect(drill.createdBy).toBeNull();
@@ -289,16 +322,16 @@ describe("searchDrills", () => {
       ],
     });
 
-    const result = await searchDrills(CTX, {});
+    const { drills } = await searchDrills(CTX, {});
 
-    expect(result[0].focus.map((focus) => focus.slug)).toEqual([`objetivo-${tag(F1)}`]);
-    expect(result[1].focus).toEqual([]);
+    expect(drills[0].focus.map((focus) => focus.slug)).toEqual([`objetivo-${tag(F1)}`]);
+    expect(drills[1].focus).toEqual([]);
   });
 
   it("sin resultados, una lista vacía", async () => {
     install({ search_drills: [] });
 
-    await expect(searchDrills(CTX, { q: "nada" })).resolves.toEqual([]);
+    await expect(searchDrills(CTX, { q: "nada" })).resolves.toEqual({ drills: [], hasMore: false });
   });
 
   it("un error de la búsqueda se registra y lanza: no es «sin resultados»", async () => {

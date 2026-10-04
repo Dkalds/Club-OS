@@ -16,7 +16,7 @@ import {
   toDrillDetail,
   toDrillSummary,
 } from "./map-rows";
-import type { DrillDetail, DrillFilters, DrillSummary, FocusArea } from "./types";
+import type { DrillDetail, DrillFilters, DrillSearchResult, DrillSummary, FocusArea } from "./types";
 
 // Lecturas de la biblioteca de ejercicios para quien entrena.
 //
@@ -64,20 +64,24 @@ function searchArgs(orgId: string, filters: DrillFilters): SearchArgs {
 
 /**
  * Los ejercicios del club que no están archivados y cumplen los filtros, por título y como
- * mucho 100. La búsqueda de texto y los filtros los resuelve la función `search_drills`
- * (sin tildes, con RLS de quien llama); la función no ordena, así que se ordena aquí.
+ * mucho 100, y si hay más que no se traen (`hasMore`). La búsqueda de texto y los filtros los
+ * resuelve la función `search_drills` (sin tildes, con RLS de quien llama); la función no
+ * ordena, así que se ordena aquí.
+ *
+ * Se piden 101: el que sobra no se devuelve, solo prueba que hay más. Con justo 100 coincidencias
+ * no hay nada que avisar, y con `SEARCH_LIMIT` a secas no se podría distinguir.
  */
-export async function searchDrills(ctx: ClubContext, filters: DrillFilters): Promise<DrillSummary[]> {
+export async function searchDrills(ctx: ClubContext, filters: DrillFilters): Promise<DrillSearchResult> {
   const supabase = await createClient();
 
   const { data, error } = await supabase
     .rpc("search_drills", searchArgs(ctx.org.id, filters))
     .select(SUMMARY_COLUMNS)
     .order("title", { ascending: true })
-    .limit(SEARCH_LIMIT);
+    .limit(SEARCH_LIMIT + 1);
   if (error) throwReadError("drills.search", error);
 
-  return data.map(toDrillSummary);
+  return { drills: data.slice(0, SEARCH_LIMIT).map(toDrillSummary), hasMore: data.length > SEARCH_LIMIT };
 }
 
 /** Los objetivos de trabajo del club, en su orden: los chips del filtro y del formulario. */
