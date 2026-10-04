@@ -1,3 +1,5 @@
+import { existsSync, readFileSync } from "node:fs";
+import path from "node:path";
 import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import type { DrillSummary } from "@/modules/drills/types";
@@ -43,8 +45,20 @@ describe("DrillCard", () => {
     expect(links).toHaveLength(1);
     expect(links[0]).toHaveAttribute("href", HREF);
     // La miniatura, el título, los metadatos y la etiqueta van dentro del enlace.
-    expect(within(links[0]).getByRole("img", { name: "Pista sin diagrama" })).toBeInTheDocument();
+    expect(links[0].querySelector("svg")).not.toBeNull();
     expect(links[0]).toHaveTextContent("Rebote + outlet");
+  });
+
+  it("la miniatura es decorativa: no añade «Pista sin diagrama» al nombre del enlace", () => {
+    render(<DrillCard drill={drill()} href={HREF} />);
+
+    // Las listas no cargan diagramas: el hueco de la miniatura no dice nada del ejercicio
+    // (que puede tenerlo) y no debe anunciarse en cada fila.
+    const link = screen.getByRole("link");
+    expect(within(link).queryByRole("img")).not.toBeInTheDocument();
+    expect(link.querySelector("svg")).toHaveAttribute("aria-hidden", "true");
+    expect(screen.queryByRole("link", { name: /Pista sin diagrama/ })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /^Rebote \+ outlet/ })).toBe(link);
   });
 
   it("solo enseña la etiqueta del primer objetivo", () => {
@@ -153,5 +167,68 @@ describe("DrillCard", () => {
     const { container } = render(<DrillCard drill={drill()} href={HREF} />);
 
     expect(container.firstElementChild).toHaveClass("border-t", "border-line", "first:border-t-0");
+  });
+});
+
+// Sin `"use client"` en ningún módulo de la fila: `DrillCard` es un componente de servidor y se
+// repite una vez por ejercicio. Si importa (aunque sea de pasada) un módulo de cliente, cada
+// fila se serializa y se hidrata, y el módulo arrastra a la página todo lo suyo (la hoja
+// inferior, Radix...). Se recorren sus importaciones relativas y con `@/`.
+const SRC = path.resolve(import.meta.dirname, "..");
+
+function resolveImport(from: string, spec: string): string | null {
+  const base = spec.startsWith("@/")
+    ? path.join(SRC, spec.slice(2))
+    : spec.startsWith(".")
+      ? path.resolve(path.dirname(from), spec)
+      : null;
+  if (!base) return null; // un paquete (react, next/link...): no es código del proyecto
+
+  const candidates = [
+    `${base}.ts`,
+    `${base}.tsx`,
+    path.join(base, "index.ts"),
+    path.join(base, "index.tsx"),
+  ];
+  return candidates.find((candidate) => existsSync(candidate)) ?? null;
+}
+
+function importGraph(entry: string): string[] {
+  const seen = new Set<string>();
+  const pending = [entry];
+  while (pending.length > 0) {
+    const file = pending.pop() as string;
+    if (seen.has(file)) continue;
+    seen.add(file);
+    const source = readFileSync(file, "utf8");
+    for (const [, spec] of source.matchAll(/(?:from|import)\s+["']([^"']+)["']/g)) {
+      const resolved = resolveImport(file, spec);
+      if (resolved) pending.push(resolved);
+    }
+  }
+
+  return [...seen];
+}
+
+// La directiva es lo primero del archivo, tras algún comentario como mucho.
+const USE_CLIENT = /^\s*(?:\/\/[^\n]*\n\s*|\/\*[\s\S]*?\*\/\s*)*["']use client["']/;
+
+describe("DrillCard · grafo de importaciones", () => {
+  const graph = importGraph(path.join(SRC, "ui", "drill-card.tsx")).map((file) =>
+    path.relative(SRC, file).replaceAll("\\", "/"),
+  );
+
+  it("recorre de verdad sus dependencias", () => {
+    expect(graph).toEqual(
+      expect.arrayContaining(["ui/drill-card.tsx", "ui/court-thumb.tsx", "ui/filter-tag.tsx"]),
+    );
+  });
+
+  it("no contiene ningún módulo de cliente", () => {
+    const client = graph.filter((file) =>
+      USE_CLIENT.test(readFileSync(path.join(SRC, file), "utf8")),
+    );
+
+    expect(client).toEqual([]);
   });
 });

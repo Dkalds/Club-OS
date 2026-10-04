@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Filter, FilterSheetChip, FilterTag } from "./filter";
+import { FilterTag as DirectFilterTag } from "./filter-tag";
 
 // Opciones ficticias: en producción salen de la taxonomía del club, nunca del código.
 const FOCUS = [
@@ -318,6 +319,11 @@ describe("FilterSheetChip", () => {
 });
 
 describe("FilterTag", () => {
+  it("es el mismo componente que sale de filter-tag, que no es de cliente", () => {
+    // `DrillCard` (de servidor) importa `./filter-tag`; quien quiera todo el filtro, `./filter`.
+    expect(FilterTag).toBe(DirectFilterTag);
+  });
+
   it("es una etiqueta con el texto dado, no interactiva", () => {
     render(<FilterTag>Rebote</FilterTag>);
 

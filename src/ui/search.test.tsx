@@ -239,10 +239,126 @@ describe("Search", () => {
     expect(field()).toHaveClass("focus-visible:outline-2", "focus-visible:outline-focus-ring");
   });
 
+  it("el texto es de 17 px (body-l): por debajo de 16 px iOS amplía la página al enfocar", () => {
+    render(<Search placeholder="Buscar ejercicios…" onSearch={() => {}} />);
+
+    expect(field()).toHaveClass("text-body-l");
+    expect(field()).not.toHaveClass("text-body");
+  });
+
   it("el icono de lupa es decorativo", () => {
     render(<Search placeholder="Buscar ejercicios…" onSearch={() => {}} />);
 
     const landmark = screen.getByRole("search");
     expect(landmark.querySelector("svg")).toHaveAttribute("aria-hidden", "true");
+  });
+});
+
+// Un `defaultValue` que cambia después de montar es la URL que cambia (el «Quitar filtros» de
+// la lista vacía, atrás y adelante del navegador). El campo lo sigue, salvo que sea justo el
+// eco de su propia búsqueda: entonces no toca nada, para no mover el cursor ni el foco de
+// quien sigue escribiendo.
+describe("Search · sigue a defaultValue", () => {
+  it("un defaultValue nuevo se ve en el campo y no se manda como búsqueda", () => {
+    const onSearch = vi.fn();
+    const { rerender } = render(
+      <Search placeholder="Buscar ejercicios…" defaultValue="outlet" onSearch={onSearch} />,
+    );
+
+    rerender(<Search placeholder="Buscar ejercicios…" defaultValue="" onSearch={onSearch} />);
+
+    expect(field()).toHaveValue("");
+    act(() => vi.advanceTimersByTime(1000));
+    expect(onSearch).not.toHaveBeenCalled();
+  });
+
+  it("lo que llega de fuera cuenta como ya buscado: escribirlo otra vez no repite la búsqueda", () => {
+    const onSearch = vi.fn();
+    const { rerender } = render(
+      <Search placeholder="Buscar ejercicios…" defaultValue="outlet" onSearch={onSearch} />,
+    );
+    rerender(<Search placeholder="Buscar ejercicios…" defaultValue="pase" onSearch={onSearch} />);
+
+    type("pases");
+    act(() => vi.advanceTimersByTime(100));
+    type("pase");
+    act(() => vi.advanceTimersByTime(1000));
+
+    expect(onSearch).not.toHaveBeenCalled();
+  });
+
+  it("el eco de la propia búsqueda no toca el campo: conserva el valor y el foco", () => {
+    const onSearch = vi.fn();
+    const { rerender } = render(<Search placeholder="Buscar ejercicios…" onSearch={onSearch} />);
+    act(() => field().focus());
+    type("outl");
+    act(() => vi.advanceTimersByTime(250));
+    expect(onSearch.mock.calls).toEqual([["outl"]]);
+
+    // La URL vuelve con la misma búsqueda.
+    rerender(<Search placeholder="Buscar ejercicios…" defaultValue="outl" onSearch={onSearch} />);
+
+    expect(field()).toHaveValue("outl");
+    expect(field()).toHaveFocus();
+    act(() => vi.advanceTimersByTime(1000));
+    expect(onSearch).toHaveBeenCalledTimes(1);
+  });
+
+  it("el eco de una búsqueda anterior no pisa lo que se sigue escribiendo", () => {
+    const onSearch = vi.fn();
+    const { rerender } = render(<Search placeholder="Buscar ejercicios…" onSearch={onSearch} />);
+    type("outl");
+    act(() => vi.advanceTimersByTime(250));
+
+    // Se sigue escribiendo mientras la URL de «outl» llega.
+    type("outlet");
+    rerender(<Search placeholder="Buscar ejercicios…" defaultValue="outl" onSearch={onSearch} />);
+
+    expect(field()).toHaveValue("outlet");
+    act(() => vi.advanceTimersByTime(250));
+    expect(onSearch.mock.calls).toEqual([["outl"], ["outlet"]]);
+  });
+
+  it("si llega algo distinto de lo buscado mientras se escribe, gana lo de fuera y se cancela lo pendiente", () => {
+    const onSearch = vi.fn();
+    const { rerender } = render(
+      <Search placeholder="Buscar ejercicios…" defaultValue="outl" onSearch={onSearch} />,
+    );
+    type("outlet");
+
+    // Quien cambia la URL (un enlace de «Quitar filtros», atrás en el navegador) lo hace a
+    // propósito: su valor manda sobre un texto que aún no se había buscado.
+    rerender(<Search placeholder="Buscar ejercicios…" defaultValue="pase" onSearch={onSearch} />);
+
+    expect(field()).toHaveValue("pase");
+    act(() => vi.advanceTimersByTime(1000));
+    expect(onSearch).not.toHaveBeenCalled();
+  });
+
+  it("después de seguir a la URL, escribir vuelve a buscar con normalidad", () => {
+    const onSearch = vi.fn();
+    const { rerender } = render(
+      <Search placeholder="Buscar ejercicios…" defaultValue="outlet" onSearch={onSearch} />,
+    );
+    rerender(<Search placeholder="Buscar ejercicios…" defaultValue="" onSearch={onSearch} />);
+
+    type("tiro");
+    act(() => vi.advanceTimersByTime(250));
+
+    expect(onSearch.mock.calls).toEqual([["tiro"]]);
+  });
+
+  it("volver a pintar con el mismo defaultValue no cambia nada", () => {
+    const onSearch = vi.fn();
+    const { rerender } = render(
+      <Search placeholder="Buscar ejercicios…" defaultValue="outlet" onSearch={onSearch} />,
+    );
+    type("outlets");
+
+    rerender(<Search placeholder="Buscar ejercicios…" defaultValue="outlet" onSearch={onSearch} />);
+
+    expect(field()).toHaveValue("outlets");
+    act(() => vi.advanceTimersByTime(250));
+    expect(onSearch.mock.calls).toEqual([["outlets"]]);
   });
 });

@@ -35,6 +35,11 @@ type DetailProps = {
  * dentro de `<main>`; y la de inicio se oculta sola mientras la pantalla contenga una de
  * detalle, con `:has()` (el marco es el grupo `shell`, ver `AppShell`). jsdom no evalúa
  * `:has()`: en los tests se comprueban las clases, y el e2e de la biblioteca prueba el efecto.
+ *
+ * El `loading.tsx` y el `error.tsx` de una ruta de detalle tienen que pintar esa misma
+ * `<TopNavigation variant="detail" …>` (el mismo título y el mismo `backHref`): mientras
+ * cargan, o si fallan, no hay página que la ponga, y sin ella se vería la cabecera de inicio
+ * y luego, al llegar la página, el cambio a la de detalle.
  */
 export function TopNavigation(props: HomeProps | DetailProps) {
   return props.variant === "detail" ? <DetailNavigation {...props} /> : <HomeNavigation {...props} />;

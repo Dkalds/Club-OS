@@ -34,6 +34,26 @@ describe("CourtThumb", () => {
     expect(court).not.toHaveClass("w-20");
   });
 
+  it("decorativa se esconde a los lectores de pantalla, sin nombre ni rol", () => {
+    const { container } = render(<CourtThumb decorative />);
+
+    const svg = container.querySelector("svg");
+    expect(svg).toHaveAttribute("aria-hidden", "true");
+    expect(svg).not.toHaveAttribute("aria-label");
+    expect(svg).not.toHaveAttribute("role");
+    expect(screen.queryByRole("img")).not.toBeInTheDocument();
+    // Y se pinta igual.
+    expect(svg).toHaveClass("w-20", "h-15", "stroke-ink-3");
+  });
+
+  it("sola, sin decorative, conserva su nombre", () => {
+    render(<CourtThumb size="full" />);
+
+    expect(screen.getByRole("img", { name: "Pista sin diagrama" })).not.toHaveAttribute(
+      "aria-hidden",
+    );
+  });
+
   it("las líneas de pista van en ink-3, sin ningún color escrito a mano", () => {
     const { container } = render(<CourtThumb />);
 
