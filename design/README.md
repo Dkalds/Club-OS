@@ -78,7 +78,7 @@ Principio de producto: *Everyone knows what's next. Everyone knows why.* El QUÉ
 ## Componentes y estados
 
 - Monta cada pantalla con `AppShell`, `TopNavigation` y `BottomNavigation`; no crees contenedores propios.
-- Listas: `Card` `flush` con `ListRow`, `PlayerCard`, `DrillCard` o `PracticeItem`.
+- Listas: `Card` `flush` con `ListRow`, `PlayerCard`, `DrillCard` o `PracticeItem`. `ListRow` pinta un `<li>` y va como hija directa de `<Card variant="flush" as="ul">`, que es la lista.
 - Toda vista con datos tiene sus tres estados: `LoadingState` (esqueleto con la forma real), `EmptyState` (con una salida) y `ErrorState` (con reintento).
 - `PracticeItem` y `ListRow` son adiciones al inventario del brief: los repiten varias pantallas.
 

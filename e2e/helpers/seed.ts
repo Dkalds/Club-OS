@@ -137,10 +137,9 @@ async function clearMediaObjects(db: SupabaseClient<Database>, organizationIds: 
  * listas de slugs ni de números escritas a mano: lo que no es del seed no sobrevive, se llame
  * como se llame.
  *
- * De `events` solo se borran los entrenos (`kind = 'practice'`): los partidos tienen su propio
- * tratamiento en una fase posterior y un partido que no es del seed no se toca. Los planes sin
- * equipo (las plantillas privadas) que no son del seed se borran como los demás: son del club
- * por `organization_id`.
+ * De `events` solo se borran los entrenos (`kind = 'practice'`): un partido que no es del seed
+ * no se toca. Los planes sin equipo (las plantillas privadas) que no son del seed se borran como
+ * los demás: son del club por `organization_id`.
  *
  * Borra contenido, así que:
  *  - Solo corre con un Supabase local, diga lo que diga `ALLOW_REMOTE_SEED`. Con otro lanza,

@@ -332,8 +332,9 @@ select results_eq(
 );
 
 -- ── El autor que deja el equipo deja de ver el plan ──────────────────────────────────
--- c1 crea «Plan de c1» en T1. Se inserta como postgres (los usuarios todavía no escriben),
--- con el `sub` de c1 en la sesión, que es lo que lee `auth.uid()`.
+-- c1 crea «Plan de c1» en T1. Se inserta como postgres (quién puede escribir un plan se
+-- prueba en practice_write.test.sql), con el `sub` de c1 en la sesión, que es lo que lee
+-- `auth.uid()`.
 select tests.authenticate_as(current_setting('fx.c1')::uuid);
 reset role;
 

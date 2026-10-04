@@ -92,10 +92,11 @@ function MinutesButton({
  * Un ítem de una sesión en el Practice Builder (design/components/PracticeItem): asa, número,
  * fase y título, y sus minutos con los botones de −5 y +5. Fila de 72px.
  *
- * Solo pinta: ni arrastra ni guarda. `handle` es el hueco del asa (el constructor pone ahí su
- * botón de arrastre, que ocupa todo el hueco: 32px por 44px); sin él, el hueco queda vacío
- * y la fila conserva su sitio. Con `dragging` la fila pasa a `surface-3` con `shadow-sheet`, y
- * el asa sube a `ink-2` (`ink-3` no va sobre `surface-3`).
+ * Solo pinta: ni arrastra ni guarda. `handle` es el hueco del asa, de 32px de ancho (el
+ * constructor pone ahí su botón de arrastre, que mide 44px de lado y sobresale del hueco por
+ * la derecha: ver `SortableRow`); sin él, el hueco queda vacío y la fila conserva su sitio. Con
+ * `dragging` la fila pasa a `surface-3` con `shadow-sheet`, y el asa sube a `ink-2` (`ink-3` no
+ * va sobre `surface-3`).
  *
  * La fase y el título son un solo botón que abre y cierra la fila (`aria-expanded`;
  * `expanded` lo manda quien lo monta). Abierta, pinta `children` (el editor de la fila) y las

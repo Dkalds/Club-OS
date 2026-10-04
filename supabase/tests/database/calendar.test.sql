@@ -269,7 +269,7 @@ select results_eq(
 select throws_ok(
   $$delete from events$$,
   '42501', null,
-  'nadie borra eventos en esta fase'
+  'nadie borra eventos: se cierran, no se borran'
 );
 
 -- ── c2: staff de T2, mismo club (Review Focus 3) ─────────────────────────────────────
@@ -362,7 +362,7 @@ select results_eq(
 select throws_ok(
   $$update games set score_for = 60$$,
   '42501', null,
-  'ni el admin escribe en esta fase'
+  'ni el admin cambia un partido'
 );
 
 -- ── coachB: el aislamiento entre clubes vale en los dos sentidos ─────────────────────
@@ -775,8 +775,8 @@ select has_index(
 );
 
 -- ── created_by toma por defecto el usuario de la sesión ──────────────────────────────
--- Se inserta como postgres (los usuarios no escriben en esta fase), con el `sub` de c2
--- en la sesión, que es lo que lee `auth.uid()`.
+-- Se inserta como postgres (un plan sin equipo no lo escribe ningún usuario), con el `sub`
+-- de c2 en la sesión, que es lo que lee `auth.uid()`.
 select tests.authenticate_as(current_setting('fx.c2')::uuid);
 reset role;
 
