@@ -5,8 +5,11 @@ import {
   formatEventSlot,
   formatGameSlot,
   greeting,
+  isoToLocalInputs,
   localTime,
+  nextWeeklySlot,
   startOfLocalDay,
+  zonedDateTimeToIso,
 } from "./time";
 
 const MADRID = "Europe/Madrid";
@@ -113,6 +116,26 @@ describe("formatEventSlot", () => {
     );
     expect(() => formatEventSlot("2026-10-06T16:00:00Z", "2026-10-06T17:15:00Z", "Nada/Nada")).toThrow(
       RangeError,
+    );
+  });
+
+  it.each(["2026-11-17T18:00:00", "2026-11-17T18:00:00.000", "2026-11-17", "2026-11-17 18:00:00"])(
+    "rechaza %s: sin Z ni desfase no es un instante y se leería en la zona del dispositivo",
+    (naive) => {
+      expect(() => formatEventSlot(naive, "2026-11-17T19:00:00Z", MADRID)).toThrow(RangeError);
+      expect(() => formatEventSlot("2026-11-17T17:00:00Z", naive, MADRID)).toThrow(
+        "Fecha o zona horaria no válidas",
+      );
+    },
+  );
+
+  it("acepta un desfase distinto de cero y lo respeta", () => {
+    // 18:00 en Madrid (+01:00 en noviembre) son las 11:00 en México (-06:00).
+    expect(formatEventSlot("2026-11-17T18:00:00+01:00", "2026-11-17T19:15:00+01:00", MADRID)).toBe(
+      "Martes 17 nov · 18:00–19:15",
+    );
+    expect(formatEventSlot("2026-11-17T11:00:00-06:00", "2026-11-17T12:15:00-06:00", MADRID)).toBe(
+      "Martes 17 nov · 18:00–19:15",
     );
   });
 });
@@ -263,6 +286,166 @@ describe("addLocalDays", () => {
   });
 });
 
+describe("zonedDateTimeToIso", () => {
+  it("convierte día y hora del club a un instante ISO en UTC", () => {
+    expect(zonedDateTimeToIso("2026-11-17", "18:00", MADRID)).toBe("2026-11-17T17:00:00.000Z"); // CET
+    expect(zonedDateTimeToIso("2026-07-07", "18:00", MADRID)).toBe("2026-07-07T16:00:00.000Z"); // CEST
+    expect(zonedDateTimeToIso("2026-10-06", "10:00", MEXICO)).toBe("2026-10-06T16:00:00.000Z");
+  });
+
+  it("una hora que no existe por el cambio de hora se adelanta lo que dura el hueco", () => {
+    // 29 mar 2026: a las 02:00 CET se pasa a las 03:00 CEST, así que las 02:30 no existen.
+    expect(zonedDateTimeToIso("2026-03-29", "02:30", MADRID)).toBe("2026-03-29T01:30:00.000Z"); // 03:30 CEST
+    expect(localTime(zonedDateTimeToIso("2026-03-29", "02:30", MADRID), MADRID)).toBe("03:30");
+  });
+
+  it("una hora que se repite toma su primera ocurrencia", () => {
+    // 25 oct 2026: a las 03:00 CEST se vuelve a las 02:00 CET, así que las 02:30 pasan dos veces.
+    expect(zonedDateTimeToIso("2026-10-25", "02:30", MADRID)).toBe("2026-10-25T00:30:00.000Z"); // CEST
+  });
+
+  it.each([
+    ["día que no existe", "2026-02-30", "18:00"],
+    ["mes que no existe", "2026-13-01", "18:00"],
+    ["día cero", "2026-11-00", "18:00"],
+    ["29 de febrero de un año no bisiesto", "2026-02-29", "18:00"],
+    ["hora fuera de rango", "2026-11-17", "25:00"],
+    ["las 24:00", "2026-11-17", "24:00"],
+    ["minutos fuera de rango", "2026-11-17", "18:60"],
+    ["fecha con barras", "17/11/2026", "18:00"],
+    ["fecha sin ceros", "2026-1-7", "18:00"],
+    ["hora sin ceros", "2026-11-17", "8:00"],
+    ["hora con segundos", "2026-11-17", "18:00:00"],
+    ["campos vacíos", "", ""],
+  ])("rechaza %s", (_name, date, time) => {
+    expect(() => zonedDateTimeToIso(date, time, MADRID)).toThrow(RangeError);
+    expect(() => zonedDateTimeToIso(date, time, MADRID)).toThrow("Fecha u hora no válidas");
+  });
+
+  it("una zona que no existe también falla en vez de devolver NaN", () => {
+    expect(() => zonedDateTimeToIso("2026-11-17", "18:00", "Nada/Nada")).toThrow(RangeError);
+  });
+
+  it("acepta el 29 de febrero de un año bisiesto", () => {
+    expect(zonedDateTimeToIso("2028-02-29", "18:00", MADRID)).toBe("2028-02-29T17:00:00.000Z");
+  });
+});
+
+describe("isoToLocalInputs", () => {
+  it("da la fecha y la hora de los campos del formulario en la zona del club", () => {
+    expect(isoToLocalInputs("2026-11-17T17:00:00.000Z", MADRID)).toEqual({
+      date: "2026-11-17",
+      time: "18:00",
+    });
+  });
+
+  it("el día es el del club: pasada la medianoche local ya es el día siguiente", () => {
+    expect(isoToLocalInputs("2026-10-06T22:30:00.000Z", MADRID)).toEqual({
+      date: "2026-10-07",
+      time: "00:30",
+    });
+    expect(isoToLocalInputs("2026-10-06T22:30:00.000Z", MEXICO)).toEqual({
+      date: "2026-10-06",
+      time: "16:30",
+    });
+  });
+
+  it("rellena con ceros el mes, el día, la hora y los minutos", () => {
+    expect(isoToLocalInputs("2026-01-05T08:05:00.000Z", MADRID)).toEqual({
+      date: "2026-01-05",
+      time: "09:05",
+    });
+  });
+
+  it("ida y vuelta con zonedDateTimeToIso en Madrid y en México", () => {
+    for (const tz of [MADRID, MEXICO]) {
+      const iso = zonedDateTimeToIso("2026-11-17", "18:00", tz);
+      expect(isoToLocalInputs(iso, tz)).toEqual({ date: "2026-11-17", time: "18:00" });
+    }
+    expect(isoToLocalInputs("2026-11-18T00:00:00.000Z", MEXICO)).toEqual({
+      date: "2026-11-17",
+      time: "18:00",
+    });
+  });
+
+  it("rechaza un ISO sin Z ni desfase", () => {
+    expect(() => isoToLocalInputs("2026-11-17T18:00:00", MADRID)).toThrow(RangeError);
+  });
+});
+
+describe("nextWeeklySlot", () => {
+  const TUESDAY_18H_CEST = "2026-10-20T16:00:00.000Z";
+
+  it("suma semanas de calendario: tras el cambio de hora del 25 oct sigue siendo a las 18:00", () => {
+    // Martes 20 oct 18:00 CEST; ahora es el miércoles 21, 10:00 en Madrid.
+    expect(nextWeeklySlot(TUESDAY_18H_CEST, "2026-10-21T08:00:00.000Z", MADRID)).toBe(
+      "2026-10-27T17:00:00.000Z", // martes 27 oct 18:00 CET, no las 16:00Z de 7 × 24 h
+    );
+  });
+
+  it("si el inicio es futuro, el siguiente es una semana después del inicio", () => {
+    expect(nextWeeklySlot(TUESDAY_18H_CEST, "2026-10-06T08:00:00.000Z", MADRID)).toBe(
+      "2026-10-27T17:00:00.000Z",
+    );
+  });
+
+  it("si el inicio fue hace tres semanas, da el primero posterior a ahora", () => {
+    const start = "2026-10-06T16:00:00.000Z"; // martes 6 oct, 18:00 CEST
+    // El martes 27 a las 10:00 todavía no ha llegado la sesión de ese día.
+    expect(nextWeeklySlot(start, "2026-10-27T09:00:00.000Z", MADRID)).toBe("2026-10-27T17:00:00.000Z");
+    // Pasada la sesión de ese día, la siguiente es la del martes 3 nov.
+    expect(nextWeeklySlot(start, "2026-10-27T18:30:00.000Z", MADRID)).toBe("2026-11-03T17:00:00.000Z");
+  });
+
+  it("es estrictamente posterior: en el instante exacto de una sesión da la de la semana siguiente", () => {
+    expect(nextWeeklySlot(TUESDAY_18H_CEST, "2026-10-27T17:00:00.000Z", MADRID)).toBe(
+      "2026-11-03T17:00:00.000Z",
+    );
+    expect(nextWeeklySlot(TUESDAY_18H_CEST, TUESDAY_18H_CEST, MADRID)).toBe("2026-10-27T17:00:00.000Z");
+  });
+
+  it("con un inicio de hace años no se salta ninguna semana", () => {
+    // 6 oct 2020 también fue martes, 313 semanas antes.
+    expect(nextWeeklySlot("2020-10-06T16:00:00.000Z", "2026-10-02T08:00:00.000Z", MADRID)).toBe(
+      "2026-10-06T16:00:00.000Z",
+    );
+    // Del invierno al verano las 18:00 locales pasan de las 17:00Z a las 16:00Z: a las 16:30Z
+    // la sesión de ese martes ya ha pasado, aunque no hayan pasado 65 × 168 h desde el inicio.
+    expect(nextWeeklySlot("2025-01-14T17:00:00.000Z", "2026-04-14T16:30:00.000Z", MADRID)).toBe(
+      "2026-04-21T16:00:00.000Z",
+    );
+  });
+
+  it("cuenta las semanas desde el inicio: un hueco de cambio de hora no desplaza las siguientes", () => {
+    // Domingo 22 mar 2026, 02:30 CET. El 29 las 02:30 no existen (03:30 CEST) y el 5 abr vuelven.
+    expect(nextWeeklySlot("2026-03-22T01:30:00.000Z", "2026-03-28T12:00:00.000Z", MADRID)).toBe(
+      "2026-03-29T01:30:00.000Z",
+    );
+    expect(nextWeeklySlot("2026-03-22T01:30:00.000Z", "2026-03-29T12:00:00.000Z", MADRID)).toBe(
+      "2026-04-05T00:30:00.000Z", // 02:30 CEST, no 03:30
+    );
+  });
+
+  it("en una zona sin cambio de hora son semanas de 168 h", () => {
+    expect(nextWeeklySlot("2026-10-06T16:00:00.000Z", "2026-10-21T08:00:00.000Z", MEXICO)).toBe(
+      "2026-10-27T16:00:00.000Z",
+    );
+  });
+
+  it("devuelve un ISO en UTC aunque la entrada lleve desfase", () => {
+    expect(nextWeeklySlot("2026-10-20T18:00:00+02:00", "2026-10-21T10:00:00+02:00", MADRID)).toBe(
+      "2026-10-27T17:00:00.000Z",
+    );
+  });
+
+  it("rechaza un instante sin Z ni desfase en vez de leerlo en la zona del dispositivo", () => {
+    expect(() => nextWeeklySlot("2026-10-20T18:00:00", "2026-10-21T08:00:00.000Z", MADRID)).toThrow(
+      RangeError,
+    );
+    expect(() => nextWeeklySlot(TUESDAY_18H_CEST, "2026-10-21T10:00:00", MADRID)).toThrow(RangeError);
+  });
+});
+
 describe("independencia de la zona del dispositivo (regla 7)", () => {
   const original = process.env.TZ;
 
@@ -283,6 +466,15 @@ describe("independencia de la zona del dispositivo (regla 7)", () => {
       expect(greeting("2026-10-06T12:30:00Z", MADRID)).toBe("Buenas tardes");
       expect(startOfLocalDay("2026-10-06T16:00:00Z", MADRID)).toBe("2026-10-05T22:00:00.000Z");
       expect(addLocalDays("2026-10-22T22:00:00Z", 7, MADRID)).toBe("2026-10-29T23:00:00.000Z");
+      expect(zonedDateTimeToIso("2026-11-17", "18:00", MADRID)).toBe("2026-11-17T17:00:00.000Z");
+      expect(zonedDateTimeToIso("2026-03-29", "02:30", MADRID)).toBe("2026-03-29T01:30:00.000Z");
+      expect(isoToLocalInputs("2026-11-17T17:00:00.000Z", MADRID)).toEqual({
+        date: "2026-11-17",
+        time: "18:00",
+      });
+      expect(nextWeeklySlot("2026-10-20T16:00:00.000Z", "2026-10-21T08:00:00.000Z", MADRID)).toBe(
+        "2026-10-27T17:00:00.000Z",
+      );
     },
   );
 });

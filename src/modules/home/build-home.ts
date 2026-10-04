@@ -106,9 +106,12 @@ export function buildHome(input: HomeInput, nowIso: string, tz: string): HomeDat
 
   // «Esta semana»: de las 00:00 locales de hoy a las 00:00 locales del día 7 siguiente
   // (un intervalo semiabierto). Los límites se calculan en días de calendario, no en horas.
-  const weekStart = startOfLocalDay(nowIso, tz);
-  const weekStartMs = new Date(weekStart).getTime();
-  const weekEndMs = new Date(addLocalDays(weekStart, WEEK_DAYS, tz)).getTime();
+  // El fin se busca sumando los días a `now` y tomando entonces el principio de ese día, y no
+  // sumándolos al principio de hoy: donde el cambio de hora cae a medianoche (Santiago, La
+  // Habana) las 00:00 de hoy pueden no existir y ese «principio» ya son las 01:00, que
+  // arrastrarían el fin de la semana una hora.
+  const weekStartMs = new Date(startOfLocalDay(nowIso, tz)).getTime();
+  const weekEndMs = new Date(startOfLocalDay(addLocalDays(nowIso, WEEK_DAYS, tz), tz)).getTime();
 
   const week: WeekItem[] = upcoming
     .filter(({ startMs }) => startMs >= weekStartMs && startMs < weekEndMs)

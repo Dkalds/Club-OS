@@ -395,6 +395,24 @@ describe("buildHome · esta semana", () => {
     ]);
   });
 
+  it("si el cambio de hora cae a medianoche, la semana sigue acabando a las 00:00 locales del día 7", () => {
+    // America/Santiago: el domingo 6 sep 2026 los relojes pasan de las 00:00 a las 01:00, así que
+    // las 00:00 de ese día no existen y «el principio del día» ya son las 01:00. Sumarle 7 días
+    // a esa hora cerraría la semana a las 01:00 del día 13 y colaría un evento de las 00:30.
+    const home = buildHome(
+      input([
+        practice("late-sat", "2026-09-13T02:30:00.000Z", "2026-09-13T03:15:00.000Z"), // sáb 12, 23:30 local
+        practice("early-sun", "2026-09-13T03:30:00.000Z", "2026-09-13T04:15:00.000Z"), // dom 13, 00:30 local
+      ]),
+      "2026-09-06T15:00:00.000Z", // dom 6 sep, 12:00 local
+      "America/Santiago",
+    );
+
+    expect(home.week.map((item) => [item.eventId, item.dow, item.day, item.time])).toEqual([
+      ["late-sat", "Sáb", "12", "23:30"],
+    ]);
+  });
+
   it("el subtítulo de un partido sin sede no lleva sufijo", () => {
     const home = buildHome(
       input([
