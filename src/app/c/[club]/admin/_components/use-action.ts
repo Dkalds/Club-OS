@@ -1,3 +1,4 @@
+import { unstable_rethrow } from "next/navigation";
 import { useState, useTransition } from "react";
 import { fail, type ActionError, type ActionResult } from "@/lib/action-result";
 
@@ -14,6 +15,14 @@ export type Failure = { error: ActionError; fieldErrors: Record<string, string> 
  *   hasta que termina, y los botones se desactivan con él.
  * - Una acción siempre devuelve un `ActionResult`, pero la llamada puede lanzar (la red se cae
  *   a medias, el servidor no responde): eso es un `SAVE_FAILED`, sin el mensaje del error.
+ * - Salvo lo que lanza el propio Next para dirigir el flujo: si la acción llamó a `notFound()`
+ *   o a `redirect()`, la llamada rechaza con ese error y aquí se relanza (`unstable_rethrow`).
+ *   Dentro de la transición, React lo sube al límite de Next que lo espera: el que pinta el
+ *   404 o el que navega. No es un fallo al guardar, y reintentar no serviría de nada.
+ *
+ * Lo que este hook no distingue: con la sesión cerrada, el proxy redirige la petición de la
+ * acción a `/login` y la llamada rechaza con un error cualquiera, no con uno de Next. Sigue
+ * siendo un `SAVE_FAILED` (ver `docs/superpowers/backlog.md`, Fase 7).
  * - Si va bien, llama a `onSuccess` con sus datos; si no, `failure` se queda con el error y los
  *   errores de campo (vacíos si no hay).
  *
@@ -33,7 +42,8 @@ export function useAction() {
       let result: ActionResult<T>;
       try {
         result = await call();
-      } catch {
+      } catch (error) {
+        unstable_rethrow(error);
         result = fail("SAVE_FAILED");
       }
       startTransition(() => {

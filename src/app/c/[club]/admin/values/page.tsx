@@ -1,4 +1,4 @@
-import { requireAdmin, requireClub } from "@/lib/guards";
+import { adminPage } from "@/lib/guards";
 import { listValuesForAdmin } from "@/modules/methodology/admin-queries";
 import { WayIcon } from "@/ui/icons";
 import { EmptyState } from "@/ui/states";
@@ -13,11 +13,7 @@ import { ValueEditor } from "../_components/value-editor";
  * guardar, ordenar o publicar, las acciones revalidan Gestión y la lista se repinta con lo nuevo.
  * Nada se borra: archivar un valor es pasarlo a borrador.
  */
-export default async function AdminValuesPage({ params }: PageProps<"/c/[club]/admin/values">) {
-  const { club } = await params;
-  const ctx = await requireClub(club);
-  requireAdmin(ctx);
-
+export default adminPage(async (ctx) => {
   const values = await listValuesForAdmin(ctx);
   const slug = ctx.org.slug;
 
@@ -52,4 +48,4 @@ export default async function AdminValuesPage({ params }: PageProps<"/c/[club]/a
       <ValueEditor clubSlug={slug} />
     </>
   );
-}
+});

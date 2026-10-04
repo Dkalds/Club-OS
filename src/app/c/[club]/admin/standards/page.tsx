@@ -1,4 +1,4 @@
-import { requireAdmin, requireClub } from "@/lib/guards";
+import { adminPage } from "@/lib/guards";
 import { listStandardsForAdmin } from "@/modules/methodology/admin-queries";
 import { standardsLabel } from "@/modules/tenancy/navigation";
 import { WayIcon } from "@/ui/icons";
@@ -18,13 +18,7 @@ import { StandardEditor } from "../_components/standard-editor";
  * guardar, ordenar o publicar, las acciones revalidan Gestión y la lista se repinta con lo nuevo.
  * Nada se borra: archivar un Standard es pasarlo a borrador.
  */
-export default async function AdminStandardsPage({
-  params,
-}: PageProps<"/c/[club]/admin/standards">) {
-  const { club } = await params;
-  const ctx = await requireClub(club);
-  requireAdmin(ctx);
-
+export default adminPage(async (ctx) => {
   const standards = await listStandardsForAdmin(ctx);
   const slug = ctx.org.slug;
   const defaultNumber = Math.max(0, ...standards.map((standard) => standard.number)) + 1;
@@ -62,4 +56,4 @@ export default async function AdminStandardsPage({
       <StandardEditor clubSlug={slug} defaultNumber={defaultNumber} />
     </>
   );
-}
+});

@@ -11,7 +11,7 @@ import { runSeed } from "./run";
 type Filter = [op: string, column: string, value: unknown];
 type Call = {
   table: string;
-  op: "upsert" | "delete";
+  op: "upsert" | "delete" | "select";
   rows?: Record<string, unknown>[];
   onConflict?: string;
   filters: Filter[];
@@ -20,7 +20,9 @@ type Call = {
 type FakeOptions = {
   existingUsers?: { id: string; email: string }[];
   failOnTable?: string;
-  failOnOp?: "upsert" | "delete";
+  failOnOp?: "upsert" | "delete" | "select";
+  // Lo que cada tabla tiene además del seed: lo que devuelve la lectura de lo creado a mano.
+  strays?: Record<string, Record<string, unknown>[]>;
   failListUsers?: boolean;
   failCreateUser?: boolean;
   // El servidor devuelve como mucho este número de usuarios por página, pida lo que pida.
@@ -47,6 +49,35 @@ function fakeClient(options: FakeOptions = {}) {
           const call: Call = { table, op: "upsert", rows, onConflict: opts?.onConflict, filters: [] };
           calls.push(call);
           return Promise.resolve(result(call));
+        },
+        select() {
+          const call: Call = { table, op: "select", filters: [] };
+          calls.push(call);
+          const query = {
+            in(column: string, values: unknown[]) {
+              call.filters.push(["in", column, values]);
+              return query;
+            },
+            not(column: string, op: string, value: unknown) {
+              call.filters.push([`not.${op}`, column, value]);
+              return query;
+            },
+            order(column: string) {
+              call.filters.push(["order", column, true]);
+              return query;
+            },
+            then<T>(
+              onFulfilled: (value: {
+                data: Record<string, unknown>[] | null;
+                error: { message: string } | null;
+              }) => T,
+            ) {
+              const { error } = result(call);
+              const data = error ? null : (options.strays?.[table] ?? []);
+              return Promise.resolve({ data, error }).then(onFulfilled);
+            },
+          };
+          return query;
         },
         delete() {
           const call: Call = { table, op: "delete", filters: [] };
@@ -256,6 +287,137 @@ describe("runSeed", () => {
     expect(sent("game_principles")).toEqual(data.game_principles);
     expect(sent("principle_points")).toEqual(data.principle_points);
     expect(sent("standards")).toEqual(data.standards);
+  });
+
+  // Lo creado a mano en Gestión (secciones y Standards que no son del seed) no se borra, pero el
+  // número es único por club: se lee antes de escribir y va en la misma sentencia que el seed.
+  describe("lo creado a mano en los clubes del seed", () => {
+    const [clubA] = data.organizations;
+    const seedSections = data.way_sections.filter((row) => row.organization_id === clubA.id);
+    const seedStandards = data.standards.filter((row) => row.organization_id === clubA.id);
+    const straySection = {
+      id: "00000000-0000-4000-8000-0000000000a1",
+      organization_id: clubA.id,
+      number: 1,
+      slug: "a-mano",
+      title: "A mano",
+      summary: null,
+      body_md: "Texto.",
+      content_kind: "text",
+      sort: 1,
+      status: "draft",
+      created_at: "2026-10-01T10:00:00+00:00",
+      updated_at: "2026-10-01T10:00:00+00:00",
+      updated_by: "00000000-0000-4000-8000-0000000000ff",
+    };
+    const strayStandard = {
+      id: "00000000-0000-4000-8000-0000000000a2",
+      organization_id: clubA.id,
+      number: 1,
+      title: "A MANO",
+      description: "Texto.",
+      sort: 9,
+      status: "draft",
+      created_at: "2026-10-01T10:00:00+00:00",
+    };
+
+    it.each([
+      ["way_sections", data.way_sections],
+      ["standards", data.standards],
+    ] as const)("lee lo que no es del seed en %s, en el orden de la lista, antes de escribirla", async (table, rows) => {
+      const fake = fakeClient();
+      await runSeed(NOW, fake.client);
+
+      const reads = fake.calls.filter((c) => c.table === table && c.op === "select");
+      expect(reads).toHaveLength(1);
+      expect(reads[0].filters).toEqual([
+        ["in", "organization_id", data.organizations.map((org) => org.id)],
+        ["not.in", "id", `(${rows.map((row) => row.id).join(",")})`],
+        ["order", "sort", true],
+        ["order", "created_at", true],
+        ["order", "id", true],
+      ]);
+      const read = fake.calls.indexOf(reads[0]);
+      const write = fake.calls.findIndex((c) => c.table === table && c.op === "upsert");
+      expect(read).toBeLessThan(write);
+    });
+
+    it("solo lee esas dos tablas", async () => {
+      const fake = fakeClient();
+      await runSeed(NOW, fake.client);
+
+      const read = fake.calls.filter((c) => c.op === "select").map((c) => c.table);
+      expect(read).toEqual(["way_sections", "standards"]);
+    });
+
+    it("una sección creada a mano va en el mismo upsert, detrás de las del seed y con sus mismas columnas", async () => {
+      const fake = fakeClient({ strays: { way_sections: [straySection] } });
+      await runSeed(NOW, fake.client);
+
+      const writes = fake.calls.filter((c) => c.table === "way_sections" && c.op === "upsert");
+      expect(writes).toHaveLength(1);
+      const position = seedSections.length + 1;
+      expect(writes[0].rows).toEqual([
+        ...data.way_sections,
+        {
+          id: straySection.id,
+          organization_id: clubA.id,
+          number: position,
+          slug: "a-mano",
+          title: "A mano",
+          summary: null,
+          body_md: "Texto.",
+          content_kind: "text",
+          status: "draft",
+          sort: position,
+        },
+      ]);
+      // Un upsert de varias filas las quiere todas con las mismas claves.
+      const keys = (row: Record<string, unknown>) => Object.keys(row).sort();
+      expect(keys(writes[0].rows?.at(-1) ?? {})).toEqual(keys(data.way_sections[0]));
+    });
+
+    it("un Standard creado a mano con un número del seed va en el mismo upsert con el primero libre, y se avisa", async () => {
+      const fake = fakeClient({ strays: { standards: [strayStandard] } });
+      const report = await runSeed(NOW, fake.client);
+
+      const writes = fake.calls.filter((c) => c.table === "standards" && c.op === "upsert");
+      expect(writes).toHaveLength(1);
+      const free = seedStandards.length + 1;
+      expect(writes[0].rows).toEqual([
+        ...data.standards,
+        {
+          id: strayStandard.id,
+          organization_id: clubA.id,
+          number: free,
+          title: "A MANO",
+          description: "Texto.",
+          status: "draft",
+          sort: 9,
+        },
+      ]);
+      expect(report).toEqual({
+        movedStandards: [{ organization_id: clubA.id, title: "A MANO", from: 1, to: free }],
+      });
+    });
+
+    it("un Standard creado a mano que no choca con el seed no se reescribe", async () => {
+      const fake = fakeClient({ strays: { standards: [{ ...strayStandard, number: 40 }] } });
+      const report = await runSeed(NOW, fake.client);
+
+      const written = fake.calls.find((c) => c.table === "standards" && c.op === "upsert")?.rows;
+      expect(written).toEqual(data.standards);
+      expect(report).toEqual({ movedStandards: [] });
+    });
+
+    it.each(["way_sections", "standards"])("si falla la lectura de %s, se lanza con la tabla y no la escribe", async (table) => {
+      const fake = fakeClient({ failOnTable: table, failOnOp: "select" });
+
+      await expect(runSeed(NOW, fake.client)).rejects.toThrow(
+        new RegExp(`${table} \\(lectura de lo creado a mano\\).*fallo simulado`),
+      );
+      expect(fake.calls.some((c) => c.table === table && c.op === "upsert")).toBe(false);
+    });
   });
 
   it("borra, antes de reescribir los ítems, los de cada plan que ya no están en el seed", async () => {

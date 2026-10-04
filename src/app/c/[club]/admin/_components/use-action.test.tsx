@@ -1,6 +1,7 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
-import { useState } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { notFound, redirect } from "next/navigation";
+import { Component, useState, type ReactNode } from "react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { fail, ok, type ActionResult } from "@/lib/action-result";
 import { useAction, type Failure } from "./use-action";
 
@@ -12,6 +13,10 @@ function deferred<T>() {
   });
   return { promise, finish: (result: ActionResult<T>) => finish(result) };
 }
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
 
 describe("useAction", () => {
   it("empieza parado y sin fallo", () => {
@@ -87,6 +92,44 @@ describe("useAction", () => {
     expect(JSON.stringify(result.current.failure)).not.toContain("fetch failed");
     expect(result.current.pending).toBe(false);
     expect(onSuccess).not.toHaveBeenCalled();
+  });
+
+  // Una acción que llama a `notFound()` o a `redirect()` no devuelve un `ActionResult`: en el
+  // cliente la llamada rechaza con el error de control de flujo de Next. No es un fallo al
+  // guardar: tiene que llegar al límite de Next que lo espera, el que pinta el 404 o navega.
+  it.each([
+    ["notFound()", () => notFound()],
+    ["redirect()", () => redirect("/login")],
+  ])("lo que lanza %s no es un SAVE_FAILED: sube al límite de error", async (_, control) => {
+    const thrown = (() => {
+      try {
+        control();
+      } catch (error) {
+        return error;
+      }
+      throw new Error("el control de flujo de Next tenía que lanzar");
+    })();
+    // React avisa por consola de lo que recoge un límite de error.
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const caught: unknown[] = [];
+    class Boundary extends Component<{ children: ReactNode }, { failed: boolean }> {
+      state = { failed: false };
+      static getDerivedStateFromError() {
+        return { failed: true };
+      }
+      componentDidCatch(error: unknown) {
+        caught.push(error);
+      }
+      render() {
+        return this.state.failed ? null : this.props.children;
+      }
+    }
+    const { result } = renderHook(() => useAction(), { wrapper: Boundary });
+
+    act(() => result.current.run(() => Promise.reject(thrown)));
+
+    await waitFor(() => expect(caught).toEqual([thrown]));
+    expect(result.current.failure).toBeNull();
   });
 
   it("al lanzar de nuevo se quita el fallo anterior desde el principio", async () => {

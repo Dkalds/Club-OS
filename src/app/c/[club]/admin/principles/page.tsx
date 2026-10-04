@@ -1,4 +1,4 @@
-import { requireAdmin, requireClub } from "@/lib/guards";
+import { adminPage } from "@/lib/guards";
 import { listPrinciplesForAdmin } from "@/modules/methodology/admin-queries";
 import { WayIcon } from "@/ui/icons";
 import { EmptyState } from "@/ui/states";
@@ -15,13 +15,7 @@ import { PrincipleEditor } from "../_components/principle-editor";
  * Nada se borra: archivar un principio es pasarlo a borrador. Un principio nuevo no lleva puntos:
  * se le añaden desde su card.
  */
-export default async function AdminPrinciplesPage({
-  params,
-}: PageProps<"/c/[club]/admin/principles">) {
-  const { club } = await params;
-  const ctx = await requireClub(club);
-  requireAdmin(ctx);
-
+export default adminPage(async (ctx) => {
   const principles = await listPrinciplesForAdmin(ctx);
   const slug = ctx.org.slug;
 
@@ -56,4 +50,4 @@ export default async function AdminPrinciplesPage({
       <PrincipleEditor clubSlug={slug} />
     </>
   );
-}
+});

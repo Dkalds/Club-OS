@@ -68,6 +68,18 @@ type Db = SupabaseClient<Database>;
 type DbError = { code?: string; message?: string };
 type UniqueField = { field: string; message: string };
 
+/** El SQLSTATE de un valor repetido en un único de la tabla. */
+const UNIQUE_VIOLATION = "23505";
+
+/** El mayor número de una sección: el CHECK de `way_sections.number`. */
+const MAX_SECTION_NUMBER = 99;
+
+/** Las veces que se intenta un alta que choca con otra simultánea antes de dejarlo. */
+const CREATE_ATTEMPTS = 3;
+
+/** Un intento de alta: su resultado, o el choque con un único de la tabla, que pide repetirlo. */
+type Attempt<T> = { result: ActionResult<T> } | { conflict: DbError };
+
 /** Lo que recibe la escritura de cada acción, ya validado y autorizado. */
 type Write<D> = {
   db: Db;
@@ -80,6 +92,15 @@ type Write<D> = {
    * rechazada) no deja rastro.
    */
   fromDb: (error: DbError, unique?: UniqueField) => ActionResult<never>;
+  /**
+   * Para las altas que calculan su número, su orden o su slug leyendo antes la lista del
+   * club. Leer y escribir no son atómicos: entre las dos, otra alta puede quedarse con lo
+   * recién calculado, y el único de la tabla rechaza esta. No es un error de quien escribe
+   * (no hay campo que corregir): `attempt` se repite entero, lectura incluida, y calcula
+   * sobre la lista nueva. Si choca `CREATE_ATTEMPTS` veces ya no es una carrera: se registra
+   * y es `SAVE_FAILED`.
+   */
+  retryOnConflict: <T>(attempt: () => Promise<Attempt<T>>) => Promise<ActionResult<T>>;
 };
 
 /**
@@ -114,9 +135,28 @@ async function mutate<D, T>(
     return result;
   };
 
+  const retryOnConflict = async <R>(
+    attempt: () => Promise<Attempt<R>>,
+  ): Promise<ActionResult<R>> => {
+    let conflict: DbError | undefined;
+    for (let tries = 0; tries < CREATE_ATTEMPTS; tries += 1) {
+      const outcome = await attempt();
+      if ("result" in outcome) return outcome.result;
+      conflict = outcome.conflict;
+    }
+    logError(tag, conflict);
+    return fail("SAVE_FAILED");
+  };
+
   let result: ActionResult<T>;
   try {
-    result = await write({ db: await createClient(), ctx, data: parsed.data, fromDb });
+    result = await write({
+      db: await createClient(),
+      ctx,
+      data: parsed.data,
+      fromDb,
+      retryOnConflict,
+    });
   } catch (error) {
     unstable_rethrow(error);
     logError(tag, error);
@@ -159,8 +199,11 @@ const DUPLICATE_STANDARD: UniqueField = {
 /**
  * Una sección nueva, en borrador y al final: su número es el siguiente al mayor del club y
  * su slug sale del título (`seccion` si no tiene letras), sin chocar con ninguno del club.
- * Leer y escribir no son atómicos: dos altas simultáneas pueden repetir número; el slug sí
- * lo guarda el único de la tabla.
+ * El número y el slug son únicos por club: si otra alta simultánea se queda con ellos, esta
+ * vuelve a leer y a calcular (`retryOnConflict`).
+ *
+ * El número no pasa de 99 y nada se borra: con la 99 ya creada no hay sitio para otra, y es
+ * `SECTION_LIMIT` sin llegar a insertar.
  */
 export async function createWaySection(
   clubSlug: string,
@@ -171,34 +214,40 @@ export async function createWaySection(
     clubSlug,
     createWaySectionSchema,
     input,
-    async ({ db, ctx, data, fromDb }) => {
-      const existing = await db
-        .from("way_sections")
-        .select("number, sort, slug")
-        .eq("organization_id", ctx.org.id);
-      if (existing.error) return fromDb(existing.error);
+    ({ db, ctx, data, fromDb, retryOnConflict }) =>
+      retryOnConflict(async () => {
+        const existing = await db
+          .from("way_sections")
+          .select("number, sort, slug")
+          .eq("organization_id", ctx.org.id);
+        if (existing.error) return { result: fromDb(existing.error) };
 
-      const { data: created, error } = await db
-        .from("way_sections")
-        .insert({
-          organization_id: ctx.org.id,
-          number: nextPosition(existing.data.map((row) => row.number)),
-          sort: nextPosition(existing.data.map((row) => row.sort)),
-          slug: uniqueSlug(
-            slugify(data.title),
-            existing.data.map((row) => row.slug),
-            "seccion",
-          ),
-          title: data.title,
-          content_kind: data.contentKind,
-          status: "draft",
-        })
-        .select("id")
-        .single();
-      if (error) return fromDb(error);
+        const number = nextPosition(existing.data.map((row) => row.number));
+        if (number > MAX_SECTION_NUMBER) return { result: fail("SECTION_LIMIT") };
 
-      return ok({ id: created.id });
-    },
+        const { data: created, error } = await db
+          .from("way_sections")
+          .insert({
+            organization_id: ctx.org.id,
+            number,
+            sort: nextPosition(existing.data.map((row) => row.sort)),
+            slug: uniqueSlug(
+              slugify(data.title),
+              existing.data.map((row) => row.slug),
+              "seccion",
+            ),
+            title: data.title,
+            content_kind: data.contentKind,
+            status: "draft",
+          })
+          .select("id")
+          .single();
+        if (error) {
+          return error.code === UNIQUE_VIOLATION ? { conflict: error } : { result: fromDb(error) };
+        }
+
+        return { result: ok({ id: created.id }) };
+      }),
   );
 }
 
@@ -380,7 +429,8 @@ export async function updateValue(
 
 /**
  * Un principio nuevo, en borrador y al final, sin puntos (se añaden al guardarlo). Su slug
- * sale del título (`principio` si no tiene letras) y no cambia nunca.
+ * sale del título (`principio` si no tiene letras) y no cambia nunca. Es único por club: si
+ * otra alta simultánea se queda con él, esta vuelve a leer y a calcular (`retryOnConflict`).
  */
 export async function createPrinciple(
   clubSlug: string,
@@ -391,33 +441,36 @@ export async function createPrinciple(
     clubSlug,
     createPrincipleSchema,
     input,
-    async ({ db, ctx, data, fromDb }) => {
-      const existing = await db
-        .from("game_principles")
-        .select("sort, slug")
-        .eq("organization_id", ctx.org.id);
-      if (existing.error) return fromDb(existing.error);
+    ({ db, ctx, data, fromDb, retryOnConflict }) =>
+      retryOnConflict(async () => {
+        const existing = await db
+          .from("game_principles")
+          .select("sort, slug")
+          .eq("organization_id", ctx.org.id);
+        if (existing.error) return { result: fromDb(existing.error) };
 
-      const { data: created, error } = await db
-        .from("game_principles")
-        .insert({
-          organization_id: ctx.org.id,
-          slug: uniqueSlug(
-            slugify(data.title),
-            existing.data.map((row) => row.slug),
-            "principio",
-          ),
-          title: data.title,
-          summary: data.summary,
-          status: "draft",
-          sort: nextPosition(existing.data.map((row) => row.sort)),
-        })
-        .select("id")
-        .single();
-      if (error) return fromDb(error);
+        const { data: created, error } = await db
+          .from("game_principles")
+          .insert({
+            organization_id: ctx.org.id,
+            slug: uniqueSlug(
+              slugify(data.title),
+              existing.data.map((row) => row.slug),
+              "principio",
+            ),
+            title: data.title,
+            summary: data.summary,
+            status: "draft",
+            sort: nextPosition(existing.data.map((row) => row.sort)),
+          })
+          .select("id")
+          .single();
+        if (error) {
+          return error.code === UNIQUE_VIOLATION ? { conflict: error } : { result: fromDb(error) };
+        }
 
-      return ok({ id: created.id });
-    },
+        return { result: ok({ id: created.id }) };
+      }),
   );
 }
 

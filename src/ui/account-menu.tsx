@@ -24,7 +24,8 @@ const ITEM =
  * «Salir» es un `<form method="post">`: cerrar sesión es un POST. No funciona sin JavaScript
  * porque no se llega a él: el panel solo se pinta tras abrirlo, un cambio de estado en el
  * cliente. El panel no tiene vista previa en `design/`: usa los tokens de una card elevada
- * (`surface-2`, borde `line`, `radius-lg`), sin sombra.
+ * (`surface-2`, borde `line`, `radius-lg`), sin sombra, y mide como mínimo cuatro áreas
+ * táctiles de ancho (`target-min`).
  */
 export function AccountMenu({ name, adminHref }: { name: string; adminHref: string | null }) {
   const [open, setOpen] = useState(false);
@@ -76,7 +77,7 @@ export function AccountMenu({ name, adminHref }: { name: string; adminHref: stri
       {open ? (
         <div
           id={panelId}
-          className="absolute top-full right-0 z-20 mt-(--space-1) min-w-44 overflow-hidden rounded-lg border border-line bg-surface-2 py-(--space-1)"
+          className="absolute top-full right-0 z-20 mt-(--space-1) min-w-[calc(var(--target-min)*4)] overflow-hidden rounded-lg border border-line bg-surface-2 py-(--space-1)"
         >
           {adminHref ? (
             <Link href={adminHref} prefetch={false} className={ITEM}>

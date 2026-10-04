@@ -1,4 +1,4 @@
-import { requireAdmin, requireClub } from "@/lib/guards";
+import { adminPage } from "@/lib/guards";
 import { listSectionsForAdmin } from "@/modules/methodology/admin-queries";
 import { formatStandardNumber } from "@/modules/methodology/format";
 import { CONTENT_KIND_LABELS } from "@/modules/methodology/types";
@@ -23,11 +23,7 @@ import { StatusPill } from "../_components/status-pill";
  * Una fila es una tarjeta apilada en móvil (arriba qué es, debajo qué se le puede hacer) y una
  * sola línea desde `lg`.
  */
-export default async function AdminWayPage({ params }: PageProps<"/c/[club]/admin/way">) {
-  const { club } = await params;
-  const ctx = await requireClub(club);
-  requireAdmin(ctx);
-
+export default adminPage(async (ctx) => {
   const sections = await listSectionsForAdmin(ctx);
   const slug = ctx.org.slug;
 
@@ -92,4 +88,4 @@ export default async function AdminWayPage({ params }: PageProps<"/c/[club]/admi
       <CreateSectionForm clubSlug={slug} />
     </>
   );
-}
+});

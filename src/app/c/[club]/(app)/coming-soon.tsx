@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import type { ComponentType } from "react";
+import { requireClub } from "@/lib/guards";
 import { navItems, type NavKey } from "@/modules/tenancy/navigation";
-import { getClubContext } from "@/modules/tenancy/queries";
 import { GamesIcon, TeamIcon, TrainIcon, WayIcon, type IconProps } from "@/ui/icons";
 import { EmptyState } from "@/ui/states";
 
@@ -25,8 +25,7 @@ const ICONS: Record<Tab, ComponentType<IconProps>> = {
  * Pide el contexto ella misma antes de pintar nada: un layout no protege a sus páginas.
  */
 export async function ComingSoon({ clubSlug, tab }: { clubSlug: string; tab: Tab }) {
-  const context = await getClubContext(clubSlug);
-  if (!context) notFound();
+  const context = await requireClub(clubSlug);
 
   const item = navItems(context.org.slug, context.branding.terminology).find(
     (candidate) => candidate.key === tab,

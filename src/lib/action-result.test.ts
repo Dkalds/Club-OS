@@ -50,6 +50,7 @@ describe("ACTION_ERROR_COPY", () => {
       STALE_COPY: "Alguien ha cambiado esto mientras editabas. Recarga para ver la última versión.",
       INVALID: "Revisa los campos marcados.",
       NOT_FOUND: "No encontramos este contenido.",
+      SECTION_LIMIT: "Ya hay 99 secciones, el máximo. Reutiliza una que tengas en borrador.",
     });
   });
 

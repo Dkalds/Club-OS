@@ -1,7 +1,6 @@
-import { notFound } from "next/navigation";
+import { requireClub } from "@/lib/guards";
 import { HomeScreen } from "@/modules/home/home-screen";
 import { getHomeData } from "@/modules/home/queries";
-import { getClubContext } from "@/modules/tenancy/queries";
 
 /**
  * Inicio del club: el próximo entrenamiento, el próximo partido y la semana de quien entra.
@@ -16,8 +15,7 @@ import { getClubContext } from "@/modules/tenancy/queries";
  */
 export default async function ClubHomePage({ params }: PageProps<"/c/[club]">) {
   const { club } = await params;
-  const ctx = await getClubContext(club);
-  if (!ctx) notFound();
+  const ctx = await requireClub(club);
 
   const home = await getHomeData(ctx, new Date().toISOString());
 

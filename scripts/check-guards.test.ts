@@ -25,14 +25,8 @@ const SANDBOX_STALE_MS = 60_000;
 
 const sandboxes: string[] = [];
 
-/** Las dos llamadas con las que cada página de Gestión se protege a sí misma. */
-const GUARDED_PAGE = [
-  "export default async function Page() {",
-  "  const ctx = await requireClub(slug);",
-  "  requireAdmin(ctx);",
-  "}",
-  "",
-].join("\n");
+/** Una página de Gestión como debe ser: su export por defecto es `adminPage(...)`. */
+const GUARDED_PAGE = "export default adminPage(async (ctx) => null);\n";
 
 const ADMIN = "app/c/[club]/admin";
 
@@ -142,18 +136,29 @@ describe("check-guards.sh", () => {
     expect(output).not.toContain("check:guards OK");
   });
 
-  // Gestión: cada `page.tsx` de /admin llama ella misma a `requireClub(` y a `requireAdmin(`. Un
-  // layout no protege a sus páginas, y un guard que no encuentra la carpeta no protege nada.
+  // Gestión: el export por defecto de cada `page.tsx` de /admin es `adminPage(...)`, que
+  // comprueba el club y el permiso antes de ejecutar la página. Un layout no protege a sus
+  // páginas, y un guard que no encuentra la carpeta no protege nada.
   describe("las páginas de Gestión", () => {
     const FOLDER = "src/app/c/[club]/admin";
-    const NO_CALLS = "export default function Page() {}\n";
+    const FAILURE = "FALLO: páginas de Gestión que no exportan por defecto adminPage(";
+    /** Como se escribían antes: las dos llamadas a mano, que nada obliga a poner primero. */
+    const BY_HAND = [
+      "export default async function Page() {",
+      "  const ctx = await requireClub(slug);",
+      "  requireAdmin(ctx);",
+      "}",
+      "",
+    ].join("\n");
 
-    it("pasan con varias páginas y subcarpetas, cada una con sus dos llamadas", () => {
+    it("pasan con varias páginas y subcarpetas, cada una exportando adminPage(", () => {
       const { status, output } = runGuards({
         [`${ADMIN}/page.tsx`]: GUARDED_PAGE,
         [`${ADMIN}/way/page.tsx`]: GUARDED_PAGE,
-        [`${ADMIN}/way/[sectionId]/page.tsx`]: GUARDED_PAGE,
-        // Lo que no es una página no se mira: un layout o un test no llevan las llamadas.
+        // Con los parámetros de su ruta declarados.
+        [`${ADMIN}/way/[sectionId]/page.tsx`]:
+          "export default adminPage<{ club: string; sectionId: string }>(async (ctx) => null);\n",
+        // Lo que no es una página no se mira: un layout o un test no son `adminPage`.
         [`${ADMIN}/layout.tsx`]: "export default function Layout() {}\n",
         [`${ADMIN}/pages.test.tsx`]: "it('x', () => {});\n",
       });
@@ -184,56 +189,52 @@ describe("check-guards.sh", () => {
       expect(output).not.toContain("check:guards OK");
     });
 
-    it("fallan si una página no llama a requireAdmin(, y dicen cuál", () => {
+    it("fallan si una página se protege a mano en vez de con adminPage(, y dicen cuál", () => {
+      // Con las dos llamadas escritas la página puede estar bien, pero nada impide leer datos
+      // antes de ellas ni olvidarlas en la siguiente: el guard pide la forma que no lo permite.
       const { status, output } = runGuards({
         [`${ADMIN}/page.tsx`]: GUARDED_PAGE,
-        [`${ADMIN}/values/page.tsx`]: "export default async function Page() { await requireClub(slug); }\n",
+        [`${ADMIN}/values/page.tsx`]: BY_HAND,
       });
 
       expect(status).toBe(1);
-      expect(output).toContain("FALLO: páginas de Gestión sin requireAdmin(");
+      expect(output).toContain(FAILURE);
       expect(output).toContain(`${FOLDER}/values/page.tsx`);
       expect(output).not.toContain(`${FOLDER}/page.tsx`);
-      expect(output).not.toContain("sin requireClub(");
       expect(output).not.toContain("check:guards OK");
     });
 
-    it("fallan si una página no llama a requireClub(, y dicen cuál", () => {
+    it.each([
+      ["en un comentario", "// export default adminPage(\nexport default function Page() {}\n"],
+      [
+        "sin ser el export por defecto",
+        "const guarded = adminPage(async () => null);\nexport default function Page() {}\n",
+      ],
+      [
+        "exportado a través de una variable",
+        "const Page = adminPage(async () => null);\nexport default Page;\n",
+      ],
+    ])("nombrar adminPage( %s no cuenta", (_case, source) => {
       const { status, output } = runGuards({
         [`${ADMIN}/page.tsx`]: GUARDED_PAGE,
-        [`${ADMIN}/standards/page.tsx`]: "export default function Page() { requireAdmin(ctx); }\n",
+        [`${ADMIN}/standards/page.tsx`]: source,
       });
 
       expect(status).toBe(1);
-      expect(output).toContain("FALLO: páginas de Gestión sin requireClub(");
+      expect(output).toContain(FAILURE);
       expect(output).toContain(`${FOLDER}/standards/page.tsx`);
-      expect(output).not.toContain(`${FOLDER}/page.tsx`);
-      expect(output).not.toContain("sin requireAdmin(");
-      expect(output).not.toContain("check:guards OK");
     });
 
-    it("una página sin ninguna de las dos sale en las dos listas", () => {
-      const { status, output } = runGuards({
-        [`${ADMIN}/page.tsx`]: GUARDED_PAGE,
-        [`${ADMIN}/principles/page.tsx`]: NO_CALLS,
-      });
-
-      expect(status).toBe(1);
-      expect(output).toContain("FALLO: páginas de Gestión sin requireClub(");
-      expect(output).toContain("FALLO: páginas de Gestión sin requireAdmin(");
-      expect(output.split(`${FOLDER}/principles/page.tsx`)).toHaveLength(3);
-    });
-
-    it("las llamadas de otras páginas no cubren a la que no las tiene", () => {
-      // Cada página se comprueba por sí misma.
+    it("lo que exportan otras páginas no cubre a la que no lo hace", () => {
+      // Cada página se comprueba por sí misma, y sale una sola vez.
       const { status, output } = runGuards({
         [`${ADMIN}/page.tsx`]: GUARDED_PAGE,
         [`${ADMIN}/way/page.tsx`]: GUARDED_PAGE,
-        [`${ADMIN}/values/page.tsx`]: NO_CALLS,
+        [`${ADMIN}/principles/page.tsx`]: "export default function Page() {}\n",
       });
 
       expect(status).toBe(1);
-      expect(output).toContain(`${FOLDER}/values/page.tsx`);
+      expect(output.split(`${FOLDER}/principles/page.tsx`)).toHaveLength(2);
     });
   });
 });

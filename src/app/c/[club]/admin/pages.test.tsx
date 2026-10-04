@@ -48,8 +48,8 @@ import AdminValuesPage from "./values/page";
 import AdminWayPage from "./way/page";
 
 // Cada página de Gestión pide el contexto y la comprobación de dirección ella misma: un
-// layout no protege a sus páginas. `pnpm check:guards` exige `requireAdmin(` en cada una;
-// aquí se comprueba que además hace lo que promete.
+// layout no protege a sus páginas. `pnpm check:guards` exige que cada una se exporte con
+// `adminPage(`; aquí se comprueba que además hace lo que promete.
 const PARAMS = { params: Promise.resolve({ club: "club-a" }), searchParams: Promise.resolve({}) };
 
 const PAGES: Array<[string, (props: typeof PARAMS) => Promise<unknown>]> = [
