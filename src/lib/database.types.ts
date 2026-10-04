@@ -684,7 +684,7 @@ isOneToOne: false
 { Args: { "p_ids": (string)[],"p_kind": string,"p_org": string }; Returns: undefined
                            },
 "save_drill":
-{ Args: { "p_drill": string,"p_expected_updated_at": string,"p_org": string,"p_payload": Json }; Returns: {
+{ Args: { "p_drill"?: string,"p_expected_updated_at"?: string,"p_org": string,"p_payload"?: Json }; Returns: {
               "id": string,"updated_at": string
             }[]
                            },
