@@ -216,6 +216,12 @@ isOneToOne: false
                   }
                   Relationships: [
                     {
+      foreignKeyName: "drills_diagram_fk"
+      columns: ["organization_id","diagram_media_id"]
+isOneToOne: false
+      referencedRelation: "media_assets"
+      referencedColumns: ["organization_id","id"]
+    },{
       foreignKeyName: "drills_organization_id_fkey"
       columns: ["organization_id"]
 isOneToOne: false
@@ -305,6 +311,25 @@ isOneToOne: false
       referencedColumns: ["organization_id","id"]
     },{
       foreignKeyName: "games_organization_id_fkey"
+      columns: ["organization_id"]
+isOneToOne: false
+      referencedRelation: "organizations"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"media_assets": {
+                  Row: {
+                    "bucket": string,"bytes": number,"contains_minor": boolean,"created_at": string,"created_by": string | null,"id": string,"kind": string,"mime": string,"organization_id": string,"path": string
+                  }
+                  Insert: {
+                    "bucket"?: string,"bytes": number,"contains_minor"?: boolean,"created_at"?: string,"created_by"?: string | null,"id"?: string,"kind": string,"mime": string,"organization_id": string,"path": string
+                  }
+                  Update: {
+                    "bucket"?: string,"bytes"?: number,"contains_minor"?: boolean,"created_at"?: string,"created_by"?: string | null,"id"?: string,"kind"?: string,"mime"?: string,"organization_id"?: string,"path"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "media_assets_organization_id_fkey"
       columns: ["organization_id"]
 isOneToOne: false
       referencedRelation: "organizations"
