@@ -680,7 +680,13 @@ isOneToOne: false
             [_ in never]: never
           }
           Functions: {
-            "reorder_methodology":
+            "create_practice_session":
+{ Args: { "p_ends_at": string,"p_location"?: string,"p_primary_focus"?: string,"p_secondary_focus"?: string,"p_starts_at": string,"p_team": string,"p_title": string }; Returns: string
+                           },
+"duplicate_practice":
+{ Args: { "p_event": string,"p_starts_at": string }; Returns: string
+                           },
+"reorder_methodology":
 { Args: { "p_ids": (string)[],"p_kind": string,"p_org": string }; Returns: undefined
                            },
 "save_drill":
@@ -690,6 +696,9 @@ isOneToOne: false
                            },
 "save_game_principle":
 { Args: { "p_id": string,"p_points": (string)[],"p_summary": string,"p_title": string }; Returns: undefined
+                           },
+"save_practice_items":
+{ Args: { "p_expected_updated_at": string,"p_items": Json,"p_plan": string }; Returns: string
                            },
 "search_drills":
 { Args: { "p_age"?: number,"p_focus"?: string,"p_minutes"?: number,"p_org": string,"p_players"?: number,"p_principle"?: string,"p_q"?: string }; Returns: {
@@ -720,6 +729,9 @@ isOneToOne: false
         isOneToOne: false
         isSetofReturn: true
       } },
+"update_practice_session":
+{ Args: { "p_ends_at": string,"p_event": string,"p_expected_updated_at": string,"p_location"?: string,"p_notes"?: string,"p_primary_focus"?: string,"p_secondary_focus"?: string,"p_starts_at": string,"p_title": string }; Returns: string
+                           },
 "update_way_section":
 { Args: { "p_body_md": string,"p_content_kind": string,"p_expected_updated_at": string,"p_id": string,"p_summary": string,"p_title": string }; Returns: string
                            }
