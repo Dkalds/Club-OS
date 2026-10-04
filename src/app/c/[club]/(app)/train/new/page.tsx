@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { requireClub } from "@/lib/guards";
 import { can } from "@/lib/permissions";
-import { isoToLocalInputs } from "@/lib/time";
+import { defaultSessionDate } from "@/lib/time";
 import { DEFAULT_SESSION_MINUTES, DEFAULT_SESSION_TIME } from "@/modules/practice/limits";
 import { getPracticeFormOptions } from "@/modules/practice/queries";
 import { BackLink } from "@/ui/back-link";
@@ -19,10 +19,11 @@ import { PracticeForm } from "../_components/practice-form";
  * que aún no está en un equipo, con su salida. Si las opciones no se pueden leer, lanza y lo
  * recoge `error.tsx`.
  *
- * Los valores de partida se calculan aquí, en el servidor: el primer equipo, hoy en la zona
- * del club (regla 7: nunca la del dispositivo), la hora y la duración con las que se propone
- * un entrenamiento. `can` solo protege lo que se ve: lo que protege de verdad es RLS y la
- * acción de crear.
+ * Los valores de partida se calculan aquí, en el servidor: el primer equipo, la hora y la
+ * duración con las que se propone un entrenamiento, y el día. El día es hoy en la zona del club
+ * (regla 7: nunca la del dispositivo) o, si esa hora ya ha pasado, mañana (`defaultSessionDate`):
+ * una sesión creada sin tocar la fecha no nace en el pasado, directa al histórico. `can` solo
+ * protege lo que se ve: lo que protege de verdad es RLS y la acción de crear.
  */
 export default async function NewPracticePage({ params }: PageProps<"/c/[club]/train/new">) {
   const { club } = await params;
@@ -46,7 +47,7 @@ export default async function NewPracticePage({ params }: PageProps<"/c/[club]/t
           initial={{
             teamId: firstTeam.id,
             title: "",
-            date: isoToLocalInputs(new Date().toISOString(), ctx.org.timezone).date,
+            date: defaultSessionDate(new Date().toISOString(), ctx.org.timezone, DEFAULT_SESSION_TIME),
             time: DEFAULT_SESSION_TIME,
             durationMinutes: String(DEFAULT_SESSION_MINUTES),
             primaryFocusId: "",

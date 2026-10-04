@@ -126,6 +126,17 @@ describe("/train/new, pantalla", () => {
 
     expect(formProps().initial.date).toBe("2026-10-05");
   });
+
+  it("pasada la hora de partida, la fecha es mañana: la sesión no se propone en el pasado", async () => {
+    // 17:00 UTC del 5 de octubre: en Madrid son las 19:00, y las 18:00 de hoy ya han pasado.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-05T17:00:00.000Z"));
+
+    render(await NewPracticePage(props()));
+
+    expect(formProps().initial.date).toBe("2026-10-06");
+    expect(formProps().initial.time).toBe("18:00");
+  });
 });
 
 describe("/train/new, sin equipos", () => {

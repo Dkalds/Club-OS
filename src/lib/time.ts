@@ -154,6 +154,22 @@ export function isoToLocalInputs(iso: string, tz: string): { date: string; time:
 }
 
 /**
+ * Día que se propone para una sesión nueva: hoy en la zona del club o, si la hora por defecto ya pasó, mañana.
+ *
+ * `time` es esa hora (`HH:mm`, en el reloj de `timezone`) y lo que vuelve, el día como lo
+ * escribe un campo de fecha (`YYYY-MM-DD`). «Ya pasó» incluye el instante exacto: una sesión
+ * que empieza ahora ya no está por venir. Mañana es el día siguiente del calendario del club,
+ * no 24 h después: con el cambio de hora un día dura 23 o 25 horas.
+ */
+export function defaultSessionDate(nowIso: string, timezone: string, time: string): string {
+  const today = isoToLocalInputs(nowIso, timezone).date;
+  const startsToday = zonedDateTimeToIso(today, time, timezone);
+  if (new Date(nowIso).getTime() < new Date(startsToday).getTime()) return today;
+
+  return isoToLocalInputs(addLocalDays(nowIso, 1, timezone), timezone).date;
+}
+
+/**
  * La próxima sesión de una serie semanal: el primer instante, con el mismo día de la semana
  * y la misma hora de reloj que `startIso`, estrictamente posterior a `startIso` y a `nowIso`.
  *

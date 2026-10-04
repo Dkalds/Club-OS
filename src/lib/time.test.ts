@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   addLocalDays,
   dayChip,
+  defaultSessionDate,
   formatEventSlot,
   formatGameSlot,
   greeting,
@@ -456,6 +457,66 @@ describe("nextWeeklySlot", () => {
   });
 });
 
+describe("defaultSessionDate", () => {
+  const AT_18 = "18:00";
+
+  it("antes de la hora por defecto propone hoy", () => {
+    // Martes 6 oct 2026 en Madrid (CEST, UTC+2): las 10:00 y las 17:59:59.
+    expect(defaultSessionDate("2026-10-06T08:00:00.000Z", MADRID, AT_18)).toBe("2026-10-06");
+    expect(defaultSessionDate("2026-10-06T15:59:59.999Z", MADRID, AT_18)).toBe("2026-10-06");
+  });
+
+  it("a la hora exacta propone mañana: una sesión que empieza ahora ya no está por venir", () => {
+    expect(defaultSessionDate("2026-10-06T16:00:00.000Z", MADRID, AT_18)).toBe("2026-10-07");
+  });
+
+  it("pasada la hora por defecto propone mañana", () => {
+    expect(defaultSessionDate("2026-10-06T16:00:01.000Z", MADRID, AT_18)).toBe("2026-10-07");
+    expect(defaultSessionDate("2026-10-06T19:30:00.000Z", MADRID, AT_18)).toBe("2026-10-07");
+  });
+
+  it("la hora que cuenta es la que se le pasa", () => {
+    // Las 10:00 en Madrid: unas 09:30 ya han pasado; unas 10:01, no.
+    expect(defaultSessionDate("2026-10-06T08:00:00.000Z", MADRID, "09:30")).toBe("2026-10-07");
+    expect(defaultSessionDate("2026-10-06T08:00:00.000Z", MADRID, "10:01")).toBe("2026-10-06");
+  });
+
+  it("mañana cruza el mes y el año: justo antes de la medianoche del 31 de diciembre es el 1 de enero", () => {
+    // Las 23:59:59 del 31 dic en Madrid (CET, UTC+1).
+    expect(defaultSessionDate("2026-12-31T22:59:59.000Z", MADRID, AT_18)).toBe("2027-01-01");
+  });
+
+  it("el día es el del club, no el de UTC", () => {
+    // Martes 6 oct, 21:30 en Ciudad de México (UTC−6): en UTC ya es miércoles 7. Hoy es el 6
+    // del club y mañana, el 7; contando desde el día de UTC saldría el 8.
+    expect(defaultSessionDate("2026-10-07T03:30:00.000Z", MEXICO, AT_18)).toBe("2026-10-07");
+    // Y a las 17:00 de allí son las 23:00 UTC del 6: aún no son las 18:00 del club.
+    expect(defaultSessionDate("2026-10-06T23:00:00.000Z", MEXICO, AT_18)).toBe("2026-10-06");
+    // Al revés, en Madrid: las 00:30 del 7 son las 22:30 UTC del 6, y hoy ya es 7.
+    expect(defaultSessionDate("2026-10-06T22:30:00.000Z", MADRID, AT_18)).toBe("2026-10-07");
+  });
+
+  it("mañana es el día siguiente del calendario, no 24 h después: con el cambio de hora de octubre", () => {
+    // Sábado 24 oct 2026, 20:00 CEST. El domingo 25 dura 25 horas.
+    expect(defaultSessionDate("2026-10-24T18:00:00.000Z", MADRID, AT_18)).toBe("2026-10-25");
+    // Y el propio domingo, a las 19:00 CET: mañana es lunes 26.
+    expect(defaultSessionDate("2026-10-25T18:00:00.000Z", MADRID, AT_18)).toBe("2026-10-26");
+    // Ese domingo las 18:00 son las 17:00Z, no las 16:00Z: a las 16:30Z todavía es hoy.
+    expect(defaultSessionDate("2026-10-25T16:30:00.000Z", MADRID, AT_18)).toBe("2026-10-25");
+  });
+
+  it("y con el de marzo: el sábado por la noche propone el domingo de 23 horas, no el lunes", () => {
+    // Sábado 28 mar 2026, 23:30 CET: 24 h después ya sería lunes 30, 00:30 CEST.
+    expect(defaultSessionDate("2026-03-28T22:30:00.000Z", MADRID, AT_18)).toBe("2026-03-29");
+  });
+
+  it("rechaza un instante sin Z ni desfase, una hora que no existe y una zona que no existe", () => {
+    expect(() => defaultSessionDate("2026-10-06T18:00:00", MADRID, AT_18)).toThrow(RangeError);
+    expect(() => defaultSessionDate("2026-10-06T16:00:00.000Z", MADRID, "25:00")).toThrow(RangeError);
+    expect(() => defaultSessionDate("2026-10-06T16:00:00.000Z", "Europa/Madrid", AT_18)).toThrow(RangeError);
+  });
+});
+
 describe("independencia de la zona del dispositivo (regla 7)", () => {
   const original = process.env.TZ;
 
@@ -485,6 +546,8 @@ describe("independencia de la zona del dispositivo (regla 7)", () => {
       expect(nextWeeklySlot("2026-10-20T16:00:00.000Z", "2026-10-21T08:00:00.000Z", MADRID)).toBe(
         "2026-10-27T17:00:00.000Z",
       );
+      expect(defaultSessionDate("2026-10-06T22:30:00.000Z", MADRID, "18:00")).toBe("2026-10-07");
+      expect(defaultSessionDate("2026-10-06T16:30:00.000Z", MADRID, "18:00")).toBe("2026-10-07");
     },
   );
 });
