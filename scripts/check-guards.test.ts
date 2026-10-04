@@ -201,6 +201,25 @@ describe("check-guards.sh", { timeout: SPAWN_TIMEOUT_MS }, () => {
           "de JSX, en una línea que abre con {/*",
           "export const a = (\n  <div>\n    {/* Como /way#1abc, #fff o #ff0000cc. */}\n    <p />\n  </div>\n);\n",
         ],
+        [
+          "de bloque, con la línea que lo cierra al final del texto",
+          "/**\n * Una URL con ancla, como /way#1abc */\nexport const a = 1;\n",
+        ],
+        [
+          "de bloque que abre y sigue en las líneas de abajo",
+          "/* Como /way#1abc, y sigue\n * en esta línea.\n */\nexport const a = 1;\n",
+        ],
+        [
+          "de JSX que abre y sigue en las líneas de abajo",
+          "export const a = (\n  <div>\n    {/* Como /way#1abc, y sigue\n     * en esta línea. */}\n  </div>\n);\n",
+        ],
+        ["de una línea con asteriscos de adorno", "/*** Como /way#1abc ***/\nexport const a = 1;\n"],
+        ["JSDoc de una línea con su tipo", "/** @type {Anchor} como /way#1abc */\nexport const a = 1;\n"],
+        [
+          // Tal cual lo escribe `src/ui/scroll-to-hash.tsx`: el comentario que motivó este filtro.
+          "de bloque con comillas y paréntesis, como el de scroll-to-hash",
+          "/**\n * `id`, nunca con un selector construido con el texto de la URL (un `#1abc` o unas comillas lo\n * romperían). Como hace el navegador.\n */\nexport const a = 1;\n",
+        ],
       ])("no cuenta si es %s", (_label, source) => {
         const { status, output } = runGuards(withAdmin({ "ui/note.tsx": source }));
 
@@ -235,6 +254,16 @@ describe("check-guards.sh", { timeout: SPAWN_TIMEOUT_MS }, () => {
         // El filtro mira cómo empieza la línea, no si hay un `//` en alguna parte: un comentario
         // detrás de código sigue siendo una línea de código.
         ["en un comentario que sigue a código en la misma línea", "const a = 1; // el ancla #1abc"],
+        // Una línea que empieza como un comentario pero sigue con código después de cerrarlo
+        // (Prettier deja los comentarios de bloque en la línea del código al que acompañan).
+        ["tras un comentario de bloque que se cierra en la misma línea", '/* x */ const c = "#ff0000";'],
+        ["tras un JSDoc de una línea", '/** @type {T} */ const c = { bg: "#fff" };'],
+        ["tras un comentario de JSX en la misma línea", '{/* x */}<div className="bg-[#ff0000]" />'],
+        ["tras el cierre de un bloque que empezó arriba, con *", ' * x */ const c = "#ff0000";'],
+        ["tras el cierre de un bloque que empezó arriba, sin *", ' */ const c = "#ff0000";'],
+        ["tras un comentario de bloque con asteriscos de adorno", '/*** x ***/ const c = "#ff0000";'],
+        ["tras un comentario de bloque vacío", '/**/ const c = "#ff0000";'],
+        ["tras un comentario de bloque, con otro de línea detrás", '/* x */ const c = "#fff"; // y'],
       ])("sigue contando en código: %s", (_label, line) => {
         const { status, output } = runGuards(withAdmin({ "ui/note.tsx": `${line}\n` }));
 
@@ -242,6 +271,25 @@ describe("check-guards.sh", { timeout: SPAWN_TIMEOUT_MS }, () => {
         expect(output).toContain("FALLO: src/ lleva un color hex");
         expect(output).toContain(`src/ui/note.tsx:1:${line}`);
       });
+    });
+
+    // Una línea que empieza por `*` solo es de comentario si el asterisco va seguido de un
+    // espacio o del final de la línea. `*:` y `**:` son las variantes de Tailwind v4 para los
+    // hijos, y una clase puede ir en una línea suya dentro de una cadena larga.
+    it.each([
+      ["*:bg-[#ff0000]", "una variante *: de Tailwind"],
+      ["**:text-[#fff]", "una variante **: de Tailwind"],
+    ])("una línea de clase que empieza por * cuenta: %s (%s)", (cls) => {
+      const { status, output } = runGuards(
+        withAdmin({
+          "ui/note.tsx": ["export const c = `", "  flex gap-2", `  ${cls}`, "`;", ""].join("\n"),
+        }),
+      );
+
+      expect(status).toBe(1);
+      expect(output).toContain("FALLO: src/ lleva un color hex");
+      expect(output).toContain(`src/ui/note.tsx:3:  ${cls}`);
+      expect(output).not.toContain("check:guards OK");
     });
 
     it("un test con un hex no cuenta: puede nombrarlo para comprobar que no sale", () => {

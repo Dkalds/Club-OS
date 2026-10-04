@@ -69,13 +69,30 @@ tsx_only=(--include='*.tsx' --exclude='*.test.tsx')
 #
 # Una línea de comentario no cuenta: un comentario que nombra un ancla (`/way#1abc`) o una
 # entidad no es un color de la interfaz, y el guard no puede distinguirlo de uno por su forma.
-# Es comentario la línea cuyo primer carácter que no es un espacio abre uno (`//`, `/*`, `*`
-# en las líneas de en medio de un bloque, o `{/*` en un comentario de JSX). Los comentarios
-# que siguen a código en su misma línea sí cuentan, igual que cualquier hex dentro de código
-# (un `className`, un `style`): ahí sí podría ser un color de verdad. La excepción se aplica
-# sobre la salida de grep (`archivo:línea:texto`), de ahí el prefijo.
+# Lo que se salta, y solo eso, es la línea que es entera un comentario:
+#   - `//` como primer carácter que no es un espacio: todo lo que sigue es comentario.
+#   - `/*` o `{/*` (comentario de bloque o de JSX) o un `*` seguido de un espacio o del final
+#     de la línea (las líneas de en medio de un bloque), siempre que nada salvo espacios o un
+#     `}` cierre siga a un `*/`. Una línea con un `*/` y código detrás (`/* x */ const c = "#f00"`,
+#     `{/* x */}<div className="bg-[#f00]" />`, ` */ const c = ...`) es una línea de código con
+#     un comentario delante: se comprueba entera. El comentario con un `*/` en medio de la línea
+#     se marca aunque sea solo texto (un falso positivo visible: se reescribe y ya).
+# El `*` pide un espacio o el final de la línea detrás porque `*:` y `**:` son variantes de
+# Tailwind (`*:bg-[#f00]`) y una clase puede ir en una línea suya.
+#
+# Lo que NO se salta: el comentario que sigue a código en su misma línea (`x(); // #1abc`), un
+# hex dentro de código (un `className`, un `style`), y la línea de en medio de un bloque que no
+# empieza por `*` (su primer carácter no la delata como comentario: empiézala por `*` para que
+# se salte). Tampoco distingue qué hay dentro de una cadena: un ` * { color: #fff }` en un CSS
+# dentro de una plantilla de texto se salta como si fuera un comentario, y no hay forma de
+# evitarlo mirando solo cómo empieza la línea.
+#
+# La excepción se aplica sobre la salida de grep (`archivo:línea:texto`), de ahí el prefijo.
+# Es una regex extendida POSIX (sin `-P`, sin rangos que dependan del locale). La parte de
+# después del abridor es «texto sin ningún `*/`» (`[^*]` o una racha de `*` que no cierra),
+# y solo puede acabar en un `*/` seguido de espacios o `}` hasta el final de la línea.
 check_absent_except "src/ lleva un color hex (usa un token de color: bg-surface-1, text-ink...)" \
-  '^[^:]*:[0-9]+:[[:space:]]*(//|/\*|\*|\{/\*)' \
+  '^[^:]*:[0-9]+:[[:space:]]*(//|(/\*|\{/\*|\*([[:space:]]|$))([^*]|\*+[^*/])*(\*+/[[:space:]}]*)?$)' \
   -rnE "${tsx_only[@]}" '#([[:xdigit:]]{3,4}|[[:xdigit:]]{6}|[[:xdigit:]]{8})\b'
 
 # Nada de medidas entre corchetes con unidad (`min-h-[220px]`, `w-[70%]`). Las medidas son un
