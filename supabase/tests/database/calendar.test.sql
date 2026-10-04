@@ -248,18 +248,22 @@ select results_eq(
   'plantilla privada: c1 ve la que ha creado, y no las de otros'
 );
 
--- En esta fase no hay escrituras para usuarios: ni política ni privilegio.
+-- Desde `20261117000200_practice_write.sql` el cuerpo técnico escribe las sesiones de su
+-- equipo, y solo las suyas (quién escribe qué, en practice_write.test.sql). c1 no crea un plan
+-- en T2; y de los cinco ítems que ve cambia los cuatro de los planes de T1, no el de su
+-- plantilla privada, que no tiene equipo. Los eventos siguen sin borrarse.
 select throws_ok(
   $$insert into practice_plans (organization_id, team_id, title)
-    values (current_setting('fx.club_a')::uuid, current_setting('fx.t1')::uuid, 'Plan nuevo')$$,
-  '42501', null,
-  'nadie crea planes en esta fase'
+    values (current_setting('fx.club_a')::uuid, current_setting('fx.t2')::uuid, 'Plan nuevo')$$,
+  '42501', 'new row violates row-level security policy for table "practice_plans"',
+  'c1 no crea planes en un equipo que no es el suyo'
 );
 
-select throws_ok(
-  $$update practice_items set minutes = 5$$,
-  '42501', null,
-  'nadie edita ítems en esta fase'
+select results_eq(
+  $$with u as (update practice_items set minutes = 5 returning 1)
+    select count(*)::int from u$$,
+  array[4],
+  'c1 edita los ítems de los planes de su equipo, y no el de su plantilla privada'
 );
 
 select throws_ok(
@@ -820,8 +824,10 @@ select is_empty(
   'anon no tiene ningún privilegio sobre las tablas'
 );
 
-select is_empty(
-  $$select c.relname, p.privilege
+-- Sobre la tabla entera, `authenticated` solo tiene además el `delete` de los ítems. El alta y
+-- el cambio de eventos, planes e ítems van por columnas (cuáles, en posture.test.sql).
+select results_eq(
+  $$select c.relname::text collate "default", p.privilege
     from pg_class as c
     cross join unnest(
       array['insert', 'update', 'delete', 'truncate', 'references', 'trigger']
@@ -831,7 +837,8 @@ select is_empty(
     where c.relnamespace = 'public'::regnamespace
       and c.relname in ('focus_areas', 'events', 'games', 'practice_plans', 'practice_items')
       and has_table_privilege('authenticated', c.oid, p.privilege)$$,
-  'authenticated no tiene privilegios de escritura'
+  $$values ('practice_items', 'delete')$$,
+  'authenticated no tiene más privilegio de escritura sobre una tabla entera que borrar ítems'
 );
 
 select results_eq(
@@ -855,9 +862,11 @@ select results_eq(
   'service_role puede leer y escribir las cinco tablas'
 );
 
--- Sin política no hay acceso, y en esta fase solo hay lectura: una política por tabla,
--- `for select` y solo para `authenticated`. Las columnas de tipo `name` del catálogo
--- llevan la collation "C"; se pasan a la de por defecto para compararlas con `values`.
+-- Sin política no hay acceso. Los focos y los partidos solo se leen: una política, `for
+-- select`. Los eventos, los planes y los ítems tienen además las de escritura de
+-- `20261117000200_practice_write.sql`: alta y cambio, y borrado solo en los ítems. Todas son
+-- solo para `authenticated`. Las columnas de tipo `name` del catálogo llevan la collation "C";
+-- se pasan a la de por defecto para compararlas con `values`.
 select results_eq(
   $$select tablename::text collate "default", policyname::text collate "default",
            cmd, roles::text[] collate "default", permissive
@@ -866,12 +875,19 @@ select results_eq(
       and tablename in ('focus_areas', 'events', 'games', 'practice_plans', 'practice_items')
     order by 1, 2$$,
   $$values
+    ('events', 'events_insert_practice_managed', 'INSERT', array['authenticated'], 'PERMISSIVE'),
     ('events', 'events_select_admin_or_staff', 'SELECT', array['authenticated'], 'PERMISSIVE'),
+    ('events', 'events_update_practice_managed', 'UPDATE', array['authenticated'], 'PERMISSIVE'),
     ('focus_areas', 'focus_areas_select_member', 'SELECT', array['authenticated'], 'PERMISSIVE'),
     ('games', 'games_select_admin_or_staff', 'SELECT', array['authenticated'], 'PERMISSIVE'),
+    ('practice_items', 'practice_items_delete_editable', 'DELETE', array['authenticated'], 'PERMISSIVE'),
+    ('practice_items', 'practice_items_insert_editable', 'INSERT', array['authenticated'], 'PERMISSIVE'),
     ('practice_items', 'practice_items_select_visible', 'SELECT', array['authenticated'], 'PERMISSIVE'),
-    ('practice_plans', 'practice_plans_select_visible', 'SELECT', array['authenticated'], 'PERMISSIVE')$$,
-  'una sola política por tabla, de lectura y solo para authenticated'
+    ('practice_items', 'practice_items_update_editable', 'UPDATE', array['authenticated'], 'PERMISSIVE'),
+    ('practice_plans', 'practice_plans_insert_managed', 'INSERT', array['authenticated'], 'PERMISSIVE'),
+    ('practice_plans', 'practice_plans_select_visible', 'SELECT', array['authenticated'], 'PERMISSIVE'),
+    ('practice_plans', 'practice_plans_update_editable', 'UPDATE', array['authenticated'], 'PERMISSIVE')$$,
+  'las políticas de las cinco tablas: lectura en todas, escritura solo en eventos, planes e ítems, y solo para authenticated'
 );
 
 -- La función de RLS: `stable security definer` con `search_path` vacío, y fuera del
