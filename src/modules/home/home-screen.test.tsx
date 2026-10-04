@@ -18,6 +18,12 @@ const PRACTICE: HomePractice = {
 /** El kicker de la card del entrenamiento: lo fijo y, tras el punto medio, el equipo. */
 const PRACTICE_KICKER = "Próximo entrenamiento · Equipo A";
 
+// Para afirmar que una card NO está se busca por el arranque de su kicker, no por el texto
+// entero: así la aserción falla con cualquier variante (otro equipo, sin equipo, algo detrás).
+// Con el texto entero pasaría pintara lo que pintara la pantalla.
+const ANY_PRACTICE_KICKER = /^Próximo entrenamiento/;
+const ANY_GAME_KICKER = /^Próximo partido/;
+
 const GAME: HomeGame = {
   eventId: "e-3",
   teamName: "Equipo A",
@@ -167,7 +173,7 @@ describe("HomeScreen con equipos", () => {
 
     const title = screen.getByRole("heading", { level: 2, name: "No hay entrenamientos programados" });
     expect(screen.getByText("Cuando haya una sesión en el calendario, la verás aquí.")).toBeInTheDocument();
-    expect(screen.queryByText(PRACTICE_KICKER)).not.toBeInTheDocument();
+    expect(screen.queryByText(ANY_PRACTICE_KICKER)).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Abrir entrenamiento" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Nueva sesión" })).not.toBeInTheDocument();
     // Ocupa el sitio del entrenamiento: antes del partido y de la semana.
@@ -195,7 +201,7 @@ describe("HomeScreen con equipos", () => {
   it("sin partido no hay card de partido", () => {
     renderHome(home({ nextGame: null, week: WEEK.slice(0, 2) }));
 
-    expect(screen.queryByText("Próximo partido")).not.toBeInTheDocument();
+    expect(screen.queryByText(ANY_GAME_KICKER)).not.toBeInTheDocument();
     expect(screen.getByText(PRACTICE_KICKER)).toBeInTheDocument();
     expect(within(weekSection()).getAllByRole("link")).toHaveLength(2);
   });
@@ -229,7 +235,7 @@ describe("HomeScreen sin equipos", () => {
 
     expect(screen.getAllByRole("heading")).toHaveLength(2);
     expect(screen.queryByText("No hay entrenamientos programados")).not.toBeInTheDocument();
-    expect(screen.queryByText("Próximo partido")).not.toBeInTheDocument();
+    expect(screen.queryByText(ANY_GAME_KICKER)).not.toBeInTheDocument();
     expect(screen.queryByText("Esta semana")).not.toBeInTheDocument();
     expect(screen.queryByText("No hay nada más esta semana.")).not.toBeInTheDocument();
     expect(screen.queryByRole("link")).not.toBeInTheDocument();
@@ -238,8 +244,8 @@ describe("HomeScreen sin equipos", () => {
   it("aunque llegaran eventos, sin equipos no se pintan", () => {
     renderHome(home({ hasTeams: false }));
 
-    expect(screen.queryByText(PRACTICE_KICKER)).not.toBeInTheDocument();
-    expect(screen.queryByText("Próximo partido")).not.toBeInTheDocument();
+    expect(screen.queryByText(ANY_PRACTICE_KICKER)).not.toBeInTheDocument();
+    expect(screen.queryByText(ANY_GAME_KICKER)).not.toBeInTheDocument();
     expect(screen.queryByText("Esta semana")).not.toBeInTheDocument();
   });
 
