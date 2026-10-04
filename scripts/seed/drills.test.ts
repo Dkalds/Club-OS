@@ -52,11 +52,19 @@ const ARCANGEL_TABLE: Row[] = [
   ["Movilidad dinámica", [8, null], [4, 16], [8, 10], ["tecnica"], []],
   ["Rueda de entradas", [8, null], [6, 16], [8, 12], ["tecnica", "tiro"], []],
   ["4x4 transición", [12, null], [8, 12], [15, 20], ["transicion", "defensa"], [2, 4, 5]],
+  // Los tres que suma la Fase 4 (contrato entre fases: de 18 a 21): enlazan tres de los seis
+  // ítems de «Defensa presionante».
+  ["Ayuda y recuperación 3x3", [12, null], [6, 12], [12, 15], ["defensa"], [1, 2]],
+  ["Presión al balón en medio campo", [12, null], [6, 12], [10, 15], ["defensa"], [2]],
+  ["Bloqueo y rebote 3x3", [10, null], [6, 12], [10, 12], ["rebote"], [3]],
 ];
 
+// Los tres ejercicios que suma la Fase 4, por título.
+const PHASE_4_TITLES = ["Ayuda y recuperación 3x3", "Presión al balón en medio campo", "Bloqueo y rebote 3x3"];
+
 describe("ARCANGEL_DRILLS: la tabla del brief", () => {
-  it("son 18, con título, edad, jugadores, minutos, focos y Standards de la tabla", () => {
-    expect(ARCANGEL_DRILLS).toHaveLength(18);
+  it("son 21, con título, edad, jugadores, minutos, focos y Standards de la tabla", () => {
+    expect(ARCANGEL_DRILLS).toHaveLength(21);
     expect(
       ARCANGEL_DRILLS.map((d) => [d.title, d.age, d.players, d.minutes, d.focus, d.standards]),
     ).toEqual(ARCANGEL_TABLE);
@@ -152,10 +160,10 @@ describe("el resto de ejercicios de Arcángel", () => {
     }
   });
 
-  it("3 o 4 puntos: los dos primeros clave, o solo el primero si hay 3", () => {
+  it("3 o 4 puntos: con 4 los dos primeros clave; con 3, solo el primero (los de la Fase 3) o los dos primeros (los tres de la Fase 4)", () => {
     for (const drill of rest) {
       expect([3, 4], drill.title).toContain(drill.points.length);
-      const keyCount = drill.points.length === 3 ? 1 : 2;
+      const keyCount = drill.points.length === 4 || PHASE_4_TITLES.includes(drill.title) ? 2 : 1;
       expect(
         drill.points.map((p) => p.key === true),
         drill.title,
@@ -163,13 +171,13 @@ describe("el resto de ejercicios de Arcángel", () => {
     }
   });
 
-  it("material: Balones; solo Conos en 7 y 16; más Conos en 5, 6, 10 y 14; más Petos en 3, 4, 9, 15 y 18", () => {
+  it("material: Balones; solo Conos en 7 y 16; más Conos en 5, 6, 10 y 14; más Petos en 3, 4, 9, 15, 18, 19 y 20", () => {
     for (const drill of rest) {
       const n = numberOf(drill);
       const expected = [
         ...([7, 16].includes(n) ? [] : ["Balones"]),
         ...([5, 6, 7, 10, 14, 16].includes(n) ? ["Conos"] : []),
-        ...([3, 4, 9, 15, 18].includes(n) ? ["Petos"] : []),
+        ...([3, 4, 9, 15, 18, 19, 20].includes(n) ? ["Petos"] : []),
       ];
       expect(drill.equipment, `${n} ${drill.title}`).toEqual(expected);
     }
@@ -441,7 +449,7 @@ describe("drillId y drillIdsByTitle", () => {
 
   it("enlaza cada título exacto con el id de su ejercicio, en el club que se pide", () => {
     const ids = drillIdsByTitle("arcangel", ARCANGEL_DRILLS);
-    expect(ids.size).toBe(18);
+    expect(ids.size).toBe(21);
     expect(ids.get("Rebote + outlet")).toBe(seedId("arcangel", "drill:rebote-outlet"));
     // Exacto: ni mayúsculas ni tildes ni espacios sueltos.
     expect(ids.get("rebote + outlet")).toBeUndefined();

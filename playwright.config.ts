@@ -25,6 +25,7 @@ const ADMIN_SPECS = [
   /drill-editor\.spec\.ts/,
   /practice-session\.spec\.ts/,
   /practice-builder\.spec\.ts/,
+  /practice-drills\.spec\.ts/,
 ];
 
 // La pantalla de referencia del móvil.

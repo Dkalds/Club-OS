@@ -66,10 +66,12 @@ const DETAIL_URL = new RegExp(`${CLUB}/train/[0-9a-f-]{36}$`);
 
 /**
  * Las filas de ejercicios del detalle: las de las listas de bloques (`role="list"` explícito de
- * `Card as="ul"`) que no llevan ningún enlace. La lista de Standards también es un `ul` con
- * `role="list"`, pero sus filas son enlaces; la de objetivos de la cabecera no lleva el rol.
+ * `Card as="ul"`). Se reconocen por llevar el texto solo para lectores de pantalla de sus minutos
+ * («15 minutos»), que no llevan las filas de la lista de Standards (también un `ul` con
+ * `role="list"`); la de objetivos de la cabecera no lleva el rol. No por no llevar enlaces: un
+ * ejercicio de la biblioteca enlaza a su ficha.
  */
-const ITEM_ROWS = 'ul[role="list"]:not(:has(a)) > li';
+const ITEM_ROWS = 'ul[role="list"] > li:has(.sr-only)';
 
 /** La fila de una sesión en la lista de Entrenar: el enlace que lleva su título. */
 function row(page: Page, sessionName: string) {

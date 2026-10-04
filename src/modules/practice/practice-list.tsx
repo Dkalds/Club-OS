@@ -5,7 +5,7 @@ import { CTAButton } from "@/ui/cta-button";
 import { CheckIcon, PlusIcon, TeamIcon, TrainIcon } from "@/ui/icons";
 import { DateChip, ListRow } from "@/ui/list-row";
 import { EmptyState } from "@/ui/states";
-import { practiceMeta, statusLabel } from "./format";
+import { practiceRowSubtitle, statusLabel } from "./format";
 import type { PracticeListItem } from "./types";
 
 // Las dos pestañas de la lista son enlaces (cambian la URL, no un estado del cliente) con la
@@ -36,17 +36,6 @@ function trailOf(practice: PracticeListItem): ReactNode {
     );
   }
   return label;
-}
-
-/** «75 min · 5 ejercicios · Pabellón 2»; con varios equipos, empieza por el de la sesión. */
-function subtitleOf(practice: PracticeListItem, teamCount: number): string {
-  const meta = practiceMeta({
-    totalMinutes: practice.totalMinutes,
-    itemCount: practice.itemCount,
-    location: practice.location,
-  });
-  const team = practice.teamName.trim();
-  return teamCount > 1 && team ? `${team} · ${meta}` : meta;
 }
 
 /**
@@ -134,7 +123,7 @@ export function PracticeList({
               href={`${trainHref}/${practice.eventId}`}
               lead={<DateChip dow={practice.dow} day={practice.day} />}
               title={practice.title}
-              subtitle={subtitleOf(practice, teamCount)}
+              subtitle={practiceRowSubtitle(practice, teamCount)}
               trail={trailOf(practice)}
             />
           ))}

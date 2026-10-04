@@ -2,6 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { requireClub } from "@/lib/guards";
 import { can } from "@/lib/permissions";
 import { isoToLocalInputs } from "@/lib/time";
+import { getFocusAreas } from "@/modules/drills/queries";
 import { sessionMinutes } from "@/modules/practice/items";
 import { getPractice, getPracticeFormOptions } from "@/modules/practice/queries";
 import { PracticeEditor } from "../../_components/practice-editor";
@@ -21,7 +22,10 @@ import { PracticeEditor } from "../../_components/practice-editor";
  *
  * Los datos del formulario de «Fecha y datos» se calculan aquí, en el servidor: la fecha y la
  * hora en la zona del club (regla 7: nunca la del dispositivo) y la duración de la franja, que
- * no es la suma de los ejercicios. Si algo no se puede leer, lanza y lo recoge `error.tsx`.
+ * no es la suma de los ejercicios. Los objetivos del club para el selector de ejercicios salen de
+ * la biblioteca (`getFocusAreas`, con su slug, que es lo que filtra la búsqueda), no de las
+ * opciones del formulario, que no lo llevan. Si algo no se puede leer, lanza y lo recoge
+ * `error.tsx`.
  */
 export default async function EditPracticePage({ params }: PageProps<"/c/[club]/train/[eventId]/edit">) {
   const { club, eventId } = await params;
@@ -32,13 +36,14 @@ export default async function EditPracticePage({ params }: PageProps<"/c/[club]/
   if (!can(ctx, "practice.manage")) notFound();
   if (practice.status !== "scheduled") redirect(`/c/${ctx.org.slug}/train/${practice.eventId}`);
 
-  const options = await getPracticeFormOptions(ctx);
+  const [options, drillFocusAreas] = await Promise.all([getPracticeFormOptions(ctx), getFocusAreas(ctx)]);
 
   return (
     <PracticeEditor
       clubSlug={ctx.org.slug}
       practice={practice}
       options={options}
+      drillFocusAreas={drillFocusAreas}
       initialValues={{
         teamId: practice.teamId,
         title: practice.title,

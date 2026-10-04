@@ -48,8 +48,16 @@ type Add = (item: PracticeItemDraft) => void;
  * una función así a otra función: no pueden saber que solo se llamará desde un manejador. Como
  * prop de un componente sí la aceptan.
  */
-function ExtraActions({ render, add }: { render: (add: Add) => ReactNode; add: Add }) {
-  return render(add);
+function ExtraActions({
+  render,
+  add,
+  full,
+}: {
+  render: (add: Add, full: boolean) => ReactNode;
+  add: Add;
+  full: boolean;
+}) {
+  return render(add, full);
 }
 
 /**
@@ -77,7 +85,8 @@ function ExtraActions({ render, add }: { render: (add: Add) => ReactNode; add: A
  * Solo una fila está abierta a la vez. «Añadir bloque libre» añade al final un bloque de 10
  * minutos, abierto y con el foco en su «Título»; con 30 ítems se desactiva y dice por qué.
  * `extraActions` es el hueco de lo que añade otra cosa (los ejercicios de la biblioteca): recibe
- * `add`, que añade el ítem al final sin abrirlo (ni hace nada si ya hay 30), y lo que pinte va
+ * `add`, que añade el ítem al final sin abrirlo (ni hace nada si ya hay 30), y `full`, si la
+ * lista ya lleva los 30 (quien pinte un selector desactiva ahí sus botones), y lo que pinte va
  * encima de «Añadir bloque libre». `add` es para un manejador, y se puede llamar varias veces
  * en el mismo evento: cada llamada se suma a la anterior. «Quitar» quita sin preguntar: no se
  * pierde nada guardado hasta que se guarda. El foco va entonces a la fila que ocupa su sitio.
@@ -122,7 +131,7 @@ export function PracticeBuilder({
   onDirtyChange: (dirty: boolean) => void;
   onPendingChange: (pending: boolean) => void;
   onReload: () => void;
-  extraActions?: (add: Add) => ReactNode;
+  extraActions?: (add: Add, full: boolean) => ReactNode;
 }) {
   const { pending, failure, run } = useAction();
   const [rows, setRows] = useState<Row[]>(() => initialItems.map(toRow));
@@ -402,6 +411,7 @@ export function PracticeBuilder({
       {extraActions ? (
         <ExtraActions
           render={extraActions}
+          full={full}
           add={(item) => {
             append(item);
           }}

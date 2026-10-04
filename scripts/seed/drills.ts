@@ -80,10 +80,10 @@ const RAUL = "raul@arcangel.test";
 const IRENE = "irene@arcangel.test";
 const MARTA = "marta@demo.test";
 
-// Los 18 ejercicios de Arcángel, en el orden en que los numera el plan de la fase. Los
-// principios son los focos que son principio del club (transición, defensa, rebote y
-// ataque), más «ataque» en los números 10 y 17. «outlet» solo aparece en el 1: la búsqueda
-// de los e2e lo encuentra a él y a nadie más.
+// Los 21 ejercicios de Arcángel (18 de la Fase 3 y 3 de la Fase 4), en el orden en que los
+// numera el plan de la fase. Los principios son los focos que son principio del club
+// (transición, defensa, rebote y ataque), más «ataque» en los números 10 y 17. «outlet» solo
+// aparece en el 1: la búsqueda de los e2e lo encuentra a él y a nadie más.
 export const ARCANGEL_DRILLS: SeedDrill[] = [
   define({
     title: "Rebote + outlet",
@@ -471,6 +471,68 @@ export const ARCANGEL_DRILLS: SeedDrill[] = [
         description:
           "Un jugador extra juega siempre con el equipo que ataca y crea superioridad numérica.",
       },
+    ],
+    author: RAUL,
+  }),
+  // Los tres que suma la Fase 4 (contrato entre fases: de 18 a 21 ejercicios). Se llaman como
+  // tres de los seis ítems de «Defensa presionante», y por eso `buildSeedData` los enlaza.
+  define({
+    title: "Ayuda y recuperación 3x3",
+    age: [12, null],
+    players: [6, 12],
+    minutes: [12, 15],
+    focus: ["defensa"],
+    principles: ["defensa"],
+    standards: [1, 2],
+    equipment: ["Balones", "Petos"],
+    objective:
+      "Coordinar la ayuda y la recuperación defensiva en tres contra tres sin dejar libre a ningún rival.",
+    setupMd:
+      "Dos equipos de tres en media pista. Quien defiende ayuda cuando el balón entra en el carril y recupera su posición cuando sale.",
+    points: [
+      { text: "Ayuda con los pies antes que con las manos", key: true },
+      { text: "Comunica en voz alta antes de ayudar", key: true },
+      { text: "Recupera tu posición en cuanto el balón sale" },
+    ],
+    author: RAUL,
+  }),
+  define({
+    title: "Presión al balón en medio campo",
+    age: [12, null],
+    players: [6, 12],
+    minutes: [10, 15],
+    focus: ["defensa"],
+    principles: ["defensa"],
+    standards: [2],
+    equipment: ["Balones", "Petos"],
+    objective:
+      "Presionar al balón en medio campo para obligar al atacante a decidir rápido y con mala posición.",
+    setupMd:
+      "Tres atacantes contra tres defensores en medio campo, con el balón siempre vivo. La presión empieza en cuanto el balón cruza la línea central.",
+    points: [
+      { text: "Presiona con la cadera baja y las manos activas", key: true },
+      { text: "Cierra el pase fácil y empuja hacia la banda", key: true },
+      { text: "Los demás defienden una acción por delante" },
+    ],
+    author: RAUL,
+  }),
+  define({
+    title: "Bloqueo y rebote 3x3",
+    age: [10, null],
+    players: [6, 12],
+    minutes: [10, 12],
+    focus: ["rebote"],
+    principles: ["rebote"],
+    standards: [3],
+    equipment: ["Balones"],
+    objective:
+      "Asegurar el rebote defensivo bloqueando al rival antes de ir a por el balón en tres contra tres.",
+    setupMd:
+      "Dos equipos de tres cerca del aro, con un tirador en cada posesión. Tras el tiro, los defensores bloquean a su rival y buscan el balón.",
+    points: [
+      { text: "Localiza a tu rival antes de que se tire", key: true },
+      { text: "Bloquea con el cuerpo y salta con las dos manos", key: true },
+      { text: "Protege el balón con los codos abiertos" },
     ],
     author: RAUL,
   }),

@@ -1,6 +1,6 @@
 import { render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { PracticeDetail, SavedPracticeItem } from "@/modules/practice/types";
+import type { PracticeDetail, PracticeDetailItem } from "@/modules/practice/types";
 import { clubContext } from "@/modules/tenancy/test-support";
 
 const mocks = vi.hoisted(() => ({ getClubContext: vi.fn(), getPractice: vi.fn() }));
@@ -21,8 +21,8 @@ vi.mock("../_components/practice-actions", () => ({
 import PracticePage from "./page";
 
 // Datos neutros: los tests de `src/` no pueden nombrar a ningún club (pnpm check:guards).
-function item(n: number, phase: string | null, title: string, minutes: number): SavedPracticeItem {
-  return { id: `i-${n}`, drillId: null, title, phase, minutes, notes: null };
+function item(n: number, phase: string | null, title: string, minutes: number): PracticeDetailItem {
+  return { id: `i-${n}`, drillId: null, drillVisible: false, title, phase, minutes, notes: null };
 }
 
 // Activación · Técnica ×2 · (sin fase) · Técnica: cuatro bloques, el segundo con dos ítems.
@@ -283,13 +283,51 @@ describe("/train/[eventId], ejercicios", () => {
     expect(screen.getAllByText("Técnica")).toHaveLength(2);
   });
 
-  it("las filas son texto: ningún ítem lleva a otra pantalla", async () => {
+  it("los bloques libres son texto: no llevan a ninguna pantalla", async () => {
     await renderPage();
 
     expect(itemRows()).toHaveLength(5);
     for (const row of itemRows()) {
       expect(within(row).queryByRole("link")).not.toBeInTheDocument();
     }
+  });
+
+  describe("ejercicios de la biblioteca", () => {
+    const DRILL = "00000000-0000-4000-8000-0000000000d1";
+    const HIDDEN = "00000000-0000-4000-8000-0000000000d2";
+
+    /** Un bloque libre, un ejercicio que se ve y uno que no (el borrador de otro entrenador). */
+    function mixed(): PracticeDetailItem[] {
+      return [
+        item(1, "Técnica", "Bloque libre", 10),
+        { ...item(2, "Técnica", "Rebote y salida", 15), drillId: DRILL, drillVisible: true },
+        { ...item(3, "Técnica", "Borrador ajeno", 10), drillId: HIDDEN, drillVisible: false },
+      ];
+    }
+
+    it("el ítem con un ejercicio que se ve enlaza a su ficha, en esta misma app", async () => {
+      await renderPage({ items: mixed() });
+
+      const link = within(itemRows()[1]).getByRole("link");
+      expect(link).toHaveAttribute("href", `/c/club-a/drills/${DRILL}`);
+      expect(link).toHaveTextContent("Rebote y salida");
+      expect(link).toHaveTextContent("15 minutos");
+    });
+
+    it("el bloque libre y el ejercicio que no se ve se quedan en texto: no llevarían a ninguna ficha", async () => {
+      await renderPage({ items: mixed() });
+
+      expect(within(itemRows()[0]).queryByRole("link")).not.toBeInTheDocument();
+      expect(within(itemRows()[2]).queryByRole("link")).not.toBeInTheDocument();
+      expect(itemRows()[2]).toHaveTextContent("Borrador ajeno");
+    });
+
+    it("la URL lleva el id del ejercicio, nunca su nombre", async () => {
+      await renderPage({ items: mixed() });
+
+      const hrefs = screen.getAllByRole("link").map((link) => link.getAttribute("href"));
+      expect(hrefs.filter((href) => href?.includes("/drills/"))).toEqual([`/c/club-a/drills/${DRILL}`]);
+    });
   });
 
   it("acaba con el total, la suma de los minutos de los ítems", async () => {

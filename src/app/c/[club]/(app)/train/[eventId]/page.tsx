@@ -31,7 +31,10 @@ const STANDARDS_SHOWN = 3;
  * `<h1>`, y la fase de cada bloque, un `<h2>`.
  *
  * Los ejercicios van en bloques de fase seguida (`phaseBlocks`), numerados a lo largo de toda
- * la sesión. La fase ya la dice la cabecera del bloque, así que las filas no la repiten. Una
+ * la sesión. La fase ya la dice la cabecera del bloque, así que las filas no la repiten. Un
+ * ítem que es un ejercicio de la biblioteca enlaza a su ficha (por su id, nunca por su nombre)
+ * si `getPractice` pudo leerla (`drillVisible`); un bloque libre, o el borrador de otro
+ * entrenador que RLS esconde, se queda en texto: el enlace llevaría a un 404. Una
  * sesión sin ejercicios dice que no los tiene; si se puede editar, la salida es el «Editar
  * sesión» de las acciones, y si no, volver a Entrenar. En la cabecera, una sesión sin ejercicios
  * dura su franja (`sessionMinutes`), no 0 min.
@@ -113,6 +116,7 @@ export default async function PracticePage({ params }: PageProps<"/c/[club]/trai
                     title={item.title}
                     phase={null}
                     minutes={item.minutes}
+                    href={item.drillVisible ? `/c/${ctx.org.slug}/drills/${item.drillId}` : undefined}
                   />
                 ))}
               </Card>

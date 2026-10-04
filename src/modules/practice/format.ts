@@ -1,5 +1,5 @@
 import { formatStandardNumber } from "@/modules/methodology/format";
-import type { PracticeStatus } from "./types";
+import type { PracticeListItem, PracticeStatus } from "./types";
 
 /** Entre campos de los metadatos: espacio, U+00B7, espacio (el mismo que el resto de la app). */
 const FIELD_SEPARATOR = " · ";
@@ -35,6 +35,21 @@ export function practiceMeta({
   const place = location?.trim();
   if (place) fields.push(place);
   return fields.join(FIELD_SEPARATOR);
+}
+
+/**
+ * El subtítulo de una sesión en una lista: sus metadatos (`practiceMeta`) y, con varios equipos
+ * (`teamCount`), el de la sesión delante, para distinguirlas. Con uno solo no se repite en cada
+ * fila. Lo comparten la lista de Entrenar y el selector de sesión de la ficha de un ejercicio.
+ */
+export function practiceRowSubtitle(practice: PracticeListItem, teamCount: number): string {
+  const meta = practiceMeta({
+    totalMinutes: practice.totalMinutes,
+    itemCount: practice.itemCount,
+    location: practice.location,
+  });
+  const team = practice.teamName.trim();
+  return teamCount > 1 && team ? `${team}${FIELD_SEPARATOR}${meta}` : meta;
 }
 
 /**

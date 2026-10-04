@@ -1,26 +1,40 @@
 "use server";
 
+import { unstable_rethrow } from "next/navigation";
 import type { z } from "zod";
-import { fail, ok, type ActionResult } from "@/lib/action-result";
+import { fail, fromZodError, ok, type ActionResult } from "@/lib/action-result";
 import type { Json } from "@/lib/database.types";
+import { requireClub } from "@/lib/guards";
+import { logError } from "@/lib/log";
 import { mutate as runMutation, type Write } from "@/lib/mutate";
+import { can } from "@/lib/permissions";
 import { zonedDateTimeToIso } from "@/lib/time";
+import { parseDrillFilters } from "@/modules/drills/filters";
+import { searchDrills } from "@/modules/drills/queries";
+import type { DrillSummary } from "@/modules/drills/types";
+import { MAX_ITEMS } from "./limits";
 import {
+  addDrillToPracticeSchema,
   cancelPracticeSchema,
   createPracticeSchema,
   duplicatePracticeSchema,
+  findDrillsSchema,
+  ITEMS_COUNT,
   savePracticeItemsSchema,
   updatePracticeMetaSchema,
+  type AddDrillToPracticeInput,
   type CancelPracticeInput,
   type CreatePracticeInput,
   type DuplicatePracticeInput,
+  type FindDrillsInput,
   type SavePracticeItemsInput,
   type UpdatePracticeMetaInput,
 } from "./schema";
 import type { PracticeItemDraft } from "./types";
 
 // Acciones de las sesiones de entrenamiento: crear, editar sus datos, guardar sus ítems,
-// duplicar y cancelar. Las usa quien entrena (y la dirección).
+// duplicar, cancelar y añadir ejercicios de la biblioteca. Las usa quien entrena (y la
+// dirección).
 //
 // Todas siguen el orden de `mutate` (`@/lib/mutate`): Zod sobre la entrada, el club y el
 // permiso `practice.manage` (sin permiso, `NOT_FOUND` sin tocar la base de datos), la escritura
@@ -32,6 +46,9 @@ import type { PracticeItemDraft } from "./types";
 // al contrato de errores del proyecto (`STALE_COPY`, `SESSION_CLOSED`, `NOT_FOUND`, `INVALID`).
 // No hay ningún insert ni update directo de `events`, `practice_plans` ni `practice_items`;
 // cancelar es el único `update`, y solo del estado.
+//
+// `findDrills` solo lee (es la búsqueda del selector de ejercicios) y no pasa por `mutate`: no
+// hay nada que revalidar. Sigue su mismo orden de Zod, club y permiso.
 //
 // Todo va acotado al club de `clubSlug`. Las funciones SQL no comparan con él: las que reciben
 // un id de entreno (`update_practice_session`, `save_practice_items`, `duplicate_practice`)
@@ -293,6 +310,163 @@ export async function savePracticeItems(
       if (error) return fromDb(error);
 
       return ok({ updatedAt });
+    },
+  );
+}
+
+// ── Ejercicios de la biblioteca ─────────────────────────────────────────────────────────
+
+/**
+ * Los ejercicios publicados del club que se pueden añadir a una sesión, por título, para el
+ * selector del constructor: lo mismo que busca la biblioteca (`searchDrills`, con su tope de
+ * cien) con el texto y el objetivo (su slug) que se dan, y sin los borradores ni los archivados.
+ * Con RLS un entrenador ve además sus propios borradores y la dirección todos: un borrador no se
+ * ofrece aquí porque su ficha no la ve el resto del cuerpo técnico y la sesión la ve todo el
+ * equipo. El texto y el objetivo pasan por el lector de filtros de la biblioteca: lo que no es
+ * una búsqueda (caracteres de control, un objetivo que no es un slug) se ignora.
+ *
+ * Quien no gestiona sesiones recibe `NOT_FOUND` sin buscar nada; una lectura que falla es
+ * `SAVE_FAILED` y se registra, para que el selector diga que no pudo cargar y deje reintentar.
+ * Como el resto, el club se pide fuera de todo `try`: un club que no existe lanza el 404 de Next.
+ */
+export async function findDrills(
+  clubSlug: string,
+  input: FindDrillsInput,
+): Promise<ActionResult<DrillSummary[]>> {
+  const parsed = findDrillsSchema.safeParse(input);
+  if (!parsed.success) return fromZodError(parsed.error);
+
+  const ctx = await requireClub(clubSlug);
+  if (!can(ctx, "practice.manage")) return fail("NOT_FOUND");
+
+  try {
+    const { drills } = await searchDrills(ctx, parseDrillFilters(parsed.data));
+    return ok(drills.filter((drill) => drill.status === "published"));
+  } catch (error) {
+    unstable_rethrow(error);
+    logError("practice.find-drills", error);
+    return fail("SAVE_FAILED");
+  }
+}
+
+/**
+ * Lo que `addDrillToPractice` lee de una sesión: su plan, la copia vigente (`updated_at` tal
+ * cual lo da PostgREST, sin pasar por `Date`) y sus ítems, por `sort`, con las claves de
+ * `save_practice_items`. Un ítem sin título propio (`title_override` a null: solo lo trae un
+ * ejercicio) se devuelve así, sin inventarle uno: guardarlo no cambia lo que se ve.
+ */
+type PracticeToExtend = { planId: string; updatedAt: string; items: Json[] };
+
+/**
+ * El entreno `eventId` de este club con su plan y sus ítems; `NOT_FOUND` si no existe, es de
+ * otro club, no es un entreno o no tiene plan. Como `findPractice`, acotado por
+ * `organization_id` porque la función SQL escribe por id sin recibir el club.
+ */
+async function readPracticeToExtend(
+  { db, ctx, fromDb }: Pick<Write<unknown>, "db" | "ctx" | "fromDb">,
+  eventId: string,
+): Promise<ActionResult<PracticeToExtend>> {
+  const { data, error } = await db
+    .from("events")
+    .select(
+      "id, practice_plans(id, updated_at, practice_items(id, sort, drill_id, title_override, phase, minutes, notes))",
+    )
+    .eq("organization_id", ctx.org.id)
+    .eq("id", eventId)
+    .eq("kind", "practice")
+    .maybeSingle();
+  if (error) return fromDb(error);
+
+  const plans = data?.practice_plans;
+  const plan = Array.isArray(plans) ? plans[0] : plans;
+  if (!plan) return fail("NOT_FOUND");
+
+  const items = [...(plan.practice_items ?? [])]
+    .sort((a, b) => a.sort - b.sort)
+    .map((item) => ({
+      id: item.id,
+      drill_id: item.drill_id,
+      title: item.title_override,
+      phase: item.phase,
+      minutes: item.minutes,
+      notes: item.notes,
+    }));
+  return ok({ planId: plan.id, updatedAt: plan.updated_at, items });
+}
+
+/**
+ * Añade un ejercicio publicado de este club al final de una sesión, con `save_practice_items`:
+ * la lista de ítems de ahora (cada uno con su `id`, que se conservan) más uno nuevo con el
+ * título y los minutos mínimos del ejercicio, sin fase ni notas, y la copia esperada que se
+ * leyó. Es lo que hace «Añadir a sesión» en la ficha de un ejercicio, sin pasar por el
+ * constructor.
+ *
+ * Antes lee la sesión y el ejercicio filtrando por el club, y con RLS de quien llama: una sesión
+ * que no es de este club o que no se ve, un entreno sin plan y un ejercicio que no existe, es de
+ * otro club, está archivado o es un borrador que quien llama no ve son el mismo `NOT_FOUND`, sin
+ * llamar a la función. Con 30 ítems no cabe otro: `INVALID` en `items`, con el mensaje del
+ * constructor. Que además se gestione el equipo y que la sesión siga abierta lo dice la función
+ * (`NOT_FOUND` y `SESSION_CLOSED`, como al guardar el constructor).
+ *
+ * Quien tiene la sesión abierta en el constructor, u otra persona, ha podido guardar entre la
+ * lectura y el guardado: `STALE_COPY`. Aquí no hay nada escrito a medias que perder, así que se
+ * relee la sesión (con sus ítems nuevos) y se repite, una sola vez: una segunda copia obsoleta
+ * se devuelve. Devuelve el título del ejercicio añadido.
+ */
+export async function addDrillToPractice(
+  clubSlug: string,
+  input: AddDrillToPracticeInput,
+): Promise<ActionResult<{ title: string }>> {
+  return mutate(
+    "add-drill-to-practice",
+    clubSlug,
+    addDrillToPracticeSchema,
+    input,
+    async (run) => {
+      const { db, ctx, data, fromDb } = run;
+
+      const practice = await readPracticeToExtend(run, data.eventId);
+      if (!practice.ok) return practice;
+
+      const { data: drill, error } = await db
+        .from("drills")
+        .select("id, title, min_minutes")
+        .eq("organization_id", ctx.org.id)
+        .eq("id", data.drillId)
+        .eq("status", "published")
+        .maybeSingle();
+      if (error) return fromDb(error);
+      if (!drill) return fail("NOT_FOUND");
+
+      const added = {
+        drill_id: drill.id,
+        title: drill.title,
+        phase: null,
+        minutes: drill.min_minutes,
+        notes: null,
+      };
+
+      async function saveOn({
+        planId,
+        updatedAt,
+        items,
+      }: PracticeToExtend): Promise<ActionResult<{ title: string }>> {
+        if (items.length >= MAX_ITEMS) return fail("INVALID", { items: ITEMS_COUNT });
+
+        const { error: saveError } = await db.rpc("save_practice_items", {
+          p_plan: planId,
+          p_expected_updated_at: updatedAt,
+          p_items: [...items, added],
+        });
+        return saveError ? fromDb(saveError) : ok({ title: added.title });
+      }
+
+      const first = await saveOn(practice.data);
+      if (first.ok || first.error !== "STALE_COPY") return first;
+
+      const fresh = await readPracticeToExtend(run, data.eventId);
+      if (!fresh.ok) return fresh;
+      return saveOn(fresh.data);
     },
   );
 }

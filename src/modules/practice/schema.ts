@@ -28,7 +28,8 @@ const TIME_MISSING = "Elige una hora.";
 const DURATION_RANGE = `La duración tiene que estar entre ${MIN_SESSION_MINUTES} y ${MAX_SESSION_MINUTES} minutos.`;
 const FOCUS_INVALID = "Elige un objetivo de la lista.";
 const FOCUS_REPEATED = "El objetivo secundario tiene que ser distinto del principal.";
-const ITEMS_COUNT = `Una sesión tiene como máximo ${MAX_ITEMS} ejercicios.`;
+/** Lo que se dice al pasar de los ítems que caben en una sesión, en el constructor y al añadir desde la ficha. */
+export const ITEMS_COUNT = `Una sesión tiene como máximo ${MAX_ITEMS} ejercicios.`;
 const MINUTES_RANGE = `Entre ${MIN_MINUTES} y ${MAX_MINUTES} minutos.`;
 /** Un campo de texto que no es texto: solo lo manda un cliente manipulado, nunca el formulario. */
 const FIELD_INVALID = "Revisa este campo.";
@@ -163,6 +164,22 @@ export const savePracticeItemsSchema = z.object({
   items: z.array(item, { error: FIELD_INVALID }).max(MAX_ITEMS, ITEMS_COUNT),
 });
 
+// ── Ejercicios de la biblioteca en la sesión ─────────────────────────────────────────────
+
+/**
+ * Lo que busca el selector: un texto y un objetivo (su slug), los dos opcionales. Aquí solo se
+ * pide que sean texto; qué es una búsqueda válida (sin caracteres de control, recortada, de 80
+ * caracteres como mucho) y qué es un slug lo dice el lector de la biblioteca
+ * (`parseDrillFilters`), que es el que corre en la acción: lo que no vale se ignora, no falla.
+ */
+export const findDrillsSchema = z.object({
+  q: z.string({ error: FIELD_INVALID }).optional(),
+  focus: z.string({ error: FIELD_INVALID }).optional(),
+});
+
+/** Un ejercicio de la biblioteca que se añade al final de una sesión. */
+export const addDrillToPracticeSchema = z.object({ eventId: id, drillId: id });
+
 // ── Duplicar y cancelar ──────────────────────────────────────────────────────────────────
 
 export const duplicatePracticeSchema = z.object({ eventId: id, date, time });
@@ -173,5 +190,7 @@ export const cancelPracticeSchema = z.object({ eventId: id });
 export type CreatePracticeInput = z.input<typeof createPracticeSchema>;
 export type UpdatePracticeMetaInput = z.input<typeof updatePracticeMetaSchema>;
 export type SavePracticeItemsInput = z.input<typeof savePracticeItemsSchema>;
+export type FindDrillsInput = z.input<typeof findDrillsSchema>;
+export type AddDrillToPracticeInput = z.input<typeof addDrillToPracticeSchema>;
 export type DuplicatePracticeInput = z.input<typeof duplicatePracticeSchema>;
 export type CancelPracticeInput = z.input<typeof cancelPracticeSchema>;

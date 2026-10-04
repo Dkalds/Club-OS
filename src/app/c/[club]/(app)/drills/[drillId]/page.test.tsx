@@ -1,22 +1,28 @@
 import { render, screen, within } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { DrillDetail, DrillStatus } from "@/modules/drills/types";
 import type { Standard } from "@/modules/methodology/types";
+import type { PracticeListItem } from "@/modules/practice/types";
 import { clubContext } from "@/modules/tenancy/test-support";
 
-const mocks = vi.hoisted(() => ({ getClubContext: vi.fn(), getDrill: vi.fn() }));
+const mocks = vi.hoisted(() => ({ getClubContext: vi.fn(), getDrill: vi.fn(), listPractices: vi.fn() }));
 
 vi.mock("@/modules/tenancy/queries", () => ({ getClubContext: mocks.getClubContext }));
 vi.mock("@/modules/drills/queries", () => ({ getDrill: mocks.getDrill }));
+vi.mock("@/modules/practice/queries", () => ({ listPractices: mocks.listPractices }));
 // Como el de verdad: `notFound()` corta el render lanzando.
 vi.mock("next/navigation", () => ({
   notFound: () => {
     throw new Error("NOT_FOUND");
   },
 }));
-// Los botones de dirección son de cliente y tienen su propio test: aquí solo importa qué reciben.
+// Los botones de dirección y «Añadir a sesión» son de cliente y tienen su propio test: aquí solo
+// importa qué reciben.
 vi.mock("./drill-admin-actions", () => ({
   DrillAdminActions: (props: unknown) => <div data-testid="admin-actions" data-props={JSON.stringify(props)} />,
+}));
+vi.mock("./add-to-practice", () => ({
+  AddToPractice: (props: unknown) => <div data-testid="add-to-practice" data-props={JSON.stringify(props)} />,
 }));
 
 import DrillPage from "./page";
@@ -111,10 +117,20 @@ function sections() {
   return screen.getAllByRole("heading", { level: 2 }).map((heading) => heading.textContent);
 }
 
+/** Lo que la página le pasó a «Añadir a sesión». */
+function addProps() {
+  return JSON.parse(screen.getByTestId("add-to-practice").getAttribute("data-props") ?? "{}");
+}
+
 beforeEach(() => {
   vi.resetAllMocks();
   mocks.getClubContext.mockResolvedValue(clubContext("coach"));
   mocks.getDrill.mockResolvedValue(full());
+  mocks.listPractices.mockResolvedValue({ practices: [], teamCount: 0 });
+});
+
+afterEach(() => {
+  vi.useRealTimers();
 });
 
 describe("quién entra", () => {
@@ -293,10 +309,100 @@ describe("una ficha completa", () => {
     expect(link).toHaveAttribute("rel", "noopener noreferrer");
   });
 
-  it("no ofrece añadirlo a una sesión: eso es de otra fase", async () => {
+  it("con un jugador o una familia no sale ninguna acción de sesión: no se lee nada de Entrenar", async () => {
+    for (const role of ["player", "guardian"] as const) {
+      mocks.getClubContext.mockResolvedValue(clubContext(role));
+      const { unmount } = await renderPage();
+
+      expect(screen.queryByTestId("add-to-practice")).not.toBeInTheDocument();
+      unmount();
+    }
+    expect(mocks.listPractices).not.toHaveBeenCalled();
+  });
+});
+
+describe("«Añadir a sesión»", () => {
+  const PRACTICES: PracticeListItem[] = [
+    {
+      eventId: "00000000-0000-4000-8000-0000000000e1",
+      teamName: "Equipo A",
+      dow: "Mar",
+      day: "6",
+      time: "18:00",
+      title: "Salida de presión",
+      totalMinutes: 75,
+      itemCount: 5,
+      status: "scheduled",
+      location: "Pabellón 2",
+    },
+  ];
+
+  beforeEach(() => {
+    mocks.listPractices.mockResolvedValue({ practices: PRACTICES, teamCount: 2 });
+  });
+
+  it.each(["coach", "admin"] as const)("%s: sale en una ficha publicada, con las próximas sesiones", async (role) => {
+    mocks.getClubContext.mockResolvedValue(clubContext(role));
+
     await renderPage();
 
-    expect(screen.queryByText(/Añadir a sesión/)).not.toBeInTheDocument();
+    expect(addProps()).toEqual({ clubSlug: "club-a", drillId: DRILL_ID, practices: PRACTICES, teamCount: 2 });
+  });
+
+  it("lee las próximas sesiones con el contexto del club y la hora de ahora, y solo una vez", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-04T10:00:00.000Z"));
+
+    await renderPage();
+
+    expect(mocks.listPractices).toHaveBeenCalledTimes(1);
+    expect(mocks.listPractices).toHaveBeenCalledWith(clubContext("coach"), "upcoming", "2026-10-04T10:00:00.000Z");
+  });
+
+  it.each(["draft", "archived"] as const)(
+    "un ejercicio %s no se puede añadir a una sesión: no sale, y no se lee Entrenar",
+    async (status) => {
+      mocks.getDrill.mockResolvedValue(full({ status, createdByMe: true }));
+
+      await renderPage();
+
+      expect(screen.queryByTestId("add-to-practice")).not.toBeInTheDocument();
+      expect(mocks.listPractices).not.toHaveBeenCalled();
+    },
+  );
+
+  it("va debajo del contenido de la ficha, antes de los botones de dirección", async () => {
+    await renderPage();
+
+    const add = screen.getByTestId("add-to-practice");
+    const video = screen.getByRole("link", { name: "Ver vídeo" });
+    const actions = screen.getByTestId("admin-actions");
+    expect(video.compareDocumentPosition(add) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(add.compareDocumentPosition(actions) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("en una ficha mínima sale igual, tras la última sección que haya", async () => {
+    mocks.getDrill.mockResolvedValue(minimal());
+
+    await renderPage();
+
+    expect(screen.getByTestId("add-to-practice")).toBeInTheDocument();
+    expect(screen.queryAllByRole("heading", { level: 2 })).toHaveLength(0);
+  });
+
+  it("no cambia los botones de dirección ni lo que reciben", async () => {
+    mocks.getClubContext.mockResolvedValue(clubContext("admin"));
+    mocks.getDrill.mockResolvedValue(full({ status: "published" }));
+
+    await renderPage();
+
+    expect(adminProps()).toEqual({ clubSlug: "club-a", drillId: DRILL_ID, canPublish: false, canArchive: true });
+  });
+
+  it("si no se pueden leer las sesiones, lanza: lo recoge `error.tsx`, no se traga", async () => {
+    mocks.listPractices.mockRejectedValue(new Error("practice.list: boom"));
+
+    await expect(DrillPage(props())).rejects.toThrow("practice.list: boom");
   });
 });
 

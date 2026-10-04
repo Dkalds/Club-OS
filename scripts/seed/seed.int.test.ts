@@ -419,14 +419,14 @@ describe("seed contra Supabase local", () => {
     return counts;
   }
 
-  it("18 ejercicios de Arcángel y 1 borrador de Irene; Club Demo tiene 2", async () => {
+  it("21 ejercicios de Arcángel, 20 publicados y 1 borrador de Irene; Club Demo tiene 2", async () => {
     const { data: arcangel, error } = await admin
       .from("drills")
       .select("title, status, created_by, diagram_media_id")
       .eq("organization_id", orgId("arcangel"));
     expect(error).toBeNull();
-    expect(arcangel).toHaveLength(18);
-    expect(arcangel?.filter((d) => d.status === "published")).toHaveLength(17);
+    expect(arcangel).toHaveLength(21);
+    expect(arcangel?.filter((d) => d.status === "published")).toHaveLength(20);
     const drafts = arcangel?.filter((d) => d.status === "draft");
     expect(drafts).toEqual([
       expect.objectContaining({
@@ -539,6 +539,23 @@ describe("seed contra Supabase local", () => {
       .in("title_override", (titles ?? []).map((d) => d.title));
     expect(unlinkedError).toBeNull();
     expect(unlinked).toEqual([]);
+  });
+
+  it("«Defensa presionante» tiene 3 ítems con drill_id, y su título no cambia", async () => {
+    const plan = data.practice_plans.find((p) => p.title === "Defensa presionante");
+    const { data: items, error } = await admin
+      .from("practice_items")
+      .select("title_override, drill_id")
+      .eq("plan_id", plan?.id ?? "")
+      .order("sort");
+    expect(error).toBeNull();
+    expect(items).toHaveLength(6);
+    expect(items?.filter((item) => item.drill_id !== null)).toEqual(
+      ["Ayuda y recuperación 3x3", "Presión al balón en medio campo", "Bloqueo y rebote 3x3"].map((title) => ({
+        title_override: title,
+        drill_id: drillOf("arcangel", title).id,
+      })),
+    );
   });
 
   it("idempotente: los mismos recuentos de ejercicios, hijos y vínculos tras otra ejecución", async () => {

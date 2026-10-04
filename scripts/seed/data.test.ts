@@ -668,10 +668,10 @@ describe("buildSeedData: biblioteca de ejercicios", () => {
     rows.filter((row) => row.drill_id === drillIdValue);
   const bySort = (a: { sort: number }, b: { sort: number }) => a.sort - b.sort;
 
-  it("Arcángel tiene 18 ejercicios y Club Demo 2", () => {
-    expect(drillsOf("arcangel")).toHaveLength(18);
+  it("Arcángel tiene 21 ejercicios y Club Demo 2", () => {
+    expect(drillsOf("arcangel")).toHaveLength(21);
     expect(drillsOf("club-demo")).toHaveLength(2);
-    expect(data.drills).toHaveLength(20);
+    expect(data.drills).toHaveLength(23);
   });
 
   it("los fixtures llevan sus ejercicios (contrato entre fases)", () => {
@@ -685,7 +685,7 @@ describe("buildSeedData: biblioteca de ejercicios", () => {
       ["Bloqueo de rebote", "draft", "irene@arcangel.test"],
     ]);
     const published = states.filter(([, status]) => status === "published");
-    expect(published).toHaveLength(17);
+    expect(published).toHaveLength(20);
     expect(published.every(([, , email]) => email === "raul@arcangel.test")).toBe(true);
     expect(drillsOf("club-demo").map((d) => [d.title, d.status, d.author_email])).toEqual([
       ["Defensa individual", "published", "marta@demo.test"],
@@ -847,8 +847,36 @@ describe("buildSeedData: biblioteca de ejercicios", () => {
         (title) => [title, drillOf("arcangel", title).id],
       ),
     );
-    // Y son los únicos ítems enlazados de todo el seed.
-    expect(data.practice_items.filter((i) => i.drill_id !== null)).toHaveLength(5);
+  });
+
+  it("tres de los seis ítems de «Defensa presionante» apuntan a los ejercicios que suma la Fase 4", () => {
+    const plan = one(
+      data.practice_plans,
+      (p) => p.title === "Defensa presionante",
+      "plan de la segunda sesión",
+    );
+    const items = data.practice_items.filter((i) => i.plan_id === plan.id).sort(bySort);
+    expect(items.map((i) => i.title_override)).toEqual([
+      "Juegos de pies y reacción",
+      "Deslizamientos defensivos",
+      "Ayuda y recuperación 3x3",
+      "Presión al balón en medio campo",
+      "Bloqueo y rebote 3x3",
+      "4x4 con puntos por parada",
+    ]);
+    // Solo enlazan los que se llaman igual que un ejercicio de la biblioteca, y el título no se toca.
+    expect(items.map((i) => i.drill_id)).toEqual([
+      null,
+      null,
+      drillOf("arcangel", "Ayuda y recuperación 3x3").id,
+      drillOf("arcangel", "Presión al balón en medio campo").id,
+      drillOf("arcangel", "Bloqueo y rebote 3x3").id,
+      null,
+    ]);
+  });
+
+  it("los ítems enlazados de todo el seed son los cinco de la primera sesión y los tres de «Defensa presionante»", () => {
+    expect(data.practice_items.filter((i) => i.drill_id !== null)).toHaveLength(8);
   });
 });
 

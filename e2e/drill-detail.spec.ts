@@ -317,11 +317,14 @@ test("ficha completa", async ({ page }) => {
   }
   await expect(page.getByRole("link", { name: "Ver vídeo" })).toHaveCount(0);
 
-  // Publicado y de otro: nada que gestionar, y nada de sesiones (es de otra fase).
-  for (const name of ["Editar", "Publicar", "Archivar", "Añadir a sesión"]) {
+  // Publicado y de otro: nada que gestionar del ejercicio, y sí «Añadir a sesión» (secondary: la
+  // pantalla sigue sin primary), porque quien entrena puede añadirlo a una de sus sesiones. Lo
+  // que hace lo prueba `practice-drills.spec.ts`.
+  for (const name of ["Editar", "Publicar", "Archivar"]) {
     await expect(page.getByRole("link", { name })).toHaveCount(0);
     await expect(page.getByRole("button", { name })).toHaveCount(0);
   }
+  await expect(page.getByRole("button", { name: "Añadir a sesión" })).toHaveCount(1);
   await expect(page.getByText("Borrador", { exact: true })).toHaveCount(0);
   await expect(page.getByText("Archivado", { exact: true })).toHaveCount(0);
 

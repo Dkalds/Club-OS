@@ -124,9 +124,33 @@ describe("toPracticeDetail", () => {
       secondaryFocus: { id: "focus-2", name: "Rebote" },
       notes: "Llevar petos",
       items: [
-        { id: "item-a", drillId: "drill-a", title: "Rueda de tiros", phase: "Técnica", minutes: 20, notes: "Por parejas" },
-        { id: "item-b", drillId: "drill-b", title: "Título propio", phase: null, minutes: 25, notes: null },
-        { id: "item-c", drillId: null, title: "Bloque libre", phase: "Táctica", minutes: 15, notes: null },
+        {
+          id: "item-a",
+          drillId: "drill-a",
+          drillVisible: true,
+          title: "Rueda de tiros",
+          phase: "Técnica",
+          minutes: 20,
+          notes: "Por parejas",
+        },
+        {
+          id: "item-b",
+          drillId: "drill-b",
+          drillVisible: true,
+          title: "Título propio",
+          phase: null,
+          minutes: 25,
+          notes: null,
+        },
+        {
+          id: "item-c",
+          drillId: null,
+          drillVisible: false,
+          title: "Bloque libre",
+          phase: "Táctica",
+          minutes: 15,
+          notes: null,
+        },
       ],
       standards: [SHOWN_1, SHOWN_2],
       updatedAt: "2026-11-10T09:30:00.123456+00:00",
@@ -146,6 +170,39 @@ describe("toPracticeDetail", () => {
       "Título propio",
       "Ejercicio",
     ]);
+  });
+
+  describe("drillVisible: si el ejercicio de un ítem se ve, la fila enlaza a su ficha", () => {
+    const visible = (items: PracticePlanRow["practice_items"]) =>
+      toPracticeDetail(withPlan({ practice_items: items }), MADRID)?.items.map((item) => item.drillVisible);
+
+    it("es verdadero si el ítem tiene ejercicio y llegó embebido; falso en un bloque libre", () => {
+      expect(visible([ITEM_FIRST, ITEM_SECOND, ITEM_FREE])).toEqual([true, true, false]);
+    });
+
+    it("es falso si el ejercicio no llegó, porque RLS no deja ver el borrador de otro entrenador", () => {
+      const hidden = { ...ITEM_FIRST, drill_id: "drill-x", drills: null };
+      const hiddenAsList = { ...ITEM_SECOND, drill_id: "drill-y", drills: [] };
+
+      expect(visible([hidden, hiddenAsList])).toEqual([false, false]);
+    });
+
+    it("un ítem sin ejercicio no se ve enlazado aunque la relación llegue con algo", () => {
+      // No ocurre con la base de datos (sin `drill_id` no hay ejercicio que embeber), pero la
+      // regla es que el enlace lo da el id: sin él no hay a dónde llevar.
+      expect(visible([{ ...ITEM_FIRST, drill_id: null }])).toEqual([false]);
+    });
+
+    it("lee el ejercicio igual como objeto que como lista de uno", () => {
+      expect(visible([{ ...ITEM_FIRST, drills: [DRILL_A_AS_LISTS] }])).toEqual([true]);
+    });
+
+    it("el título del ítem sigue saliendo del ejercicio aunque este no se vea: es el propio, o «Ejercicio»", () => {
+      const hidden = { ...ITEM_FIRST, drill_id: "drill-x", drills: null };
+      const detail = toPracticeDetail(withPlan({ practice_items: [hidden] }), MADRID);
+
+      expect(detail?.items[0]).toMatchObject({ drillId: "drill-x", drillVisible: false, title: "Ejercicio" });
+    });
   });
 
   it("ordena los Standards por número y cuenta cada uno una vez aunque varios ejercicios lo traigan", () => {

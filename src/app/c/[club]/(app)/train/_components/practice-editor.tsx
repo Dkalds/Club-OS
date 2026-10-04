@@ -1,14 +1,62 @@
 "use client";
 
 import { useId, useState } from "react";
-import type { FocusOption, PracticeDetail, TeamOption } from "@/modules/practice/types";
+import type { FocusArea } from "@/modules/drills/types";
+import type { FocusOption, PracticeDetail, PracticeItemDraft, TeamOption } from "@/modules/practice/types";
 import { BackLink } from "@/ui/back-link";
 import { Card } from "@/ui/card";
-import { ChevronDownIcon } from "@/ui/icons";
+import { CTAButton } from "@/ui/cta-button";
+import { ChevronDownIcon, PlusIcon } from "@/ui/icons";
 import { LeaveGuardDialog, useLeaveGuard } from "@/ui/leave-guard";
 import { PracticeSummary } from "@/ui/practice-summary";
+import { DrillPicker } from "./drill-picker";
 import { PracticeBuilder } from "./practice-builder";
 import { PracticeForm, type PracticeFormValues } from "./practice-form";
+
+/**
+ * «Añadir ejercicio»: el botón del constructor que abre el selector de la biblioteca (`DrillPicker`)
+ * y lo que añade cada ejercicio elegido, que es el que dice `add`. El ítem nace con el título del
+ * ejercicio y sus minutos mínimos, sin fase ni notas, y sin `id` hasta que se guarda; el
+ * constructor lo pone al final, cerrado. Es un componente aparte porque guarda si la hoja está
+ * abierta, y el constructor solo le da `add` y si la sesión está llena (`full`).
+ */
+function AddDrill({
+  clubSlug,
+  focusAreas,
+  add,
+  full,
+}: {
+  clubSlug: string;
+  focusAreas: FocusArea[];
+  add: (item: PracticeItemDraft) => void;
+  full: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <>
+      <CTAButton
+        variant="secondary"
+        block
+        icon={<PlusIcon size={16} />}
+        aria-haspopup="dialog"
+        onClick={() => setOpen(true)}
+      >
+        Añadir ejercicio
+      </CTAButton>
+      <DrillPicker
+        clubSlug={clubSlug}
+        focusAreas={focusAreas}
+        open={open}
+        onOpenChange={setOpen}
+        full={full}
+        onPick={(drill) =>
+          add({ drillId: drill.id, title: drill.title, phase: null, minutes: drill.minMinutes, notes: null })
+        }
+      />
+    </>
+  );
+}
 
 /**
  * La pantalla en la que se monta una sesión: su cabecera, sus datos (plegados en «Fecha y
@@ -48,16 +96,24 @@ import { PracticeForm, type PracticeFormValues } from "./practice-form";
  *
  * `initialValues` son los datos de la sesión como los pide el formulario, con la fecha y la
  * hora ya en el reloj del club: los calcula la página, en el servidor (regla 7).
+ *
+ * «Añadir ejercicio», encima de «Añadir bloque libre», abre el selector de la biblioteca
+ * (`AddDrill`). Sus objetivos son `drillFocusAreas`, los de la biblioteca (con su slug), y no las
+ * opciones del formulario, que no lo llevan. Lo que se elige entra en la lista del constructor
+ * como un cambio más sin guardar: hasta «Guardar sesión» no se escribe nada, y mientras tanto el
+ * aviso de salida cubre también los enlaces del selector.
  */
 export function PracticeEditor({
   clubSlug,
   practice,
   options,
+  drillFocusAreas,
   initialValues,
 }: {
   clubSlug: string;
   practice: PracticeDetail;
   options: { teams: TeamOption[]; focusAreas: FocusOption[] };
+  drillFocusAreas: FocusArea[];
   initialValues: PracticeFormValues;
 }) {
   const [updatedAt, setUpdatedAt] = useState(practice.updatedAt);
@@ -134,6 +190,9 @@ export function PracticeEditor({
         onDirtyChange={setItemsDirty}
         onPendingChange={setItemsSaving}
         onReload={reload}
+        extraActions={(add, full) => (
+          <AddDrill clubSlug={clubSlug} focusAreas={drillFocusAreas} add={add} full={full} />
+        )}
       />
 
       <LeaveGuardDialog {...dialog} />

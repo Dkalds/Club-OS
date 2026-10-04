@@ -2,9 +2,11 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import Link from "next/link";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { ACTION_ERROR_COPY, fail, ok, type ActionResult } from "@/lib/action-result";
-import type { PracticeDetail, SavedPracticeItem } from "@/modules/practice/types";
+import type { DrillSummary, FocusArea } from "@/modules/drills/types";
+import type { PracticeDetail, PracticeDetailItem } from "@/modules/practice/types";
 
 const mocks = vi.hoisted(() => ({
+  findDrills: vi.fn(),
   savePracticeItems: vi.fn(),
   updatePracticeMeta: vi.fn(),
   createPractice: vi.fn(),
@@ -13,6 +15,7 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("@/modules/practice/actions", () => ({
+  findDrills: mocks.findDrills,
   savePracticeItems: mocks.savePracticeItems,
   updatePracticeMeta: mocks.updatePracticeMeta,
   createPractice: mocks.createPractice,
@@ -36,8 +39,16 @@ const AFTER_FIRST = "2026-10-04T10:05:00.654321+00:00";
 const AFTER_SECOND = "2026-10-04T10:06:00.000001+00:00";
 const DETAIL = `/c/club-a/train/${EVENT}`;
 
-function item(n: number, title: string, minutes: number): SavedPracticeItem {
-  return { id: `00000000-0000-4000-8000-00000000000${n}`, drillId: null, title, phase: null, minutes, notes: null };
+function item(n: number, title: string, minutes: number): PracticeDetailItem {
+  return {
+    id: `00000000-0000-4000-8000-00000000000${n}`,
+    drillId: null,
+    drillVisible: false,
+    title,
+    phase: null,
+    minutes,
+    notes: null,
+  };
 }
 
 const ITEMS = [item(1, "Rueda de pases", 10), item(2, "Tres calles", 15)];
@@ -65,6 +76,9 @@ function practice(overrides: Partial<PracticeDetail> = {}): PracticeDetail {
   };
 }
 
+/** Los objetivos del club como los lee la biblioteca (con slug): lo que filtra el selector de ejercicios. */
+const DRILL_FOCUS_AREAS: FocusArea[] = [{ id: FOCUS, slug: "rebote", name: "Rebote" }];
+
 const VALUES: PracticeFormValues = {
   teamId: TEAM,
   title: "Salida de presión",
@@ -83,6 +97,7 @@ function renderEditor(overrides: Partial<PracticeDetail> = {}) {
       clubSlug="club-a"
       practice={practice(overrides)}
       options={{ teams: [{ id: TEAM, name: "Equipo A" }], focusAreas: [{ id: FOCUS, name: "Rebote" }] }}
+      drillFocusAreas={DRILL_FOCUS_AREAS}
       initialValues={VALUES}
     />,
   );
@@ -604,6 +619,7 @@ describe("PracticeEditor · salir por un enlace que no es el suyo", () => {
           clubSlug="club-a"
           practice={practice()}
           options={{ teams: [{ id: TEAM, name: "Equipo A" }], focusAreas: [{ id: FOCUS, name: "Rebote" }] }}
+          drillFocusAreas={DRILL_FOCUS_AREAS}
           initialValues={VALUES}
         />
       </>,
@@ -682,5 +698,186 @@ describe("PracticeEditor · copia obsoleta y sesión cerrada", () => {
 
     const alert = (await screen.findByText(ACTION_ERROR_COPY.SESSION_CLOSED)).closest('[role="alert"]') as HTMLElement;
     expect(within(alert).getByRole("link", { name: "Volver a la sesión" })).toHaveAttribute("href", DETAIL);
+  });
+});
+
+describe("PracticeEditor · ejercicios de la biblioteca", () => {
+  function drill(n: number, title: string, minMinutes: number): DrillSummary {
+    return {
+      id: `00000000-0000-4000-8000-0000000000d${n}`,
+      title,
+      status: "published",
+      createdBy: null,
+      minAge: 12,
+      maxAge: null,
+      minPlayers: 6,
+      maxPlayers: 12,
+      minMinutes,
+      maxMinutes: minMinutes + 5,
+      focus: [],
+    };
+  }
+
+  const OUTLET = drill(1, "Rebote y salida", 12);
+  const CALLES = drill(2, "Tres calles seguidas", 10);
+  const FIVE = [OUTLET, CALLES, drill(3, "Pase y va", 8), drill(4, "Presión a dos", 15), drill(5, "Salida rápida", 5)];
+
+  beforeEach(() => {
+    mocks.findDrills.mockResolvedValue(ok(FIVE));
+  });
+
+  /**
+   * Las filas del constructor mientras la hoja está abierta: la hoja modal esconde el resto de la
+   * pantalla a los lectores de pantalla (`aria-hidden`), y `rows()` no las encontraría.
+   */
+  const rowsBehindSheet = () =>
+    screen.getAllByRole("listitem", { hidden: true }).filter((row) => row.hasAttribute("data-row"));
+
+  /** Abre el selector y espera a que traiga la lista. */
+  async function openPicker() {
+    click("Añadir ejercicio");
+    const dialog = await screen.findByRole("dialog", { name: "Añadir ejercicio" });
+    await within(dialog).findByText("Rebote y salida");
+    return dialog;
+  }
+
+  it("«Añadir ejercicio» es secondary a todo el ancho y va encima de «Añadir bloque libre»; el único primary sigue siendo «Guardar sesión»", () => {
+    renderEditor();
+
+    const add = button("Añadir ejercicio");
+    expect(add).toHaveClass("border-line-strong", "w-full");
+    expect(add).not.toHaveClass("bg-brand-accent");
+    expect(add).toHaveAttribute("type", "button");
+    expect(add.compareDocumentPosition(button("Añadir bloque libre"))).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(rows().at(-1)?.compareDocumentPosition(add)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(button("Guardar sesión")).toHaveClass("bg-brand-accent");
+  });
+
+  it("no pide ejercicios hasta que se abre el selector", async () => {
+    renderEditor();
+
+    expect(mocks.findDrills).not.toHaveBeenCalled();
+    await openPicker();
+    expect(mocks.findDrills).toHaveBeenCalledWith("club-a", {});
+  });
+
+  it("el selector ofrece los objetivos del club que le da la página", async () => {
+    renderEditor();
+
+    const dialog = await openPicker();
+
+    const group = within(dialog).getByRole("group", { name: "Objetivo" });
+    expect(within(group).getAllByRole("button").map((chip) => chip.textContent)).toEqual(["Todos", "Rebote"]);
+  });
+
+  it("elegir un ejercicio lo añade al final con su título y sus minutos mínimos, y la hoja sigue abierta", async () => {
+    renderEditor();
+    const dialog = await openPicker();
+
+    fireEvent.click(within(dialog).getByRole("button", { name: "Añadir Rebote y salida" }));
+
+    expect(dialog).toBeInTheDocument();
+    expect(rowsBehindSheet()).toHaveLength(3);
+    expect(rowsBehindSheet()[2]).toHaveTextContent("03");
+    expect(rowsBehindSheet()[2]).toHaveTextContent("Rebote y salida");
+    expect(rowsBehindSheet()[2]).toHaveTextContent("12'");
+    expect(screen.getByText("Total").parentElement).toHaveTextContent("37'");
+    expect(screen.getByRole("button", { name: "Guardar sesión", hidden: true })).toBeEnabled();
+  });
+
+  it("al guardar, el ítem sale con su ejercicio, sin fase ni notas y sin id", async () => {
+    renderEditor();
+    const dialog = await openPicker();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Añadir Rebote y salida" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Cerrar" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+
+    click("Guardar sesión");
+    await screen.findByText("Sesión guardada.");
+
+    const { items } = mocks.savePracticeItems.mock.calls[0][1];
+    expect(items).toHaveLength(3);
+    expect(items[2]).toStrictEqual({ drillId: OUTLET.id, title: "Rebote y salida", phase: null, minutes: 12, notes: null });
+  });
+
+  it("cinco ejercicios seguidos, sin cerrar la hoja: cinco filas más, cada una con sus minutos", async () => {
+    renderEditor();
+    const dialog = await openPicker();
+
+    for (const entry of FIVE) {
+      fireEvent.click(within(dialog).getByRole("button", { name: `Añadir ${entry.title}` }));
+    }
+
+    expect(dialog).toBeInTheDocument();
+    expect(rowsBehindSheet()).toHaveLength(7);
+    expect(rowsBehindSheet().slice(2).map((row) => row.textContent?.replace(/\s+/g, " "))).toEqual([
+      expect.stringMatching(/^03\s*Rebote y salida.*12'/),
+      expect.stringMatching(/^04\s*Tres calles seguidas.*10'/),
+      expect.stringMatching(/^05\s*Pase y va.*8'/),
+      expect.stringMatching(/^06\s*Presión a dos.*15'/),
+      expect.stringMatching(/^07\s*Salida rápida.*5'/),
+    ]);
+  });
+
+  it("con la sesión llena, el selector no deja añadir y dice por qué", async () => {
+    // Dos filas más cinco de ejercicios de arriba: se parte de 28 para que quepan dos.
+    const items = Array.from({ length: 28 }, (_, index) => item(index + 1, `Bloque ${index + 1}`, 5));
+    mocks.findDrills.mockResolvedValue(ok(FIVE));
+    renderEditor({ items });
+    const dialog = await openPicker();
+    expect(within(dialog).queryByText("Una sesión tiene como máximo 30 ejercicios.")).not.toBeInTheDocument();
+
+    fireEvent.click(within(dialog).getByRole("button", { name: "Añadir Rebote y salida" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Añadir Tres calles seguidas" }));
+
+    expect(rowsBehindSheet()).toHaveLength(30);
+    expect(within(dialog).getByText("Una sesión tiene como máximo 30 ejercicios.")).toBeVisible();
+    expect(within(dialog).getByRole("button", { name: "Añadir Pase y va" })).toBeDisabled();
+  });
+
+  it("con 30 ítems, el selector se puede abrir para ver el motivo, y todos sus botones están cerrados", async () => {
+    const items = Array.from({ length: 30 }, (_, index) => item(index + 1, `Bloque ${index + 1}`, 5));
+    renderEditor({ items });
+
+    const dialog = await openPicker();
+
+    expect(within(dialog).getByText("Una sesión tiene como máximo 30 ejercicios.")).toBeVisible();
+    for (const entry of FIVE) expect(within(dialog).getByRole("button", { name: `Añadir ${entry.title}` })).toBeDisabled();
+  });
+
+  it("con cambios sin guardar, abrir la ficha de un ejercicio desde el selector pregunta antes de salir", async () => {
+    renderEditor();
+    const dialog = await openPicker();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Añadir Rebote y salida" }));
+
+    let prevented = false;
+    const cut = (event: Event) => {
+      prevented = event.defaultPrevented;
+      event.preventDefault();
+    };
+    document.addEventListener("click", cut);
+    fireEvent.click(within(dialog).getAllByRole("link")[0]);
+    document.removeEventListener("click", cut);
+
+    expect(prevented).toBe(true);
+    expect(await screen.findByRole("alertdialog", { name: "¿Salir sin guardar?" })).toBeInTheDocument();
+    expect(mocks.push).not.toHaveBeenCalled();
+  });
+
+  it("sin cambios, abrir la ficha desde el selector navega sin preguntar", async () => {
+    renderEditor();
+    const dialog = await openPicker();
+
+    let prevented = true;
+    const cut = (event: Event) => {
+      prevented = event.defaultPrevented;
+      event.preventDefault();
+    };
+    document.addEventListener("click", cut);
+    fireEvent.click(within(dialog).getAllByRole("link")[0]);
+    document.removeEventListener("click", cut);
+
+    expect(prevented).toBe(false);
+    expect(leaveDialog()).not.toBeInTheDocument();
   });
 });

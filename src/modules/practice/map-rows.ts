@@ -5,6 +5,7 @@ import { sessionMinutes } from "./items";
 import type {
   FocusOption,
   PracticeDetail,
+  PracticeDetailItem,
   PracticeListItem,
   PracticeStatus,
   SavedPracticeItem,
@@ -184,6 +185,15 @@ function toSavedItem(row: PracticeItemRow): SavedPracticeItem {
   };
 }
 
+/**
+ * Un ítem del detalle: el guardado y si su ejercicio llegó. `drill_id` dice que el ítem es un
+ * ejercicio; que la relación embebida venga vacía dice que RLS no deja ver su ficha (un
+ * borrador de otro entrenador), y entonces la fila se queda en texto en vez de llevar a un 404.
+ */
+function toDetailItem(row: PracticeItemRow): PracticeDetailItem {
+  return { ...toSavedItem(row), drillVisible: row.drill_id !== null && one(row.drills) !== null };
+}
+
 /** Los Standards publicados de los ejercicios de los ítems, cada uno una vez y por número. */
 function toStandards(items: PracticeItemRow[]): Standard[] {
   const byId = new Map<string, Standard>();
@@ -236,7 +246,7 @@ export function toPracticeDetail(
     primaryFocus: focusOption(plan.primary_focus),
     secondaryFocus: focusOption(plan.secondary_focus),
     notes: plan.notes,
-    items: ordered.map(toSavedItem),
+    items: ordered.map(toDetailItem),
     standards: toStandards(ordered),
     updatedAt: plan.updated_at,
     canEdit: canManage && row.status === "scheduled",

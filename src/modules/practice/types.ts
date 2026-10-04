@@ -16,7 +16,9 @@ export type PracticeItemDraft = { id?: string; drillId: string | null; title: st
 export type SavedPracticeItem = PracticeItemDraft & { id: string };
 /** Una fila de la lista de entrenamientos. `dow`, `day` y `time` llegan ya en la zona del club; `location` es el lugar tal cual se guardó, para los metadatos de la fila. */
 export type PracticeListItem = { eventId: string; teamName: string; dow: string; day: string; time: string; title: string; totalMinutes: number; itemCount: number; status: PracticeStatus; location: string | null };
+/** Un ítem del detalle: `drillVisible` dice si su ejercicio se pudo leer (RLS esconde el borrador de otro entrenador), y solo entonces la fila enlaza a su ficha. */
+export type PracticeDetailItem = SavedPracticeItem & { drillVisible: boolean };
 /** Un entrenamiento entero para el constructor. `updatedAt` es la versión con la que se guarda; `canEdit` lo decide la sesión del usuario. */
-export type PracticeDetail = { eventId: string; planId: string; teamId: string; teamName: string; status: PracticeStatus; startsAt: string; endsAt: string; slotLabel: string; location: string | null; title: string; primaryFocus: FocusOption | null; secondaryFocus: FocusOption | null; notes: string | null; items: SavedPracticeItem[]; standards: Standard[]; updatedAt: string; canEdit: boolean };
+export type PracticeDetail = { eventId: string; planId: string; teamId: string; teamName: string; status: PracticeStatus; startsAt: string; endsAt: string; slotLabel: string; location: string | null; title: string; primaryFocus: FocusOption | null; secondaryFocus: FocusOption | null; notes: string | null; items: PracticeDetailItem[]; standards: Standard[]; updatedAt: string; canEdit: boolean };
 /** Ítems consecutivos de la misma fase. `startIndex` es la posición del primero en la lista completa. */
 export type PhaseBlock<T> = { phase: string | null; startIndex: number; items: T[]; minutes: number };

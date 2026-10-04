@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   getClubContext: vi.fn(),
   getPractice: vi.fn(),
   getPracticeFormOptions: vi.fn(),
+  getFocusAreas: vi.fn(),
 }));
 
 vi.mock("@/modules/tenancy/queries", () => ({ getClubContext: mocks.getClubContext }));
@@ -14,6 +15,7 @@ vi.mock("@/modules/practice/queries", () => ({
   getPractice: mocks.getPractice,
   getPracticeFormOptions: mocks.getPracticeFormOptions,
 }));
+vi.mock("@/modules/drills/queries", () => ({ getFocusAreas: mocks.getFocusAreas }));
 // Como los de verdad: `notFound()` y `redirect()` cortan el render lanzando.
 vi.mock("next/navigation", () => ({
   notFound: () => {
@@ -37,6 +39,12 @@ const FOCUS_AREAS = [
   { id: "f-2", name: "Transición" },
 ];
 
+/** Los objetivos como los lee la biblioteca: con su slug, que es lo que filtra el selector de ejercicios. */
+const DRILL_FOCUS_AREAS = [
+  { id: "f-1", slug: "rebote", name: "Rebote" },
+  { id: "f-2", slug: "transicion", name: "Transición" },
+];
+
 function practice(overrides: Partial<PracticeDetail> = {}): PracticeDetail {
   return {
     eventId: "e-1",
@@ -53,7 +61,9 @@ function practice(overrides: Partial<PracticeDetail> = {}): PracticeDetail {
     primaryFocus: { id: "f-1", name: "Rebote" },
     secondaryFocus: { id: "f-2", name: "Transición" },
     notes: "Llevar los petos azules.",
-    items: [{ id: "i-1", drillId: null, title: "Calentamiento", phase: "Activación", minutes: 10, notes: null }],
+    items: [
+      { id: "i-1", drillId: null, drillVisible: false, title: "Calentamiento", phase: "Activación", minutes: 10, notes: null },
+    ],
     standards: [],
     updatedAt: "2026-10-04T10:00:00.123456+00:00",
     canEdit: true,
@@ -75,6 +85,7 @@ beforeEach(() => {
   mocks.getClubContext.mockResolvedValue(clubContext("coach"));
   mocks.getPractice.mockResolvedValue(practice());
   mocks.getPracticeFormOptions.mockResolvedValue({ teams: TEAMS, focusAreas: FOCUS_AREAS });
+  mocks.getFocusAreas.mockResolvedValue(DRILL_FOCUS_AREAS);
 });
 
 describe("/train/[eventId]/edit, acceso", () => {
@@ -86,6 +97,7 @@ describe("/train/[eventId]/edit, acceso", () => {
     expect(mocks.getClubContext).toHaveBeenCalledWith("club-a");
     expect(mocks.getPractice).not.toHaveBeenCalled();
     expect(mocks.getPracticeFormOptions).not.toHaveBeenCalled();
+    expect(mocks.getFocusAreas).not.toHaveBeenCalled();
   });
 
   // Review Focus 1: una sesión de otro equipo o de otro club no llega (RLS): el mismo 404.
@@ -133,6 +145,12 @@ describe("/train/[eventId]/edit, acceso", () => {
 
     await expect(EditPracticePage(props())).rejects.toThrow("practice.focus-areas: fallo");
   });
+
+  it("si no se pueden leer los objetivos del selector de ejercicios, lanza también", async () => {
+    mocks.getFocusAreas.mockRejectedValue(new Error("drills.focus-areas: fallo"));
+
+    await expect(EditPracticePage(props())).rejects.toThrow("drills.focus-areas: fallo");
+  });
 });
 
 describe("/train/[eventId]/edit, editor", () => {
@@ -153,6 +171,16 @@ describe("/train/[eventId]/edit, editor", () => {
     expect(editorProps().clubSlug).toBe("club-a");
     expect(editorProps().practice).toEqual(practice());
     expect(editorProps().options).toEqual({ teams: TEAMS, focusAreas: FOCUS_AREAS });
+  });
+
+  it("le da al selector de ejercicios los objetivos del club con su slug, leídos con el contexto del club", async () => {
+    const ctx = clubContext("coach");
+    mocks.getClubContext.mockResolvedValue(ctx);
+
+    render(await EditPracticePage(props()));
+
+    expect(mocks.getFocusAreas).toHaveBeenCalledWith(ctx);
+    expect(editorProps().drillFocusAreas).toEqual(DRILL_FOCUS_AREAS);
   });
 
   it("los datos del formulario salen de la sesión, con la fecha y la hora en el reloj del club", async () => {

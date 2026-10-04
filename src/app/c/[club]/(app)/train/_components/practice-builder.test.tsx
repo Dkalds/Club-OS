@@ -516,6 +516,26 @@ describe("PracticeBuilder · añadir y quitar", () => {
       expect(rows()).toHaveLength(30);
     });
 
+    it("recibe también si la sesión está llena, y lo sabe en la misma pintura en que se llena", () => {
+      const twentyNine = Array.from({ length: 29 }, (_, index) => item(index + 1, `Bloque ${index + 1}`, null, 5));
+      const seen: boolean[] = [];
+      function watching(add: (item: PracticeItemDraft) => void, full: boolean): ReactNode {
+        seen.push(full);
+        return (
+          <button type="button" onClick={() => add(DRILL_ITEM)}>
+            Añadir ejercicio
+          </button>
+        );
+      }
+      renderBuilder({ initialItems: twentyNine, extraActions: watching });
+      expect(seen.at(-1)).toBe(false);
+
+      click("Añadir ejercicio");
+
+      expect(rows()).toHaveLength(30);
+      expect(seen.at(-1)).toBe(true);
+    });
+
     // Quien elige varios ejercicios de una vez llama a `add` varias veces en el mismo evento.
     describe("dos `add` en el mismo evento", () => {
       const SECOND: PracticeItemDraft = { ...DRILL_ITEM, title: "Pase y va", minutes: 8 };

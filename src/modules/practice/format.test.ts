@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { builderMinutes, itemNumber, itemsLabel, minutesLabel, practiceMeta, statusLabel } from "./format";
+import {
+  builderMinutes,
+  itemNumber,
+  itemsLabel,
+  minutesLabel,
+  practiceMeta,
+  practiceRowSubtitle,
+  statusLabel,
+} from "./format";
+import type { PracticeListItem } from "./types";
 
 describe("minutesLabel", () => {
   it("pone la unidad tras el número", () => {
@@ -65,5 +74,36 @@ describe("statusLabel", () => {
 
   it("un entrenamiento programado no lleva etiqueta", () => {
     expect(statusLabel("scheduled")).toBeNull();
+  });
+});
+
+describe("practiceRowSubtitle", () => {
+  const practice: PracticeListItem = {
+    eventId: "e-1",
+    teamName: "Equipo A",
+    dow: "Mar",
+    day: "6",
+    time: "18:00",
+    title: "Salida de presión",
+    totalMinutes: 75,
+    itemCount: 5,
+    status: "scheduled",
+    location: "Pabellón 2",
+  };
+
+  it("con un solo equipo no repite su nombre: son los metadatos de la sesión", () => {
+    expect(practiceRowSubtitle(practice, 1)).toBe("75 min · 5 ejercicios · Pabellón 2");
+  });
+
+  it("con varios equipos empieza por el de la sesión", () => {
+    expect(practiceRowSubtitle(practice, 2)).toBe("Equipo A · 75 min · 5 ejercicios · Pabellón 2");
+  });
+
+  it("con varios equipos pero sin nombre para esa sesión, no deja un separador colgando", () => {
+    expect(practiceRowSubtitle({ ...practice, teamName: "  " }, 3)).toBe("75 min · 5 ejercicios · Pabellón 2");
+  });
+
+  it("sin lugar tampoco", () => {
+    expect(practiceRowSubtitle({ ...practice, location: null }, 2)).toBe("Equipo A · 75 min · 5 ejercicios");
   });
 });

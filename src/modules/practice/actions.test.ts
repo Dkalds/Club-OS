@@ -8,16 +8,21 @@ const mocks = vi.hoisted(() => ({
   createClient: vi.fn(),
   requireClub: vi.fn(),
   revalidatePath: vi.fn(),
+  searchDrills: vi.fn(),
 }));
 
 vi.mock("@/lib/supabase/server", () => ({ createClient: mocks.createClient }));
 vi.mock("@/lib/guards", () => ({ requireClub: mocks.requireClub }));
 vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidatePath }));
+vi.mock("@/modules/drills/queries", () => ({ searchDrills: mocks.searchDrills }));
 
+import type { DrillSummary } from "@/modules/drills/types";
 import {
+  addDrillToPractice,
   cancelPractice,
   createPractice,
   duplicatePractice,
+  findDrills,
   savePracticeItems,
   updatePracticeMeta,
 } from "./actions";
@@ -140,6 +145,43 @@ const noTeam = reply(null);
 /** ...o lo encuentra sin plan (un entreno que no es una sesión). */
 const noPlan = reply({ id: EVENT, practice_plans: [] });
 
+/** Una fila de `practice_items` como la devuelve PostgREST. */
+type ItemRow = {
+  id: string;
+  sort: number;
+  drill_id: string | null;
+  title_override: string | null;
+  phase: string | null;
+  minutes: number;
+  notes: string | null;
+};
+
+function itemRow(n: number, overrides: Partial<ItemRow> = {}): ItemRow {
+  return {
+    id: `00000000-0000-4000-8000-00000000b0${String(n).padStart(2, "0")}`,
+    sort: n,
+    drill_id: null,
+    title_override: `Bloque ${n}`,
+    phase: null,
+    minutes: 10,
+    notes: null,
+    ...overrides,
+  };
+}
+
+/**
+ * La lectura previa de `addDrillToPractice`: el entreno de este club con su plan, la copia
+ * vigente (`updated_at`, con microsegundos) y sus ítems, en el desorden que quiera PostgREST.
+ */
+function planWith(items: ItemRow[], updatedAt = STAMP): Reply {
+  return reply({ id: EVENT, practice_plans: [{ id: PLAN, updated_at: updatedAt, practice_items: items }] });
+}
+
+/** El ejercicio que se añade, tal como lo lee la acción: publicado y de este club. */
+const publishedDrill = reply({ id: DRILL, title: "Rebote y salida", min_minutes: 12 });
+/** ...o no lo encuentra: no existe, es de otro club, es un borrador que no se ve o no está publicado. */
+const noDrill = reply(null);
+
 /** Un error de PostgREST: un `Error` con su código, y un mensaje que lleva datos de la fila. */
 function dbError(code: string, message: string): Reply {
   return {
@@ -205,14 +247,19 @@ const draft: PracticeItemDraft = {
 
 const save = { eventId: EVENT, expectedUpdatedAt: STAMP, items: [draft] };
 const duplicate = { eventId: EVENT, date: "2026-11-24", time: "18:00" };
+const addDrill = { eventId: EVENT, drillId: DRILL };
 
-/** Las cinco acciones, cada una con una entrada válida. */
+/**
+ * Las seis acciones que escriben, cada una con una entrada válida. `findDrills` solo lee y
+ * tiene su propio bloque más abajo.
+ */
 const ACTIONS: Array<[string, () => Promise<ActionResult<unknown>>]> = [
   ["createPractice", () => createPractice("club-a", create)],
   ["updatePracticeMeta", () => updatePracticeMeta("club-a", edit)],
   ["savePracticeItems", () => savePracticeItems("club-a", save)],
   ["duplicatePractice", () => duplicatePractice("club-a", duplicate)],
   ["cancelPractice", () => cancelPractice("club-a", { eventId: EVENT })],
+  ["addDrillToPractice", () => addDrillToPractice("club-a", addDrill)],
 ];
 
 // ── Quién gestiona y qué pasa después ────────────────────────────────────────────────────
@@ -285,6 +332,7 @@ describe("tras escribir", () => {
     ["savePracticeItems", [ownEvent, reply(NEXT_STAMP)], ACTIONS[2][1]],
     ["duplicatePractice", [ownEvent, reply(NEW_EVENT)], ACTIONS[3][1]],
     ["cancelPractice", [reply([{ id: EVENT }])], ACTIONS[4][1]],
+    ["addDrillToPractice", [planWith([]), publishedDrill, reply(NEXT_STAMP)], ACTIONS[5][1]],
   ];
 
   it.each(WRITES)(
@@ -1401,6 +1449,387 @@ describe("cancelPractice", () => {
       error: "INVALID",
       fieldErrors: { eventId: "No encontramos este contenido." },
     });
+    expect(mocks.createClient).not.toHaveBeenCalled();
+  });
+});
+
+// ── findDrills ───────────────────────────────────────────────────────────────────────────
+
+describe("findDrills", () => {
+  function drill(id: string, title: string, status: DrillSummary["status"] = "published"): DrillSummary {
+    return {
+      id,
+      title,
+      status,
+      createdBy: null,
+      minAge: 10,
+      maxAge: null,
+      minPlayers: 6,
+      maxPlayers: 12,
+      minMinutes: 10,
+      maxMinutes: 15,
+      focus: [],
+    };
+  }
+
+  const PUBLISHED = drill("00000000-0000-4000-8000-0000000000d1", "Rebote y salida");
+  const OTHER = drill("00000000-0000-4000-8000-0000000000d2", "Pase y va");
+  const DRAFT = drill("00000000-0000-4000-8000-0000000000d3", "Borrador ajeno", "draft");
+  const ARCHIVED = drill("00000000-0000-4000-8000-0000000000d4", "Ya no sirve", "archived");
+
+  beforeEach(() => {
+    mocks.searchDrills.mockResolvedValue({ drills: [PUBLISHED, DRAFT, OTHER, ARCHIVED], hasMore: false });
+  });
+
+  it("devuelve solo los publicados, en el orden en que llegan, como DrillSummary[]", async () => {
+    const result = await findDrills("club-a", {});
+
+    expect(result).toEqual({ ok: true, data: [PUBLISHED, OTHER] });
+  });
+
+  it("busca en el club de la sesión, con el texto y el objetivo que le dan", async () => {
+    await findDrills("club-a", { q: "outlet", focus: "rebote" });
+
+    expect(mocks.requireClub).toHaveBeenCalledWith("club-a");
+    expect(mocks.searchDrills).toHaveBeenCalledTimes(1);
+    expect(mocks.searchDrills).toHaveBeenCalledWith(clubContext("coach"), { q: "outlet", focus: "rebote" });
+  });
+
+  it("sin filtros busca sin ellos", async () => {
+    await findDrills("club-a", {});
+
+    expect(mocks.searchDrills).toHaveBeenCalledWith(clubContext("coach"), {});
+  });
+
+  it("limpia lo que no es una búsqueda: espacios, caracteres de control y un objetivo que no es un slug", async () => {
+    await findDrills("club-a", { q: "  rebote\u0000 y salida  ", focus: "no es un slug" });
+
+    expect(mocks.searchDrills).toHaveBeenCalledWith(clubContext("coach"), { q: "rebote  y salida" });
+  });
+
+  it("también lo hace la dirección", async () => {
+    mocks.requireClub.mockResolvedValue(clubContext("admin"));
+
+    const result = await findDrills("club-a", {});
+
+    expect(result.ok).toBe(true);
+  });
+
+  it.each(["player", "guardian"] as const)("un %s recibe NOT_FOUND sin buscar nada", async (role) => {
+    mocks.requireClub.mockResolvedValue(clubContext(role));
+
+    const result = await findDrills("club-a", {});
+
+    expect(result).toEqual({ ok: false, error: "NOT_FOUND" });
+    expect(mocks.searchDrills).not.toHaveBeenCalled();
+    expect(mocks.createClient).not.toHaveBeenCalled();
+  });
+
+  it("un club que no existe lanza el 404, no lo traga", async () => {
+    mocks.requireClub.mockRejectedValue(NOT_FOUND);
+
+    await expect(findDrills("club-a", {})).rejects.toBe(NOT_FOUND);
+
+    expect(mocks.searchDrills).not.toHaveBeenCalled();
+  });
+
+  it("una entrada que no es texto es INVALID y no consulta el club ni busca", async () => {
+    const result = await findDrills("club-a", unsafe({ q: 5 }));
+
+    expect(result).toMatchObject({ ok: false, error: "INVALID" });
+    expect(mocks.requireClub).not.toHaveBeenCalled();
+    expect(mocks.searchDrills).not.toHaveBeenCalled();
+  });
+
+  it("una lectura que falla es SAVE_FAILED y se registra sin el contenido del error", async () => {
+    mocks.searchDrills.mockRejectedValue(Object.assign(new Error('fila con "texto del club"'), { code: "XX000" }));
+
+    const result = await findDrills("club-a", {});
+
+    expect(result).toEqual({ ok: false, error: "SAVE_FAILED" });
+    expect(logged).toEqual(["[practice.find-drills] Error code=XX000"]);
+  });
+
+  it("solo lee: no revalida nada", async () => {
+    await findDrills("club-a", {});
+
+    expect(mocks.revalidatePath).not.toHaveBeenCalled();
+  });
+});
+
+// ── addDrillToPractice ───────────────────────────────────────────────────────────────────
+
+describe("addDrillToPractice", () => {
+  const FIRST = itemRow(1, {
+    drill_id: DRILL,
+    title_override: "Tres contra dos",
+    phase: "Parte principal",
+    minutes: 20,
+    notes: "Rotar.",
+  });
+  const SECOND = itemRow(2);
+
+  it("añade el ejercicio al final, con su título y sus minutos mínimos, y devuelve el título", async () => {
+    // Llegan desordenados: la lista se guarda por `sort`.
+    const db = useDb(planWith([SECOND, FIRST]), publishedDrill, reply(NEXT_STAMP));
+
+    const result = await addDrillToPractice("club-a", addDrill);
+
+    expect(result).toEqual({ ok: true, data: { title: "Rebote y salida" } });
+    expect(db.rpcs).toEqual([
+      {
+        name: "save_practice_items",
+        args: {
+          p_plan: PLAN,
+          p_expected_updated_at: STAMP,
+          p_items: [
+            {
+              id: FIRST.id,
+              drill_id: DRILL,
+              title: "Tres contra dos",
+              phase: "Parte principal",
+              minutes: 20,
+              notes: "Rotar.",
+            },
+            { id: SECOND.id, drill_id: null, title: "Bloque 2", phase: null, minutes: 10, notes: null },
+            { drill_id: DRILL, title: "Rebote y salida", phase: null, minutes: 12, notes: null },
+          ],
+        },
+      },
+    ]);
+    expect(mocks.revalidatePath).toHaveBeenCalledWith("/c/[club]/(app)", "layout");
+  });
+
+  it("en una sesión vacía el ejercicio es el único ítem, sin clave id", async () => {
+    const db = useDb(planWith([]), publishedDrill, reply(NEXT_STAMP));
+
+    await addDrillToPractice("club-a", addDrill);
+
+    const [sent] = db.rpcs[0].args.p_items as Array<Record<string, unknown>>;
+    expect(db.rpcs[0].args.p_items).toHaveLength(1);
+    expect(Object.keys(sent)).toEqual(["drill_id", "title", "phase", "minutes", "notes"]);
+  });
+
+  it("la copia esperada es el updated_at leído, tal cual, con sus microsegundos", async () => {
+    const odd = "2026-11-17T10:00:00.12+00:00";
+    const db = useDb(planWith([], odd), publishedDrill, reply(NEXT_STAMP));
+
+    await addDrillToPractice("club-a", addDrill);
+
+    expect(db.rpcs[0].args.p_expected_updated_at).toBe(odd);
+  });
+
+  it("un ítem que ya estaba sin título propio lo conserva así: no se le inventa uno", async () => {
+    const bare = itemRow(1, { drill_id: DRILL, title_override: null });
+    const db = useDb(planWith([bare]), publishedDrill, reply(NEXT_STAMP));
+
+    await addDrillToPractice("club-a", addDrill);
+
+    expect((db.rpcs[0].args.p_items as Array<{ title: unknown }>)[0].title).toBeNull();
+  });
+
+  it("lee la sesión y el ejercicio acotados a este club", async () => {
+    const db = useDb(planWith([]), publishedDrill, reply(NEXT_STAMP));
+
+    await addDrillToPractice("club-a", addDrill);
+
+    const [session, drill] = db.queries;
+    expect(session.table).toBe("events");
+    expect(session.sent("select")).toEqual([
+      "id, practice_plans(id, updated_at, practice_items(id, sort, drill_id, title_override, phase, minutes, notes))",
+    ]);
+    expect(session.filters).toEqual([
+      ["organization_id", ORG],
+      ["id", EVENT],
+      ["kind", "practice"],
+    ]);
+    expect(drill.table).toBe("drills");
+    expect(drill.sent("select")).toEqual(["id, title, min_minutes"]);
+    expect(drill.filters).toEqual([
+      ["organization_id", ORG],
+      ["id", DRILL],
+      ["status", "published"],
+    ]);
+  });
+
+  it("el plan sale igual si PostgREST lo devuelve como objeto", async () => {
+    const db = useDb(
+      reply({ id: EVENT, practice_plans: { id: PLAN, updated_at: STAMP, practice_items: [] } }),
+      publishedDrill,
+      reply(NEXT_STAMP),
+    );
+
+    await addDrillToPractice("club-a", addDrill);
+
+    expect(db.rpcs[0].args.p_plan).toBe(PLAN);
+  });
+
+  it.each([
+    ["una sesión que no es de este club o que no se ve", () => [noEvent]],
+    ["un entreno sin plan", () => [noPlan]],
+    ["un ejercicio en borrador de otro entrenador, de otro club, archivado o que no existe", () => [planWith([]), noDrill]],
+  ])("%s es NOT_FOUND y no llega a la función", async (_name, replies) => {
+    const db = useDb(...replies());
+
+    const result = await addDrillToPractice("club-a", addDrill);
+
+    expect(result).toEqual({ ok: false, error: "NOT_FOUND" });
+    expect(db.rpcs).toEqual([]);
+    expect(mocks.revalidatePath).not.toHaveBeenCalled();
+    expect(logged).toEqual([]);
+  });
+
+  it("con 30 ítems es INVALID en `items`, con el mismo mensaje que el constructor, y no llega a la función", async () => {
+    const thirty = Array.from({ length: 30 }, (_, index) => itemRow(index + 1));
+    const db = useDb(planWith(thirty), publishedDrill);
+
+    const result = await addDrillToPractice("club-a", addDrill);
+
+    expect(result).toEqual({
+      ok: false,
+      error: "INVALID",
+      fieldErrors: { items: "Una sesión tiene como máximo 30 ejercicios." },
+    });
+    expect(db.rpcs).toEqual([]);
+    expect(mocks.revalidatePath).not.toHaveBeenCalled();
+  });
+
+  it("con 29 ítems cabe el que hace 30", async () => {
+    const twentyNine = Array.from({ length: 29 }, (_, index) => itemRow(index + 1));
+    const db = useDb(planWith(twentyNine), publishedDrill, reply(NEXT_STAMP));
+
+    const result = await addDrillToPractice("club-a", addDrill);
+
+    expect(result.ok).toBe(true);
+    expect(db.rpcs[0].args.p_items).toHaveLength(30);
+  });
+
+  describe("copia obsoleta", () => {
+    it("relee la sesión y repite una vez, con la copia y los ítems nuevos", async () => {
+      const added = itemRow(3, { title_override: "Lo que guardó otra persona" });
+      const db = useDb(
+        planWith([FIRST]),
+        publishedDrill,
+        dbError("P0001", "STALE_COPY"),
+        planWith([FIRST, added], NEXT_STAMP),
+        reply("2026-11-17T10:09:00.000001+00:00"),
+      );
+
+      const result = await addDrillToPractice("club-a", addDrill);
+
+      expect(result).toEqual({ ok: true, data: { title: "Rebote y salida" } });
+      expect(db.rpcs).toHaveLength(2);
+      expect(db.rpcs[0].args.p_expected_updated_at).toBe(STAMP);
+      expect(db.rpcs[0].args.p_items).toHaveLength(2);
+      expect(db.rpcs[1].args.p_expected_updated_at).toBe(NEXT_STAMP);
+      const retried = db.rpcs[1].args.p_items as Array<{ title: string }>;
+      expect(retried.map((entry) => entry.title)).toEqual([
+        "Tres contra dos",
+        "Lo que guardó otra persona",
+        "Rebote y salida",
+      ]);
+      // Releer es solo de la sesión: el ejercicio no cambia.
+      expect(db.queries.map((query) => query.table)).toEqual(["events", "drills", "events"]);
+      expect(mocks.revalidatePath).toHaveBeenCalledTimes(1);
+      expect(logged).toEqual([]);
+    });
+
+    it("una segunda copia obsoleta se devuelve: no hay un tercer intento", async () => {
+      const db = useDb(
+        planWith([]),
+        publishedDrill,
+        dbError("P0001", "STALE_COPY"),
+        planWith([], NEXT_STAMP),
+        dbError("P0001", "STALE_COPY"),
+      );
+
+      const result = await addDrillToPractice("club-a", addDrill);
+
+      expect(result).toEqual({ ok: false, error: "STALE_COPY" });
+      expect(db.rpcs).toHaveLength(2);
+      expect(mocks.revalidatePath).not.toHaveBeenCalled();
+      expect(logged).toEqual([]);
+    });
+
+    it("si al releer la sesión ya está llena, es INVALID y no repite", async () => {
+      const thirty = Array.from({ length: 30 }, (_, index) => itemRow(index + 1));
+      const db = useDb(planWith([]), publishedDrill, dbError("P0001", "STALE_COPY"), planWith(thirty, NEXT_STAMP));
+
+      const result = await addDrillToPractice("club-a", addDrill);
+
+      expect(result).toMatchObject({ ok: false, error: "INVALID", fieldErrors: { items: expect.any(String) } });
+      expect(db.rpcs).toHaveLength(1);
+    });
+
+    it("si al releer la sesión ya no existe, es NOT_FOUND y no repite", async () => {
+      const db = useDb(planWith([]), publishedDrill, dbError("P0001", "STALE_COPY"), noEvent);
+
+      const result = await addDrillToPractice("club-a", addDrill);
+
+      expect(result).toEqual({ ok: false, error: "NOT_FOUND" });
+      expect(db.rpcs).toHaveLength(1);
+    });
+  });
+
+  describe("lo que decide la función", () => {
+    it("una sesión cerrada es SESSION_CLOSED, sin repetir ni revalidar", async () => {
+      const db = useDb(planWith([]), publishedDrill, dbError("P0001", "SESSION_CLOSED"));
+
+      const result = await addDrillToPractice("club-a", addDrill);
+
+      expect(result).toEqual({ ok: false, error: "SESSION_CLOSED" });
+      expect(db.rpcs).toHaveLength(1);
+      expect(mocks.revalidatePath).not.toHaveBeenCalled();
+      expect(logged).toEqual([]);
+    });
+
+    it("un equipo que no se gestiona (otro entrenador del club) es NOT_FOUND", async () => {
+      useDb(planWith([]), publishedDrill, dbError("P0002", "NOT_FOUND"));
+
+      const result = await addDrillToPractice("club-a", addDrill);
+
+      expect(result).toEqual({ ok: false, error: "NOT_FOUND" });
+      expect(logged).toEqual([]);
+    });
+
+    it("un fallo inesperado es SAVE_FAILED y se registra sin el contenido de la fila", async () => {
+      useDb(planWith([]), publishedDrill, dbError("XX000", 'fila con "texto del club"'));
+
+      const result = await addDrillToPractice("club-a", addDrill);
+
+      expect(result).toEqual({ ok: false, error: "SAVE_FAILED" });
+      expect(logged).toEqual(["[practice.add-drill-to-practice] PostgrestError code=XX000"]);
+    });
+  });
+
+  it("si falla la lectura de la sesión no llama a la función y se registra", async () => {
+    const db = useDb(dbError("XX000", "boom"));
+
+    const result = await addDrillToPractice("club-a", addDrill);
+
+    expect(result).toEqual({ ok: false, error: "SAVE_FAILED" });
+    expect(db.rpcs).toEqual([]);
+    expect(logged).toEqual(["[practice.add-drill-to-practice] PostgrestError code=XX000"]);
+  });
+
+  it("si falla la lectura del ejercicio no llama a la función y se registra", async () => {
+    const db = useDb(planWith([]), dbError("XX000", "boom"));
+
+    const result = await addDrillToPractice("club-a", addDrill);
+
+    expect(result).toEqual({ ok: false, error: "SAVE_FAILED" });
+    expect(db.rpcs).toEqual([]);
+  });
+
+  it("un id que no es un uuid señala su campo y no consulta el club ni la base de datos", async () => {
+    const result = await addDrillToPractice("club-a", { eventId: "no-es-un-uuid", drillId: "tampoco" });
+
+    expect(result).toEqual({
+      ok: false,
+      error: "INVALID",
+      fieldErrors: { eventId: "No encontramos este contenido.", drillId: "No encontramos este contenido." },
+    });
+    expect(mocks.requireClub).not.toHaveBeenCalled();
     expect(mocks.createClient).not.toHaveBeenCalled();
   });
 });

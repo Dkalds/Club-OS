@@ -590,6 +590,7 @@ describe("getPractice", () => {
         {
           id: uuid(51),
           drillId: uuid(60),
+          drillVisible: true,
           title: "Rueda de tiros",
           phase: "Técnica",
           minutes: 20,
