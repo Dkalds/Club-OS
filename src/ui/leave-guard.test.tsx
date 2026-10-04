@@ -154,6 +154,27 @@ describe("useLeaveGuard · clic en un enlace", () => {
 
     expect(mocks.push).toHaveBeenCalledWith(HREF);
   });
+
+  // Tras un despliegue el router no navega dentro de la app: carga la página entera. Con el
+  // aviso de la pestaña aún puesto, el navegador preguntaría otra vez a quien acaba de decir
+  // que sale. Se mira en el instante en que se navega.
+  it("«Salir sin guardar» quita el aviso de la pestaña antes de navegar: nadie pregunta dos veces", () => {
+    let askedWhileLeaving: boolean | null = null;
+    mocks.push.mockImplementation(() => {
+      askedWhileLeaving = unloadAsks();
+    });
+    render(<Harness dirty />);
+    clickLink();
+    expect(unloadAsks()).toBe(true);
+
+    fireEvent.click(screen.getByRole("button", { name: "Salir sin guardar" }));
+
+    expect(mocks.push).toHaveBeenCalledTimes(1);
+    expect(askedWhileLeaving).toBe(false);
+    // Mientras llega la pantalla nueva, otro toque en el enlace tampoco vuelve a preguntar.
+    expect(clickLink()).toBe("navega");
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+  });
 });
 
 // Lo que rodea a la pantalla que usa el gancho: la navegación de la app (enlaces de `next/link`,
@@ -328,6 +349,23 @@ describe("useLeaveGuard · cualquier enlace de la app", () => {
 
     expect(click(navLink("The Way"))).toBe("navega");
     expect(leaveDialogs()).toHaveLength(0);
+  });
+
+  // Un enlace con `guard` ve el clic después que el oyente de `document`: si `release` solo
+  // quitara el oyente, ese enlace seguiría preguntando a quien ya ha guardado o ha decidido salir.
+  it("`release` vale también para un enlace que lleva `guard`, hasta que haya cambios nuevos", () => {
+    const { rerender } = render(<Screen dirty />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Recargar" }));
+
+    expect(click(link())).toBe("navega");
+    expect(leaveDialogs()).toHaveLength(0);
+
+    // Guardado y vuelto a tocar: son cambios nuevos, y se vuelve a preguntar por ellos.
+    rerender(<Screen dirty={false} />);
+    rerender(<Screen dirty />);
+    expect(click(link())).toBe("se detiene");
+    expect(leaveDialogs()).toHaveLength(1);
   });
 
   it("al salir de la pantalla ya no pregunta", () => {
