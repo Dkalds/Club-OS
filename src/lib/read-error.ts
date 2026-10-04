@@ -6,8 +6,9 @@ import { logError } from "@/lib/log";
  * No se adjunta como `cause`: su mensaje puede llevar el contenido de una fila.
  *
  * Siempre lanza: no devuelve un resultado, a diferencia de `fail` de `@/lib/action-result`,
- * que es el de las acciones. Lo usan las lecturas de todos los módulos (`tag` es
- * `modulo.lectura`, como la etiqueta de log de las acciones).
+ * que es el de las acciones. Lo usan las lecturas de metodología y de ejercicios (`tag` es
+ * `modulo.lectura`, como la etiqueta de log de las acciones); la de Inicio aún lleva su propia
+ * copia (ver el backlog de la Fase 4).
  */
 export function throwReadError(tag: string, error: unknown): never {
   logError(tag, error);

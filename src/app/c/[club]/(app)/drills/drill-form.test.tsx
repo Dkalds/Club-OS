@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from "vitest";
 import { ACTION_ERROR_COPY, fail, ok, type ActionResult } from "@/lib/action-result";
 import type { DrillDetail, FocusArea } from "@/modules/drills/types";
@@ -1437,6 +1437,74 @@ describe("DrillForm · cambios sin guardar", () => {
       await waitFor(() => expect(unloadAsks()).toBe(false));
       expect(clickCancel()).toBe("navega");
       expect(confirm).not.toHaveBeenCalled();
+    });
+
+    // En la app real `router.push` dentro de una transición no termina hasta que llega la ficha,
+    // y los cambios de estado de esa misma transición (marcar el formulario como limpio) no se
+    // pintan hasta entonces. Un `push` de mentira que vuelve al instante lo esconde: aquí la
+    // transición se queda pendiente mientras se mira, y el aviso tiene que estar ya quitado.
+    describe("mientras la ficha aún no ha llegado", () => {
+      let arrives: ReturnType<typeof deferred<void>>;
+
+      beforeEach(() => {
+        arrives = deferred<void>();
+        mocks.push.mockReturnValue(arrives.promise);
+      });
+
+      // Una transición pendiente retiene las de todo el módulo de React, no solo las de este
+      // árbol: si se queda colgada, los tests que vengan después no pintan nada. La ficha acaba
+      // llegando.
+      afterEach(async () => {
+        await act(async () => arrives.resolve());
+      });
+
+      it("ya no queda ningún aviso de cerrar o recargar la pestaña", async () => {
+        const add = vi.spyOn(window, "addEventListener");
+        const remove = vi.spyOn(window, "removeEventListener");
+        renderEdit();
+        change("Título", "Otro título");
+        expect(unloadAsks()).toBe(true);
+
+        saveEdit();
+        await waitFor(() => expect(mocks.push).toHaveBeenCalledWith(`/c/club-a/drills/${DRILL_ID}`));
+
+        // Sin esperar a ningún repintado: el navegador puede pasar a una carga completa ya.
+        expect(unloadAsks()).toBe(false);
+        const unloadCalls = (spy: typeof add) => spy.mock.calls.filter(([type]) => type === "beforeunload");
+        expect(unloadCalls(remove).length).toBeGreaterThan(0);
+        expect(unloadCalls(add)).toHaveLength(1);
+        add.mockRestore();
+        remove.mockRestore();
+      });
+
+      it("«Cancelar» no pregunta: lo escrito acaba de guardarse", async () => {
+        renderNew();
+        fillMinimum("Mi borrador");
+        expect(unloadAsks()).toBe(true);
+
+        saveNew();
+        await waitFor(() => expect(mocks.push).toHaveBeenCalledWith(`/c/club-a/drills/${NEW_ID}`));
+
+        expect(clickCancel()).toBe("navega");
+        expect(confirm).not.toHaveBeenCalled();
+      });
+
+      it("lo que se escribe mientras guarda sigue preguntando, también con la ficha por llegar", async () => {
+        const pending = deferred<ActionResult<{ updatedAt: string }>>();
+        mocks.updateDrill.mockReturnValue(pending.promise);
+        renderEdit();
+        change("Título", "Primera versión");
+        saveEdit();
+        await waitFor(() => expect(mocks.updateDrill).toHaveBeenCalledTimes(1));
+
+        change("Título", "Escrito mientras guardaba");
+        pending.resolve(ok({ updatedAt: "2026-10-03T10:05:00.654321+00:00" }));
+        await waitFor(() => expect(mocks.push).toHaveBeenCalledTimes(1));
+
+        expect(unloadAsks()).toBe(true);
+        expect(clickCancel()).toBe("navega");
+        expect(confirm).toHaveBeenCalledWith(UNSAVED);
+      });
     });
 
     it("lo que se escribe mientras guarda sigue sin guardar", async () => {
