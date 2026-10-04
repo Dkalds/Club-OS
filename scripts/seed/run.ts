@@ -144,7 +144,10 @@ export async function runSeed(now: Date, client?: Client): Promise<void> {
 
   // Los ejercicios van antes que los ítems de sesión: `practice_items (organization_id,
   // drill_id)` es una clave foránea compuesta a `drills`. Se escribe también su estado y su
-  // texto, así que uno editado o archivado en la app vuelve a lo que dice el seed.
+  // texto, así que uno editado o archivado en la app vuelve a lo que dice el seed. Y también su
+  // diagrama y su vídeo, que el seed pone a null (`diagram_media_id`, `video_url`): en un entorno
+  // de demo, el diagrama que alguien subió a un ejercicio del seed queda desenlazado (el objeto
+  // de Storage y su ficha de `media_assets` no se borran, solo dejan de estar enlazados).
   check("drills", await db.from("drills").upsert(drills, { onConflict: "id" }));
 
   // Si la lista de ítems de una sesión cambia entre versiones del seed, los ítems que ya no
