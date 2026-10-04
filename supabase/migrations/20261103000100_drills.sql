@@ -290,10 +290,12 @@ grant select, insert, update, delete on table public.drill_standards to service_
 -- ── Políticas de drills ──────────────────────────────────────────────────────────────
 -- Es la regla de `can_see_drill` escrita sobre las columnas de la propia fila, y no una
 -- llamada a la función. Con `insert … returning` (PostgREST con `.select()`, y las funciones
--- de guardado) la fila nueva tiene que pasar esta política, y una función `stable` que la
--- busque por `id` trabaja con la instantánea de la consulta que la llama, donde la fila
--- nueva todavía no existe: el alta de un borrador fallaría con 42501. Los hijos sí usan la
--- función: su ejercicio ya existe. Si cambias una de las dos reglas, cambia la otra.
+-- de guardado) PostgreSQL aplica esta política a la fila nueva como una comprobación previa
+-- a escribirla: en ese momento la fila no está en la tabla, y ninguna consulta por `id` la
+-- encuentra, sea cual sea la volatilidad de la función. El alta de un borrador fallaría con
+-- 42501, y cambiar `stable` por `volatile` no lo arregla. Los hijos sí usan la función: su
+-- ejercicio ya existe. Si cambias una de las dos reglas, cambia la otra; el test comprueba
+-- que ven lo mismo.
 create policy drills_select_visible
   on public.drills
   for select

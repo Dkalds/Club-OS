@@ -13,22 +13,28 @@
 -- chocan con los de `pnpm seed` ni con los de los otros tests.
 begin;
 
-select plan(116);
+select plan(150);
 
 -- ── Fixtures (como postgres) ─────────────────────────────────────────────────────────
 -- Club A
 --   adminA es admin; c1 entrena T1 «Alevín A» y c2 entrena T2 «Benjamín A»; jugA es un
---   jugador de T1 (rol player).
+--   jugador de T1 (rol player). `multi` es entrenador de A y admin de B: lee y escribe en B
+--   como admin, y en A solo tiene lo de un entrenador que no es autor de nada.
 --   Ejercicios (título → estado, autor):
 --     «Pase y corte»    → publicado, adminA; con dos puntos, una variante, un objetivo, un
 --                         principio y un Standard
 --     «Borrador de c1»  → borrador, c1; con un punto, una variante, un objetivo, un
 --                         principio y un Standard
---     «Rebote ofensivo» → archivado, adminA; está en un ítem de un plan `done` de T1
---   Un objetivo (fA), un principio (gA) y un Standard (sA).
+--     «Rebote ofensivo» → archivado, adminA; con un punto; está en un ítem de un plan
+--                         `done` de T1
+--   Dos objetivos (fA, fA2), dos principios (gA, gA2) y dos Standards (sA, sA2): el segundo
+--   de cada uno es libre, para vincularlo en las pruebas sin chocar con la clave primaria.
 -- Club B
 --   coachB es coach. Un objetivo (fB), un principio (gB), un Standard (sB) y «Ejercicio de
 --   B» (publicado, coachB) con un punto, una variante y los tres vínculos.
+--
+-- `tests.all_drill_ids()` lee todos los ejercicios sin pasar por RLS: es la referencia con la
+-- que se compara lo que ve cada usuario (la función existe solo en esta transacción).
 --
 -- Los ids quedan en ajustes `fx.*` de la transacción. Los títulos hacen de clave para leer
 -- las aserciones; empiezan por letras distintas para que `order by` dé el mismo orden con
@@ -44,6 +50,7 @@ declare
   u_c2 uuid := tests.create_user('c2@drills.pgtap.test');
   u_jug_a uuid := tests.create_user('jug-a@drills.pgtap.test');
   u_coach_b uuid := tests.create_user('coach-b@drills.pgtap.test');
+  u_multi uuid := tests.create_user('multi@drills.pgtap.test');
 
   p_c1 constant uuid := gen_random_uuid();
   p_c2 constant uuid := gen_random_uuid();
@@ -56,10 +63,13 @@ declare
   t2 constant uuid := gen_random_uuid();
 
   f_a constant uuid := gen_random_uuid();
+  f_a2 constant uuid := gen_random_uuid();
   f_b constant uuid := gen_random_uuid();
   g_a constant uuid := gen_random_uuid();
+  g_a2 constant uuid := gen_random_uuid();
   g_b constant uuid := gen_random_uuid();
   s_a constant uuid := gen_random_uuid();
+  s_a2 constant uuid := gen_random_uuid();
   s_b constant uuid := gen_random_uuid();
 
   d_pub constant uuid := gen_random_uuid();
@@ -83,7 +93,9 @@ begin
     (club_a, u_c1, 'coach', p_c1),
     (club_a, u_c2, 'coach', p_c2),
     (club_a, u_jug_a, 'player', p_jug_a),
-    (club_b, u_coach_b, 'coach', null);
+    (club_b, u_coach_b, 'coach', null),
+    (club_a, u_multi, 'coach', null),
+    (club_b, u_multi, 'admin', null);
 
   insert into seasons (id, organization_id, name, starts_on, ends_on, is_current) values
     (season_a, club_a, '2026/27', '2026-09-01', '2027-06-30', true);
@@ -105,14 +117,17 @@ begin
 
   insert into focus_areas (id, organization_id, slug, name, sort) values
     (f_a, club_a, 'rebote', 'Rebote', 10),
+    (f_a2, club_a, 'equilibrio', 'Equilibrio', 20),
     (f_b, club_b, 'rebote', 'Rebote B', 10);
 
   insert into game_principles (id, organization_id, slug, title, status) values
     (g_a, club_a, 'principio-a', 'Principio de A', 'published'),
+    (g_a2, club_a, 'principio-a2', 'Segundo principio de A', 'published'),
     (g_b, club_b, 'principio-b', 'Principio de B', 'published');
 
   insert into standards (id, organization_id, number, title, description, status) values
     (s_a, club_a, 1, 'Standard 1 de A', 'Descripción del Standard 1 de A.', 'published'),
+    (s_a2, club_a, 2, 'Standard 2 de A', 'Descripción del Standard 2 de A.', 'published'),
     (s_b, club_b, 1, 'Standard 1 de B', 'Descripción del Standard 1 de B.', 'published');
 
   -- El plan pasado no tiene autor, como los del seed: el último bloque del test borra la
@@ -134,6 +149,7 @@ begin
     (club_a, d_pub, 'Mira antes de pasar', true, 1),
     (club_a, d_pub, 'Cuenta hasta tres', false, 2),
     (club_a, d_draft, 'Punto del borrador', false, 1),
+    (club_a, d_arch, 'Punto del archivado', false, 1),
     (club_b, d_b, 'Punto de B', false, 1);
 
   insert into drill_variants (organization_id, drill_id, title, description, sort) values
@@ -166,11 +182,15 @@ begin
   perform set_config('fx.c2', u_c2::text, true);
   perform set_config('fx.jug_a', u_jug_a::text, true);
   perform set_config('fx.coach_b', u_coach_b::text, true);
+  perform set_config('fx.multi', u_multi::text, true);
   perform set_config('fx.f_a', f_a::text, true);
+  perform set_config('fx.f_a2', f_a2::text, true);
   perform set_config('fx.f_b', f_b::text, true);
   perform set_config('fx.g_a', g_a::text, true);
+  perform set_config('fx.g_a2', g_a2::text, true);
   perform set_config('fx.g_b', g_b::text, true);
   perform set_config('fx.s_a', s_a::text, true);
+  perform set_config('fx.s_a2', s_a2::text, true);
   perform set_config('fx.s_b', s_b::text, true);
   perform set_config('fx.d_pub', d_pub::text, true);
   perform set_config('fx.d_draft', d_draft::text, true);
@@ -178,6 +198,15 @@ begin
   perform set_config('fx.d_b', d_b::text, true);
   perform set_config('fx.plan_done', plan_done::text, true);
 end
+$$;
+
+create function tests.all_drill_ids()
+returns setof uuid
+language sql
+security definer
+set search_path = ''
+as $$
+  select id from public.drills;
 $$;
 
 -- ── c1 (entrenador): lo publicado, lo archivado y su borrador ────────────────────────
@@ -198,8 +227,17 @@ select results_eq(
            (select count(*) from drill_focus_areas)::int,
            (select count(*) from drill_principles)::int,
            (select count(*) from drill_standards)::int$$,
-  $$values (3, 3, 2, 2, 2, 2)$$,
+  $$values (3, 4, 2, 2, 2, 2)$$,
   'c1 ve en las seis tablas lo de A que le toca, y nada de B'
+);
+
+-- La política de lectura de `drills` y `can_see_drill` (la de los hijos) son dos copias de la
+-- misma regla: lo que cada usuario ve en `drills` es exactamente lo que la función da por
+-- visible, sobre todos los ejercicios del servidor.
+select results_eq(
+  'select id from drills order by id',
+  'select id from tests.all_drill_ids() as t (id) where private.can_see_drill(id) order by id',
+  'c1: la política de drills y can_see_drill ven lo mismo'
 );
 
 -- ── c2 (entrenador): no ve el borrador de c1 (Review Focus 1) ────────────────────────
@@ -239,8 +277,22 @@ select results_eq(
            (select count(*) from drill_focus_areas)::int,
            (select count(*) from drill_principles)::int,
            (select count(*) from drill_standards)::int$$,
-  $$values (2, 2, 1, 1, 1, 1)$$,
+  $$values (2, 3, 1, 1, 1, 1)$$,
   'c2 ve en las seis tablas lo publicado y lo archivado de A, y nada de B'
+);
+
+-- Los hijos de un archivado se ven igual que los de un publicado: el archivado sigue en la
+-- biblioteca y en el histórico.
+select results_eq(
+  $$select text from drill_coaching_points where drill_id = current_setting('fx.d_arch')::uuid$$,
+  $$values ('Punto del archivado')$$,
+  'c2 lee el punto de un ejercicio archivado'
+);
+
+select results_eq(
+  'select id from drills order by id',
+  'select id from tests.all_drill_ids() as t (id) where private.can_see_drill(id) order by id',
+  'c2: la política de drills y can_see_drill ven lo mismo'
 );
 
 -- ── adminA: todo su club, borradores incluidos ───────────────────────────────────────
@@ -259,8 +311,14 @@ select results_eq(
            (select count(*) from drill_focus_areas)::int,
            (select count(*) from drill_principles)::int,
            (select count(*) from drill_standards)::int$$,
-  $$values (3, 3, 2, 2, 2, 2)$$,
+  $$values (3, 4, 2, 2, 2, 2)$$,
   'adminA ve en las seis tablas todo lo de A, y nada de B'
+);
+
+select results_eq(
+  'select id from drills order by id',
+  'select id from tests.all_drill_ids() as t (id) where private.can_see_drill(id) order by id',
+  'adminA: la política de drills y can_see_drill ven lo mismo'
 );
 
 -- ── jugA (jugador) y coachB (entrenador de B): nada de A ─────────────────────────────
@@ -274,6 +332,12 @@ select is_empty(
     union all select 'principios' from drill_principles
     union all select 'standards' from drill_standards$$,
   'jugA, que es del club pero juega, no ve nada en las seis tablas'
+);
+
+select results_eq(
+  'select id from drills order by id',
+  'select id from tests.all_drill_ids() as t (id) where private.can_see_drill(id) order by id',
+  'jugA: la política de drills y can_see_drill ven lo mismo'
 );
 
 select tests.authenticate_as(current_setting('fx.coach_b')::uuid);
@@ -293,6 +357,29 @@ select is_empty(
     union all select 'principios' from drill_principles where organization_id = current_setting('fx.club_a')::uuid
     union all select 'standards' from drill_standards where organization_id = current_setting('fx.club_a')::uuid$$,
   'coachB no ve nada de A en las seis tablas'
+);
+
+select results_eq(
+  'select id from drills order by id',
+  'select id from tests.all_drill_ids() as t (id) where private.can_see_drill(id) order by id',
+  'coachB: la política de drills y can_see_drill ven lo mismo'
+);
+
+-- ── multi (entrenador de A y admin de B): cada club por su rol ───────────────────────
+-- Lee lo publicado y lo archivado de A, que no es admin, y todo B, donde sí lo es; no ve el
+-- borrador de c1.
+select tests.authenticate_as(current_setting('fx.multi')::uuid);
+
+select results_eq(
+  'select title from drills order by title',
+  $$values ('Ejercicio de B'), ('Pase y corte'), ('Rebote ofensivo')$$,
+  'multi ve lo publicado y lo archivado de A y el ejercicio de B, y no el borrador de c1'
+);
+
+select results_eq(
+  'select id from drills order by id',
+  'select id from tests.all_drill_ids() as t (id) where private.can_see_drill(id) order by id',
+  'multi: la política de drills y can_see_drill ven lo mismo'
 );
 
 -- ── c1: crea borradores y edita los suyos ────────────────────────────────────────────
@@ -405,6 +492,72 @@ select lives_ok(
   'c1 vincula a su borrador un objetivo, un principio y un Standard'
 );
 
+select lives_ok(
+  $$insert into drill_variants (organization_id, drill_id, title, sort)
+    values (current_setting('fx.club_a')::uuid, current_setting('fx.d_draft')::uuid, 'Variante nueva de c1', 2)$$,
+  'c1 añade una variante a su borrador'
+);
+
+-- Control positivo de las escrituras: c1 cambia los hijos de su borrador en las cinco tablas.
+select results_eq(
+  $$with
+      p as (update drill_coaching_points set is_key = true
+            where drill_id = current_setting('fx.d_draft')::uuid returning 1),
+      v as (update drill_variants set title = 'Variante editada'
+            where drill_id = current_setting('fx.d_draft')::uuid and sort = 1 returning 1),
+      f as (update drill_focus_areas set focus_area_id = current_setting('fx.f_a2')::uuid
+            where drill_id = current_setting('fx.d_draft')::uuid returning 1),
+      g as (update drill_principles set principle_id = current_setting('fx.g_a2')::uuid
+            where drill_id = current_setting('fx.d_draft')::uuid returning 1),
+      s as (update drill_standards set standard_id = current_setting('fx.s_a2')::uuid
+            where drill_id = current_setting('fx.d_draft')::uuid returning 1)
+    select (select count(*) from p)::int, (select count(*) from v)::int,
+           (select count(*) from f)::int, (select count(*) from g)::int,
+           (select count(*) from s)::int$$,
+  $$values (2, 1, 1, 1, 1)$$,
+  'c1 modifica los puntos, la variante y los vínculos de su borrador'
+);
+
+-- Un hijo de su borrador no se muda a un ejercicio que c1 no puede editar (el archivado): la
+-- fila vieja cumple `using` y la nueva no cumple `with check`. Se usa el archivado y no el
+-- publicado para que, si la política fallara, la fila movida no choque con las pruebas
+-- siguientes sobre el publicado.
+select throws_ok(
+  $$update drill_coaching_points set drill_id = current_setting('fx.d_arch')::uuid, sort = 9
+    where drill_id = current_setting('fx.d_draft')::uuid and sort = 1$$,
+  '42501', null,
+  'c1 no pasa un punto de su borrador al archivado'
+);
+
+select throws_ok(
+  $$update drill_variants set drill_id = current_setting('fx.d_arch')::uuid, sort = 9
+    where drill_id = current_setting('fx.d_draft')::uuid and sort = 1$$,
+  '42501', null,
+  'c1 no pasa una variante de su borrador al archivado'
+);
+
+select throws_ok(
+  $$update drill_focus_areas set drill_id = current_setting('fx.d_arch')::uuid
+    where drill_id = current_setting('fx.d_draft')::uuid$$,
+  '42501', null,
+  'c1 no pasa un objetivo de su borrador al archivado'
+);
+
+select throws_ok(
+  $$update drill_principles set drill_id = current_setting('fx.d_arch')::uuid
+    where drill_id = current_setting('fx.d_draft')::uuid$$,
+  '42501', null,
+  'c1 no pasa un principio de su borrador al archivado'
+);
+
+select throws_ok(
+  $$update drill_standards set drill_id = current_setting('fx.d_arch')::uuid
+    where drill_id = current_setting('fx.d_draft')::uuid$$,
+  '42501', null,
+  'c1 no pasa un Standard de su borrador al archivado'
+);
+
+-- El publicado no es de c1: no le añade nada, en ninguna de las cinco tablas.
 select throws_ok(
   $$insert into drill_coaching_points (organization_id, drill_id, text, sort)
     values (current_setting('fx.club_a')::uuid, current_setting('fx.d_pub')::uuid, 'Punto de c1', 3)$$,
@@ -412,15 +565,51 @@ select throws_ok(
   'c1 no añade puntos al publicado'
 );
 
+select throws_ok(
+  $$insert into drill_variants (organization_id, drill_id, title, sort)
+    values (current_setting('fx.club_a')::uuid, current_setting('fx.d_pub')::uuid, 'Variante de c1', 9)$$,
+  '42501', null,
+  'c1 no añade variantes al publicado'
+);
+
+select throws_ok(
+  $$insert into drill_focus_areas (organization_id, drill_id, focus_area_id)
+    values (current_setting('fx.club_a')::uuid, current_setting('fx.d_pub')::uuid, current_setting('fx.f_a2')::uuid)$$,
+  '42501', null,
+  'c1 no vincula un objetivo al publicado'
+);
+
+select throws_ok(
+  $$insert into drill_principles (organization_id, drill_id, principle_id)
+    values (current_setting('fx.club_a')::uuid, current_setting('fx.d_pub')::uuid, current_setting('fx.g_a2')::uuid)$$,
+  '42501', null,
+  'c1 no vincula un principio al publicado'
+);
+
+select throws_ok(
+  $$insert into drill_standards (organization_id, drill_id, standard_id)
+    values (current_setting('fx.club_a')::uuid, current_setting('fx.d_pub')::uuid, current_setting('fx.s_a2')::uuid)$$,
+  '42501', null,
+  'c1 no vincula un Standard al publicado'
+);
+
 select results_eq(
   $$with
       p as (update drill_coaching_points set text = 'editado'
             where drill_id = current_setting('fx.d_pub')::uuid returning 1),
       v as (update drill_variants set title = 'editado'
+            where drill_id = current_setting('fx.d_pub')::uuid returning 1),
+      f as (update drill_focus_areas set focus_area_id = current_setting('fx.f_a2')::uuid
+            where drill_id = current_setting('fx.d_pub')::uuid returning 1),
+      g as (update drill_principles set principle_id = current_setting('fx.g_a2')::uuid
+            where drill_id = current_setting('fx.d_pub')::uuid returning 1),
+      s as (update drill_standards set standard_id = current_setting('fx.s_a2')::uuid
             where drill_id = current_setting('fx.d_pub')::uuid returning 1)
-    select (select count(*) from p)::int, (select count(*) from v)::int$$,
-  $$values (0, 0)$$,
-  'c1 no modifica los puntos ni las variantes del publicado'
+    select (select count(*) from p)::int, (select count(*) from v)::int,
+           (select count(*) from f)::int, (select count(*) from g)::int,
+           (select count(*) from s)::int$$,
+  $$values (0, 0, 0, 0, 0)$$,
+  'c1 no modifica los puntos, las variantes ni los vínculos del publicado'
 );
 
 select results_eq(
@@ -511,6 +700,113 @@ select results_eq(
     select count(*)::int from u$$,
   array[0],
   'coachB no modifica ningún ejercicio de A'
+);
+
+-- ── multi: ser admin de B no da ningún permiso en A ──────────────────────────────────
+-- Es entrenador de A: ve el publicado de A y sus hijos, pero no es autor ni admin allí.
+-- `can_edit_drill` mira la membresía del club del ejercicio, no cualquiera del usuario.
+select tests.authenticate_as(current_setting('fx.multi')::uuid);
+
+-- Controles positivos: en B, donde es admin, escribe.
+select results_eq(
+  $$with u as (update drills set summary = 'Revisado por multi.'
+               where id = current_setting('fx.d_b')::uuid returning 1)
+    select count(*)::int from u$$,
+  array[1],
+  'multi edita un ejercicio de B, donde es admin'
+);
+
+select lives_ok(
+  $$insert into drill_variants (organization_id, drill_id, title, sort)
+    values (current_setting('fx.club_b')::uuid, current_setting('fx.d_b')::uuid, 'Variante de multi', 2)$$,
+  'multi añade una variante a un ejercicio de B'
+);
+
+-- En A, no. `using` no encuentra la fila y el `update` no toca nada. Si `can_edit_drill`
+-- dejara pasar a multi por su rol en B, el `update` llegaría a `with check` y fallaría con
+-- 42501: por eso `lives_ok` y, aparte, que el resumen no haya cambiado.
+select lives_ok(
+  $$update drills set summary = 'editado' where id = current_setting('fx.d_pub')::uuid$$,
+  'multi intenta editar el publicado de A y el update no falla'
+);
+
+select is_empty(
+  $$select 1 from drills
+    where id = current_setting('fx.d_pub')::uuid and summary = 'editado'$$,
+  'multi no edita el publicado de A'
+);
+
+select results_eq(
+  $$with
+      p as (update drill_coaching_points set text = 'editado'
+            where drill_id = current_setting('fx.d_pub')::uuid returning 1),
+      v as (update drill_variants set title = 'editado'
+            where drill_id = current_setting('fx.d_pub')::uuid returning 1),
+      f as (update drill_focus_areas set focus_area_id = current_setting('fx.f_a2')::uuid
+            where drill_id = current_setting('fx.d_pub')::uuid returning 1),
+      g as (update drill_principles set principle_id = current_setting('fx.g_a2')::uuid
+            where drill_id = current_setting('fx.d_pub')::uuid returning 1),
+      s as (update drill_standards set standard_id = current_setting('fx.s_a2')::uuid
+            where drill_id = current_setting('fx.d_pub')::uuid returning 1)
+    select (select count(*) from p)::int, (select count(*) from v)::int,
+           (select count(*) from f)::int, (select count(*) from g)::int,
+           (select count(*) from s)::int$$,
+  $$values (0, 0, 0, 0, 0)$$,
+  'multi no modifica los puntos, las variantes ni los vínculos del publicado de A'
+);
+
+select results_eq(
+  $$with
+      p as (delete from drill_coaching_points
+            where drill_id = current_setting('fx.d_pub')::uuid returning 1),
+      v as (delete from drill_variants
+            where drill_id = current_setting('fx.d_pub')::uuid returning 1),
+      f as (delete from drill_focus_areas
+            where drill_id = current_setting('fx.d_pub')::uuid returning 1),
+      g as (delete from drill_principles
+            where drill_id = current_setting('fx.d_pub')::uuid returning 1),
+      s as (delete from drill_standards
+            where drill_id = current_setting('fx.d_pub')::uuid returning 1)
+    select (select count(*) from p)::int, (select count(*) from v)::int,
+           (select count(*) from f)::int, (select count(*) from g)::int,
+           (select count(*) from s)::int$$,
+  $$values (0, 0, 0, 0, 0)$$,
+  'multi no borra puntos, variantes ni vínculos del publicado de A'
+);
+
+select throws_ok(
+  $$insert into drill_coaching_points (organization_id, drill_id, text, sort)
+    values (current_setting('fx.club_a')::uuid, current_setting('fx.d_pub')::uuid, 'Punto de multi', 9)$$,
+  '42501', null,
+  'multi no añade puntos al publicado de A'
+);
+
+select throws_ok(
+  $$insert into drill_variants (organization_id, drill_id, title, sort)
+    values (current_setting('fx.club_a')::uuid, current_setting('fx.d_pub')::uuid, 'Variante de multi', 9)$$,
+  '42501', null,
+  'multi no añade variantes al publicado de A'
+);
+
+select throws_ok(
+  $$insert into drill_focus_areas (organization_id, drill_id, focus_area_id)
+    values (current_setting('fx.club_a')::uuid, current_setting('fx.d_pub')::uuid, current_setting('fx.f_a2')::uuid)$$,
+  '42501', null,
+  'multi no vincula un objetivo al publicado de A'
+);
+
+select throws_ok(
+  $$insert into drill_principles (organization_id, drill_id, principle_id)
+    values (current_setting('fx.club_a')::uuid, current_setting('fx.d_pub')::uuid, current_setting('fx.g_a2')::uuid)$$,
+  '42501', null,
+  'multi no vincula un principio al publicado de A'
+);
+
+select throws_ok(
+  $$insert into drill_standards (organization_id, drill_id, standard_id)
+    values (current_setting('fx.club_a')::uuid, current_setting('fx.d_pub')::uuid, current_setting('fx.s_a2')::uuid)$$,
+  '42501', null,
+  'multi no vincula un Standard al publicado de A'
 );
 
 -- ── adminA: publica, archiva y edita, siempre dentro de su club ──────────────────────
@@ -958,6 +1254,25 @@ select is_empty(
   'un borrador sin autor no lo ve ningún entrenador'
 );
 
+select is_empty(
+  $$select 'puntos' from drill_coaching_points where drill_id = current_setting('fx.d_draft')::uuid
+    union all
+    select 'variantes' from drill_variants where drill_id = current_setting('fx.d_draft')::uuid
+    union all
+    select 'objetivos' from drill_focus_areas where drill_id = current_setting('fx.d_draft')::uuid
+    union all
+    select 'principios' from drill_principles where drill_id = current_setting('fx.d_draft')::uuid
+    union all
+    select 'standards' from drill_standards where drill_id = current_setting('fx.d_draft')::uuid$$,
+  'un borrador sin autor tampoco enseña sus hijos a ningún entrenador'
+);
+
+select results_eq(
+  'select id from drills order by id',
+  'select id from tests.all_drill_ids() as t (id) where private.can_see_drill(id) order by id',
+  'c2, con un borrador sin autor: la política de drills y can_see_drill ven lo mismo'
+);
+
 select tests.authenticate_as(current_setting('fx.admin_a')::uuid);
 
 select results_eq(
@@ -966,6 +1281,22 @@ select results_eq(
     select count(*)::int from u$$,
   array[1],
   'adminA ve y edita un borrador sin autor'
+);
+
+select results_eq(
+  $$select (select count(*) from drill_coaching_points where drill_id = current_setting('fx.d_draft')::uuid)::int,
+           (select count(*) from drill_variants where drill_id = current_setting('fx.d_draft')::uuid)::int,
+           (select count(*) from drill_focus_areas where drill_id = current_setting('fx.d_draft')::uuid)::int,
+           (select count(*) from drill_principles where drill_id = current_setting('fx.d_draft')::uuid)::int,
+           (select count(*) from drill_standards where drill_id = current_setting('fx.d_draft')::uuid)::int$$,
+  $$values (1, 2, 1, 1, 1)$$,
+  'adminA ve los hijos de un borrador sin autor'
+);
+
+select results_eq(
+  'select id from drills order by id',
+  'select id from tests.all_drill_ids() as t (id) where private.can_see_drill(id) order by id',
+  'adminA, con un borrador sin autor: la política de drills y can_see_drill ven lo mismo'
 );
 
 -- ── Solo cuentan las membresías activas ──────────────────────────────────────────────
