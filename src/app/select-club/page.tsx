@@ -90,8 +90,8 @@ export default async function SelectClubPage() {
     <main className={mainClass}>
       <p className="font-display text-title uppercase text-ink-2">CLUB OS</p>
       <h1 className="font-display text-display-l uppercase">Tus clubes</h1>
-      <Card variant="flush">
-        {/* Las filas van directas dentro de la card: así pinta sus separadores. */}
+      <Card variant="flush" as="ul">
+        {/* Las filas (`<li>`) van directas dentro de la lista: pintan sus separadores. */}
         {clubs.map((club) => (
           <ListRow
             key={club.slug}

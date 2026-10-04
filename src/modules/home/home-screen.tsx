@@ -75,8 +75,8 @@ export function HomeScreen({
           <section className={`flex flex-col gap-(--space-3) ${BLOCK}`}>
             <SectionHeader title="Esta semana" />
             {home.week.length > 0 ? (
-              <Card variant="flush">
-                {/* Las filas van directas dentro de la card: así pinta sus separadores. */}
+              <Card variant="flush" as="ul">
+                {/* Las filas (`<li>`) van directas dentro de la lista: pintan sus separadores. */}
                 {home.week.map((item) => (
                   <ListRow
                     key={item.eventId}

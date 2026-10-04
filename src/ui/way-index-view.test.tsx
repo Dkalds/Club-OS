@@ -90,13 +90,15 @@ describe("WayIndexView", () => {
     ]);
   });
 
-  it("las filas son hijas directas de una misma card, que es lo que pinta sus separadores", () => {
+  it("las filas son hijas directas de una misma lista, la card que pinta sus separadores", () => {
     renderIndex();
 
-    const found = rows();
-    const card = found[0].parentElement;
-    expect(card).toHaveClass("overflow-hidden");
-    for (const row of found) expect(row.parentElement).toBe(card);
+    const list = screen.getByRole("list");
+    expect(list).toHaveClass("overflow-hidden");
+    for (const row of within(list).getAllByRole("listitem")) {
+      expect(row.parentElement).toBe(list);
+      expect(within(row).getAllByRole("link")).toHaveLength(1);
+    }
   });
 
   it("una sección sin subtítulo no deja una línea vacía", () => {

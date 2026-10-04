@@ -136,6 +136,121 @@ describe("check-guards.sh", () => {
     expect(output).not.toContain("check:guards OK");
   });
 
+  // Colores y medidas en los componentes: solo tokens y la escala de Tailwind. Se miran los
+  // `.tsx` de src/ que no son tests (un test puede nombrar un hex para comprobar que no sale).
+  describe("colores y medidas de los componentes", () => {
+    const HEX = "FALLO: src/ lleva un color hex";
+    const MEASURE = "FALLO: src/ lleva una medida entre corchetes";
+
+    function runTsx(line: string, file = "ui/box.tsx") {
+      return runGuards(withAdmin({ [file]: `export const c = "${line}";\n` }));
+    }
+
+    it.each([
+      ["#fff", "3 dígitos"],
+      ["#fffa", "4 dígitos"],
+      ["#ff0000", "6 dígitos"],
+      ["#ff0000cc", "8 dígitos"],
+      ["#FF0000", "en mayúsculas"],
+      ["text-[#ff0000]", "dentro de una clase de Tailwind"],
+    ])("falla con un color %s (%s), y enseña la línea", (hex) => {
+      const { status, output } = runTsx(hex);
+
+      expect(status).toBe(1);
+      expect(output).toContain(HEX);
+      expect(output).toContain(`src/ui/box.tsx:1:export const c = "${hex}";`);
+      expect(output).not.toContain("check:guards OK");
+    });
+
+    it.each([
+      ["un color de 5 dígitos, que no existe", "#12345"],
+      ["uno de 7", "#1234567"],
+      ["un ancla que no es un color", "#section"],
+      ["un token", "text-ink"],
+    ])("no confunde con un color %s", (_label, text) => {
+      const { status, output } = runTsx(text);
+
+      expect(output).toContain("check:guards OK");
+      expect(status).toBe(0);
+    });
+
+    it("un test con un hex no cuenta: puede nombrarlo para comprobar que no sale", () => {
+      const { status, output } = runTsx("#ff0000", "ui/box.test.tsx");
+
+      expect(output).toContain("check:guards OK");
+      expect(status).toBe(0);
+    });
+
+    it("un .ts con un hex no cuenta: el guard mira los componentes", () => {
+      const { status } = runTsx("#ff0000", "lib/box.ts");
+
+      expect(status).toBe(0);
+    });
+
+    it.each([
+      "min-h-[220px]",
+      "max-w-[280px]",
+      "h-[18px]",
+      "w-[70%]",
+      "p-[1.5rem]",
+      "gap-[0.5em]",
+      "mt-[-4px]",
+      "lg:min-h-[220px]",
+      "hover:lg:w-[70%]",
+      "text-ink h-[18px] w-full",
+    ])("falla con la medida %s, y enseña dónde", (cls) => {
+      const { status, output } = runTsx(cls);
+
+      expect(status).toBe(1);
+      expect(output).toContain(MEASURE);
+      expect(output).toContain(`src/ui/box.tsx:1:`);
+      expect(output).not.toContain("check:guards OK");
+    });
+
+    it("enseña la clase que falla aunque la línea lleve otras que sí valen", () => {
+      const { output } = runTsx("text-[24px] h-[18px] tracking-[0.04em]");
+
+      expect(output).toContain("h-[18px]");
+      expect(output).not.toContain("text-[24px]");
+      expect(output).not.toContain("tracking-[0.04em]");
+    });
+
+    it.each([
+      "text-[24px]",
+      "tracking-[0.04em]",
+      "leading-[1.5rem]",
+      "lg:text-[24px]",
+      "text-[24px] leading-[28px] tracking-[0.04em]",
+      // Sin unidad o con una función: no son un literal con unidad.
+      "w-[calc(100%-1rem)]",
+      "pb-[env(safe-area-inset-bottom)]",
+      "h-[var(--space-4)]",
+      "grid-cols-[1fr_auto]",
+      // La escala de Tailwind y los tokens son la forma correcta.
+      "min-h-55 max-w-70 h-4.5 w-7/10 min-h-(--target-min)",
+    ])("deja pasar %s", (cls) => {
+      const { status, output } = runTsx(cls);
+
+      expect(output).toContain("check:guards OK");
+      expect(status).toBe(0);
+    });
+
+    it("una medida entre corchetes en un test no cuenta", () => {
+      const { status, output } = runTsx("min-h-[220px]", "ui/box.test.tsx");
+
+      expect(output).toContain("check:guards OK");
+      expect(status).toBe(0);
+    });
+
+    it("falla, y no pasa en silencio, si grep no puede leer src/", () => {
+      // Sin `src/`, los dos guards nuevos deben fallar igual que los de clubes.
+      const { output } = runGuards(null);
+
+      expect(output).toMatch(new RegExp(`${HEX}.*grep no pudo comprobarlo \\(estado 2\\)`));
+      expect(output).toMatch(new RegExp(`${MEASURE}.*grep no pudo comprobarlo \\(estado 2\\)`));
+    });
+  });
+
   // Gestión: el export por defecto de cada `page.tsx` de /admin es `adminPage(...)`, que
   // comprueba el club y el permiso antes de ejecutar la página. Un layout no protege a sus
   // páginas, y un guard que no encuentra la carpeta no protege nada.
