@@ -8,7 +8,7 @@ import { CTAButton } from "@/ui/cta-button";
 import { FIELD_LABEL_CLASS, FieldError, TextAreaField, TextField } from "@/ui/form-field";
 import { EditorForm, focusField, ItemCard, NewItemCard, useConfirmation } from "./editor-shell";
 import { ItemControls } from "./item-controls";
-import { useAction } from "./use-action";
+import { useAction } from "@/lib/use-action";
 
 /** Los puntos que admite un principio: el mismo tope que `savePrincipleSchema`. */
 const MAX_POINTS = 12;

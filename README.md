@@ -27,6 +27,8 @@ Plataforma SaaS multi-club para clubes de baloncesto de formación. Este repo es
    pnpm supabase start
    ```
 
+   Arráncalo con todos sus servicios, Storage incluido (`[storage] enabled = true` en `supabase/config.toml`, que es lo que hace `supabase start` a secas). La biblioteca de ejercicios guarda sus diagramas en un bucket privado. Sin el servicio de Storage no funcionan la subida de diagramas, los tests de Storage de `pnpm test:int` ni los e2e que suben un diagrama: el Supabase local tiene que incluir Storage (no lo excluyas con `-x storage-api` ni desactives `[storage]`).
+
 3. Copia `.env.example` a `.env.local` y rellénalo con lo que imprime `pnpm supabase status -o env`:
 
    | En `.env.local` | Valor de `supabase status -o env` |
@@ -72,6 +74,7 @@ Si has usado Gestión en un club del seed, al volver a sembrar:
 
 - Lo que es del seed vuelve a su texto, su estado, su orden y su número.
 - Lo que creaste a mano se queda. Las secciones pasan detrás de las del seed, en el orden que tenían. Un Standard solo cambia de número si ocupaba uno de los del seed: pasa al primero libre, y `pnpm seed` lo dice al acabar.
+- Con los ejercicios, igual: los que creaste se quedan y los del seed vuelven a su versión original, sin diagrama ni vídeo (ver «Despliegue de la biblioteca de ejercicios»).
 
 ## Tests
 
@@ -81,14 +84,14 @@ Si has usado Gestión en un club del seed, al volver a sembrar:
 | `pnpm check:guards` | Reglas 2 y 3 de CLAUDE.md, que cada página de Gestión se exporta con `adminPage` y tokens al día | Nada más |
 | `pnpm test` | Unidad y componentes (Vitest) | Nada más |
 | `pnpm test:db` | RLS y aislamiento entre clubes (pgTAP) | Supabase local |
-| `pnpm test:int` | El seed y `generateLoginCode` (el código de acceso de los e2e) contra la base de datos | Supabase local y `.env.local` |
+| `pnpm test:int` | El seed, `generateLoginCode` (el código de acceso de los e2e) y Storage (`scripts/media/storage.int.test.ts`: el bucket `club-media` y sus políticas, con la sesión de cada usuario del seed) contra la base de datos | Supabase local con Storage, `.env.local` y el seed ya cargado (`pnpm seed`) |
 | `pnpm test:e2e` | La app en un móvil de 375×812 (Playwright) | Supabase local, `.env.local` y un puerto libre: el 3000, o el de `PORT`. Con `BASE_URL`, ver [Entorno remoto](#entorno-remoto) |
 
 - La primera vez, instala el navegador de los e2e: `pnpm exec playwright install chromium`.
 - Los e2e compilan y arrancan la app por su cuenta (`pnpm build && pnpm start`). Si ya hay algo en el puerto, lo usan tal cual. Con `BASE_URL` no arrancan nada: prueban esa URL.
 - **Otro puerto.** `PORT=3100 pnpm test:e2e` arranca y prueba la app en el 3100. Úsalo si el 3000 está ocupado (por ejemplo, con `pnpm dev`) o si pasas los e2e en dos copias del repo a la vez.
-- **Dos proyectos de Playwright.** `mobile` lee y corre en paralelo. `admin` son los specs que escriben (Gestión): van en serie y solo si `mobile` ha pasado. `pnpm test:e2e --project=mobile` lanza solo el primero.
-- **Los e2e borran contenido en local.** Al arrancar, y al empezar y acabar los specs de Gestión, dejan la metodología de los clubes del seed como recién sembrada: todo lo que hayas creado a mano en esos clubes (secciones, valores, principios, Standards) se borra. `pnpm seed` no borra nada; los e2e sí. Solo pasa con un Supabase local.
+- **Dos proyectos de Playwright.** `mobile` lee y corre en paralelo. `admin` son los specs que escriben (Gestión, la ficha y el editor de ejercicios): van en serie y solo si `mobile` ha pasado. `pnpm test:e2e --project=mobile` lanza solo el primero.
+- **Los e2e borran contenido en local.** Al arrancar, y al empezar y acabar los specs de Gestión, dejan la metodología y la biblioteca de ejercicios de los clubes del seed como recién sembradas: todo lo que hayas creado a mano en esos clubes (secciones, valores, principios, Standards, ejercicios y los diagramas subidos) se borra. `pnpm seed` no borra nada; los e2e sí. Solo pasa con un Supabase local.
 - Los e2e siembran solos al arrancar, y solo si Supabase es local. Contra un Supabase remoto no siembran, no borran ni crean usuarios: usan los datos que ya haya, y los tests que escriben se saltan.
 - Ningún e2e crea usuarios. Si el usuario que necesita un test no existe, el test falla y pide sembrar ese entorno.
 
@@ -113,6 +116,24 @@ Hay un entorno desplegado para probar en un móvil real y para enseñar la app. 
 - **Despliegues**: la integración con Git de Vercel despliega sola. Cada PR tiene su preview y cada push a `main` despliega producción, en https://club-os-phi.vercel.app. Las previews están detrás de la protección de despliegues de Vercel y piden un login de Vercel.
 
 Las migraciones nuevas van al remoto con las mismas versiones que tienen en el repo: `pnpm supabase link --project-ref <ref>` una vez y después `pnpm supabase db push`. Nunca `supabase db reset --linked` ni `supabase db push --include-seed`: lo primero borra la base de datos y lo segundo lleva `seed.sql` al remoto.
+
+### Despliegue de la biblioteca de ejercicios (Fase 3)
+
+El Supabase remoto lo comparten producción (se despliega sola con cada push a `main`) y las previews de los PR. Las cuatro migraciones de la Fase 3 (`20261103000100_drills`, `…000200_media_storage`, `…000300_drill_search` y `…000400_save_drill`) tienen que estar aplicadas **antes de usar la preview del PR** para revisar en el móvil y **antes de fusionar**: sin ellas, `/drills` falla en cada carga y `/train` ya enlaza a ella. Son aditivas y seguras con la app que hay desplegada hoy: sigue funcionando con ellas puestas.
+
+`supabase db push` aplica todo lo que falte en el remoto, no solo lo de la Fase 3: si alguna de las tres migraciones de la Fase 2 (The Way: `20261020000100_methodology`, `…000200_methodology_functions` y, de la revisión de su PR, `20261021000100_methodology_integrity`) tampoco está, se aplica en el mismo paso, delante de las cuatro.
+
+Lista, en este orden:
+
+- [ ] **Ver qué falta por aplicar**: `pnpm supabase migration list` contra el proyecto enlazado (`pnpm supabase link --project-ref <ref>` si aún no lo está). Apunta cuáles faltan: las de la Fase 3 y, quizá, alguna de las tres de la Fase 2. El resto de la lista vale igual con las de la Fase 2 pendientes que con ninguna, y `db push` las aplica en orden de versión.
+- [ ] **Comprobar el remoto** antes de aplicar nada:
+  - `select count(*) from practice_items where drill_id is not null;` tiene que dar 0. La migración añade la clave foránea `practice_items (organization_id, drill_id) → drills`, y fallaría con ítems que ya apuntan a un ejercicio que aún no existe.
+  - `select extname, extnamespace::regnamespace from pg_extension where extname = 'unaccent';` no tiene que devolver una fila de otro esquema que `extensions`. La migración hace `create extension if not exists unaccent with schema extensions`: si ya estuviera instalada en otro esquema se saltaría, y `extensions.unaccent` (que usa la búsqueda) no existiría.
+  - Postgres 15 o posterior (`show server_version;`): la clave foránea del diagrama usa `on delete set null (columna)`. El `config.toml` local fija la 17.
+  - El rol con el que se migra puede crear políticas en `storage.objects` y escribir en `storage.buckets`.
+- [ ] **Aplicar las migraciones** con `pnpm supabase db push`, como arriba. Antes de confirmar, comprueba que la lista que enseña es la que viste en `migration list`: las cuatro de la Fase 3 y, si faltaba alguna, las de la Fase 2.
+- [ ] **Volver a sembrar el demo** («Sembrar el demo», más abajo): sin los 20 ejercicios del seed la biblioteca sale vacía.
+- [ ] **Saber qué hace un nuevo seed con los ejercicios.** Devuelve cada ejercicio del seed a lo que dice el seed: texto, estado, puntos, variantes y vínculos, y pone a null su diagrama y su vídeo. Lo que alguien editó en la app sobre esos ejercicios se pierde, y un diagrama subido a uno de ellos queda desenlazado (su objeto de Storage y su ficha de `media_assets` no se borran).
 
 ### Variables en Vercel
 
@@ -201,7 +222,7 @@ pnpm seed
 Remove-Item Env:NEXT_PUBLIC_SUPABASE_URL, Env:SUPABASE_SERVICE_ROLE_KEY, Env:ALLOW_REMOTE_SEED, Variable:clave
 ```
 
-Las fechas del seed son relativas al día en que se siembra: vuelve a sembrar antes de una demo.
+Las fechas del seed son relativas al día en que se siembra: vuelve a sembrar antes de una demo. Un nuevo seed también devuelve los ejercicios del seed a su versión original (ver «Despliegue de la biblioteca de ejercicios»).
 
 ### E2E contra una URL desplegada
 

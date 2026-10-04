@@ -8,7 +8,7 @@ import { CONTENT_KIND_OPTIONS, type ContentKind } from "@/modules/methodology/ty
 import { Card } from "@/ui/card";
 import { CTAButton } from "@/ui/cta-button";
 import { FormAlert, SelectField, TextField } from "@/ui/form-field";
-import { useAction } from "./use-action";
+import { useAction } from "@/lib/use-action";
 
 /**
  * Alta de una sección: el título y el tipo. Todo lo demás (su número, su orden y su slug) lo

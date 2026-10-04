@@ -1,9 +1,11 @@
 import type { Locator, Page } from "@playwright/test";
 import { createAdminClient, readSupabaseEnv } from "../scripts/lib/admin-client";
+import { readE2eTarget } from "../scripts/lib/e2e-target";
 import { ARCANGEL, CLUB_DEMO } from "../scripts/seed/data";
 import { isLocalSupabaseUrl } from "../scripts/seed/guard";
 import { seedId } from "../scripts/seed/ids";
 import { openAs } from "./helpers/sessions";
+import { startSlowContentProxy } from "./helpers/slow-content";
 import { expect, test } from "./helpers/test";
 
 // Necesita el Supabase local arrancado. `e2e/global-setup.ts` siembra Arcángel y Club Demo
@@ -174,6 +176,16 @@ async function expectNoDraft(page: Page): Promise<void> {
 const SHORT_VIEWPORT = { width: 375, height: 400 };
 
 /**
+ * Abre `url` con una carga completa del documento, como al recargar o abrirla en otra pestaña.
+ * Ir directamente a una URL que solo se diferencia de la actual en el fragmento no recarga nada:
+ * el navegador salta al ancla dentro del mismo documento, y no es lo que se quiere probar.
+ */
+async function hardLoad(page: Page, url: string): Promise<void> {
+  await page.goto("about:blank");
+  await page.goto(url);
+}
+
+/**
  * El navegador ha saltado al ancla y su destino queda por debajo de la cabecera fija: dentro
  * de la pantalla y sin que la cabecera esté encima de él. `elementFromPoint` dice qué
  * recibiría el toque en su primera línea.
@@ -257,12 +269,63 @@ test("principios y Standards", async ({ page }) => {
   await expect(page.locator("#standard-98")).toHaveCount(0);
 
   // Y los destinos de los anclas, `#standard-NN` y `#principle-{slug}`, no los tapa la
-  // cabecera fija.
+  // cabecera fija. Se abren las URLs con el ancla puesta, con una carga completa (recargar,
+  // otra pestaña, un enlace compartido): el contenido puede llegar después de que el navegador
+  // haya dejado de buscar el fragmento, y es `ScrollToHash` quien lleva la página al destino.
+  // Se comprueba el resultado (a la vista y bajo la cabecera), no cuándo ocurre.
   await page.setViewportSize(SHORT_VIEWPORT);
-  await page.goto(`${CLUB}/way/standards#standard-03`);
+  await hardLoad(page, `${CLUB}/way/standards#standard-03`);
   await expectClearOfHeader(page, page.locator("#standard-03"));
-  await page.goto(`${CLUB}/way/como-jugamos#principle-transicion`);
+  await hardLoad(page, `${CLUB}/way/como-jugamos#principle-transicion`);
   await expectClearOfHeader(page, page.locator("#principle-transicion"));
+
+  // Y también se llega al ancla con la página ya pintada, como al pulsar un enlace dentro de
+  // ella: ahí el salto lo hace el propio navegador y el margen de scroll deja libre la cabecera.
+  await page.goto(`${CLUB}/way/como-jugamos`);
+  await expect(page.locator("#principle-ataque")).toBeVisible();
+  await page.goto(`${CLUB}/way/como-jugamos#principle-ataque`);
+  await expectClearOfHeader(page, page.locator("#principle-ataque"));
+});
+
+test("la URL de un ancla lleva al destino aunque el contenido llegue después del esqueleto", async ({
+  page,
+  baseURL,
+}) => {
+  test.skip(readE2eTarget(process.env).remote, "Necesita un proxy delante de la app: solo con la app local.");
+
+  // Una base de datos lenta, hecha a mano: el esqueleto de `loading.tsx` sale enseguida y el
+  // contenido de la sección llega 200 ms después, ya pintado el esqueleto y antes de los 300 ms
+  // con que React retrasa destapar un límite de Suspense. Es decir, con la carga ya terminada
+  // cuando el contenido se ve: el navegador no vuelve a buscar el fragmento por su cuenta. Sin
+  // `ScrollToHash`, la página se queda arriba.
+  //
+  // Los 200 ms no se alargan para dar más margen a quien mira: pasados los 300 ms, React destapa
+  // el contenido en cuanto llega, todavía antes de que acabe la carga, y el navegador encuentra
+  // el ancla él solo. Comprobado quitando `ScrollToHash`: con 400 ms o más el test pasa igual,
+  // y con 200 ms falla, que es lo que debe. Por eso no se afirma nada de lo que pasa antes de que
+  // llegue el contenido («aún no se ve» se cumpliría también con una página en blanco): que llegó
+  // tarde lo prueba `proxy.splits()`, y que la página fue sola a su destino, `expectClearOfHeader`.
+  const proxy = await startSlowContentProxy(baseURL ?? "", {
+    path: `${CLUB}/way/como-jugamos`,
+    holdMs: 200,
+  });
+  try {
+    await openAs(page, ALEX);
+    await page.setViewportSize(SHORT_VIEWPORT);
+
+    // Desde una página en blanco, para que sea una carga completa.
+    await page.goto("about:blank");
+    await page.goto(`${proxy.origin}${CLUB}/way/como-jugamos#principle-transicion`, {
+      waitUntil: "commit",
+    });
+
+    // Cuando el contenido llega, la página está en el principio, bajo la cabecera fija.
+    await expectClearOfHeader(page, page.locator("#principle-transicion"));
+    await expect(page.getByRole("status", { name: "Cargando" })).toHaveCount(0);
+    expect(proxy.splits(), "el proxy ha partido la respuesta de la sección").toBe(1);
+  } finally {
+    await proxy.close();
+  }
 });
 
 test("un borrador por URL directa da el 404 opaco", async ({ page }) => {

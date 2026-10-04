@@ -16,9 +16,20 @@ vi.mock("./seed/run", () => ({ runSeed: mocks.runSeed }));
 vi.mock("./lib/admin-client", () => ({ readSupabaseEnv: mocks.readSupabaseEnv }));
 
 const CLI_PATH = path.resolve(import.meta.dirname, "seed.ts");
+/**
+ * Cada test importa `seed.ts` de cero tras `vi.resetModules()`: leerlo y transformarlo con el
+ * ordenador ocupado puede pasar de los 5 s por defecto (y de 1 s la espera de `vi.waitFor`).
+ */
+const IMPORT_TIMEOUT_MS = 30_000;
+/**
+ * Lo que espera `vi.waitFor` a que el CLI termine, ya importado. Menor que el tiempo del test:
+ * si la espera se agota, el fallo que se ve es el de la aserción y no un «Test timed out»
+ * (la regla está en `vitest.setup.ts`).
+ */
+const WAIT_TIMEOUT_MS = 20_000;
 const originalArgv = process.argv;
 
-describe("scripts/seed.ts", () => {
+describe("scripts/seed.ts", { timeout: IMPORT_TIMEOUT_MS }, () => {
   beforeEach(() => {
     vi.resetModules();
     mocks.runSeed.mockClear();
@@ -49,7 +60,7 @@ describe("scripts/seed.ts", () => {
     process.argv = [originalArgv[0], CLI_PATH];
 
     await import("./seed");
-    await vi.waitFor(() => expect(log).toHaveBeenCalledTimes(3));
+    await vi.waitFor(() => expect(log).toHaveBeenCalledTimes(3), { timeout: WAIT_TIMEOUT_MS });
 
     expect(mocks.runSeed).toHaveBeenCalledTimes(1);
     expect(mocks.runSeed).toHaveBeenCalledWith(expect.any(Date));
@@ -65,7 +76,7 @@ describe("scripts/seed.ts", () => {
     process.argv = [originalArgv[0], CLI_PATH];
 
     await import("./seed");
-    await vi.waitFor(() => expect(log).toHaveBeenCalledTimes(4));
+    await vi.waitFor(() => expect(log).toHaveBeenCalledTimes(4), { timeout: WAIT_TIMEOUT_MS });
 
     expect(log).toHaveBeenNthCalledWith(
       4,

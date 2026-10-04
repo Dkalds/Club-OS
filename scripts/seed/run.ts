@@ -7,7 +7,10 @@
 //
 // Un club del seed se puede haber usado: dirección reordena, renumera y crea contenido en
 // Gestión. El seed devuelve lo suyo a su sitio y no borra nada de lo creado a mano; lo único
-// que le cambia es el número cuando choca con uno suyo (ver `strays.ts`).
+// que le cambia es el número cuando choca con uno suyo (ver `strays.ts`). Lo que sí reemplaza
+// son los hijos de sus propias filas (los puntos de sus principios, los ítems de sus sesiones
+// y los puntos, variantes y vínculos de sus ejercicios): un ejercicio o un principio creados
+// a mano no se tocan.
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/database.types";
@@ -86,6 +89,34 @@ async function ensureUsers(client: Client, emails: string[]): Promise<Map<string
   return ids;
 }
 
+type DrillChildTable =
+  | "drill_coaching_points"
+  | "drill_variants"
+  | "drill_focus_areas"
+  | "drill_principles"
+  | "drill_standards";
+
+// Guardar un ejercicio en la app borra sus puntos, variantes y vínculos y escribe otros (los
+// puntos y las variantes, con ids nuevos y las mismas posiciones: `unique (drill_id, sort)`).
+// Un reseed que solo escribiera dejaría de más lo que la app añadió y, si el id es otro,
+// chocaría con la posición. Por eso, de cada ejercicio del seed se borra, ANTES de escribir,
+// lo que no está en su lista; un ejercicio sin filas en esa tabla pierde todas las que tenga.
+// `column` es la que identifica a cada fila dentro de su ejercicio: el id, o el vínculo.
+async function deleteStaleDrillChildren<Row extends { drill_id: string }>(
+  db: Client,
+  drills: { id: string }[],
+  table: DrillChildTable,
+  column: keyof Row & string,
+  rows: Row[],
+): Promise<void> {
+  for (const drill of drills) {
+    const keep = rows.filter((row) => row.drill_id === drill.id).map((row) => String(row[column]));
+    let stale = db.from(table).delete().eq("drill_id", drill.id);
+    if (keep.length > 0) stale = stale.not(column, "in", `(${keep.join(",")})`);
+    check(`${table} (borrado de filas sobrantes del ejercicio ${drill.id})`, await stale);
+  }
+}
+
 export async function runSeed(now: Date, client?: Client): Promise<SeedReport> {
   const db = client ?? adminClientForSeed();
   const data = buildSeedData(now);
@@ -99,6 +130,13 @@ export async function runSeed(now: Date, client?: Client): Promise<SeedReport> {
     const userId = userIds.get(email.toLowerCase());
     if (!userId) throw new Error(`Seed: no hay usuario de Auth para ${email}`);
     return { ...membership, user_id: userId };
+  });
+  // Igual con el autor de cada ejercicio, y antes de escribir nada: un autor que no existe
+  // no debe dejar el seed a medias.
+  const drills = data.drills.map(({ author_email, ...drill }) => {
+    const userId = userIds.get(author_email.toLowerCase());
+    if (!userId) throw new Error(`Seed: no hay usuario de Auth para ${author_email}`);
+    return { ...drill, created_by: userId };
   });
 
   check("organizations", await db.from("organizations").upsert(data.organizations, { onConflict: "id" }));
@@ -132,6 +170,14 @@ export async function runSeed(now: Date, client?: Client): Promise<SeedReport> {
     "practice_plans",
     await db.from("practice_plans").upsert(data.practice_plans, { onConflict: "id" }),
   );
+
+  // Los ejercicios van antes que los ítems de sesión: `practice_items (organization_id,
+  // drill_id)` es una clave foránea compuesta a `drills`. Se escribe también su estado y su
+  // texto, así que uno editado o archivado en la app vuelve a lo que dice el seed. Y también su
+  // diagrama y su vídeo, que el seed pone a null (`diagram_media_id`, `video_url`): en un entorno
+  // de demo, el diagrama que alguien subió a un ejercicio del seed queda desenlazado (el objeto
+  // de Storage y su ficha de `media_assets` no se borran, solo dejan de estar enlazados).
+  check("drills", await db.from("drills").upsert(drills, { onConflict: "id" }));
 
   // Si la lista de ítems de una sesión cambia entre versiones del seed, los ítems que ya no
   // están se borran ANTES de escribir los nuevos: `(plan_id, sort)` es único (diferible) y un
@@ -226,6 +272,41 @@ export async function runSeed(now: Date, client?: Client): Promise<SeedReport> {
       [...data.standards, ...renumbered.rows.map((row) => withColumnsOf(standardModel, row))],
       { onConflict: "id" },
     ),
+  );
+
+  // Puntos, variantes y vínculos de los ejercicios. Al final: enlazan los focos de arriba y
+  // los principios y Standards de la metodología, que tienen que existir ya. Los vínculos
+  // no tienen id propio: su clave es `(drill_id, x_id)`.
+  await deleteStaleDrillChildren(db, data.drills, "drill_coaching_points", "id", data.drill_coaching_points);
+  await deleteStaleDrillChildren(db, data.drills, "drill_variants", "id", data.drill_variants);
+  await deleteStaleDrillChildren(db, data.drills, "drill_focus_areas", "focus_area_id", data.drill_focus_areas);
+  await deleteStaleDrillChildren(db, data.drills, "drill_principles", "principle_id", data.drill_principles);
+  await deleteStaleDrillChildren(db, data.drills, "drill_standards", "standard_id", data.drill_standards);
+  check(
+    "drill_coaching_points",
+    await db.from("drill_coaching_points").upsert(data.drill_coaching_points, { onConflict: "id" }),
+  );
+  check(
+    "drill_variants",
+    await db.from("drill_variants").upsert(data.drill_variants, { onConflict: "id" }),
+  );
+  check(
+    "drill_focus_areas",
+    await db
+      .from("drill_focus_areas")
+      .upsert(data.drill_focus_areas, { onConflict: "drill_id,focus_area_id" }),
+  );
+  check(
+    "drill_principles",
+    await db
+      .from("drill_principles")
+      .upsert(data.drill_principles, { onConflict: "drill_id,principle_id" }),
+  );
+  check(
+    "drill_standards",
+    await db
+      .from("drill_standards")
+      .upsert(data.drill_standards, { onConflict: "drill_id,standard_id" }),
   );
 
   return { movedStandards: renumbered.moved };

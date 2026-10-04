@@ -1,3 +1,4 @@
+import { throwReadError } from "@/lib/read-error";
 import { createClient } from "@/lib/supabase/server";
 import type { ClubContext } from "@/modules/tenancy/queries";
 import { sectionSubtitle } from "./format";
@@ -5,7 +6,6 @@ import {
   PRINCIPLE_COLUMNS,
   SECTION_COLUMNS,
   STANDARD_COLUMNS,
-  throwReadError,
   toClubValue,
   toContentKind,
   toGamePrinciple,
@@ -28,8 +28,8 @@ import type {
 // también ve sus borradores con RLS, y no deben salir en The Way. El orden es siempre
 // `sort`, `created_at` y, para no depender del azar con filas empatadas, `id`.
 //
-// Las columnas, el paso de fila a tipo y el error de lectura son de `map-rows.ts`, que
-// comparte con `admin-queries.ts` para que Gestión y The Way no se desincronicen.
+// Las columnas y el paso de fila a tipo son de `map-rows.ts`, que comparte con
+// `admin-queries.ts` para que Gestión y The Way no se desincronicen.
 
 /**
  * El índice de The Way: las secciones publicadas del club en su orden, cada una con la

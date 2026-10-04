@@ -20,6 +20,7 @@ export const SESSION_DIR = path.resolve(import.meta.dirname, "../.auth");
 /** Los usuarios del seed con los que los specs entran sin probar el login. */
 export const SESSION_USERS = [
   "alex@arcangel.test", // entrenador de Alevín A
+  "irene@arcangel.test", // entrenadora, autora del único borrador del seed
   "nora@arcangel.test", // entrenadora de Benjamín A, mismo club
   "raul@arcangel.test", // dirección, sin equipo
   "marta@demo.test", // entrenadora del otro club

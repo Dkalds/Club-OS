@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 60" width="320" height="240">
+  <!-- Un SVG: no vale como diagrama (solo PNG, JPEG o WebP). Es el fichero de los e2e que
+       comprueban que se rechaza, por el tipo que declara y por sus bytes. -->
+  <rect x="4" y="4" width="72" height="52" rx="2" fill="none" stroke="#222831" stroke-width="1.2" />
+  <rect x="30" y="4" width="20" height="22" fill="none" stroke="#222831" stroke-width="1.2" />
+  <circle cx="40" cy="26" r="8" fill="none" stroke="#222831" stroke-width="1.2" />
+</svg>

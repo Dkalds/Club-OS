@@ -53,3 +53,14 @@ describe("AppShell", () => {
     expect(screen.getByRole("main").className).toContain("--nav-height");
   });
 });
+
+describe("AppShell · cabecera de detalle", () => {
+  it("es el grupo `shell`: la cabecera de inicio se oculta si la pantalla trae la suya de detalle", () => {
+    const { container } = renderShell();
+
+    // La cabecera de inicio (`TopNavigation`) se esconde con `group-has-[…]/shell:hidden`, y
+    // para eso el marco tiene que ser el grupo. `:has()` no se evalúa en jsdom: el e2e de la
+    // biblioteca prueba el efecto.
+    expect(container.firstElementChild).toHaveClass("group/shell");
+  });
+});

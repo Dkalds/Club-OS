@@ -1,10 +1,11 @@
+import { throwReadError } from "@/lib/read-error";
 import { createClient } from "@/lib/supabase/server";
+import { UUID_RE } from "@/lib/uuid";
 import type { ClubContext } from "@/modules/tenancy/queries";
 import {
   PRINCIPLE_COLUMNS,
   SECTION_COLUMNS,
   STANDARD_COLUMNS,
-  throwReadError,
   toClubValue,
   toGamePrinciple,
   toStandard,
@@ -19,9 +20,6 @@ import type { AdminStandard, ClubValue, GamePrinciple, WaySection } from "./type
 // borradores: lo decide RLS (solo el admin del club los lee). Sí se filtra siempre por
 // `organization_id`, para no depender de ello ni recorrer filas de otros clubes. Mismo orden
 // que en The Way: `sort`, `created_at` e `id`.
-
-/** La forma de un uuid escrito con guiones, sin mirar versión ni variante. */
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** Todas las secciones del club, publicadas o no, en su orden de Gestión. */
 export async function listSectionsForAdmin(ctx: ClubContext): Promise<WaySection[]> {
@@ -44,7 +42,7 @@ export async function listSectionsForAdmin(ctx: ClubContext): Promise<WaySection
  * o si `id` no tiene forma de uuid (llega de la URL: ni se consulta).
  */
 export async function getSectionForAdmin(ctx: ClubContext, id: string): Promise<WaySection | null> {
-  if (!UUID.test(id)) return null;
+  if (!UUID_RE.test(id)) return null;
 
   const supabase = await createClient();
 

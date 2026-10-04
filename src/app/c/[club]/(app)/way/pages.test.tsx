@@ -1,6 +1,7 @@
 import { render, screen, within } from "@testing-library/react";
 import type { ReactElement } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { DrillSummary } from "@/modules/drills/types";
 import type {
   ClubValue,
   GamePrinciple,
@@ -16,6 +17,7 @@ const mocks = vi.hoisted(() => ({
   getWayIndex: vi.fn(),
   getWaySection: vi.fn(),
   getStandards: vi.fn(),
+  getRelatedDrills: vi.fn(),
 }));
 
 vi.mock("@/modules/tenancy/queries", () => ({ getClubContext: mocks.getClubContext }));
@@ -23,6 +25,12 @@ vi.mock("@/modules/methodology/queries", () => ({
   getWayIndex: mocks.getWayIndex,
   getWaySection: mocks.getWaySection,
   getStandards: mocks.getStandards,
+}));
+vi.mock("@/modules/drills/queries", () => ({ getRelatedDrills: mocks.getRelatedDrills }));
+// El componente de cliente que lleva la página a su ancla no pinta nada: aquí se sustituye por
+// una marca para comprobar que cada página que tiene anclas lo monta. Lo que hace, en su test.
+vi.mock("@/ui/scroll-to-hash", () => ({
+  ScrollToHash: () => <span data-testid="scroll-to-hash" />,
 }));
 // Como el de verdad: `notFound()` corta el render lanzando.
 vi.mock("next/navigation", () => ({
@@ -91,12 +99,29 @@ const STANDARDS: Standard[] = [
   { id: "st-3", number: 3, title: "TERCER STANDARD", description: "Descripción del tercero." },
 ];
 
+function drill(id: string, title: string): DrillSummary {
+  return {
+    id,
+    title,
+    status: "published",
+    createdBy: null,
+    minAge: 12,
+    maxAge: null,
+    minPlayers: 6,
+    maxPlayers: 12,
+    minMinutes: 10,
+    maxMinutes: 15,
+    focus: [],
+  };
+}
+
 beforeEach(() => {
   vi.resetAllMocks();
   mocks.getClubContext.mockResolvedValue(clubContext("coach"));
   mocks.getWayIndex.mockResolvedValue(INDEX);
   mocks.getWaySection.mockResolvedValue(view());
   mocks.getStandards.mockResolvedValue(STANDARDS);
+  mocks.getRelatedDrills.mockResolvedValue({});
 });
 
 const PAGES: Array<[string, (props: typeof SECTION_PARAMS) => Promise<ReactElement>]> = [
@@ -114,6 +139,7 @@ describe("páginas de The Way", () => {
     expect(mocks.getWayIndex).not.toHaveBeenCalled();
     expect(mocks.getWaySection).not.toHaveBeenCalled();
     expect(mocks.getStandards).not.toHaveBeenCalled();
+    expect(mocks.getRelatedDrills).not.toHaveBeenCalled();
   });
 
   it.each(PAGES)("%s: tiene un único <h1>", async (_route, page) => {
@@ -309,6 +335,120 @@ describe("/way/[section]", () => {
       expect(screen.getByText("Cuando dirección los publique, aparecerán aquí.")).toBeInTheDocument();
       // El enlace de vuelta y la acción del aviso.
       expect(screen.getAllByRole("link", { name: "The Way" })).toHaveLength(2);
+      // Sin principios no hay a quién buscarle ejercicios.
+      expect(mocks.getRelatedDrills).not.toHaveBeenCalled();
+    });
+
+    describe("ejercicios relacionados", () => {
+      beforeEach(() => {
+        mocks.getWaySection.mockResolvedValue(view({ section: section(kind), principles: PRINCIPLES }));
+        mocks.getRelatedDrills.mockResolvedValue({
+          "p-1": [drill("d-1", "Primer ejercicio"), drill("d-2", "Segundo ejercicio")],
+          "p-2": [],
+        });
+      });
+
+      it.each(["coach", "admin"] as const)(
+        "%s: los lee todos de una vez, con los ids de los principios de la sección",
+        async (role) => {
+          mocks.getClubContext.mockResolvedValue(clubContext(role));
+
+          render(await WaySectionPage(SECTION_PARAMS));
+
+          expect(mocks.getRelatedDrills).toHaveBeenCalledTimes(1);
+          expect(mocks.getRelatedDrills).toHaveBeenCalledWith(
+            expect.objectContaining({ org: expect.objectContaining({ slug: "club-a" }) }),
+            ["p-1", "p-2"],
+          );
+        },
+      );
+
+      it("cada principio enseña los suyos, enlazados a su ficha, y la biblioteca filtrada por él", async () => {
+        const { container } = render(await WaySectionPage(SECTION_PARAMS));
+
+        const salida = within(container.querySelector("#principle-salida") as HTMLElement);
+        expect(salida.getByRole("heading", { level: 3, name: "Ejercicios relacionados" })).toBeInTheDocument();
+        expect(
+          salida.getAllByRole("link").map((link) => [link.textContent, link.getAttribute("href")]),
+        ).toEqual([
+          ["Primer ejercicioU12+ · 6–12 jug. · 10–15 min", "/c/club-a/drills/d-1"],
+          ["Segundo ejercicioU12+ · 6–12 jug. · 10–15 min", "/c/club-a/drills/d-2"],
+          ["Ver todos en la biblioteca", "/c/club-a/drills?principle=salida"],
+        ]);
+      });
+
+      it("un principio sin ejercicios lo dice, sin enlace a la biblioteca", async () => {
+        const { container } = render(await WaySectionPage(SECTION_PARAMS));
+
+        const cierre = within(container.querySelector("#principle-cierre") as HTMLElement);
+        expect(cierre.getByRole("heading", { level: 3, name: "Ejercicios relacionados" })).toBeInTheDocument();
+        expect(cierre.getByText("Aún no hay ejercicios con este principio.")).toBeInTheDocument();
+        expect(cierre.queryByRole("link")).not.toBeInTheDocument();
+      });
+
+      it("un principio que la lectura no trae cuenta como sin ejercicios", async () => {
+        mocks.getRelatedDrills.mockResolvedValue({});
+
+        render(await WaySectionPage(SECTION_PARAMS));
+
+        expect(screen.getAllByText("Aún no hay ejercicios con este principio.")).toHaveLength(2);
+      });
+
+      it.each(["player", "guardian"] as const)(
+        "%s: la biblioteca no es suya, así que no se lee nada y las tarjetas quedan como siempre",
+        async (role) => {
+          mocks.getClubContext.mockResolvedValue(clubContext(role));
+
+          const { container } = render(await WaySectionPage(SECTION_PARAMS));
+
+          expect(mocks.getRelatedDrills).not.toHaveBeenCalled();
+          expect(screen.queryByText("Ejercicios relacionados")).not.toBeInTheDocument();
+          expect(screen.queryByText("Aún no hay ejercicios con este principio.")).not.toBeInTheDocument();
+          expect(screen.queryByRole("link", { name: "Ver todos en la biblioteca" })).not.toBeInTheDocument();
+          // Los principios siguen ahí, con sus puntos.
+          expect(screen.getByRole("heading", { level: 2, name: "Salida" })).toBeInTheDocument();
+          expect(screen.getByText("Primer punto de la salida.")).toBeInTheDocument();
+          expect(container.querySelector("#principle-salida")).not.toBeNull();
+          expect(container.querySelectorAll("h3")).toHaveLength(0);
+        },
+      );
+
+      it("solo las secciones de principios: ni valores, ni Standards, ni texto leen ejercicios", async () => {
+        const others: WaySectionView[] = [
+          view({ section: section({ contentKind: "values" }), values: VALUES }),
+          view({ section: section({ contentKind: "standards" }), standards: STANDARDS }),
+          view({ section: section({ bodyMd: "Un texto." }) }),
+        ];
+
+        for (const other of others) {
+          mocks.getWaySection.mockResolvedValue(other);
+
+          render(await WaySectionPage(SECTION_PARAMS));
+        }
+
+        expect(mocks.getRelatedDrills).not.toHaveBeenCalled();
+        expect(screen.queryByText("Ejercicios relacionados")).not.toBeInTheDocument();
+      });
+
+      it("si los ejercicios no se pueden leer, la página falla y lo recoge el error de la ruta", async () => {
+        mocks.getRelatedDrills.mockRejectedValue(new Error("drills.related: no se pudo leer de la base de datos"));
+
+        await expect(WaySectionPage(SECTION_PARAMS)).rejects.toThrow("drills.related");
+      });
+
+      it("el enlace a la biblioteca lleva el slug del principio escapado", async () => {
+        mocks.getWaySection.mockResolvedValue(
+          view({ section: section(kind), principles: [{ ...PRINCIPLES[0], slug: "a&b c" }] }),
+        );
+        mocks.getRelatedDrills.mockResolvedValue({ "p-1": [drill("d-1", "Primer ejercicio")] });
+
+        render(await WaySectionPage(SECTION_PARAMS));
+
+        expect(screen.getByRole("link", { name: "Ver todos en la biblioteca" })).toHaveAttribute(
+          "href",
+          "/c/club-a/drills?principle=a%26b%20c",
+        );
+      });
     });
   });
 
@@ -348,6 +488,42 @@ describe("/way/[section]", () => {
 
     expect(screen.queryByRole("heading", { level: 2, name: "UNO" })).not.toBeInTheDocument();
     expect(screen.queryByRole("heading", { level: 2, name: "PRIMER STANDARD" })).not.toBeInTheDocument();
+  });
+});
+
+// Los destinos de los anclas (`#principle-…`, `#standard-NN`) llegan en el contenido que se
+// transmite tras el `loading.tsx`, cuando el navegador ya ha dejado de buscar el fragmento de la
+// URL: estas páginas montan `ScrollToHash` con ese contenido, no un layout que se monta antes.
+describe("anclas de la URL", () => {
+  it.each([
+    ["una sección de principios", () => view({ section: section({ contentKind: "principles" }), principles: PRINCIPLES })],
+    ["una sección de Standards", () => view({ section: section({ contentKind: "standards" }), standards: STANDARDS })],
+  ])("%s monta ScrollToHash una vez", async (_name, make) => {
+    mocks.getWaySection.mockResolvedValue(make());
+
+    render(await WaySectionPage(SECTION_PARAMS));
+
+    expect(screen.getAllByTestId("scroll-to-hash")).toHaveLength(1);
+  });
+
+  it("la página de los Standards monta ScrollToHash una vez", async () => {
+    render(await WayStandardsPage(PARAMS));
+
+    expect(screen.getAllByTestId("scroll-to-hash")).toHaveLength(1);
+  });
+
+  it("también con la lista vacía: el contenido llega igual", async () => {
+    mocks.getStandards.mockResolvedValue([]);
+
+    render(await WayStandardsPage(PARAMS));
+
+    expect(screen.getAllByTestId("scroll-to-hash")).toHaveLength(1);
+  });
+
+  it("el índice de The Way no tiene destinos de ancla y no lo monta", async () => {
+    render(await WayPage(PARAMS));
+
+    expect(screen.queryByTestId("scroll-to-hash")).not.toBeInTheDocument();
   });
 });
 

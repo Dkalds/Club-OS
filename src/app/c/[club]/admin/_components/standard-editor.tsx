@@ -7,7 +7,7 @@ import type { AdminStandard } from "@/modules/methodology/types";
 import { TextAreaField, TextField } from "@/ui/form-field";
 import { EditorForm, focusField, ItemCard, NewItemCard, useConfirmation } from "./editor-shell";
 import { ItemControls } from "./item-controls";
-import { useAction } from "./use-action";
+import { useAction } from "@/lib/use-action";
 
 /**
  * Un Standard del club en Gestión: su número, su título y su descripción. Con `standard` es la

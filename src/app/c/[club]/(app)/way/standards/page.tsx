@@ -2,6 +2,7 @@ import { requireClub } from "@/lib/guards";
 import { getStandards } from "@/modules/methodology/queries";
 import { standardsLabel, wayLabel } from "@/modules/tenancy/navigation";
 import { BackLink } from "@/ui/back-link";
+import { ScrollToHash } from "@/ui/scroll-to-hash";
 import { StandardBlock } from "@/ui/standard-block";
 import { EmptyState } from "@/ui/states";
 
@@ -43,6 +44,10 @@ export default async function WayStandardsPage({ params }: PageProps<"/c/[club]/
           action={backTo}
         />
       )}
+
+      {/* Dentro del contenido, no en un layout: se monta cuando `#standard-NN` ya existe, también
+          si la página llega tras el `loading.tsx`. */}
+      <ScrollToHash />
     </div>
   );
 }

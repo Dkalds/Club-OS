@@ -6,7 +6,7 @@ import { CTAButton } from "@/ui/cta-button";
 import { FormAlert } from "@/ui/form-field";
 import { CheckIcon } from "@/ui/icons";
 import { StatusPill } from "./status-pill";
-import type { Failure } from "./use-action";
+import type { Failure } from "@/lib/use-action";
 
 // Lo común a los tres editores de la metodología (valores, principios, Standards): el armazón
 // de su card y de su formulario, y la confirmación de lo que sale bien. Qué campos lleva cada
