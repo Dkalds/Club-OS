@@ -9,3 +9,17 @@ export const SEED_NAMESPACE = "b6f0c1a4-6d2e-4f3b-9a51-2c8e7d4a1f30";
 export function seedId(orgSlug: string, key: string): string {
   return uuidv5(`${orgSlug}:${key}`, SEED_NAMESPACE);
 }
+
+/**
+ * Clave legible de un texto: minúsculas, sin tildes y con `-` entre palabras
+ * («Bloqueo de rebote» → `bloqueo-de-rebote`). Con ella se nombran las filas del seed cuyo
+ * id sale del título (secciones, principios, ejercicios) y los slugs de las que lo tienen.
+ */
+export function slugify(text: string): string {
+  return text
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}

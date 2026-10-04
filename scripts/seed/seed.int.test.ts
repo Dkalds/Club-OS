@@ -9,7 +9,7 @@ import { randomUUID } from "node:crypto";
 import { beforeAll, describe, expect, it } from "vitest";
 import type { Database } from "@/lib/database.types";
 import { createAdminClient } from "../lib/admin-client";
-import { buildSeedData } from "./data";
+import { buildSeedData, seedId } from "./data";
 import { runSeed } from "./run";
 
 const admin = createAdminClient();
@@ -149,6 +149,12 @@ describe("seed contra Supabase local", () => {
       ["game_principles", table("game_principles"), data.game_principles.length],
       ["principle_points", table("principle_points"), data.principle_points.length],
       ["standards", table("standards"), data.standards.length],
+      ["drills", table("drills"), data.drills.length],
+      ["drill_coaching_points", table("drill_coaching_points"), data.drill_coaching_points.length],
+      ["drill_variants", table("drill_variants"), data.drill_variants.length],
+      ["drill_focus_areas", table("drill_focus_areas"), data.drill_focus_areas.length],
+      ["drill_principles", table("drill_principles"), data.drill_principles.length],
+      ["drill_standards", table("drill_standards"), data.drill_standards.length],
     ];
     for (const [name, query, rows] of expected) {
       const { count, error } = await query;
@@ -346,6 +352,333 @@ describe("seed contra Supabase local", () => {
         .order("sort");
       expect(error).toBeNull();
       expect(after).toEqual(pointsOf(principleId));
+    }
+  });
+
+  // ── Biblioteca de ejercicios ───────────────────────────────────────────────────────
+  const drillOf = (slug: string, title: string) => {
+    const drill = data.drills.find((d) => d.organization_id === orgId(slug) && d.title === title);
+    if (!drill) throw new Error(`El seed no define el ejercicio ${title} de ${slug}`);
+    return drill;
+  };
+  const userIdOf = async (email: string) => {
+    const user = (await authUsers()).find((u) => u.email === email);
+    if (!user) throw new Error(`No hay usuario ${email}`);
+    return user.id;
+  };
+  const DRILL_TABLES = [
+    "drills",
+    "drill_coaching_points",
+    "drill_variants",
+    "drill_focus_areas",
+    "drill_principles",
+    "drill_standards",
+  ] as const;
+  async function drillCounts(): Promise<Record<(typeof DRILL_TABLES)[number], number>> {
+    const orgIds = data.organizations.map((org) => org.id);
+    const counts = {} as Record<(typeof DRILL_TABLES)[number], number>;
+    for (const name of DRILL_TABLES) {
+      const { count, error } = await admin
+        .from(name)
+        .select("*", { count: "exact", head: true })
+        .in("organization_id", orgIds);
+      expect(error, name).toBeNull();
+      counts[name] = count ?? 0;
+    }
+    return counts;
+  }
+
+  it("18 ejercicios de Arcángel y 1 borrador de Irene; Club Demo tiene 2", async () => {
+    const { data: arcangel, error } = await admin
+      .from("drills")
+      .select("title, status, created_by, diagram_media_id")
+      .eq("organization_id", orgId("arcangel"));
+    expect(error).toBeNull();
+    expect(arcangel).toHaveLength(18);
+    expect(arcangel?.filter((d) => d.status === "published")).toHaveLength(17);
+    const drafts = arcangel?.filter((d) => d.status === "draft");
+    expect(drafts).toEqual([
+      expect.objectContaining({
+        title: "Bloqueo de rebote",
+        created_by: await userIdOf("irene@arcangel.test"),
+      }),
+    ]);
+    // Los publicados son de Raúl, y ninguno lleva diagrama.
+    const raul = await userIdOf("raul@arcangel.test");
+    expect(arcangel?.filter((d) => d.status === "published").every((d) => d.created_by === raul)).toBe(
+      true,
+    );
+    expect(arcangel?.every((d) => d.diagram_media_id === null)).toBe(true);
+
+    const { data: demo, error: demoError } = await admin
+      .from("drills")
+      .select("title, status, created_by")
+      .eq("organization_id", orgId("club-demo"))
+      .order("title");
+    expect(demoError).toBeNull();
+    const marta = await userIdOf("marta@demo.test");
+    expect(demo).toEqual([
+      { title: "Defensa individual", status: "published", created_by: marta },
+      { title: "Tiro en carrera", status: "published", created_by: marta },
+    ]);
+  });
+
+  it("Rebote + outlet completo", async () => {
+    const outlet = drillOf("arcangel", "Rebote + outlet");
+    const { data: row, error } = await admin
+      .from("drills")
+      .select("min_age, max_age, min_players, max_players, min_minutes, max_minutes, equipment")
+      .eq("id", outlet.id)
+      .single();
+    expect(error).toBeNull();
+    expect(row).toEqual({
+      min_age: 12,
+      max_age: null,
+      min_players: 6,
+      max_players: 12,
+      min_minutes: 10,
+      max_minutes: 15,
+      equipment: ["Balones", "Conos", "Petos"],
+    });
+
+    const { data: links, error: linksError } = await admin
+      .from("drill_standards")
+      .select("standard_id")
+      .eq("drill_id", outlet.id);
+    expect(linksError).toBeNull();
+    const { data: standards, error: standardsError } = await admin
+      .from("standards")
+      .select("number")
+      .in("id", (links ?? []).map((link) => link.standard_id))
+      .order("number");
+    expect(standardsError).toBeNull();
+    expect((standards ?? []).map((s) => s.number)).toEqual([3, 4, 5]);
+
+    const { data: points, error: pointsError } = await admin
+      .from("drill_coaching_points")
+      .select("text, is_key, sort")
+      .eq("drill_id", outlet.id)
+      .order("sort");
+    expect(pointsError).toBeNull();
+    expect(points).toHaveLength(5);
+    expect(points?.filter((p) => p.is_key)).toHaveLength(3);
+    expect(points?.[0]).toEqual({ text: "Rebote con dos manos", is_key: true, sort: 0 });
+
+    const { data: variants, error: variantsError } = await admin
+      .from("drill_variants")
+      .select("title")
+      .eq("drill_id", outlet.id)
+      .order("sort");
+    expect(variantsError).toBeNull();
+    expect(variants).toEqual([{ title: "Con defensor en el outlet" }, { title: "Tras tiro libre" }]);
+  });
+
+  it("ítems enlazados", async () => {
+    const plan = data.practice_plans.find((p) => p.title === "Transición + rebote defensivo");
+    const { data: items, error } = await admin
+      .from("practice_items")
+      .select("title_override, drill_id")
+      .eq("plan_id", plan?.id ?? "")
+      .order("sort");
+    expect(error).toBeNull();
+    expect(items).toHaveLength(5);
+    expect(items?.every((item) => item.drill_id !== null)).toBe(true);
+    // Cada ítem apunta al ejercicio que se llama como él, y su título no se toca.
+    expect(items).toEqual(
+      [
+        "Movilidad + rueda de pases",
+        "3 calles",
+        "Rebote + outlet",
+        "3x2 continuo",
+        "2x2 presión",
+      ].map((title) => ({ title_override: title, drill_id: drillOf("arcangel", title).id })),
+    );
+
+    // Ningún ítem de Arcángel con el título de un ejercicio se ha quedado sin enlace.
+    const { data: titles, error: titlesError } = await admin
+      .from("drills")
+      .select("title")
+      .eq("organization_id", orgId("arcangel"));
+    expect(titlesError).toBeNull();
+    const { data: unlinked, error: unlinkedError } = await admin
+      .from("practice_items")
+      .select("title_override")
+      .eq("organization_id", orgId("arcangel"))
+      .is("drill_id", null)
+      .in("title_override", (titles ?? []).map((d) => d.title));
+    expect(unlinkedError).toBeNull();
+    expect(unlinked).toEqual([]);
+  });
+
+  it("idempotente: los mismos recuentos de ejercicios, hijos y vínculos tras otra ejecución", async () => {
+    const before = await drillCounts();
+    expect(before).toEqual({
+      drills: data.drills.length,
+      drill_coaching_points: data.drill_coaching_points.length,
+      drill_variants: data.drill_variants.length,
+      drill_focus_areas: data.drill_focus_areas.length,
+      drill_principles: data.drill_principles.length,
+      drill_standards: data.drill_standards.length,
+    });
+    await runSeed(now);
+    expect(await drillCounts()).toEqual(before);
+  });
+
+  it("al reescribir, devuelve a lo suyo el estado y el texto de un ejercicio editado", async () => {
+    const outlet = drillOf("arcangel", "Rebote + outlet");
+    const edited = await admin
+      .from("drills")
+      .update({ title: "Rebote editado", status: "archived", max_age: 14, equipment: ["Aros"] })
+      .eq("id", outlet.id);
+    expect(edited.error).toBeNull();
+
+    await runSeed(now);
+
+    const { data: after, error } = await admin
+      .from("drills")
+      .select("title, status, max_age, equipment")
+      .eq("id", outlet.id)
+      .single();
+    expect(error).toBeNull();
+    expect(after).toEqual({
+      title: "Rebote + outlet",
+      status: "published",
+      max_age: null,
+      equipment: ["Balones", "Conos", "Petos"],
+    });
+  });
+
+  it("al reescribir, deja los hijos y vínculos de cada ejercicio como los define el seed", async () => {
+    // `save_drill` borra los hijos de un ejercicio y los vuelve a escribir con ids nuevos y
+    // las mismas posiciones (`unique (drill_id, sort)`). Simula esa edición en tres
+    // ejercicios: «Rebote + outlet» con otros puntos, una variante de más y los vínculos
+    // cambiados; «3 calles», que en el seed no tiene variantes, con una; y «Movilidad
+    // dinámica», que no tiene Standards ni principios, con uno de cada.
+    const org = orgId("arcangel");
+    const outlet = drillOf("arcangel", "Rebote + outlet");
+    const calles = drillOf("arcangel", "3 calles");
+    const movilidad = drillOf("arcangel", "Movilidad dinámica");
+    const standardId = (n: number) => seedId("arcangel", `standard:${n}`);
+    const principleId = (slug: string) => seedId("arcangel", `principle:${slug}`);
+    const focusId = (slug: string) => seedId("arcangel", `focus:${slug}`);
+
+    const sameDrills = [outlet.id, calles.id, movilidad.id];
+    for (const table of [
+      "drill_coaching_points",
+      "drill_variants",
+      "drill_focus_areas",
+      "drill_principles",
+      "drill_standards",
+    ] as const) {
+      const removed = await admin.from(table).delete().in("drill_id", sameDrills);
+      expect(removed.error, table).toBeNull();
+    }
+    const point = (drill_id: string, sort: number, text: string, is_key: boolean) => ({
+      id: randomUUID(),
+      organization_id: org,
+      drill_id,
+      sort,
+      text,
+      is_key,
+    });
+    const variant = (drill_id: string, sort: number, title: string) => ({
+      id: randomUUID(),
+      organization_id: org,
+      drill_id,
+      sort,
+      title,
+    });
+    const written = await Promise.all([
+      admin.from("drill_coaching_points").insert([
+        point(outlet.id, 0, "Punto editado", false),
+        point(outlet.id, 1, "Otro punto editado", true),
+        point(calles.id, 0, "Solo uno", true),
+        point(movilidad.id, 0, "Solo uno", false),
+      ]),
+      admin.from("drill_variants").insert([
+        variant(outlet.id, 0, "Variante editada"),
+        variant(outlet.id, 1, "Otra"),
+        variant(outlet.id, 2, "Una más"),
+        variant(calles.id, 0, "Variante de más"),
+      ]),
+      admin.from("drill_focus_areas").insert([
+        { organization_id: org, drill_id: outlet.id, focus_area_id: focusId("tiro") },
+        { organization_id: org, drill_id: movilidad.id, focus_area_id: focusId("defensa") },
+      ]),
+      admin.from("drill_principles").insert([
+        { organization_id: org, drill_id: outlet.id, principle_id: principleId("defensa") },
+        { organization_id: org, drill_id: movilidad.id, principle_id: principleId("ataque") },
+      ]),
+      admin.from("drill_standards").insert([
+        { organization_id: org, drill_id: outlet.id, standard_id: standardId(1) },
+        { organization_id: org, drill_id: movilidad.id, standard_id: standardId(2) },
+      ]),
+    ]);
+    for (const result of written) expect(result.error).toBeNull();
+
+    await runSeed(now);
+
+    for (const drillId of sameDrills) {
+      const points = await admin
+        .from("drill_coaching_points")
+        .select("id, sort, text, is_key")
+        .eq("drill_id", drillId)
+        .order("sort");
+      expect(points.error).toBeNull();
+      expect(points.data).toEqual(
+        data.drill_coaching_points
+          .filter((p) => p.drill_id === drillId)
+          .sort((a, b) => a.sort - b.sort)
+          .map((p) => ({ id: p.id, sort: p.sort, text: p.text, is_key: p.is_key })),
+      );
+
+      const variants = await admin
+        .from("drill_variants")
+        .select("id, sort, title, description")
+        .eq("drill_id", drillId)
+        .order("sort");
+      expect(variants.error).toBeNull();
+      expect(variants.data).toEqual(
+        data.drill_variants
+          .filter((v) => v.drill_id === drillId)
+          .sort((a, b) => a.sort - b.sort)
+          .map((v) => ({ id: v.id, sort: v.sort, title: v.title, description: v.description })),
+      );
+
+      // Los vínculos: lo guardado es exactamente lo que el seed enlaza.
+      const focus = await admin
+        .from("drill_focus_areas")
+        .select("focus_area_id")
+        .eq("drill_id", drillId);
+      expect(focus.error).toBeNull();
+      expect((focus.data ?? []).map((l) => l.focus_area_id).sort()).toEqual(
+        data.drill_focus_areas
+          .filter((l) => l.drill_id === drillId)
+          .map((l) => l.focus_area_id)
+          .sort(),
+      );
+      const principles = await admin
+        .from("drill_principles")
+        .select("principle_id")
+        .eq("drill_id", drillId);
+      expect(principles.error).toBeNull();
+      expect((principles.data ?? []).map((l) => l.principle_id).sort()).toEqual(
+        data.drill_principles
+          .filter((l) => l.drill_id === drillId)
+          .map((l) => l.principle_id)
+          .sort(),
+      );
+      const standards = await admin
+        .from("drill_standards")
+        .select("standard_id")
+        .eq("drill_id", drillId);
+      expect(standards.error).toBeNull();
+      expect((standards.data ?? []).map((l) => l.standard_id).sort()).toEqual(
+        data.drill_standards
+          .filter((l) => l.drill_id === drillId)
+          .map((l) => l.standard_id)
+          .sort(),
+      );
     }
   });
 });

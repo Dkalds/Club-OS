@@ -1175,10 +1175,13 @@ select is(
 );
 
 -- «Pase y corte» lleva «Transición» en el resumen. La consulta pasa por `f_unaccent` como lo
--- hará la función de búsqueda: el vector está sin tildes y la consulta también.
+-- hará la función de búsqueda: el vector está sin tildes y la consulta también. Se limita al
+-- club A del test: la base de datos puede traer los ejercicios de `pnpm seed` (uno de ellos,
+-- «4x4 transición», también encaja) y esta aserción habla solo de los fixtures.
 select results_eq(
   $$select title from drills
-    where search @@ plainto_tsquery('spanish', private.f_unaccent('TRANSICIÓN'))$$,
+    where organization_id = current_setting('fx.club_a')::uuid
+      and search @@ plainto_tsquery('spanish', private.f_unaccent('TRANSICIÓN'))$$,
   $$values ('Pase y corte')$$,
   'search encuentra «TRANSICIÓN» en «Transición»: sin tildes ni mayúsculas'
 );

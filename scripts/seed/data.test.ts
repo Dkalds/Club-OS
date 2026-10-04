@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { ARCANGEL, buildSeedData, CLUB_DEMO, type ClubDef, type SeedData } from "./data";
 import { seedSchedule } from "./dates";
+import { ARCANGEL_DRILLS, DEMO_DRILLS } from "./drills";
 import { seedId } from "./ids";
 
 // Viernes 2 oct 2026, 12:00 en Madrid.
@@ -619,6 +620,198 @@ describe("buildSeedData: metodología", () => {
   });
 });
 
+describe("buildSeedData: biblioteca de ejercicios", () => {
+  const drillsOf = (slug: string) => data.drills.filter((d) => d.organization_id === orgId(slug));
+  const drillOf = (slug: string, title: string) =>
+    one(drillsOf(slug), (d) => d.title === title, `ejercicio ${title} de ${slug}`);
+  const childrenOf = <T extends { drill_id: string }>(rows: T[], drillIdValue: string) =>
+    rows.filter((row) => row.drill_id === drillIdValue);
+  const bySort = (a: { sort: number }, b: { sort: number }) => a.sort - b.sort;
+
+  it("Arcángel tiene 18 ejercicios y Club Demo 2", () => {
+    expect(drillsOf("arcangel")).toHaveLength(18);
+    expect(drillsOf("club-demo")).toHaveLength(2);
+    expect(data.drills).toHaveLength(20);
+  });
+
+  it("los fixtures llevan sus ejercicios (contrato entre fases)", () => {
+    expect(ARCANGEL.drills).toBe(ARCANGEL_DRILLS);
+    expect(CLUB_DEMO.drills).toBe(DEMO_DRILLS);
+  });
+
+  it("estado y autor: un borrador de Irene en Arcángel; el resto, publicado", () => {
+    const states = drillsOf("arcangel").map((d) => [d.title, d.status, d.author_email]);
+    expect(states.filter(([, status]) => status === "draft")).toEqual([
+      ["Bloqueo de rebote", "draft", "irene@arcangel.test"],
+    ]);
+    const published = states.filter(([, status]) => status === "published");
+    expect(published).toHaveLength(17);
+    expect(published.every(([, , email]) => email === "raul@arcangel.test")).toBe(true);
+    expect(drillsOf("club-demo").map((d) => [d.title, d.status, d.author_email])).toEqual([
+      ["Defensa individual", "published", "marta@demo.test"],
+      ["Tiro en carrera", "published", "marta@demo.test"],
+    ]);
+  });
+
+  it("el autor es miembro de su club y tiene cuenta en el seed", () => {
+    for (const drill of data.drills) {
+      expect(
+        data.memberships.some(
+          (m) => m.organization_id === drill.organization_id && m.email === drill.author_email,
+        ),
+        drill.title,
+      ).toBe(true);
+      expect(data.users.map((u) => u.email)).toContain(drill.author_email);
+    }
+  });
+
+  it("los ids salen de seedId con la clave del título; los puntos y las variantes, de su posición", () => {
+    const outlet = drillOf("arcangel", "Rebote + outlet");
+    expect(outlet.id).toBe(seedId("arcangel", "drill:rebote-outlet"));
+    expect(drillOf("arcangel", "Bloqueo de rebote").id).toBe(
+      seedId("arcangel", "drill:bloqueo-de-rebote"),
+    );
+    expect(drillOf("club-demo", "Defensa individual").id).toBe(
+      seedId("club-demo", "drill:defensa-individual"),
+    );
+    expect(
+      childrenOf(data.drill_coaching_points, outlet.id)
+        .sort(bySort)
+        .map((p) => p.id),
+    ).toEqual([0, 1, 2, 3, 4].map((i) => seedId("arcangel", `drill:rebote-outlet:point:${i}`)));
+    expect(
+      childrenOf(data.drill_variants, outlet.id)
+        .sort(bySort)
+        .map((v) => v.id),
+    ).toEqual([
+      seedId("arcangel", "drill:rebote-outlet:variant:0"),
+      seedId("arcangel", "drill:rebote-outlet:variant:1"),
+    ]);
+  });
+
+  it("«Rebote + outlet» completo: Standards 3, 4 y 5, 5 puntos con 3 clave, 2 variantes, material y edad", () => {
+    const outlet = drillOf("arcangel", "Rebote + outlet");
+    expect(outlet).toMatchObject({
+      organization_id: orgId("arcangel"),
+      title: "Rebote + outlet",
+      min_age: 12,
+      max_age: null,
+      min_players: 6,
+      max_players: 12,
+      min_minutes: 10,
+      max_minutes: 15,
+      equipment: ["Balones", "Conos", "Petos"],
+      diagram_media_id: null,
+      video_url: null,
+      status: "published",
+    });
+    const ids = (keys: string[]) => keys.map((key) => seedId("arcangel", key)).sort();
+    expect(
+      childrenOf(data.drill_standards, outlet.id)
+        .map((l) => l.standard_id)
+        .sort(),
+    ).toEqual(ids(["standard:3", "standard:4", "standard:5"]));
+    expect(
+      childrenOf(data.drill_focus_areas, outlet.id)
+        .map((l) => l.focus_area_id)
+        .sort(),
+    ).toEqual(ids(["focus:rebote", "focus:transicion"]));
+    expect(
+      childrenOf(data.drill_principles, outlet.id)
+        .map((l) => l.principle_id)
+        .sort(),
+    ).toEqual(ids(["principle:rebote", "principle:transicion"]));
+    expect(
+      childrenOf(data.drill_coaching_points, outlet.id)
+        .sort(bySort)
+        .map((p) => [p.sort, p.text, p.is_key]),
+    ).toEqual([
+      [0, "Rebote con dos manos", true],
+      [1, "Primera mirada hacia delante", true],
+      [2, "Outlet rápido", true],
+      [3, "Abrir carriles", false],
+      [4, "Correr", false],
+    ]);
+    expect(
+      childrenOf(data.drill_variants, outlet.id)
+        .sort(bySort)
+        .map((v) => [v.sort, v.title]),
+    ).toEqual([
+      [0, "Con defensor en el outlet"],
+      [1, "Tras tiro libre"],
+    ]);
+  });
+
+  it("las posiciones de puntos y variantes de cada ejercicio son 0..n-1, sin huecos ni repetidas", () => {
+    const sortsOf = (rows: { drill_id: string; sort: number }[], drillIdValue: string) =>
+      rows
+        .filter((row) => row.drill_id === drillIdValue)
+        .map((row) => row.sort)
+        .sort((a, b) => a - b);
+    for (const drill of data.drills) {
+      for (const rows of [data.drill_coaching_points, data.drill_variants]) {
+        const sorts = sortsOf(rows, drill.id);
+        expect(sorts, drill.title).toEqual(sorts.map((_, index) => index));
+      }
+      expect(
+        childrenOf(data.drill_coaching_points, drill.id).length,
+        drill.title,
+      ).toBeGreaterThanOrEqual(3);
+    }
+  });
+
+  it("los recuentos de hijos y vínculos son los de las listas", () => {
+    const all = [...ARCANGEL_DRILLS, ...DEMO_DRILLS];
+    const sum = (count: (drill: (typeof all)[number]) => number) =>
+      all.reduce((total, drill) => total + count(drill), 0);
+    expect(data.drill_coaching_points).toHaveLength(sum((d) => d.points.length));
+    expect(data.drill_variants).toHaveLength(sum((d) => (d.variants ?? []).length));
+    expect(data.drill_focus_areas).toHaveLength(sum((d) => d.focus.length));
+    expect(data.drill_principles).toHaveLength(sum((d) => d.principles.length));
+    expect(data.drill_standards).toHaveLength(sum((d) => d.standards.length));
+    // «Rebote + outlet» (2), «2x2 presión» (1) y «4x4 transición» (1).
+    expect(data.drill_variants).toHaveLength(4);
+  });
+
+  it("Club Demo no enlaza principios, y sus vínculos son de sus propios focos y Standards", () => {
+    expect(data.drill_principles.filter((l) => l.organization_id === orgId("club-demo"))).toEqual(
+      [],
+    );
+    const defensa = drillOf("club-demo", "Defensa individual");
+    expect(childrenOf(data.drill_standards, defensa.id).map((l) => l.standard_id)).toEqual([
+      seedId("club-demo", "standard:1"),
+    ]);
+    expect(childrenOf(data.drill_focus_areas, defensa.id).map((l) => l.focus_area_id)).toEqual([
+      seedId("club-demo", "focus:defensa"),
+    ]);
+  });
+
+  it("un ítem cuyo título es el de un ejercicio de su club lleva su drill_id; el resto, null", () => {
+    for (const item of data.practice_items) {
+      const slug = data.organizations.find((o) => o.id === item.organization_id)?.slug ?? "";
+      const drill = drillsOf(slug).find((d) => d.title === item.title_override);
+      expect(item.drill_id, `${slug}: ${item.title_override}`).toBe(drill?.id ?? null);
+    }
+  });
+
+  it("los 5 ítems de «Transición + rebote defensivo» apuntan a los ejercicios 6, 2, 1, 3 y 4", () => {
+    const plan = one(
+      data.practice_plans,
+      (p) => p.title === "Transición + rebote defensivo",
+      "plan de la primera sesión",
+    );
+    const items = data.practice_items.filter((i) => i.plan_id === plan.id).sort(bySort);
+    // El título del ítem no cambia: `drill_id` se suma a `title_override`, no lo sustituye.
+    expect(items.map((i) => [i.title_override, i.drill_id])).toEqual(
+      ["Movilidad + rueda de pases", "3 calles", "Rebote + outlet", "3x2 continuo", "2x2 presión"].map(
+        (title) => [title, drillOf("arcangel", title).id],
+      ),
+    );
+    // Y son los únicos ítems enlazados de todo el seed.
+    expect(data.practice_items.filter((i) => i.drill_id !== null)).toHaveLength(5);
+  });
+});
+
 describe("buildSeedData: invariantes", () => {
   it("cada id es único en todo el seed", () => {
     const ids: string[] = [
@@ -637,6 +830,9 @@ describe("buildSeedData: invariantes", () => {
       ...data.game_principles.map((r) => r.id),
       ...data.principle_points.map((r) => r.id),
       ...data.standards.map((r) => r.id),
+      ...data.drills.map((r) => r.id),
+      ...data.drill_coaching_points.map((r) => r.id),
+      ...data.drill_variants.map((r) => r.id),
     ];
     expect(ids.length).toBeGreaterThan(80);
     expect(new Set(ids).size).toBe(ids.length);
@@ -732,6 +928,12 @@ describe("buildSeedData: invariantes", () => {
       ["game_principles", data.game_principles],
       ["principle_points", data.principle_points],
       ["standards", data.standards],
+      ["drills", data.drills],
+      ["drill_coaching_points", data.drill_coaching_points],
+      ["drill_variants", data.drill_variants],
+      ["drill_focus_areas", data.drill_focus_areas],
+      ["drill_principles", data.drill_principles],
+      ["drill_standards", data.drill_standards],
     ];
     for (const [name, rows] of tables) {
       expect(rows.length, name).toBeGreaterThan(0);
@@ -778,6 +980,7 @@ describe("buildSeedData: invariantes", () => {
     }
     for (const i of data.practice_items) {
       expect(has(data.practice_plans, i.organization_id, i.plan_id)).toBe(true);
+      expect(has(data.drills, i.organization_id, i.drill_id)).toBe(true);
     }
     for (const b of data.organization_branding) {
       expect(data.organizations.some((o) => o.id === b.organization_id)).toBe(true);
@@ -792,6 +995,27 @@ describe("buildSeedData: invariantes", () => {
     }
     for (const point of data.principle_points) {
       expect(has(data.game_principles, point.organization_id, point.principle_id)).toBe(true);
+    }
+    for (const drill of data.drills) {
+      expect(data.organizations.some((o) => o.id === drill.organization_id)).toBe(true);
+    }
+    for (const child of [
+      ...data.drill_coaching_points,
+      ...data.drill_variants,
+      ...data.drill_focus_areas,
+      ...data.drill_principles,
+      ...data.drill_standards,
+    ]) {
+      expect(has(data.drills, child.organization_id, child.drill_id)).toBe(true);
+    }
+    for (const link of data.drill_focus_areas) {
+      expect(has(data.focus_areas, link.organization_id, link.focus_area_id)).toBe(true);
+    }
+    for (const link of data.drill_principles) {
+      expect(has(data.game_principles, link.organization_id, link.principle_id)).toBe(true);
+    }
+    for (const link of data.drill_standards) {
+      expect(has(data.standards, link.organization_id, link.standard_id)).toBe(true);
     }
   });
 
