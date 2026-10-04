@@ -1,7 +1,8 @@
 "use server";
 
+import type { z } from "zod";
 import { fail, ok, type ActionResult } from "@/lib/action-result";
-import { createMutate, UNIQUE_VIOLATION, type Db, type UniqueField } from "@/lib/mutate";
+import { mutate as runMutation, UNIQUE_VIOLATION, type Db, type UniqueField, type Write } from "@/lib/mutate";
 import type { ClubContext } from "@/modules/tenancy/queries";
 import { moveId } from "./order";
 import {
@@ -30,10 +31,10 @@ import { slugify, uniqueSlug } from "./slug";
 
 // Acciones de Gestión de la metodología: solo administración las usa.
 //
-// Todas siguen el mismo orden (ver `mutate`): Zod sobre la entrada, el club y el permiso
-// `way.manage` (sin permiso, `NOT_FOUND` sin tocar la base de datos), la escritura y, si ha
-// ido bien, `revalidatePath`. RLS decide de verdad quién escribe; `can` solo evita llegar
-// hasta ella.
+// Todas siguen el mismo orden (ver `mutate` en `@/lib/mutate`): Zod sobre la entrada, el club
+// y el permiso `way.manage` (sin permiso, `NOT_FOUND` sin tocar la base de datos), la
+// escritura y, si ha ido bien, `revalidatePath`. RLS decide de verdad quién escribe; `can`
+// solo evita llegar hasta ella.
 //
 // Todo va acotado al club de `clubSlug`: los insert llevan su `organization_id`, los update y
 // los select lo filtran, y las dos acciones que escriben por RPC con solo un id
@@ -41,13 +42,8 @@ import { slugify, uniqueSlug } from "./slug";
 // borra nunca (archivar es pasar a borrador) no tiene acción de borrado, y los puntos de un
 // principio los reemplaza `save_game_principle`.
 
-// Rutas que se revalidan tras escribir. Son patrones de ruta, no URLs: las carpetas de
-// `src/app/c/[club]/` tal cual, con el segmento dinámico `[club]` y el grupo `(app)`. Así lo
-// espera `revalidatePath(ruta, "layout")`: Next etiqueta cada página con los layouts de su
-// patrón (`/c/[club]/(app)/way/layout`, `/c/[club]/admin/layout`…), y con la URL concreta
-// (`/c/club-a/way`) más `layout` armaría una etiqueta que ninguna ruta lleva y no
-// invalidaría nada; solo parecería funcionar porque cualquier `revalidatePath` dentro de una
-// Server Action vacía además la caché de rutas del cliente. El patrón no distingue clubes.
+// Rutas que se revalidan tras escribir: patrones de ruta, no URLs (el porqué está en
+// `MutateConfig.routes`, de `@/lib/mutate`).
 //
 // Siguen las carpetas: `(app)` es el grupo al que se mueven las pestañas del entrenador
 // (convención C3) y `admin` es el área de Gestión. Si se renombran o se mueven, se cambian aquí.
@@ -56,12 +52,25 @@ const WAY_ROUTE = "/c/[club]/(app)/way";
 /** Gestión: cada lista y cada formulario. */
 const ADMIN_ROUTE = "/c/[club]/admin";
 
-/** El esqueleto de todas las acciones de este archivo (ver `createMutate`). */
-const mutate = createMutate({
-  module: "methodology",
-  permission: "way.manage",
-  revalidate: [WAY_ROUTE, ADMIN_ROUTE],
-});
+/**
+ * El esqueleto de `@/lib/mutate` con lo de esta área: el permiso de Gestión, la etiqueta
+ * `methodology.<acción>` del log y las rutas de The Way y de Gestión.
+ */
+function mutate<D, T>(
+  name: string,
+  clubSlug: string,
+  schema: z.ZodType<D>,
+  input: unknown,
+  write: (run: Write<D>) => Promise<ActionResult<T>>,
+): Promise<ActionResult<T>> {
+  return runMutation(
+    { tag: `methodology.${name}`, permission: "way.manage", routes: [WAY_ROUTE, ADMIN_ROUTE] },
+    clubSlug,
+    schema,
+    input,
+    write,
+  );
+}
 
 /** El mayor número de una sección: el CHECK de `way_sections.number`. */
 const MAX_SECTION_NUMBER = 99;

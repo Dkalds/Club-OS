@@ -1,6 +1,6 @@
 import { notFound, redirect } from "next/navigation";
-import { beforeEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fail, ok, type ActionResult } from "@/lib/action-result";
 import { PLATFORM_BRAND_COLORS } from "@/modules/tenancy/branding";
 import type { ClubContext } from "@/modules/tenancy/queries";
@@ -9,17 +9,19 @@ const mocks = vi.hoisted(() => ({
   createClient: vi.fn(),
   requireClub: vi.fn(),
   revalidatePath: vi.fn(),
-  logError: vi.fn(),
 }));
 
 vi.mock("@/lib/supabase/server", () => ({ createClient: mocks.createClient }));
 vi.mock("@/lib/guards", () => ({ requireClub: mocks.requireClub }));
-vi.mock("@/lib/log", () => ({ logError: mocks.logError }));
 vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidatePath }));
 
-import { createMutate, UNIQUE_VIOLATION, type DbError, type Write } from "./mutate";
+import { mutate, UNIQUE_VIOLATION, type Attempt, type DbError, type MutateConfig, type Write } from "./mutate";
 
-// Datos neutros: los tests de `src/` no pueden nombrar a ningún club (pnpm check:guards).
+// El esqueleto compartido por las Server Actions de todos los módulos. Los tests de cada
+// módulo (`methodology/actions.test.ts`, `drills/actions.test.ts`) prueban lo suyo a través de
+// él; aquí se fija lo que es de todos y lo que cambia de un módulo a otro: el permiso, la
+// etiqueta del log y las rutas que se revalidan. Datos neutros (pnpm check:guards).
+
 function contextWithRole(role: ClubContext["membership"]["role"]): ClubContext {
   return {
     org: { id: "org-a", slug: "club-a", name: "Club A", timezone: "Europe/Madrid" },
@@ -39,147 +41,252 @@ function contextWithRole(role: ClubContext["membership"]["role"]): ClubContext {
 /** Lo que lanza `notFound()` de verdad: corta la ejecución, no devuelve. */
 const NOT_FOUND = new Error("NEXT_HTTP_ERROR_FALLBACK;404");
 
-/** El cliente de la base de datos: la escritura solo lo recibe, aquí no se usa. */
-const DB = { from: "un cliente de pega" };
+const schema = z.object({ name: z.string().trim().min(1, "Escribe un nombre.") });
 
-const ROUTES = ["/c/[club]/uno", "/c/[club]/dos"] as const;
-const schema = z.object({ title: z.string().trim().min(1, "Escribe un título.") });
+const config: MutateConfig = {
+  tag: "demo.save",
+  permission: "drill.create",
+  routes: ["/c/[club]/(app)/uno", "/c/[club]/(app)/dos"],
+};
 
-// `way.manage` es de administración y `practice.manage` también del entrenador: así se ve que
-// el permiso es el que se pasa a `createMutate`, no uno fijo.
-const mutate = createMutate({ module: "sample", permission: "way.manage", revalidate: ROUTES });
-const mutateAsCoach = createMutate({
-  module: "sample",
-  permission: "practice.manage",
-  revalidate: ROUTES,
-});
-
-const INPUT = { title: "Hola" };
-
-/** Lanza `mutate` con la escritura dada: lo único que cambia de un test a otro. */
-function run<T>(write: (run: Write<{ title: string }>) => Promise<ActionResult<T>>, input: unknown = INPUT) {
-  return mutate("do-thing", "club-a", schema, input, write);
+/** Un `write` que devuelve lo que se le diga y anota con qué lo llamaron. */
+function writing<T>(result: ActionResult<T>) {
+  return vi.fn<(run: Write<unknown>) => Promise<ActionResult<T>>>(async () => result);
 }
+
+/** Un error de PostgREST: un `Error` con su código, y un mensaje que lleva datos de la fila. */
+function dbError(code: string, message: string) {
+  return Object.assign(new Error(message), { name: "PostgrestError", code });
+}
+
+/** Líneas escritas en el log del servidor. */
+let logged: string[];
 
 beforeEach(() => {
   vi.resetAllMocks();
+  logged = [];
+  vi.spyOn(console, "error").mockImplementation((...args: unknown[]) => {
+    logged.push(args.map(String).join(" "));
+  });
   mocks.requireClub.mockResolvedValue(contextWithRole("admin"));
-  mocks.createClient.mockResolvedValue(DB);
+  mocks.createClient.mockResolvedValue({ marker: "db" });
 });
 
-describe("createMutate: validar y autorizar", () => {
-  it("una entrada inválida es INVALID con su campo, sin pedir el club ni crear el cliente", async () => {
-    const write = vi.fn();
+afterEach(() => {
+  vi.restoreAllMocks();
+});
 
-    const result = await run(write, { title: "   " });
+describe("el orden: validar, club, permiso, escribir, revalidar", () => {
+  it("una entrada inválida vuelve con sus errores de campo, sin pedir el club ni escribir", async () => {
+    const write = writing(ok(null));
 
-    expect(result).toEqual({
-      ok: false,
-      error: "INVALID",
-      fieldErrors: { title: "Escribe un título." },
-    });
+    const result = await mutate(config, "club-a", schema, { name: " " }, write);
+
+    expect(result).toEqual({ ok: false, error: "INVALID", fieldErrors: { name: "Escribe un nombre." } });
     expect(mocks.requireClub).not.toHaveBeenCalled();
     expect(mocks.createClient).not.toHaveBeenCalled();
     expect(write).not.toHaveBeenCalled();
+    expect(mocks.revalidatePath).not.toHaveBeenCalled();
   });
 
-  it.each(["coach", "player", "guardian"] as const)(
-    "sin permiso (%s) es NOT_FOUND, sin crear el cliente ni escribir",
-    async (role) => {
-      mocks.requireClub.mockResolvedValue(contextWithRole(role));
-      const write = vi.fn();
+  it("pregunta por el club que le pasan", async () => {
+    await mutate(config, "club-b", schema, { name: "Uno" }, writing(ok(null)));
 
-      await expect(run(write)).resolves.toEqual({ ok: false, error: "NOT_FOUND" });
-
-      expect(mocks.createClient).not.toHaveBeenCalled();
-      expect(write).not.toHaveBeenCalled();
-      expect(mocks.revalidatePath).not.toHaveBeenCalled();
-      expect(mocks.logError).not.toHaveBeenCalled();
-    },
-  );
-
-  it("el permiso es el de createMutate: un entrenador gestiona sesiones y no la metodología", async () => {
-    mocks.requireClub.mockResolvedValue(contextWithRole("coach"));
-
-    const allowed = await mutateAsCoach("do-thing", "club-a", schema, INPUT, async () => ok(null));
-    const denied = await run(async () => ok(null));
-
-    expect(allowed).toEqual({ ok: true, data: null });
-    expect(denied).toEqual({ ok: false, error: "NOT_FOUND" });
-  });
-
-  it("pide el club de la URL", async () => {
-    await run(async () => ok(null));
-
-    expect(mocks.requireClub).toHaveBeenCalledWith("club-a");
+    expect(mocks.requireClub).toHaveBeenCalledWith("club-b");
   });
 
   it("un club que no existe lanza el 404, no lo traga", async () => {
     mocks.requireClub.mockRejectedValue(NOT_FOUND);
-    const write = vi.fn();
 
-    await expect(run(write)).rejects.toBe(NOT_FOUND);
+    await expect(mutate(config, "club-a", schema, { name: "Uno" }, writing(ok(null)))).rejects.toBe(
+      NOT_FOUND,
+    );
 
     expect(mocks.createClient).not.toHaveBeenCalled();
-    expect(write).not.toHaveBeenCalled();
-    expect(mocks.logError).not.toHaveBeenCalled();
+    expect(logged).toEqual([]);
+  });
+
+  it("la escritura recibe el cliente, el club y la entrada ya validada (recortada)", async () => {
+    const write = writing(ok("hecho"));
+
+    const result = await mutate(config, "club-a", schema, { name: "  Uno  ", extra: 1 }, write);
+
+    expect(result).toEqual({ ok: true, data: "hecho" });
+    expect(write).toHaveBeenCalledTimes(1);
+    expect(write.mock.calls[0][0]).toMatchObject({
+      db: { marker: "db" },
+      ctx: { org: { id: "org-a" } },
+      data: { name: "Uno" },
+    });
   });
 });
 
-describe("createMutate: escribir", () => {
-  it("la escritura recibe el cliente, el contexto y la entrada que deja Zod", async () => {
-    const write = vi.fn(async () => ok(null));
+describe("el permiso es el de cada acción", () => {
+  it("sin el permiso configurado: NOT_FOUND, sin cliente, sin escribir ni revalidar", async () => {
+    const write = writing(ok(null));
+    // El entrenador puede `drill.create` pero no `drill.publish`.
+    mocks.requireClub.mockResolvedValue(contextWithRole("coach"));
 
-    await run(write, { title: "  Hola  " });
+    const result = await mutate(
+      { ...config, permission: "drill.publish" },
+      "club-a",
+      schema,
+      { name: "Uno" },
+      write,
+    );
 
-    expect(write).toHaveBeenCalledTimes(1);
-    const received = (write.mock.calls[0] as unknown as [Write<{ title: string }>])[0];
-    expect(received.db).toBe(DB);
-    expect(received.ctx).toEqual(contextWithRole("admin"));
-    expect(received.data).toEqual({ title: "Hola" });
+    expect(result).toEqual({ ok: false, error: "NOT_FOUND" });
+    expect(mocks.createClient).not.toHaveBeenCalled();
+    expect(write).not.toHaveBeenCalled();
+    expect(mocks.revalidatePath).not.toHaveBeenCalled();
+    expect(logged).toEqual([]);
   });
 
-  it("devuelve tal cual lo que devuelve la escritura", async () => {
-    await expect(run(async () => ok({ id: "uno" }))).resolves.toEqual({
-      ok: true,
-      data: { id: "uno" },
-    });
-    await expect(run(async () => fail("STALE_COPY"))).resolves.toEqual({
-      ok: false,
-      error: "STALE_COPY",
-    });
+  it("el mismo rol escribe cuando el permiso configurado se lo da", async () => {
+    mocks.requireClub.mockResolvedValue(contextWithRole("coach"));
+
+    const result = await mutate(config, "club-a", schema, { name: "Uno" }, writing(ok(null)));
+
+    expect(result).toEqual({ ok: true, data: null });
   });
 
-  it("una escritura que lanza es SAVE_FAILED y se registra con módulo.nombre", async () => {
-    const boom = new TypeError("fetch failed");
+  it.each(["player", "guardian"] as const)("un %s no escribe con ninguno de los dos", async (role) => {
+    mocks.requireClub.mockResolvedValue(contextWithRole(role));
 
-    const result = await run(async () => {
-      throw boom;
-    });
+    for (const permission of ["drill.create", "drill.publish"] as const) {
+      const result = await mutate({ ...config, permission }, "club-a", schema, { name: "Uno" }, writing(ok(null)));
 
-    expect(result).toEqual({ ok: false, error: "SAVE_FAILED" });
-    expect(mocks.logError).toHaveBeenCalledTimes(1);
-    expect(mocks.logError).toHaveBeenCalledWith("sample.do-thing", boom);
+      expect(result).toEqual({ ok: false, error: "NOT_FOUND" });
+    }
+    expect(mocks.createClient).not.toHaveBeenCalled();
+  });
+});
+
+describe("tras escribir", () => {
+  it("revalida cada ruta configurada, por patrón y layout, en su orden", async () => {
+    await mutate(config, "club-a", schema, { name: "Uno" }, writing(ok(null)));
+
+    expect(mocks.revalidatePath.mock.calls).toEqual([
+      ["/c/[club]/(app)/uno", "layout"],
+      ["/c/[club]/(app)/dos", "layout"],
+    ]);
+  });
+
+  it("no revalida si la escritura devuelve un error", async () => {
+    const result = await mutate(config, "club-a", schema, { name: "Uno" }, writing(fail("NOT_FOUND")));
+
+    expect(result).toEqual({ ok: false, error: "NOT_FOUND" });
     expect(mocks.revalidatePath).not.toHaveBeenCalled();
   });
 
-  it("un cliente que no se puede crear es SAVE_FAILED, no una excepción", async () => {
-    const boom = new TypeError("fetch failed");
-    mocks.createClient.mockRejectedValue(boom);
-    const write = vi.fn();
+  it("revalida las rutas de la configuración que recibe, no las de otra", async () => {
+    await mutate({ ...config, routes: ["/c/[club]/tres"] }, "club-a", schema, { name: "Uno" }, writing(ok(null)));
 
-    await expect(run(write)).resolves.toEqual({ ok: false, error: "SAVE_FAILED" });
+    expect(mocks.revalidatePath.mock.calls).toEqual([["/c/[club]/tres", "layout"]]);
+  });
+});
 
-    expect(write).not.toHaveBeenCalled();
-    expect(mocks.logError).toHaveBeenCalledWith("sample.do-thing", boom);
+describe("errores de la base de datos (fromDb)", () => {
+  /** Una escritura que traduce el error que se le dé con el `fromDb` del esqueleto. */
+  function failingWith(error: { code?: string; message?: string }, unique?: { field: string; message: string }) {
+    return async ({ fromDb }: { fromDb: (e: typeof error, u?: typeof unique) => ActionResult<never> }) =>
+      fromDb(error, unique);
+  }
+
+  it("un fallo inesperado es SAVE_FAILED y se registra con la etiqueta, sin el contenido de la fila", async () => {
+    const error = dbError("XX000", 'fila con "texto del club"');
+
+    const result = await mutate(config, "club-a", schema, { name: "Uno" }, failingWith(error));
+
+    expect(result).toEqual({ ok: false, error: "SAVE_FAILED" });
+    expect(logged).toEqual(["[demo.save] PostgrestError code=XX000"]);
   });
 
-  // `notFound()` y `redirect()` funcionan lanzando: si se tragaran como un fallo cualquiera, la
-  // página no daría su 404 ni redirigiría, y quedaría un SAVE_FAILED.
+  it("un permiso denegado tras pasar `can` es NOT_FOUND y se registra", async () => {
+    const result = await mutate(config, "club-a", schema, { name: "Uno" }, failingWith(dbError("42501", "rls")));
+
+    expect(result).toEqual({ ok: false, error: "NOT_FOUND" });
+    expect(logged).toEqual(["[demo.save] PostgrestError code=42501"]);
+  });
+
+  it("lo esperado no se registra: copia obsoleta, no encontrado, entrada rechazada, repetido", async () => {
+    const codes: Array<[string, string]> = [
+      ["P0001", "STALE_COPY"],
+      ["P0002", "NOT_FOUND"],
+      ["22023", "INVALID"],
+      ["23514", "check"],
+      ["23505", "duplicate"],
+    ];
+
+    const results = [];
+    for (const [code, message] of codes) {
+      results.push(await mutate(config, "club-a", schema, { name: "Uno" }, failingWith(dbError(code, message))));
+    }
+
+    expect(results.map((result) => (result.ok ? "ok" : result.error))).toEqual([
+      "STALE_COPY",
+      "NOT_FOUND",
+      "INVALID",
+      "INVALID",
+      "INVALID",
+    ]);
+    expect(logged).toEqual([]);
+  });
+
+  it("un duplicado señala el campo que dice quien escribe", async () => {
+    const unique = { field: "name", message: "Ese nombre ya existe." };
+
+    const result = await mutate(
+      config,
+      "club-a",
+      schema,
+      { name: "Uno" },
+      failingWith(dbError("23505", "duplicate"), unique),
+    );
+
+    expect(result).toEqual({ ok: false, error: "INVALID", fieldErrors: { name: "Ese nombre ya existe." } });
+  });
+});
+
+describe("una escritura que lanza", () => {
+  it("se registra con la etiqueta y vuelve como SAVE_FAILED, sin revalidar", async () => {
+    mocks.createClient.mockRejectedValue(new TypeError("fetch failed"));
+
+    const result = await mutate(config, "club-a", schema, { name: "Uno" }, writing(ok(null)));
+
+    expect(result).toEqual({ ok: false, error: "SAVE_FAILED" });
+    expect(logged).toEqual(["[demo.save] TypeError"]);
+    expect(mocks.revalidatePath).not.toHaveBeenCalled();
+  });
+
+  it("si lanza la propia escritura pasa igual: SAVE_FAILED, registrado con la etiqueta y sin revalidar", async () => {
+    const result = await mutate(config, "club-a", schema, { name: "Uno" }, async () => {
+      throw new TypeError("fetch failed");
+    });
+
+    expect(result).toEqual({ ok: false, error: "SAVE_FAILED" });
+    expect(logged).toEqual(["[demo.save] TypeError"]);
+    expect(mocks.revalidatePath).not.toHaveBeenCalled();
+  });
+
+  it("un cliente que no se puede crear no llega a la escritura", async () => {
+    mocks.createClient.mockRejectedValue(new TypeError("fetch failed"));
+    const write = writing(ok(null));
+
+    await expect(mutate(config, "club-a", schema, { name: "Uno" }, write)).resolves.toEqual({
+      ok: false,
+      error: "SAVE_FAILED",
+    });
+
+    expect(write).not.toHaveBeenCalled();
+  });
+
+  // `notFound()` y `redirect()` funcionan lanzando: si el esqueleto los tragara como un fallo
+  // cualquiera, la página no daría su 404 ni redirigiría, y quedaría un SAVE_FAILED.
   it.each([
     ["notFound()", () => notFound()],
     ["redirect()", () => redirect("/select-club")],
-  ])("lo que lanza %s dentro de la escritura se relanza, sin registrarlo", async (_, control) => {
+  ])("lo que lanza %s lo recoge Next: no se convierte en SAVE_FAILED ni se registra", async (_, control) => {
     const thrown = (() => {
       try {
         control();
@@ -190,117 +297,53 @@ describe("createMutate: escribir", () => {
     })();
 
     await expect(
-      run(async () => {
+      mutate(config, "club-a", schema, { name: "Uno" }, async () => {
         throw thrown;
       }),
     ).rejects.toBe(thrown);
 
-    expect(mocks.logError).not.toHaveBeenCalled();
+    expect(logged).toEqual([]);
     expect(mocks.revalidatePath).not.toHaveBeenCalled();
-  });
-});
-
-describe("createMutate: revalidar", () => {
-  it("con ok revalida cada ruta con 'layout', en el orden dado", async () => {
-    await run(async () => ok(null));
-
-    expect(mocks.revalidatePath.mock.calls).toEqual([
-      ["/c/[club]/uno", "layout"],
-      ["/c/[club]/dos", "layout"],
-    ]);
-  });
-
-  it("con un fallo no revalida ninguna", async () => {
-    await run(async () => fail("NOT_FOUND"));
-
-    expect(mocks.revalidatePath).not.toHaveBeenCalled();
-  });
-
-  it("revalida las rutas de cada createMutate, no las de otro", async () => {
-    const other = createMutate({ module: "other", permission: "way.manage", revalidate: ["/c/[club]/tres"] });
-
-    await other("do-thing", "club-a", schema, INPUT, async () => ok(null));
-
-    expect(mocks.revalidatePath.mock.calls).toEqual([["/c/[club]/tres", "layout"]]);
-  });
-});
-
-describe("fromDb", () => {
-  /** Lanza `fromDb` con el error dado y devuelve su resultado. */
-  function translate(error: DbError, unique?: { field: string; message: string }) {
-    return run(async ({ fromDb }) => fromDb(error, unique));
-  }
-
-  it("traduce con fromDbError: copia obsoleta, no encontrado, entrada rechazada, sin rastro", async () => {
-    const unique = { field: "number", message: "Ese número ya está en uso." };
-
-    await expect(translate({ code: "P0001", message: "STALE_COPY" })).resolves.toEqual({
-      ok: false,
-      error: "STALE_COPY",
-    });
-    await expect(translate({ code: "P0002", message: "x" })).resolves.toEqual({
-      ok: false,
-      error: "NOT_FOUND",
-    });
-    await expect(translate({ code: UNIQUE_VIOLATION, message: "x" }, unique)).resolves.toEqual({
-      ok: false,
-      error: "INVALID",
-      fieldErrors: { number: "Ese número ya está en uso." },
-    });
-    await expect(translate({ code: "23514", message: "x" })).resolves.toEqual({
-      ok: false,
-      error: "INVALID",
-    });
-    expect(mocks.logError).not.toHaveBeenCalled();
-  });
-
-  it("un error inesperado es SAVE_FAILED y se registra", async () => {
-    const error = { code: "XX000", message: "internal error" };
-
-    await expect(translate(error)).resolves.toEqual({ ok: false, error: "SAVE_FAILED" });
-
-    expect(mocks.logError).toHaveBeenCalledWith("sample.do-thing", error);
-  });
-
-  it("un 42501 es NOT_FOUND pero se registra: tras pasar `can` es un permiso de esquema roto", async () => {
-    const error = { code: "42501", message: "permission denied" };
-
-    await expect(translate(error)).resolves.toEqual({ ok: false, error: "NOT_FOUND" });
-
-    expect(mocks.logError).toHaveBeenCalledWith("sample.do-thing", error);
   });
 });
 
 describe("retryOnConflict", () => {
-  const conflict: DbError = { code: UNIQUE_VIOLATION, message: "duplicate key value" };
+  // Un choque con un único de la tabla: lo que devuelve PostgREST cuando otra alta simultánea
+  // se queda con el número, el orden o el slug que este intento acababa de calcular.
+  const conflict: DbError = dbError(UNIQUE_VIOLATION, "duplicate key value");
+
+  /** Lanza `mutate` con una escritura que solo repite `attempt` mientras choque. */
+  function retrying<T>(attempt: () => Promise<Attempt<T>>) {
+    return mutate(config, "club-a", schema, { name: "Uno" }, ({ retryOnConflict }) => retryOnConflict(attempt));
+  }
 
   it("sin choque devuelve el resultado del primer intento", async () => {
     const attempt = vi.fn(async () => ({ result: ok({ id: "uno" }) }));
 
-    const result = await run(({ retryOnConflict }) => retryOnConflict(attempt));
+    const result = await retrying(attempt);
 
     expect(result).toEqual({ ok: true, data: { id: "uno" } });
     expect(attempt).toHaveBeenCalledTimes(1);
-    expect(mocks.logError).not.toHaveBeenCalled();
+    expect(logged).toEqual([]);
   });
 
   it("tras un choque repite el intento entero y devuelve el del siguiente", async () => {
     const attempt = vi
-      .fn<() => Promise<{ result: ActionResult<{ id: string }> } | { conflict: DbError }>>()
+      .fn<() => Promise<Attempt<{ id: string }>>>()
       .mockResolvedValueOnce({ conflict })
       .mockResolvedValueOnce({ result: ok({ id: "dos" }) });
 
-    const result = await run(({ retryOnConflict }) => retryOnConflict(attempt));
+    const result = await retrying(attempt);
 
     expect(result).toEqual({ ok: true, data: { id: "dos" } });
     expect(attempt).toHaveBeenCalledTimes(2);
-    expect(mocks.logError).not.toHaveBeenCalled();
+    expect(logged).toEqual([]);
   });
 
   it("un intento que da un resultado de fallo lo devuelve sin repetir", async () => {
     const attempt = vi.fn(async () => ({ result: fail("SECTION_LIMIT") }));
 
-    const result = await run(({ retryOnConflict }) => retryOnConflict(attempt));
+    const result = await retrying(attempt);
 
     expect(result).toEqual({ ok: false, error: "SECTION_LIMIT" });
     expect(attempt).toHaveBeenCalledTimes(1);
@@ -309,12 +352,11 @@ describe("retryOnConflict", () => {
   it("si choca tres veces ya no es una carrera: SAVE_FAILED, registrado y sin revalidar", async () => {
     const attempt = vi.fn(async () => ({ conflict }));
 
-    const result = await run(({ retryOnConflict }) => retryOnConflict(attempt));
+    const result = await retrying(attempt);
 
     expect(result).toEqual({ ok: false, error: "SAVE_FAILED" });
     expect(attempt).toHaveBeenCalledTimes(3);
-    expect(mocks.logError).toHaveBeenCalledTimes(1);
-    expect(mocks.logError).toHaveBeenCalledWith("sample.do-thing", conflict);
+    expect(logged).toEqual(["[demo.save] PostgrestError code=23505"]);
     expect(mocks.revalidatePath).not.toHaveBeenCalled();
   });
 });
