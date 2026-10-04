@@ -240,10 +240,17 @@ test.describe("con el dedo", () => {
     const cdp = await page.context().newCDPSession(page);
     const touch = (type: "touchStart" | "touchMove" | "touchEnd", x = 0, y = 0) =>
       cdp.send("Input.dispatchTouchEvent", { type, touchPoints: type === "touchEnd" ? [] : [{ x, y, id: 1 }] });
-    /** Un dedo que se posa en `from`, espera `holdMs` y se desliza en vertical hasta `toY`. */
-    async function swipe(from: { x: number; y: number }, toY: number, holdMs: number): Promise<void> {
+    /**
+     * Un dedo que se posa en `from`, se queda quieto mientras dure `held` y se desliza en
+     * vertical hasta `toY`.
+     */
+    async function swipe(
+      from: { x: number; y: number },
+      toY: number,
+      held: () => Promise<unknown> = async () => {},
+    ): Promise<void> {
       await touch("touchStart", from.x, from.y);
-      await page.waitForTimeout(holdMs);
+      await held();
       const steps = 12;
       for (let step = 1; step <= steps; step += 1) {
         await touch("touchMove", from.x, from.y + ((toY - from.y) * step) / steps);
@@ -257,9 +264,10 @@ test.describe("con el dedo", () => {
     };
 
     // Sobre el título de la fila, el dedo desplaza la página y no mueve nada, aunque se quede
-    // quieto un momento antes de deslizar.
+    // quieto antes de deslizar más de lo que tarda el asa en coger la fila (150 ms). Aquí la
+    // espera es fija porque no hay nada que esperar: lo que se comprueba es que no pasa nada.
     const body = centre(await rows(page).first().locator('[data-control="toggle"]').boundingBox());
-    await swipe(body, body.y - 200, 250);
+    await swipe(body, body.y - 200, () => page.waitForTimeout(250));
     await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(100);
     await expectOrder(page, [first, second, ...others]);
     await page.evaluate(() => window.scrollTo(0, 0));
@@ -268,12 +276,17 @@ test.describe("con el dedo", () => {
     // Sobre el asa, un deslizamiento rápido no arrastra (ni desplaza): hay que mantener el dedo.
     const handle = page.getByRole("button", { name: `Mover ${first}` });
     const below = centre(await rows(page).nth(1).boundingBox()).y + 10;
-    await swipe(centre(await handle.boundingBox()), below, 0);
+    await swipe(centre(await handle.boundingBox()), below);
     await expectOrder(page, [first, second, ...others]);
     expect(await page.evaluate(() => window.scrollY)).toBe(0);
+    await expect(page.getByText(`Has cogido ${first}.`)).toHaveCount(0);
 
-    // Con el dedo quieto 150 ms en el asa, la fila se coge y se arrastra: baja un puesto.
-    await swipe(centre(await handle.boundingBox()), below, 250);
+    // Con el dedo quieto en el asa, a los 150 ms la fila se coge, y entonces se arrastra: baja
+    // un puesto. Se espera a que la página diga que la ha cogido, no un tiempo fijo: si la
+    // página se retrasa, el dedo sigue quieto.
+    await swipe(centre(await handle.boundingBox()), below, () =>
+      expect(page.getByText(`Has cogido ${first}.`)).toBeAttached(),
+    );
     await expectOrder(page, [second, first, ...others]);
     await expect(rows(page)).toContainText(["01", "02", "03", "04", "05"]);
     expect(await page.evaluate(() => window.scrollY)).toBe(0);
@@ -440,10 +453,21 @@ test("editar los datos", async ({ page }) => {
   await expect(field(data, "Hora")).toHaveValue("18:00");
   await expect(field(data, "Duración (min)")).toHaveValue("60");
 
+  await expect(toggle.getByText("Cambios sin guardar")).toHaveCount(0);
   await field(data, "Hora").fill("19:00");
   await field(data, "Lugar").fill("Pabellón 3");
+  // Cerrado no se ve qué falta por guardar: el botón lo dice.
+  await toggle.click();
+  await expect(field(data, "Lugar")).toBeHidden();
+  await expect(toggle.getByText("Cambios sin guardar")).toBeVisible();
+  await expectFitsMobile(page);
+  await page.screenshot({ path: "test-results/train-builder-unsaved-data-375.png" });
+  await toggle.click();
+  await expect(field(data, "Lugar")).toHaveValue("Pabellón 3");
+
   await data.getByRole("button", { name: "Guardar datos" }).click();
   await expect(data.getByText("Datos guardados.")).toBeVisible();
+  await expect(toggle.getByText("Cambios sin guardar")).toHaveCount(0);
   // La cabecera del constructor ya dice la franja nueva, sin recargar.
   await expect(main).toContainText("19:00–20:00");
   await expect(main).not.toContainText("18:00–19:00");

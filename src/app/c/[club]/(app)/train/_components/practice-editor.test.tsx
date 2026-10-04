@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import Link from "next/link";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { ACTION_ERROR_COPY, fail, ok } from "@/lib/action-result";
+import { ACTION_ERROR_COPY, fail, ok, type ActionResult } from "@/lib/action-result";
 import type { PracticeDetail, SavedPracticeItem } from "@/modules/practice/types";
 
 const mocks = vi.hoisted(() => ({
@@ -138,6 +138,15 @@ function clickBack(): "navega" | "se queda" {
 }
 
 const leaveDialog = () => screen.queryByRole("alertdialog", { name: "¿Salir sin guardar?" });
+
+/** Una acción que no termina hasta que el test lo diga. */
+function deferred<T>() {
+  let finish: (result: ActionResult<T>) => void = () => {};
+  const promise = new Promise<ActionResult<T>>((resolve) => {
+    finish = resolve;
+  });
+  return { promise, finish };
+}
 
 /**
  * Mira en el instante en que `text` entra en el documento, antes de cualquier otro turno de
@@ -421,6 +430,164 @@ describe("PracticeEditor · una sola copia para los datos y para los ejercicios"
       "club-a",
       expect.objectContaining({ expectedUpdatedAt: UPDATED_AT }),
     );
+  });
+});
+
+describe("PracticeEditor · los dos guardados no se pisan", () => {
+  // Los dos comparan con la misma copia: enviados a la vez, el segundo llegaría con la vieja y
+  // recibiría «Alguien ha cambiado esto…» sin que nadie más hubiera guardado.
+  it("con «Guardar datos» en marcha, «Guardar sesión» espera; después guarda con la copia nueva", async () => {
+    const data = deferred<{ updatedAt: string }>();
+    mocks.updatePracticeMeta.mockReturnValue(data.promise);
+    mocks.savePracticeItems.mockResolvedValue(ok({ updatedAt: AFTER_SECOND }));
+    renderEditor();
+    changeItems();
+    click("Fecha y datos");
+    changeLocation();
+    expect(button("Guardar sesión")).toBeEnabled();
+
+    click("Guardar datos");
+
+    expect(button("Guardar sesión")).toBeDisabled();
+    fireEvent.click(button("Guardar sesión"));
+    expect(mocks.savePracticeItems).not.toHaveBeenCalled();
+    // La lista se puede seguir montando mientras tanto.
+    click("Más minutos, Tres calles");
+    expect(rows()[1]).toHaveTextContent("20'");
+    expect(button("Guardar sesión")).toBeDisabled();
+
+    data.finish(ok({ updatedAt: AFTER_FIRST }));
+    await screen.findByText("Datos guardados.");
+    await waitFor(() => expect(button("Guardar sesión")).toBeEnabled());
+
+    click("Guardar sesión");
+    await screen.findByText("Sesión guardada.");
+    expect(mocks.savePracticeItems).toHaveBeenCalledTimes(1);
+    expect(mocks.savePracticeItems).toHaveBeenLastCalledWith(
+      "club-a",
+      expect.objectContaining({ expectedUpdatedAt: AFTER_FIRST }),
+    );
+    expect(screen.queryByText(ACTION_ERROR_COPY.STALE_COPY)).not.toBeInTheDocument();
+  });
+
+  it("y al revés: con «Guardar sesión» en marcha, «Guardar datos» espera", async () => {
+    const items = deferred<{ updatedAt: string }>();
+    mocks.savePracticeItems.mockReturnValue(items.promise);
+    mocks.updatePracticeMeta.mockResolvedValue(ok({ updatedAt: AFTER_SECOND }));
+    renderEditor();
+    changeItems();
+    click("Fecha y datos");
+    changeLocation();
+    expect(button("Guardar datos")).toBeEnabled();
+
+    click("Guardar sesión");
+
+    expect(button("Guardar datos")).toBeDisabled();
+    fireEvent.submit(button("Guardar datos").closest("form") as HTMLFormElement);
+    expect(mocks.updatePracticeMeta).not.toHaveBeenCalled();
+    // Los datos se pueden seguir escribiendo mientras tanto.
+    changeMeta("Lugar", "Pabellón 4");
+    expect(button("Guardar datos")).toBeDisabled();
+
+    items.finish(ok({ updatedAt: AFTER_FIRST }));
+    await screen.findByText("Sesión guardada.");
+    await waitFor(() => expect(button("Guardar datos")).toBeEnabled());
+
+    click("Guardar datos");
+    await screen.findByText("Datos guardados.");
+    expect(mocks.updatePracticeMeta).toHaveBeenCalledTimes(1);
+    expect(mocks.updatePracticeMeta).toHaveBeenLastCalledWith(
+      "club-a",
+      expect.objectContaining({ expectedUpdatedAt: AFTER_FIRST, location: "Pabellón 4" }),
+    );
+    expect(screen.queryByText(ACTION_ERROR_COPY.STALE_COPY)).not.toBeInTheDocument();
+  });
+
+  it("un guardado que falla también deja paso al otro, con la copia que había", async () => {
+    const data = deferred<{ updatedAt: string }>();
+    mocks.updatePracticeMeta.mockReturnValue(data.promise);
+    renderEditor();
+    changeItems();
+    click("Fecha y datos");
+    changeLocation();
+
+    click("Guardar datos");
+    expect(button("Guardar sesión")).toBeDisabled();
+    data.finish(fail("SAVE_FAILED"));
+
+    await within(panel()).findByText(ACTION_ERROR_COPY.SAVE_FAILED);
+    await waitFor(() => expect(button("Guardar sesión")).toBeEnabled());
+    click("Guardar sesión");
+    await screen.findByText("Sesión guardada.");
+    expect(mocks.savePracticeItems).toHaveBeenLastCalledWith(
+      "club-a",
+      expect.objectContaining({ expectedUpdatedAt: UPDATED_AT }),
+    );
+  });
+
+  it("sin nada en marcha, cada botón depende solo de lo suyo", () => {
+    renderEditor();
+    click("Fecha y datos");
+
+    expect(button("Guardar sesión")).toBeDisabled();
+    expect(button("Guardar datos")).toBeEnabled();
+  });
+});
+
+describe("PracticeEditor · «Fecha y datos» con cambios sin guardar", () => {
+  const toggle = () => button("Fecha y datos");
+
+  it("lo dice en su botón, se vea o no el formulario, y deja de decirlo al guardar", async () => {
+    renderEditor();
+    expect(screen.queryByText("Cambios sin guardar")).not.toBeInTheDocument();
+    expect(toggle()).not.toHaveAccessibleDescription();
+
+    click("Fecha y datos");
+    changeLocation();
+
+    expect(screen.getByText("Cambios sin guardar")).toBeVisible();
+    expect(toggle()).toContainElement(screen.getByText("Cambios sin guardar"));
+    // El botón sigue llamándose igual; el aviso lo describe.
+    expect(toggle()).toHaveAccessibleDescription("Cambios sin guardar");
+
+    // Cerrado es cuando hace falta: lo escrito no se ve y el aviso de salida preguntaría por ello.
+    click("Fecha y datos");
+    expect(panel()).not.toBeVisible();
+    expect(screen.getByText("Cambios sin guardar")).toBeVisible();
+
+    click("Fecha y datos");
+    click("Guardar datos");
+    await screen.findByText("Datos guardados.");
+    expect(screen.queryByText("Cambios sin guardar")).not.toBeInTheDocument();
+    expect(toggle()).not.toHaveAccessibleDescription();
+  });
+
+  it("deshacer el cambio lo quita", () => {
+    renderEditor();
+    click("Fecha y datos");
+    changeLocation();
+    expect(screen.getByText("Cambios sin guardar")).toBeInTheDocument();
+
+    changeMeta("Lugar", "Pabellón 2");
+
+    expect(screen.queryByText("Cambios sin guardar")).not.toBeInTheDocument();
+  });
+
+  it("los cambios de la lista de ejercicios no lo ponen: esos tienen su «Guardar sesión»", () => {
+    renderEditor();
+
+    changeItems();
+
+    expect(screen.queryByText("Cambios sin guardar")).not.toBeInTheDocument();
+    expect(button("Guardar sesión")).toBeEnabled();
+  });
+
+  it("no usa colores ni medidas propias: solo tokens", () => {
+    renderEditor();
+    click("Fecha y datos");
+    changeLocation();
+
+    expect(screen.getByText("Cambios sin guardar")).toHaveClass("text-body-s", "text-ink-2");
   });
 });
 

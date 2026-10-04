@@ -71,6 +71,12 @@ function sameValues(a: PracticeFormValues, b: PracticeFormValues): boolean {
  * resultado, y no con un efecto: así quien lo monta lo sabe en la misma pintura, y al aparecer
  * «Datos guardados.» ya no hay aviso al cerrar la pestaña.
  *
+ * Con `edit`, un guardado a la vez en la pantalla: los ejercicios se guardan aparte, contra la
+ * misma copia, y dos guardados enviados a la vez llevarían la misma (el segundo fallaría como
+ * si otra persona hubiera guardado). Con `edit.locked` (el otro está guardando) «Guardar datos»
+ * espera, y de lo suyo avisa con `edit.onPendingChange`: que empieza, en el mismo envío, y que
+ * ha terminado, cuando el resultado ya está pintado.
+ *
  * El estado sale de `initial` una sola vez. Si guardar falla, no se pierde nada de lo escrito:
  * el error de cada campo sale bajo él (`fieldErrors`) y el aviso general, arriba.
  */
@@ -86,8 +92,10 @@ export function PracticeForm({
   edit?: {
     eventId: string;
     expectedUpdatedAt: string;
+    locked: boolean;
     onSaved: (updatedAt: string) => void;
     onDirtyChange: (dirty: boolean) => void;
+    onPendingChange: (pending: boolean) => void;
     onReload: () => void;
   };
 }) {
@@ -106,6 +114,14 @@ export function PracticeForm({
     latest.current = values;
   }, [values]);
 
+  // El fin del guardado se dice desde aquí y no desde el manejador del resultado: así llega
+  // salga como salga y siempre después de pintarlo (ver `PracticeBuilder`).
+  const locked = edit?.locked ?? false;
+  const onPendingChange = edit?.onPendingChange;
+  useEffect(() => {
+    onPendingChange?.(pending);
+  }, [pending, onPendingChange]);
+
   const focusOptions = [
     NO_FOCUS,
     ...options.focusAreas.map((focus) => ({ value: focus.id, label: focus.name })),
@@ -123,7 +139,7 @@ export function PracticeForm({
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (pending || created) return;
+    if (pending || created || locked) return;
     setSaved(false);
 
     // Lo que se envía es lo que queda guardado: si se escribe mientras guarda, eso sigue sin guardar.
@@ -142,6 +158,7 @@ export function PracticeForm({
     };
 
     if (edit) {
+      edit.onPendingChange(true);
       run(
         () =>
           updatePracticeMeta(clubSlug, {
@@ -284,7 +301,7 @@ export function PracticeForm({
         variant={edit ? "secondary" : "primary"}
         type="submit"
         block
-        disabled={pending || created}
+        disabled={pending || created || locked}
       >
         {edit ? "Guardar datos" : "Crear sesión"}
       </CTAButton>

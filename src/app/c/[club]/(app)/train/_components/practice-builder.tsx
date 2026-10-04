@@ -40,6 +40,18 @@ const KEYBOARD_INSTRUCTIONS =
 
 const LIMIT_REACHED = `Una sesión tiene como máximo ${MAX_ITEMS} ejercicios.`;
 
+type Add = (item: PracticeItemDraft) => void;
+
+/**
+ * Lo que pinta `extraActions`. Es un componente, y no una llamada dentro del constructor, porque
+ * `add` toca un ref (el contador de claves) y las reglas de React no dejan entregar, al pintar,
+ * una función así a otra función: no pueden saber que solo se llamará desde un manejador. Como
+ * prop de un componente sí la aceptan.
+ */
+function ExtraActions({ render, add }: { render: (add: Add) => ReactNode; add: Add }) {
+  return render(add);
+}
+
 /**
  * El constructor de una sesión: la lista ordenada de sus ítems, que se arrastran, se suben y se
  * bajan, se cronometran de cinco en cinco minutos, se editan, se añaden y se quitan, y la barra
@@ -66,9 +78,9 @@ const LIMIT_REACHED = `Una sesión tiene como máximo ${MAX_ITEMS} ejercicios.`;
  * minutos, abierto y con el foco en su «Título»; con 30 ítems se desactiva y dice por qué.
  * `extraActions` es el hueco de lo que añade otra cosa (los ejercicios de la biblioteca): recibe
  * `add`, que añade el ítem al final sin abrirlo (ni hace nada si ya hay 30), y lo que pinte va
- * encima de «Añadir bloque libre». `add` es para un manejador, una llamada por evento, como los
- * de aquí. «Quitar» quita sin preguntar: no se pierde nada guardado hasta que se guarda. El
- * foco va entonces a la fila que ocupa su sitio.
+ * encima de «Añadir bloque libre». `add` es para un manejador, y se puede llamar varias veces
+ * en el mismo evento: cada llamada se suma a la anterior. «Quitar» quita sin preguntar: no se
+ * pierde nada guardado hasta que se guarda. El foco va entonces a la fila que ocupa su sitio.
  *
  * Cambios sin guardar: los hay mientras la lista difiera de la última copia guardada (la que
  * se abrió o, tras cada guardado, la que se envió); deshacer un cambio vuelve a no haberlos.
@@ -76,6 +88,13 @@ const LIMIT_REACHED = `Una sesión tiene como máximo ${MAX_ITEMS} ejercicios.`;
  * quien pregunta antes de salir. Se le avisa en el mismo manejador que cambia la lista o que
  * recibe el resultado, y no con un efecto: así lo sabe en la misma pintura, y al aparecer
  * «Sesión guardada.» ya no hay aviso al cerrar la pestaña.
+ *
+ * Un guardado a la vez en la pantalla. Los datos de la sesión se guardan aparte, contra la
+ * misma copia: dos guardados enviados a la vez llevarían la misma, y el segundo fallaría como
+ * si otra persona hubiera guardado. Con `locked` (el otro está guardando) «Guardar sesión»
+ * espera, y de lo suyo avisa con `onPendingChange`: que empieza, en el mismo toque (antes de
+ * pintar nada, para que el otro botón se cierre ya), y que ha terminado, cuando el resultado
+ * ya está pintado y la copia nueva, entregada.
  *
  * Si guardar falla, la lista no se toca: el aviso sale arriba (y se lleva el foco) con su
  * salida, «Recargar» si otra persona guardó antes (`onReload`: hasta que se pulsa, lo montado
@@ -87,8 +106,10 @@ export function PracticeBuilder({
   eventId,
   initialItems,
   expectedUpdatedAt,
+  locked,
   onSaved,
   onDirtyChange,
+  onPendingChange,
   onReload,
   extraActions,
 }: {
@@ -96,10 +117,12 @@ export function PracticeBuilder({
   eventId: string;
   initialItems: SavedPracticeItem[];
   expectedUpdatedAt: string;
+  locked: boolean;
   onSaved: (updatedAt: string) => void;
   onDirtyChange: (dirty: boolean) => void;
+  onPendingChange: (pending: boolean) => void;
   onReload: () => void;
-  extraActions?: (add: (item: PracticeItemDraft) => void) => ReactNode;
+  extraActions?: (add: Add) => ReactNode;
 }) {
   const { pending, failure, run } = useAction();
   const [rows, setRows] = useState<Row[]>(() => initialItems.map(toRow));
@@ -110,8 +133,9 @@ export function PracticeBuilder({
   const latest = useRef(rows);
   const [openKey, setOpenKey] = useState<string | null>(null);
   // Cuántas filas se han añadido en esta visita: de ahí sale la clave de la siguiente, que así
-  // no repite la de ninguna otra, tampoco la de una que ya se quitó.
-  const [addedCount, setAddedCount] = useState(0);
+  // no repite la de ninguna otra, tampoco la de una que ya se quitó. Un ref y no estado: dos
+  // filas añadidas en el mismo evento necesitan cada una la suya antes de que se pinte nada.
+  const newKeys = useRef(0);
   // El bloque libre recién añadido: su fila se monta con el foco en «Título».
   const [addedKey, setAddedKey] = useState<string | null>(null);
   // Las claves de las filas en el orden del último envío: los errores llegan por posición.
@@ -135,6 +159,13 @@ export function PracticeBuilder({
   useEffect(() => {
     latest.current = rows;
   }, [rows]);
+
+  // El fin del guardado se dice desde aquí y no desde el manejador del resultado: así llega
+  // salga como salga (bien, mal o con la llamada caída) y siempre después de pintarlo. Llegar un
+  // turno tarde solo retrasa abrir el otro guardado; llegar pronto lo abriría con la copia vieja.
+  useEffect(() => {
+    onPendingChange(pending);
+  }, [pending, onPendingChange]);
 
   // Tras mover o quitar con los botones, la fila ha cambiado de sitio (o ya no está) y el
   // navegador ha soltado el foco: vuelve al primer control de la lista que se pueda usar.
@@ -201,18 +232,30 @@ export function PracticeBuilder({
     setAnnouncement(`Has quitado ${practiceItemName(rows[index].title)}.`);
   }
 
-  /** Añade un ítem al final y devuelve su clave; con la sesión llena no añade nada. */
+  /**
+   * Añade un ítem al final y devuelve su clave; con la sesión llena no añade nada. No pasa por
+   * `change`: parte de la lista que haya en el momento de aplicarse, no de la de la última
+   * pintura, así que varias llamadas en el mismo evento se suman en vez de pisarse. Una fila
+   * nueva siempre es un cambio sin guardar.
+   */
   function append(item: PracticeItemDraft): string | null {
     if (rows.length >= MAX_ITEMS) return null;
 
-    const key = `nuevo-${addedCount + 1}`;
-    setAddedCount(addedCount + 1);
+    newKeys.current += 1;
     // Un ítem añadido es nuevo: no lleva `id` hasta que se guarda.
-    change([
-      ...rows,
-      { key, drillId: item.drillId, title: item.title, phase: item.phase, minutes: item.minutes, notes: item.notes },
-    ]);
-    return key;
+    const row: Row = {
+      key: `nuevo-${newKeys.current}`,
+      drillId: item.drillId,
+      title: item.title,
+      phase: item.phase,
+      minutes: item.minutes,
+      notes: item.notes,
+    };
+    // Se vuelve a mirar el tope: una llamada anterior de este mismo evento ha podido llenarla.
+    setRows((current) => (current.length < MAX_ITEMS ? [...current, row] : current));
+    setSaved(false);
+    onDirtyChange(true);
+    return row.key;
   }
 
   function addFreeBlock() {
@@ -234,8 +277,9 @@ export function PracticeBuilder({
   }
 
   function save() {
-    if (pending) return;
+    if (pending || locked) return;
     setSaved(false);
+    onPendingChange(true);
 
     // Lo que se envía es lo que queda guardado: si se cambia algo mientras guarda, eso sigue sin guardar.
     const sent = rows;
@@ -355,9 +399,14 @@ export function PracticeBuilder({
         )}
       </DndContext>
 
-      {extraActions?.((item) => {
-        append(item);
-      })}
+      {extraActions ? (
+        <ExtraActions
+          render={extraActions}
+          add={(item) => {
+            append(item);
+          }}
+        />
+      ) : null}
       <CTAButton
         variant="secondary"
         block
@@ -397,7 +446,7 @@ export function PracticeBuilder({
               ) : null}
             </div>
           </div>
-          <CTAButton variant="primary" className="shrink-0" disabled={!dirty || pending} onClick={save}>
+          <CTAButton variant="primary" className="shrink-0" disabled={!dirty || pending || locked} onClick={save}>
             Guardar sesión
           </CTAButton>
         </div>

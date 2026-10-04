@@ -63,8 +63,17 @@ function renderForm(props: Partial<Props> = {}) {
 function renderEdit(overrides: Partial<PracticeFormValues> = {}, props: Partial<Props> = {}) {
   const onSaved = vi.fn();
   const onDirtyChange = vi.fn();
+  const onPendingChange = vi.fn();
   const onReload = vi.fn();
-  const edit = { eventId: EVENT, expectedUpdatedAt: UPDATED_AT, onSaved, onDirtyChange, onReload };
+  const edit = {
+    eventId: EVENT,
+    expectedUpdatedAt: UPDATED_AT,
+    locked: false,
+    onSaved,
+    onDirtyChange,
+    onPendingChange,
+    onReload,
+  };
   const element = (next: Partial<Props>) => (
     <PracticeForm
       clubSlug="club-a"
@@ -80,6 +89,7 @@ function renderEdit(overrides: Partial<PracticeFormValues> = {}, props: Partial<
     ...view,
     onSaved,
     onDirtyChange,
+    onPendingChange,
     onReload,
     edit,
     update: (next: Partial<Props>) => view.rerender(element(next)),
@@ -544,6 +554,49 @@ describe("PracticeForm · editar los datos", () => {
 
     await screen.findByText(ACTION_ERROR_COPY[error]);
     expect(screen.queryByRole("button", { name: "Recargar" })).not.toBeInTheDocument();
+  });
+});
+
+describe("PracticeForm · editar los datos · con otro guardado de la pantalla en marcha", () => {
+  it("con `locked`, «Guardar datos» espera, también si se envía con Intro, y vuelve al quitarse", () => {
+    const { edit, update } = renderEdit();
+    update({ edit: { ...edit, locked: true } });
+
+    change("Lugar", "Pabellón 3");
+    expect(screen.getByRole("button", { name: "Guardar datos" })).toBeDisabled();
+    fireEvent.submit(screen.getByRole("button", { name: "Guardar datos" }).closest("form") as HTMLFormElement);
+    expect(mocks.updatePracticeMeta).not.toHaveBeenCalled();
+    // Lo que se escribe no espera: solo el guardado.
+    expect(screen.getByLabelText("Lugar")).toHaveValue("Pabellón 3");
+
+    update({ edit: { ...edit, locked: false } });
+    expect(screen.getByRole("button", { name: "Guardar datos" })).toBeEnabled();
+  });
+
+  it("avisa a quien lo monta de que está guardando, desde el toque, y de que ha terminado", async () => {
+    const pending = deferred<{ updatedAt: string }>();
+    mocks.updatePracticeMeta.mockReturnValue(pending.promise);
+    const { onPendingChange } = renderEdit();
+    expect(onPendingChange).not.toHaveBeenCalledWith(true);
+
+    save();
+    // En el mismo toque, sin esperar a ninguna pintura: el otro guardado se cierra ya.
+    expect(onPendingChange).toHaveBeenLastCalledWith(true);
+
+    pending.finish(ok({ updatedAt: NEXT_UPDATED_AT }));
+    await screen.findByText("Datos guardados.");
+    await waitFor(() => expect(onPendingChange).toHaveBeenLastCalledWith(false));
+  });
+
+  it("si el guardado falla, también avisa de que ha terminado", async () => {
+    mocks.updatePracticeMeta.mockResolvedValue(fail("SAVE_FAILED"));
+    const { onPendingChange } = renderEdit();
+
+    save();
+
+    await screen.findByText(ACTION_ERROR_COPY.SAVE_FAILED);
+    await waitFor(() => expect(onPendingChange).toHaveBeenLastCalledWith(false));
+    expect(onPendingChange).toHaveBeenCalledWith(true);
   });
 });
 

@@ -38,13 +38,14 @@ const ITEMS = [A, B, C];
 type Props = Parameters<typeof PracticeBuilder>[0];
 
 function renderBuilder(props: Partial<Props> = {}) {
-  const handlers = { onSaved: vi.fn(), onDirtyChange: vi.fn(), onReload: vi.fn() };
+  const handlers = { onSaved: vi.fn(), onDirtyChange: vi.fn(), onPendingChange: vi.fn(), onReload: vi.fn() };
   const element = (next: Partial<Props>) => (
     <PracticeBuilder
       clubSlug="club-a"
       eventId={EVENT}
       initialItems={ITEMS}
       expectedUpdatedAt={UPDATED_AT}
+      locked={false}
       {...handlers}
       {...props}
       {...next}
@@ -514,6 +515,60 @@ describe("PracticeBuilder · añadir y quitar", () => {
 
       expect(rows()).toHaveLength(30);
     });
+
+    // Quien elige varios ejercicios de una vez llama a `add` varias veces en el mismo evento.
+    describe("dos `add` en el mismo evento", () => {
+      const SECOND: PracticeItemDraft = { ...DRILL_ITEM, title: "Pase y va", minutes: 8 };
+
+      function addTwo(add: (item: PracticeItemDraft) => void): ReactNode {
+        return (
+          <button
+            type="button"
+            onClick={() => {
+              add(DRILL_ITEM);
+              add(SECOND);
+            }}
+          >
+            Añadir dos ejercicios
+          </button>
+        );
+      }
+
+      it("añaden los dos, en su orden, cada uno con su fila, y los dos se guardan", async () => {
+        const { onDirtyChange } = renderBuilder({ extraActions: addTwo });
+
+        click("Añadir dos ejercicios");
+
+        expect(order()).toEqual([
+          "01 Rueda de pases",
+          "02 Tres calles",
+          "03 Dos contra dos",
+          "04 Rebote y salida",
+          "05 Pase y va",
+        ]);
+        expect(within(total()).getByText("55'")).toBeInTheDocument();
+        expect(onDirtyChange).toHaveBeenLastCalledWith(true);
+
+        // Son dos filas distintas: cambiar una no toca la otra (de 8, el paso sube a 10).
+        click("Más minutos, Pase y va");
+        expect(rows()[3]).toHaveTextContent("12'");
+        expect(rows()[4]).toHaveTextContent("10'");
+
+        save();
+        await screen.findByText("Sesión guardada.");
+        expect(sent().items.slice(3)).toStrictEqual([DRILL_ITEM, { ...SECOND, minutes: 10 }]);
+      });
+
+      it("con 29 ítems solo cabe el primero", () => {
+        const twentyNine = Array.from({ length: 29 }, (_, index) => item(index + 1, `Bloque ${index + 1}`, null, 5));
+        renderBuilder({ initialItems: twentyNine, extraActions: addTwo });
+
+        click("Añadir dos ejercicios");
+
+        expect(rows()).toHaveLength(30);
+        expect(order()[29]).toBe("30 Rebote y salida");
+      });
+    });
   });
 });
 
@@ -632,6 +687,50 @@ describe("PracticeBuilder · guardar", () => {
   });
 });
 
+describe("PracticeBuilder · con otro guardado de la pantalla en marcha", () => {
+  it("con `locked`, «Guardar sesión» espera aunque haya cambios, y vuelve al quitarse", () => {
+    const { update } = renderBuilder({ locked: true });
+
+    click("Más minutos, Rueda de pases");
+    expect(saveButton()).toBeDisabled();
+    fireEvent.click(saveButton());
+    expect(mocks.savePracticeItems).not.toHaveBeenCalled();
+    // Lo que se monta no espera: solo el guardado.
+    expect(rows()[0]).toHaveTextContent("15'");
+
+    update({ locked: false });
+    expect(saveButton()).toBeEnabled();
+  });
+
+  it("avisa a quien lo monta de que está guardando, desde el toque, y de que ha terminado", async () => {
+    const pending = deferred<{ updatedAt: string }>();
+    mocks.savePracticeItems.mockReturnValue(pending.promise);
+    const { onPendingChange } = renderBuilder();
+    click("Más minutos, Rueda de pases");
+    expect(onPendingChange).not.toHaveBeenCalledWith(true);
+
+    save();
+    // En el mismo toque, sin esperar a ninguna pintura: el otro guardado se cierra ya.
+    expect(onPendingChange).toHaveBeenLastCalledWith(true);
+
+    pending.finish(ok({ updatedAt: NEXT_UPDATED_AT }));
+    await screen.findByText("Sesión guardada.");
+    await waitFor(() => expect(onPendingChange).toHaveBeenLastCalledWith(false));
+  });
+
+  it("si el guardado falla, también avisa de que ha terminado", async () => {
+    mocks.savePracticeItems.mockResolvedValue(fail("SAVE_FAILED"));
+    const { onPendingChange } = renderBuilder();
+    click("Más minutos, Rueda de pases");
+
+    save();
+
+    await screen.findByText(ACTION_ERROR_COPY.SAVE_FAILED);
+    await waitFor(() => expect(onPendingChange).toHaveBeenLastCalledWith(false));
+    expect(onPendingChange).toHaveBeenCalledWith(true);
+  });
+});
+
 describe("PracticeBuilder · cambios sin guardar", () => {
   it("avisa a quien lo monta cuando la lista deja de ser la guardada, y cuando vuelve a serlo", async () => {
     const { onDirtyChange } = renderBuilder();
@@ -677,7 +776,8 @@ describe("PracticeBuilder · cuando falla", () => {
     save();
 
     const alert = (await screen.findByText(ACTION_ERROR_COPY.SAVE_FAILED)).closest('[role="alert"]');
-    expect(alert).toHaveFocus();
+    // El aviso se lleva el foco en un efecto, que corre un turno después de pintarse: se espera.
+    await waitFor(() => expect(alert).toHaveFocus());
     expect(order()).toEqual(["01 Rueda de pases", "02 Tres calles", "03 Juego libre", "04 Dos contra dos"]);
     expect(rows()[0]).toHaveTextContent("15'");
     expect(screen.getByLabelText("Título")).toHaveValue("Juego libre");
