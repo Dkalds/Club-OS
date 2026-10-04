@@ -1,15 +1,10 @@
 "use server";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { revalidatePath } from "next/cache";
-import { unstable_rethrow } from "next/navigation";
 import type { z } from "zod";
-import { fail, fromDbError, fromZodError, ok, type ActionResult } from "@/lib/action-result";
+import { fail, ok, type ActionResult } from "@/lib/action-result";
 import type { Database } from "@/lib/database.types";
-import { requireClub } from "@/lib/guards";
-import { logError } from "@/lib/log";
-import { can } from "@/lib/permissions";
-import { createClient } from "@/lib/supabase/server";
+import { mutate as runMutation, type UniqueField, type Write } from "@/lib/mutate";
 import type { ClubContext } from "@/modules/tenancy/queries";
 import { moveId } from "./order";
 import {
@@ -38,10 +33,10 @@ import { slugify, uniqueSlug } from "./slug";
 
 // Acciones de Gestión de la metodología: solo administración las usa.
 //
-// Todas siguen el mismo orden (ver `mutate`): Zod sobre la entrada, el club y el permiso
-// `way.manage` (sin permiso, `NOT_FOUND` sin tocar la base de datos), la escritura y, si ha
-// ido bien, `revalidatePath`. RLS decide de verdad quién escribe; `can` solo evita llegar
-// hasta ella.
+// Todas siguen el mismo orden (ver `mutate` en `@/lib/mutate`): Zod sobre la entrada, el club
+// y el permiso `way.manage` (sin permiso, `NOT_FOUND` sin tocar la base de datos), la
+// escritura y, si ha ido bien, `revalidatePath`. RLS decide de verdad quién escribe; `can`
+// solo evita llegar hasta ella.
 //
 // Todo va acotado al club de `clubSlug`: los insert llevan su `organization_id`, los update y
 // los select lo filtran, y las dos acciones que escriben por RPC con solo un id
@@ -49,13 +44,8 @@ import { slugify, uniqueSlug } from "./slug";
 // borra nunca (archivar es pasar a borrador) no tiene acción de borrado, y los puntos de un
 // principio los reemplaza `save_game_principle`.
 
-// Rutas que se revalidan tras escribir. Son patrones de ruta, no URLs: las carpetas de
-// `src/app/c/[club]/` tal cual, con el segmento dinámico `[club]` y el grupo `(app)`. Así lo
-// espera `revalidatePath(ruta, "layout")`: Next etiqueta cada página con los layouts de su
-// patrón (`/c/[club]/(app)/way/layout`, `/c/[club]/admin/layout`…), y con la URL concreta
-// (`/c/club-a/way`) más `layout` armaría una etiqueta que ninguna ruta lleva y no
-// invalidaría nada; solo parecería funcionar porque cualquier `revalidatePath` dentro de una
-// Server Action vacía además la caché de rutas del cliente. El patrón no distingue clubes.
+// Rutas que se revalidan tras escribir: patrones de ruta, no URLs (el porqué está en
+// `MutateConfig.routes`, de `@/lib/mutate`).
 //
 // Siguen las carpetas: `(app)` es el grupo al que se mueven las pestañas del entrenador
 // (convención C3) y `admin` es el área de Gestión. Si se renombran o se mueven, se cambian aquí.
@@ -65,69 +55,25 @@ const WAY_ROUTE = "/c/[club]/(app)/way";
 const ADMIN_ROUTE = "/c/[club]/admin";
 
 type Db = SupabaseClient<Database>;
-type DbError = { code?: string; message?: string };
-type UniqueField = { field: string; message: string };
-
-/** Lo que recibe la escritura de cada acción, ya validado y autorizado. */
-type Write<D> = {
-  db: Db;
-  ctx: ClubContext;
-  data: D;
-  /**
-   * Traduce un error de la base de datos con `fromDbError`, el único traductor, y registra
-   * los inesperados: un `SAVE_FAILED`, y un `42501`, que tras pasar `can` solo puede ser un
-   * permiso de esquema roto. Lo esperado (copia obsoleta, número repetido, entrada
-   * rechazada) no deja rastro.
-   */
-  fromDb: (error: DbError, unique?: UniqueField) => ActionResult<never>;
-};
 
 /**
- * El esqueleto común: valida, autoriza, escribe y revalida. Cada acción aporta su escritura.
- *
- * Una escritura que lanza (el cliente no se puede crear, la red cae) se registra y vuelve
- * como `SAVE_FAILED`: una acción siempre devuelve un `ActionResult`. Salvo lo que lanza el
- * propio Next para dirigir el flujo (`notFound()`, `redirect()`): eso lo recoge Next, no es un
- * fallo (`unstable_rethrow`).
+ * El esqueleto de `@/lib/mutate` con lo de esta área: el permiso de Gestión, la etiqueta
+ * `methodology.<acción>` del log y las rutas de The Way y de Gestión.
  */
-async function mutate<D, T>(
+function mutate<D, T>(
   name: string,
   clubSlug: string,
   schema: z.ZodType<D>,
   input: unknown,
   write: (run: Write<D>) => Promise<ActionResult<T>>,
 ): Promise<ActionResult<T>> {
-  const tag = `methodology.${name}`;
-
-  const parsed = schema.safeParse(input);
-  if (!parsed.success) return fromZodError(parsed.error);
-
-  // Fuera de todo try/catch: `notFound()` funciona lanzando, y un catch se tragaría el 404.
-  const ctx = await requireClub(clubSlug);
-  if (!can(ctx, "way.manage")) return fail("NOT_FOUND");
-
-  const fromDb = (error: DbError, unique?: UniqueField): ActionResult<never> => {
-    const result = fromDbError(error, unique);
-    if (error.code === "42501" || (!result.ok && result.error === "SAVE_FAILED")) {
-      logError(tag, error);
-    }
-    return result;
-  };
-
-  let result: ActionResult<T>;
-  try {
-    result = await write({ db: await createClient(), ctx, data: parsed.data, fromDb });
-  } catch (error) {
-    unstable_rethrow(error);
-    logError(tag, error);
-    return fail("SAVE_FAILED");
-  }
-
-  if (result.ok) {
-    revalidatePath(WAY_ROUTE, "layout");
-    revalidatePath(ADMIN_ROUTE, "layout");
-  }
-  return result;
+  return runMutation(
+    { tag: `methodology.${name}`, permission: "way.manage", routes: [WAY_ROUTE, ADMIN_ROUTE] },
+    clubSlug,
+    schema,
+    input,
+    write,
+  );
 }
 
 /** El siguiente puesto de una lista: uno más que el mayor que ya hay (1 si está vacía). */
