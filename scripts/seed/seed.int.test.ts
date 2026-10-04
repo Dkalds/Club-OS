@@ -6,7 +6,7 @@
 // el instante de esa siembra.
 
 import { randomUUID } from "node:crypto";
-import { beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { Database } from "@/lib/database.types";
 import { createAdminClient } from "../lib/admin-client";
 import { buildSeedData } from "./data";
@@ -347,5 +347,106 @@ describe("seed contra Supabase local", () => {
       expect(error).toBeNull();
       expect(after).toEqual(pointsOf(principleId));
     }
+  });
+});
+
+// Un club del seed que ya se ha usado: dirección ha renumerado y ha creado contenido en
+// Gestión. El seed devuelve lo suyo a su sitio sin borrar lo creado a mano ni chocar con ello
+// (el número es único por club en las secciones y en los Standards).
+describe("volver a sembrar un club con contenido creado a mano", () => {
+  const org = orgId("arcangel");
+  const created: { table: "way_sections" | "standards"; id: string }[] = [];
+
+  afterAll(async () => {
+    // El estado final vuelve a ser el de un seed recién hecho.
+    for (const { table, id } of created) {
+      const { error } = await admin.from(table).delete().eq("id", id);
+      if (error) throw new Error(`No se pudo borrar ${id} de ${table}: ${error.message}`);
+    }
+    await runSeed(now);
+  }, 120_000);
+
+  it("los Standards del seed recuperan su número, y el creado a mano que lo ocupa pasa al primero libre", async () => {
+    const seedStandards = data.standards
+      .filter((standard) => standard.organization_id === org)
+      .sort((a, b) => a.number - b.number);
+    const [first, second, third] = seedStandards;
+
+    // Dirección intercambia el 1 y el 2 y pasa el 3 al 9...
+    const swapped = await admin.from("standards").upsert(
+      [
+        { ...first, number: second.number },
+        { ...second, number: first.number },
+      ],
+      { onConflict: "id" },
+    );
+    expect(swapped.error).toBeNull();
+    const moved = await admin.from("standards").update({ number: 9 }).eq("id", third.id);
+    expect(moved.error).toBeNull();
+    // ...y crea dos: uno con el 3, que ha quedado libre, y otro lejos de los del seed.
+    const byHand = [
+      { id: randomUUID(), number: third.number, title: "A MANO CON EL TRES", sort: 6 },
+      { id: randomUUID(), number: 20, title: "A MANO CON EL VEINTE", sort: 7 },
+    ].map((row) => ({ ...row, organization_id: org, description: "Creado en Gestión." }));
+    created.push(...byHand.map((row) => ({ table: "standards" as const, id: row.id })));
+    const inserted = await admin.from("standards").insert(byHand);
+    expect(inserted.error).toBeNull();
+
+    const report = await runSeed(now);
+
+    const { data: after, error } = await admin
+      .from("standards")
+      .select("id, number")
+      .eq("organization_id", org)
+      .order("number");
+    expect(error).toBeNull();
+    expect(after).toEqual([
+      ...seedStandards.map((standard) => ({ id: standard.id, number: standard.number })),
+      { id: byHand[0].id, number: 6 },
+      { id: byHand[1].id, number: 20 },
+    ]);
+    expect(report.movedStandards).toEqual([
+      { organization_id: org, title: "A MANO CON EL TRES", from: 3, to: 6 },
+    ]);
+  });
+
+  it("las secciones creadas a mano quedan detrás de las del seed, en su orden y sin números repetidos", async () => {
+    const seedSections = data.way_sections
+      .filter((section) => section.organization_id === org)
+      .sort((a, b) => a.number - b.number);
+    const byHand = [
+      { id: randomUUID(), number: 6, slug: "a-mano-uno", title: "A mano uno" },
+      { id: randomUUID(), number: 7, slug: "a-mano-dos", title: "A mano dos" },
+    ].map((row) => ({ ...row, organization_id: org, sort: row.number }));
+    created.push(...byHand.map((row) => ({ table: "way_sections" as const, id: row.id })));
+    const inserted = await admin.from("way_sections").insert(byHand);
+    expect(inserted.error).toBeNull();
+
+    // Dirección sube «A mano dos» al primer puesto: Gestión renumera toda la lista de golpe.
+    const order = [byHand[1].id, ...seedSections.map((section) => section.id), byHand[0].id];
+    const current = await admin.from("way_sections").select("*").eq("organization_id", org);
+    expect(current.error).toBeNull();
+    const reordered = await admin.from("way_sections").upsert(
+      (current.data ?? []).map((row) => {
+        const position = order.indexOf(row.id) + 1;
+        return { ...row, number: position, sort: position };
+      }),
+      { onConflict: "id" },
+    );
+    expect(reordered.error).toBeNull();
+
+    await runSeed(now);
+
+    const { data: after, error } = await admin
+      .from("way_sections")
+      .select("id, number, sort")
+      .eq("organization_id", org)
+      .order("number");
+    expect(error).toBeNull();
+    expect(after).toEqual([
+      ...seedSections.map((section) => ({ id: section.id, number: section.number, sort: section.sort })),
+      { id: byHand[1].id, number: 6, sort: 6 },
+      { id: byHand[0].id, number: 7, sort: 7 },
+    ]);
   });
 });
