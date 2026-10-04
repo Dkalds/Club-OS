@@ -100,7 +100,7 @@ Reglas:
   - `nextWeeklySlot(startIso: string, nowIso: string, tz: string): string`
 
 Reglas:
-- `zonedDateTimeToIso`: formato inválido o día que no existe (`2026-02-30`) → `RangeError('Fecha u hora no válidas')`. Una hora que no existe por el cambio de hora pasa al primer instante válido (lo que hace `TZDate`); una hora repetida, a su primera ocurrencia.
+- `zonedDateTimeToIso`: formato inválido o día que no existe (`2026-02-30`) → `RangeError('Fecha u hora no válidas')`. Una hora que no existe por el cambio de hora se adelanta lo que dura el hueco (02:30 → 03:30, como hace `Date`); una hora repetida, a su primera ocurrencia.
 - `nextWeeklySlot`: el primer instante con el mismo día de la semana y la misma hora de reloj que `startIso`, estrictamente posterior a `max(nowIso, startIso)`; suma semanas de calendario (`addLocalDays(…, 7, tz)`), no múltiplos de 168 h.
 - `inZone` rechaza con el mismo `RangeError` de hoy un ISO sin `Z` ni desfase `±hh:mm`.
 - `buildHome`: fin de «Esta semana» = `startOfLocalDay(addLocalDays(nowIso, 7, tz), tz)`.
@@ -471,7 +471,7 @@ Pantalla `/train` (la entrada «Biblioteca de ejercicios» que añade la Task 10
   - `PracticeActions({ clubSlug: string; eventId: string; canEdit: boolean; duplicateDefaults: { date: string; time: string } })` (cliente)
 
 Pantallas:
-- `/train/new`: sin `practice.manage` → `notFound()`; sin equipos, el vacío «Aún no estás en ningún equipo». `BackLink` «Entrenar»; `h1` «Nueva sesión»; campos «Equipo» (solo con más de uno), «Título», «Fecha», «Hora», «Duración (min)», «Objetivo principal» y «Objetivo secundario» (primera opción «Sin objetivo»), «Lugar»; `primary block` «Crear sesión». Valores iniciales: primer equipo, hoy en la zona del club (`isoToLocalInputs`), `DEFAULT_SESSION_TIME`, `DEFAULT_SESSION_MINUTES`. Al crear, `router.push('/c/{slug}/train/{eventId}/edit')`.
+- `/train/new`: sin `practice.manage` → `notFound()`; sin equipos, el vacío «Aún no estás en ningún equipo». `BackLink` «Entrenar»; `h1` «Nueva sesión»; campos «Equipo» (solo con más de uno), «Título», «Fecha», «Hora», «Duración (min)», «Objetivo principal» y «Objetivo secundario» (primera opción «Sin objetivo»), «Lugar»; `primary block` «Crear sesión». Valores iniciales: primer equipo, hoy en la zona del club (`isoToLocalInputs`), `DEFAULT_SESSION_TIME`, `DEFAULT_SESSION_MINUTES`. Al crear, `router.push('/c/{slug}/train/{eventId}')` (la Task 14 lo cambia a `…/edit`, cuando existe el constructor).
 - En modo `edit`, `PracticeForm` no pinta «Equipo», añade «Notas» y su botón es `secondary` «Guardar datos»; al guardar llama a `onSaved(updatedAt)` y muestra «Datos guardados.».
 - Fallos: `fieldErrors` bajo cada campo y `ACTION_ERROR_COPY` arriba (`FormAlert`), sin perder lo escrito.
 - `/train/[eventId]`: `getPractice` o `notFound()`. `BackLink` «Entrenar»; `PracticeSummary`; con `standards`, `standardsLabel(terminology)` y hasta 3 `StandardBadge` (`/c/{slug}/way/standards#standard-{NN}`) y «+N»; «Notas» si las hay; los ítems en bloques de `phaseBlocks` (fase y minutos del bloque como cabecera, `ul` de `PracticeItemView`) y `PracticeTotal`. Sin ítems: «Esta sesión aún no tiene ejercicios» / «Añade ejercicios para prepararla.» / «Editar sesión» (cerrada o sin permiso: «No se añadieron ejercicios a esta sesión.» / «Volver a Entrenar»).
@@ -484,8 +484,8 @@ Pantallas:
   - `practice-actions.test.tsx`: sin `canEdit` no hay «Editar sesión» ni «Cancelar sesión» y sí «Duplicar»; «Cancelar sesión» no llama a la acción hasta confirmar.
   - `e2e/train.spec.ts` (lectura): `detalle`: Álex abre «Transición + rebote defensivo» desde Inicio («Abrir entrenamiento») → franja, «75 min · 5 ejercicios · Pabellón 2», «Transición» y «Rebote», bloques «Activación»…«Competición», «01»…«05», «Total» «75'» y «Editar sesión»; una sesión hecha no ofrece «Editar sesión» ni «Cancelar sesión».
   - `e2e/practice-session.spec.ts` (proyecto `admin`, `mode: 'serial'`):
-    - `otro equipo y otro club reciben el 404` (Review Focus 1): Nora y Marta en `/c/arcangel/train/{upcoming-0 de Alevín A}` y en `…/edit` → «No encontramos esta página»; Nora en `/c/arcangel/train/new` solo puede elegir su equipo.
-    - `crear una sesión`: Álex → «Nueva sesión» → título `E2E sesión {ts}`, fecha dentro de 3 días, 18:00, 60, «Defensa» → «Crear sesión» → URL `…/edit`; en Próximas sale con «60 min · Sin ejercicios todavía».
+    - `otro equipo y otro club reciben el 404` (Review Focus 1): Nora y Marta en `/c/arcangel/train/{upcoming-0 de Alevín A}` y en `…/edit` → «No encontramos esta página»; Nora en `/c/arcangel/train/new` no ve el campo «Equipo» (solo tiene uno) y Raúl puede elegir entre «Alevín A» y «Benjamín A».
+    - `crear una sesión`: Álex → «Nueva sesión» → título `E2E sesión {ts}`, fecha dentro de 3 días, 18:00, 60, «Defensa» → «Crear sesión» → su detalle, con «Esta sesión aún no tiene ejercicios»; en Próximas sale con «60 min · Sin ejercicios todavía».
     - `la hora es la del club` (Review Focus 3): con `test.use({ timezoneId: 'America/New_York' })`, crear a las 18:00 → el detalle dice «18:00–19:00».
     - `duplicar`: en «Transición + rebote defensivo», «Duplicar» propone el mismo día de la semana siguiente a las 18:00; «Crear copia» → detalle con el mismo título, cinco ítems y «75'»; el original no cambia.
     - `cancelar`: en la sesión creada, «Cancelar sesión» → «Volver» no hace nada; otra vez y confirmar → desaparece de Próximas, sale en Histórico con «Cancelada» y su detalle no ofrece «Editar sesión».
@@ -509,7 +509,7 @@ Pantallas:
   - `PracticeBuilder({ clubSlug: string; eventId: string; initialItems: SavedPracticeItem[]; expectedUpdatedAt: string; onSaved: (updatedAt: string) => void; backHref: string; extraActions?: (add: (item: PracticeItemDraft) => void) => ReactNode })` (cliente).
 
 Reglas:
-- `/edit`: `getPractice` o `notFound()`; sin `practice.manage` → `notFound()`; sesión no `scheduled` → `redirect` al detalle.
+- `/edit`: `getPractice` o `notFound()`; sin `practice.manage` → `notFound()`; sesión no `scheduled` → `redirect` al detalle. `PracticeForm` pasa a llevar al constructor tras crear (`…/edit`), y el e2e `crear una sesión` de la Task 13 se ajusta a esa URL.
 - Estado: lista de ítems con una clave estable por fila (`id`, o una local para los nuevos), la última copia guardada y qué fila está abierta. `dirty` = la lista difiere de la guardada.
 - Orden: `DndContext` + `SortableContext` vertical; sensores de ratón (distancia 8), táctil (retardo 150 ms, tolerancia 8) y teclado (`sortableKeyboardCoordinates`); solo el asa arrastra (`touch-action: none` en ella); `restrictToVerticalAxis`. Al soltar, `moveItem`. Los anuncios de dnd-kit van en español («Has cogido {título}.», «{título} está en la posición {n} de {total}.», «Has soltado {título} en la posición {n}.», «Has cancelado el movimiento.»). «Subir» y «Bajar» usan el mismo `moveItem`.
 - Fila abierta: «Fase» (`SelectField`: «Sin fase», `DEFAULT_PHASES` y cualquier fase que ya tenga un ítem), «Título» (solo si `drillId` es null) y «Notas».
