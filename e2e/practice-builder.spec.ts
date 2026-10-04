@@ -262,23 +262,48 @@ test.describe("con el dedo", () => {
       if (!box) throw new Error("No se pudo medir la fila.");
       return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
     };
+    /**
+     * Dónde queda la página cuando deja de desplazarse: su `scrollY` tras doce fotogramas
+     * seguidos sin cambiar. Al soltar el dedo la página puede seguir moviéndose un momento (la
+     * inercia, o lo que el compositor aún no ha pasado al hilo principal). Leer `scrollY`
+     * antes, o recolocar la página mientras se mueve, da un valor que cambia después: en CI
+     * la página acababa 16 o 32 px más abajo de donde se la había dejado.
+     */
+    const scrollAtRest = () =>
+      page.evaluate(
+        () =>
+          new Promise<number>((resolve) => {
+            let last = window.scrollY;
+            let still = 0;
+            const tick = () => {
+              if (window.scrollY === last) still += 1;
+              else {
+                last = window.scrollY;
+                still = 0;
+              }
+              if (still >= 12) resolve(last);
+              else requestAnimationFrame(tick);
+            };
+            requestAnimationFrame(tick);
+          }),
+      );
 
     // Sobre el título de la fila, el dedo desplaza la página y no mueve nada, aunque se quede
     // quieto antes de deslizar más de lo que tarda el asa en coger la fila (150 ms). Aquí la
     // espera es fija porque no hay nada que esperar: lo que se comprueba es que no pasa nada.
     const body = centre(await rows(page).first().locator('[data-control="toggle"]').boundingBox());
     await swipe(body, body.y - 200, () => page.waitForTimeout(250));
-    await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(100);
+    expect(await scrollAtRest()).toBeGreaterThan(100);
     await expectOrder(page, [first, second, ...others]);
     await page.evaluate(() => window.scrollTo(0, 0));
-    await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
+    expect(await scrollAtRest()).toBe(0);
 
     // Sobre el asa, un deslizamiento rápido no arrastra (ni desplaza): hay que mantener el dedo.
     const handle = page.getByRole("button", { name: `Mover ${first}` });
     const below = centre(await rows(page).nth(1).boundingBox()).y + 10;
     await swipe(centre(await handle.boundingBox()), below);
     await expectOrder(page, [first, second, ...others]);
-    expect(await page.evaluate(() => window.scrollY)).toBe(0);
+    expect(await scrollAtRest()).toBe(0);
     await expect(page.getByText(`Has cogido ${first}.`)).toHaveCount(0);
 
     // Con el dedo quieto en el asa, a los 150 ms la fila se coge, y entonces se arrastra: baja
@@ -289,7 +314,7 @@ test.describe("con el dedo", () => {
     );
     await expectOrder(page, [second, first, ...others]);
     await expect(rows(page)).toContainText(["01", "02", "03", "04", "05"]);
-    expect(await page.evaluate(() => window.scrollY)).toBe(0);
+    expect(await scrollAtRest()).toBe(0);
     await expect(saveButton(page)).toBeEnabled();
   });
 });
