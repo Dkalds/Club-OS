@@ -39,15 +39,36 @@ const CHIP_PILL =
 const CHIP_ROW =
   "flex gap-(--space-2) overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden";
 
-function Chip({
+/**
+ * Una fila de chips con su nombre, la misma que usa `Filter`: se desplaza en horizontal sin
+ * barra y no pasa a una segunda línea. Para quien monta, junto a un `Filter`, chips sueltos
+ * (los de `FilterSheetChip` o un `Chip`) y no quiere repetir las clases de la fila.
+ */
+export function FilterRow({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div role="group" aria-label={label} className={CHIP_ROW}>
+      {children}
+    </div>
+  );
+}
+
+/**
+ * Un chip suelto, con la forma de los de `Filter` y `FilterSheetChip`: botón de 44px con la
+ * píldora de 36px dentro, `aria-pressed` según `pressed`. `label` es su nombre accesible
+ * cuando el texto que se ve no basta para decir qué hace («Principio: Rebote» no dice que
+ * pulsarlo lo quita).
+ */
+export function Chip({
   pressed,
   onClick,
   popup,
+  label,
   children,
 }: {
   pressed: boolean;
   onClick: () => void;
   popup?: boolean;
+  label?: string;
   children: ReactNode;
 }) {
   return (
@@ -55,6 +76,7 @@ function Chip({
       type="button"
       aria-pressed={pressed}
       aria-haspopup={popup ? "dialog" : undefined}
+      aria-label={label}
       onClick={onClick}
       className={CHIP_BUTTON}
     >
@@ -75,7 +97,7 @@ function Chip({
  */
 export function Filter({ label, options, value, onChange }: FilterProps) {
   return (
-    <div role="group" aria-label={label} className={CHIP_ROW}>
+    <FilterRow label={label}>
       <Chip pressed={value === null} onClick={() => onChange(null)}>
         Todos
       </Chip>
@@ -84,7 +106,7 @@ export function Filter({ label, options, value, onChange }: FilterProps) {
           {option.label}
         </Chip>
       ))}
-    </div>
+    </FilterRow>
   );
 }
 
