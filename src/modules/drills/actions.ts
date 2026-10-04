@@ -7,6 +7,7 @@ import type { Json } from "@/lib/database.types";
 import { logError } from "@/lib/log";
 import { mutate as runMutation, type Write } from "@/lib/mutate";
 import type { Action } from "@/lib/permissions";
+import { WAY_ROUTE } from "@/lib/routes";
 import { DIAGRAM_ERROR, DIAGRAM_MIME, sniffImageType } from "@/modules/media/diagram-file";
 import { MEDIA_BUCKET, mediaPath, signedUrl } from "@/modules/media/storage";
 import {
@@ -41,14 +42,13 @@ import type { DrillStatus } from "./types";
 
 // Rutas que se revalidan tras escribir: patrones de ruta, no URLs (el porqué está en
 // `MutateConfig.routes`, de `@/lib/mutate`). La biblioteca y las fichas cuelgan de `drills`;
-// The Way también, porque cada principio enseña los ejercicios que lo trabajan.
+// The Way también (`WAY_ROUTE`, de `@/lib/routes`), porque cada principio enseña los
+// ejercicios que lo trabajan.
 //
 // Siguen las carpetas de `src/app/c/[club]/(app)/`. Si se renombran o se mueven, se cambian
-// aquí (y en `methodology/actions.ts`, que también revalida The Way).
+// aquí y en `@/lib/routes`.
 /** La biblioteca, las fichas y los formularios de ejercicios. */
 const DRILLS_ROUTE = "/c/[club]/(app)/drills";
-/** The Way: el índice, cada sección y la página de los Standards. */
-const WAY_ROUTE = "/c/[club]/(app)/way";
 
 /**
  * El esqueleto de `@/lib/mutate` con lo de esta área: la etiqueta `drills.<acción>` del log, el

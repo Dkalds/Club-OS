@@ -8,6 +8,7 @@ import { wayLabel } from "@/modules/tenancy/navigation";
 import { BackLink } from "@/ui/back-link";
 import { MarkdownBody } from "@/ui/markdown-body";
 import { PrincipleCard } from "@/ui/principle-card";
+import { ScrollToHash } from "@/ui/scroll-to-hash";
 import { StandardBlock } from "@/ui/standard-block";
 import { EmptyState } from "@/ui/states";
 import { ValueBlock } from "@/ui/value-block";
@@ -118,6 +119,11 @@ export default async function WaySectionPage({ params }: PageProps<"/c/[club]/wa
 
       {hasBody ? <MarkdownBody markdown={section.bodyMd} /> : null}
       {content}
+
+      {/* Dentro del contenido, no en un layout: así se monta cuando los destinos de los anclas
+          (`#principle-{slug}`, `#standard-NN`) ya existen, también si la sección llega tras el
+          `loading.tsx`. */}
+      <ScrollToHash />
     </div>
   );
 }

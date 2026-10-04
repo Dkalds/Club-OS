@@ -1,6 +1,7 @@
 import { can } from "@/lib/permissions";
+import { throwReadError } from "@/lib/read-error";
 import { createClient } from "@/lib/supabase/server";
-import { throwReadError } from "@/modules/methodology/map-rows";
+import { UUID_RE } from "@/lib/uuid";
 import type { ClubContext } from "@/modules/tenancy/queries";
 import {
   DETAIL_COLUMNS,
@@ -25,9 +26,6 @@ import type { FocusOption, PracticeDetail, PracticeListItem, TeamOption } from "
 
 /** Las sesiones que como mucho enseña cada pestaña de la lista. */
 const LIST_LIMIT = 50;
-
-/** Un uuid escrito con guiones, sin mirar versión ni variante. Lo demás no puede ser un id. */
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 async function adminTeams(orgId: string): Promise<TeamOption[]> {
   const supabase = await createClient();

@@ -25,9 +25,12 @@ async function principleTitleOf(ctx: ClubContext, slug: string | undefined): Pro
   return principles.find((principle) => principle.slug === slug)?.title ?? null;
 }
 
-/** «3 ejercicios», «1 ejercicio». Con el tope de la búsqueda no es el total, y no se dice como si lo fuera. */
-function countLine(count: number): string {
-  if (count >= SEARCH_LIMIT) return `Mostrando los primeros ${SEARCH_LIMIT} ejercicios`;
+/**
+ * «3 ejercicios», «1 ejercicio». Si hay más de los que trae la búsqueda no es el total, y no se
+ * dice como si lo fuera; con justo 100 coincidencias sí lo es.
+ */
+function countLine(count: number, hasMore: boolean): string {
+  if (hasMore) return `Mostrando los primeros ${SEARCH_LIMIT} ejercicios`;
 
   return count === 1 ? "1 ejercicio" : `${count} ejercicios`;
 }
@@ -54,7 +57,7 @@ export default async function DrillsPage({ params, searchParams }: PageProps<"/c
   const base = `/c/${ctx.org.slug}`;
 
   const filters = parseDrillFilters(await searchParams);
-  const [drills, focusAreas, principleTitle] = await Promise.all([
+  const [{ drills, hasMore }, focusAreas, principleTitle] = await Promise.all([
     searchDrills(ctx, filters),
     getFocusAreas(ctx),
     principleTitleOf(ctx, filters.principle),
@@ -79,7 +82,7 @@ export default async function DrillsPage({ params, searchParams }: PageProps<"/c
         {/* Siempre en el árbol: un aviso que aparece con su texto puesto no siempre se lee.
             Sin ejercicios solo lo oyen los lectores de pantalla; a la vista queda el estado vacío. */}
         <p role="status" className={drills.length > 0 ? "text-body-s text-ink-2" : "sr-only"}>
-          {countLine(drills.length)}
+          {countLine(drills.length, hasMore)}
         </p>
 
         {drills.length > 0 ? (

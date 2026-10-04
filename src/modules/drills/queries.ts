@@ -1,8 +1,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/database.types";
+import { throwReadError } from "@/lib/read-error";
 import { createClient } from "@/lib/supabase/server";
+import { UUID_RE } from "@/lib/uuid";
 import { signedUrl } from "@/modules/media/storage";
-import { throwReadError } from "@/modules/methodology/map-rows";
 import { getPrinciples, getStandards } from "@/modules/methodology/queries";
 import type { GamePrinciple, Standard } from "@/modules/methodology/types";
 import type { ClubContext } from "@/modules/tenancy/queries";
@@ -16,7 +17,7 @@ import {
   toDrillDetail,
   toDrillSummary,
 } from "./map-rows";
-import type { DrillDetail, DrillFilters, DrillSummary, FocusArea } from "./types";
+import type { DrillDetail, DrillFilters, DrillSearchResult, DrillSummary, FocusArea } from "./types";
 
 // Lecturas de la biblioteca de ejercicios para quien entrena.
 //
@@ -30,9 +31,6 @@ import type { DrillDetail, DrillFilters, DrillSummary, FocusArea } from "./types
 
 type Db = SupabaseClient<Database>;
 type SearchArgs = Database["public"]["Functions"]["search_drills"]["Args"];
-
-/** Un uuid escrito con guiones, sin mirar versión ni variante. Lo demás no puede ser un id. */
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
  * Un texto de filtro, o `undefined` si está vacío o en blanco. Para `search_drills` un texto
@@ -64,20 +62,24 @@ function searchArgs(orgId: string, filters: DrillFilters): SearchArgs {
 
 /**
  * Los ejercicios del club que no están archivados y cumplen los filtros, por título y como
- * mucho 100. La búsqueda de texto y los filtros los resuelve la función `search_drills`
- * (sin tildes, con RLS de quien llama); la función no ordena, así que se ordena aquí.
+ * mucho 100, y si hay más que no se traen (`hasMore`). La búsqueda de texto y los filtros los
+ * resuelve la función `search_drills` (sin tildes, con RLS de quien llama); la función no
+ * ordena, así que se ordena aquí.
+ *
+ * Se piden 101: el que sobra no se devuelve, solo prueba que hay más. Con justo 100 coincidencias
+ * no hay nada que avisar, y con `SEARCH_LIMIT` a secas no se podría distinguir.
  */
-export async function searchDrills(ctx: ClubContext, filters: DrillFilters): Promise<DrillSummary[]> {
+export async function searchDrills(ctx: ClubContext, filters: DrillFilters): Promise<DrillSearchResult> {
   const supabase = await createClient();
 
   const { data, error } = await supabase
     .rpc("search_drills", searchArgs(ctx.org.id, filters))
     .select(SUMMARY_COLUMNS)
     .order("title", { ascending: true })
-    .limit(SEARCH_LIMIT);
+    .limit(SEARCH_LIMIT + 1);
   if (error) throwReadError("drills.search", error);
 
-  return data.map(toDrillSummary);
+  return { drills: data.slice(0, SEARCH_LIMIT).map(toDrillSummary), hasMore: data.length > SEARCH_LIMIT };
 }
 
 /** Los objetivos de trabajo del club, en su orden: los chips del filtro y del formulario. */

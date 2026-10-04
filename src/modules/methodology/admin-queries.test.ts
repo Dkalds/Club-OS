@@ -1,22 +1,24 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   CTX,
-  DRAFT_ID,
   fakeSupabase,
   FAILURE,
-  listStore,
   ORG,
   OTHER_ORG,
+  uuid,
+  type Failure,
+  type Store,
+} from "@/lib/test-support";
+import {
+  DRAFT_ID,
+  listStore,
   pointRow,
   principleRow,
   sectionRow,
   SLOT_IDS,
   SLOTS,
   standardRow,
-  uuid,
   valueRow,
-  type Failure,
-  type Store,
 } from "./test-support";
 
 const mocks = vi.hoisted(() => ({ createClient: vi.fn(), logError: vi.fn() }));

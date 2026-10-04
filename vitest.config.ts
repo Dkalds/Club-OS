@@ -37,6 +37,10 @@ export default defineConfig({
           include: ["src/ui/**/*.test.{ts,tsx}", "src/**/*.test.tsx"],
           exclude: [...configDefaults.exclude, ...AGENT_DIRS, "**/*.int.test.ts"],
           setupFiles: ["./vitest.setup.ts"],
+          // Los 5 s por defecto se quedan cortos para los tests de pantalla con muchas
+          // esperas (`asyncUtilTimeout`, en vitest.setup.ts) cuando la suite corre con la
+          // máquina ocupada. Más margen, no reintentos: un test que falla, falla.
+          testTimeout: 15_000,
         },
       },
       {

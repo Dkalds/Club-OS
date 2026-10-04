@@ -4,6 +4,7 @@ import type { DrillDetail } from "@/modules/drills/types";
 import {
   AGE_CHOICES,
   hasFieldError,
+  hasUnsavedChanges,
   initialFormState,
   parseEquipment,
   parseNumber,
@@ -418,6 +419,84 @@ describe("hasFieldError", () => {
   it("es falso sin errores, o si ninguno tiene campo donde señalarse", () => {
     expect(hasFieldError({})).toBe(false);
     expect(hasFieldError({ drillId: "Mal", expectedUpdatedAt: "Mal", diagramMediaId: "Mal" })).toBe(false);
+  });
+});
+
+describe("hasUnsavedChanges", () => {
+  const baseline = () => initialFormState(drill());
+
+  it("un formulario igual que la copia con la que se compara no tiene cambios", () => {
+    expect(hasUnsavedChanges(baseline(), baseline())).toBe(false);
+    expect(hasUnsavedChanges(initialFormState(null), initialFormState(null))).toBe(false);
+  });
+
+  it("cuenta cada campo de texto, número, edad, vídeo y diagrama", () => {
+    const keys = [
+      "title",
+      "summary",
+      "objective",
+      "setupMd",
+      "minPlayers",
+      "maxPlayers",
+      "minMinutes",
+      "maxMinutes",
+      "minAge",
+      "maxAge",
+      "equipment",
+      "videoUrl",
+    ] as const;
+
+    for (const key of keys) {
+      expect(hasUnsavedChanges({ ...baseline(), [key]: `${baseline()[key]} más` }, baseline()), key).toBe(true);
+    }
+    expect(hasUnsavedChanges({ ...baseline(), diagramMediaId: NEW_MEDIA_ID }, baseline())).toBe(true);
+    expect(hasUnsavedChanges({ ...baseline(), diagramMediaId: null }, baseline())).toBe(true);
+  });
+
+  it("vuelve a no tener cambios al dejar un campo como estaba", () => {
+    const edited = { ...baseline(), title: "Otro título" };
+
+    expect(hasUnsavedChanges(edited, baseline())).toBe(true);
+    expect(hasUnsavedChanges({ ...edited, title: "Un ejercicio" }, baseline())).toBe(false);
+  });
+
+  it("los ids de los chips cuentan como un conjunto: el orden en que se marcaron no importa", () => {
+    const base = baseline();
+    const toggledBack = {
+      ...base,
+      principleIds: toggleId(toggleId(base.principleIds, PRINCIPLE_A), PRINCIPLE_A),
+    };
+
+    // Quitar y volver a poner el primero lo deja al final de la lista: el mismo conjunto.
+    expect(toggledBack.principleIds).toEqual([PRINCIPLE_HIDDEN, PRINCIPLE_A]);
+    expect(hasUnsavedChanges(toggledBack, base)).toBe(false);
+    expect(hasUnsavedChanges({ ...base, principleIds: [PRINCIPLE_A] }, base)).toBe(true);
+    expect(hasUnsavedChanges({ ...base, standardIds: [] }, base)).toBe(true);
+    expect(hasUnsavedChanges({ ...base, focusAreaIds: [FOCUS_A, FOCUS_B] }, base)).toBe(true);
+  });
+
+  it("los coaching points y las variantes cuentan por contenido y por orden, no por su clave", () => {
+    const base = baseline();
+    const [first, second] = base.coachingPoints;
+
+    // Una fila nueva con el mismo contenido que la quitada no es un cambio.
+    expect(
+      hasUnsavedChanges({ ...base, coachingPoints: [{ ...first, key: "otra" }, second] }, base),
+    ).toBe(false);
+    expect(hasUnsavedChanges({ ...base, coachingPoints: [second, first] }, base)).toBe(true);
+    expect(hasUnsavedChanges({ ...base, coachingPoints: [first] }, base)).toBe(true);
+    expect(
+      hasUnsavedChanges({ ...base, coachingPoints: [first, { ...second, isKey: !second.isKey }] }, base),
+    ).toBe(true);
+
+    const [variant] = base.variants;
+    expect(hasUnsavedChanges({ ...base, variants: [{ ...variant, key: "otra" }, base.variants[1]] }, base)).toBe(
+      false,
+    );
+    expect(hasUnsavedChanges({ ...base, variants: [{ ...variant, description: "" }, base.variants[1]] }, base)).toBe(
+      true,
+    );
+    expect(hasUnsavedChanges({ ...base, variants: [] }, base)).toBe(true);
   });
 });
 

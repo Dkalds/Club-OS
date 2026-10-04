@@ -55,6 +55,11 @@ function drill(overrides: Partial<DrillSummary> = {}): DrillSummary {
   };
 }
 
+/** Lo que devuelve `searchDrills`: la lista y si hay más de las que enseña. */
+function found(drills: DrillSummary[], hasMore = false) {
+  return { drills, hasMore };
+}
+
 const FOCUS_AREAS: FocusArea[] = [{ id: "f-1", slug: "rebote", name: "Rebote" }];
 
 const PRINCIPLES: GamePrinciple[] = [
@@ -74,7 +79,7 @@ async function renderPage(searchParams: SearchParams = {}) {
 beforeEach(() => {
   vi.resetAllMocks();
   mocks.getClubContext.mockResolvedValue(clubContext("coach"));
-  mocks.searchDrills.mockResolvedValue([drill()]);
+  mocks.searchDrills.mockResolvedValue(found([drill()]));
   mocks.getFocusAreas.mockResolvedValue(FOCUS_AREAS);
   mocks.getPrinciples.mockResolvedValue(PRINCIPLES);
 });
@@ -99,7 +104,7 @@ describe("quién entra", () => {
 
   it.each(["player", "guardian"] as const)("%s: RLS no le da ejercicios y ve el estado vacío, sin crear", async (role) => {
     mocks.getClubContext.mockResolvedValue(clubContext(role));
-    mocks.searchDrills.mockResolvedValue([]);
+    mocks.searchDrills.mockResolvedValue(found([]));
 
     await renderPage();
 
@@ -208,10 +213,9 @@ describe("los filtros de la URL", () => {
 
 describe("la lista", () => {
   it("una fila por ejercicio, en el orden recibido, con su enlace a la ficha", async () => {
-    mocks.searchDrills.mockResolvedValue([
-      drill({ id: "d-1", title: "Primero" }),
-      drill({ id: "d-2", title: "Segundo", status: "draft" }),
-    ]);
+    mocks.searchDrills.mockResolvedValue(
+      found([drill({ id: "d-1", title: "Primero" }), drill({ id: "d-2", title: "Segundo", status: "draft" })]),
+    );
 
     await renderPage();
 
@@ -224,7 +228,7 @@ describe("la lista", () => {
   });
 
   it("dice cuántos ejercicios hay", async () => {
-    mocks.searchDrills.mockResolvedValue([drill({ id: "d-1" }), drill({ id: "d-2" }), drill({ id: "d-3" })]);
+    mocks.searchDrills.mockResolvedValue(found([drill({ id: "d-1" }), drill({ id: "d-2" }), drill({ id: "d-3" })]));
 
     await renderPage();
 
@@ -244,9 +248,12 @@ describe("la lista", () => {
     expect(screen.getByRole("status")).toHaveTextContent("1 ejercicio");
   });
 
-  it("con el tope de la búsqueda, no presenta el número como el total", async () => {
+  it("si hay más que el tope, no presenta el número como el total", async () => {
     mocks.searchDrills.mockResolvedValue(
-      Array.from({ length: SEARCH_LIMIT }, (_, index) => drill({ id: `d-${index}`, title: `Ejercicio ${index}` })),
+      found(
+        Array.from({ length: SEARCH_LIMIT }, (_, index) => drill({ id: `d-${index}`, title: `Ejercicio ${index}` })),
+        true,
+      ),
     );
 
     await renderPage();
@@ -255,9 +262,20 @@ describe("la lista", () => {
     expect(screen.queryByText(`${SEARCH_LIMIT} ejercicios`)).not.toBeInTheDocument();
   });
 
+  it("con justo el tope y nada más, el número sí es el total", async () => {
+    mocks.searchDrills.mockResolvedValue(
+      found(Array.from({ length: SEARCH_LIMIT }, (_, index) => drill({ id: `d-${index}` }))),
+    );
+
+    await renderPage();
+
+    expect(screen.getByText(`${SEARCH_LIMIT} ejercicios`)).toBeInTheDocument();
+    expect(screen.queryByText(/Mostrando los primeros/)).not.toBeInTheDocument();
+  });
+
   it("un ejercicio menos que el tope sí es el total", async () => {
     mocks.searchDrills.mockResolvedValue(
-      Array.from({ length: SEARCH_LIMIT - 1 }, (_, index) => drill({ id: `d-${index}` })),
+      found(Array.from({ length: SEARCH_LIMIT - 1 }, (_, index) => drill({ id: `d-${index}` }))),
     );
 
     await renderPage();
@@ -275,7 +293,7 @@ describe("la lista", () => {
 
 describe("el estado vacío", () => {
   beforeEach(() => {
-    mocks.searchDrills.mockResolvedValue([]);
+    mocks.searchDrills.mockResolvedValue(found([]));
   });
 
   it.each([

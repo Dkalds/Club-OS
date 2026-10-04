@@ -23,6 +23,12 @@ const SANDBOX_PREFIX = "clubos-guards-";
 /** Una ejecución de este archivo dura segundos: una carpeta más vieja ya no es de nadie. */
 const SANDBOX_STALE_MS = 60_000;
 
+/**
+ * Cada test lanza `bash` sobre una carpeta temporal. Con el ordenador ocupado (o con el `bash`
+ * de WSL de Windows, que arranca despacio) un arranque tarda más que los 5 s por defecto.
+ */
+const SPAWN_TIMEOUT_MS = 30_000;
+
 const sandboxes: string[] = [];
 
 /** Una página de Gestión como debe ser: su export por defecto es `adminPage(...)`. */
@@ -85,7 +91,7 @@ afterEach(() => {
   for (const root of sandboxes.splice(0)) removeQuietly(root);
 });
 
-describe("check-guards.sh", () => {
+describe("check-guards.sh", { timeout: SPAWN_TIMEOUT_MS }, () => {
   it("pasa con un src/ sin literales de club ni clave de servicio", () => {
     const { status, output } = runGuards(
       withAdmin({ "ui/card.tsx": 'export const club = "club-a";\n' }),

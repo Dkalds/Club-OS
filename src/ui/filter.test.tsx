@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Chip, Filter, FilterRow, FilterSheetChip, FilterTag } from "./filter";
-import { installChipRowLayout, type ChipRowLayout } from "./chip-row-layout";
+import { installChipRowLayout, type ChipRowLayout } from "./test-support";
 import { FilterTag as DirectFilterTag } from "./filter-tag";
 
 // Opciones ficticias: en producción salen de la taxonomía del club, nunca del código.

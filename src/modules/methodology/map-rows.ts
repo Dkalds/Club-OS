@@ -1,5 +1,4 @@
 import type { Database } from "@/lib/database.types";
-import { logError } from "@/lib/log";
 import {
   CONTENT_KIND_LABELS,
   type ClubValue,
@@ -11,8 +10,8 @@ import {
 
 // Lo que comparten las lecturas de la metodología (`queries.ts`, para quien entrena, y
 // `admin-queries.ts`, para Gestión): las columnas que se piden, la forma de las filas que
-// devuelve PostgREST, el paso de fila a tipo y el error de lectura. Con una sola copia, Gestión
-// y The Way no se desincronizan.
+// devuelve PostgREST y el paso de fila a tipo. Con una sola copia, Gestión y The Way no se
+// desincronizan.
 
 type Tables = Database["public"]["Tables"];
 
@@ -51,19 +50,6 @@ export const VALUE_COLUMNS = "id, code, title, description, status";
 export const PRINCIPLE_COLUMNS =
   "id, slug, title, summary, status, principle_points(id, text)";
 export const STANDARD_COLUMNS = "id, number, title, description, status";
-
-/**
- * Un error de lectura de Supabase no se traga ni se convierte en datos vacíos: se registra
- * (sin datos personales, ver `logError`) y se lanza para que lo recoja el error de la página.
- * No se adjunta como `cause`: su mensaje puede llevar el contenido de una fila.
- *
- * Siempre lanza: no devuelve un resultado, a diferencia de `fail` de `@/lib/action-result`,
- * que es el de las acciones.
- */
-export function throwReadError(tag: string, error: unknown): never {
-  logError(tag, error);
-  throw new Error(`${tag}: no se pudo leer de la base de datos`);
-}
 
 /** La columna es un texto libre con un CHECK; lo que no se reconozca se pinta como texto. */
 export function toContentKind(value: string): ContentKind {

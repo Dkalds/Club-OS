@@ -2,7 +2,7 @@ import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { filterHref, MAX_QUERY_LENGTH } from "@/modules/drills/filters";
 import type { DrillFilters, FocusArea } from "@/modules/drills/types";
-import { installChipRowLayout, type ChipRowLayout } from "@/ui/chip-row-layout";
+import { installChipRowLayout, type ChipRowLayout } from "@/ui/test-support";
 
 const router = vi.hoisted(() => ({ replace: vi.fn() }));
 const navigation = vi.hoisted(() => ({ pathname: "/c/club-a/drills" }));
