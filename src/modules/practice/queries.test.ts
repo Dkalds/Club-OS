@@ -401,6 +401,7 @@ describe("listPractices", () => {
       totalMinutes: 45,
       itemCount: 2,
       status: "scheduled",
+      location: "Pabellón 2",
     });
   });
 

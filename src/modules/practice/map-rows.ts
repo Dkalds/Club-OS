@@ -49,10 +49,10 @@ export const TEAM_COLUMNS = "id, name, seasons!inner(is_current)";
 export const STAFF_TEAM_COLUMNS = "teams!inner(id, name, seasons!inner(is_current))";
 
 /**
- * La lista: el evento con el título del plan y los minutos de sus ítems. El nombre del equipo
- * no se pide: sale de los equipos gestionables, que ya se han leído.
+ * La lista: el evento con su lugar, el título del plan y los minutos de sus ítems. El nombre
+ * del equipo no se pide: sale de los equipos gestionables, que ya se han leído.
  */
-export const LIST_COLUMNS = "id, team_id, status, starts_at, practice_plans(title, practice_items(minutes))";
+export const LIST_COLUMNS = "id, team_id, status, starts_at, location, practice_plans(title, practice_items(minutes))";
 
 /**
  * El detalle. Los dos focos del plan apuntan a la misma tabla, y cada uno lleva el nombre de
@@ -106,7 +106,7 @@ export type PracticeDetailRow = Pick<
 };
 
 /** Una fila de `events` con el título del plan y los minutos de sus ítems, para la lista. */
-export type PracticeListRow = Pick<Tables["events"]["Row"], "id" | "team_id" | "starts_at"> & {
+export type PracticeListRow = Pick<Tables["events"]["Row"], "id" | "team_id" | "starts_at" | "location"> & {
   status: PracticeStatus;
   practice_plans: Embedded<{ title: string; practice_items: Array<{ minutes: number }> | null }>;
 };
@@ -129,7 +129,8 @@ export function toStaffTeamOptions(rows: StaffTeamRow[]): TeamOption[] {
 
 /**
  * Las filas de la lista, en el orden en que llegan. El día y la hora salen en `timezone` (la
- * del club) y el nombre del equipo, de `teams`. Sin plan, o sin ítems, son 0 min y 0 ejercicios.
+ * del club) y el nombre del equipo, de `teams`. El lugar pasa tal cual: quien pinta decide qué
+ * hacer con uno en blanco. Sin plan, o sin ítems, son 0 min y 0 ejercicios.
  */
 export function toPracticeListItems(
   rows: PracticeListRow[],
@@ -153,6 +154,7 @@ export function toPracticeListItems(
       totalMinutes: totalMinutes(items),
       itemCount: items.length,
       status: row.status,
+      location: row.location,
     };
   });
 }

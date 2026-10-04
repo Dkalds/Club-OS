@@ -14,8 +14,8 @@ export type FocusOption = { id: string; name: string };
 export type PracticeItemDraft = { id?: string; drillId: string | null; title: string; phase: string | null; minutes: number; notes: string | null };
 /** Un ítem ya guardado: lleva `id`. */
 export type SavedPracticeItem = PracticeItemDraft & { id: string };
-/** Una fila de la lista de entrenamientos. `dow`, `day` y `time` llegan ya en la zona del club. */
-export type PracticeListItem = { eventId: string; teamName: string; dow: string; day: string; time: string; title: string; totalMinutes: number; itemCount: number; status: PracticeStatus };
+/** Una fila de la lista de entrenamientos. `dow`, `day` y `time` llegan ya en la zona del club; `location` es el lugar tal cual se guardó, para los metadatos de la fila. */
+export type PracticeListItem = { eventId: string; teamName: string; dow: string; day: string; time: string; title: string; totalMinutes: number; itemCount: number; status: PracticeStatus; location: string | null };
 /** Un entrenamiento entero para el constructor. `updatedAt` es la versión con la que se guarda; `canEdit` lo decide la sesión del usuario. */
 export type PracticeDetail = { eventId: string; planId: string; teamId: string; teamName: string; status: PracticeStatus; startsAt: string; endsAt: string; slotLabel: string; location: string | null; title: string; primaryFocus: FocusOption | null; secondaryFocus: FocusOption | null; notes: string | null; items: SavedPracticeItem[]; standards: Standard[]; updatedAt: string; canEdit: boolean };
 /** Ítems consecutivos de la misma fase. `startIndex` es la posición del primero en la lista completa. */

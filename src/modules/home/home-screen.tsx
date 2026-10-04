@@ -28,6 +28,11 @@ const BLOCK = "px-(--space-4)";
  * ninguno → próximo partido, si lo hay → «Esta semana». Sin equipos, solo el saludo y el
  * aviso. El `<h1>` es el del saludo; lo demás son `<h2>`.
  *
+ * Un entrenamiento (la card destacada y su fila de la semana) lleva a su sesión, `/train/{id}`;
+ * un partido aún no tiene pantalla y lleva a la pestaña de Partidos. El aviso de que no hay
+ * entrenamiento ofrece «Nueva sesión» solo a quien puede gestionarlas (`canCreatePractice`: lo
+ * decide la página con `can`; aquí solo muestra u oculta).
+ *
  * Los bloques van sueltos dentro del `<main>` de `AppShell`, que pone la separación entre
  * secciones (`space-6`).
  */
@@ -35,17 +40,20 @@ export function HomeScreen({
   home,
   clubSlug,
   ownShortName,
+  canCreatePractice,
 }: {
   home: HomeData;
   clubSlug: string;
   /** La sigla del club (`branding.shortName`), para su lado del partido. */
   ownShortName: string;
+  /** Si quien mira puede crear sesiones: el aviso sin entrenamiento ofrece entonces crear una. */
+  canCreatePractice: boolean;
 }) {
   const base = `/c/${clubSlug}`;
-  // Hasta que cada evento tenga su pantalla (Fase 4 los entrenamientos; los partidos, la
-  // suya), todo lleva a la pestaña de su tipo.
-  const trainHref = `${base}/train`;
-  const hrefByKind: Record<WeekItem["kind"], string> = { practice: trainHref, game: `${base}/games` };
+  const practiceHref = (eventId: string) => `${base}/train/${eventId}`;
+  // Los partidos aún no tienen pantalla propia: llevan a la pestaña de Partidos.
+  const weekHref = (item: WeekItem) =>
+    item.kind === "practice" ? practiceHref(item.eventId) : `${base}/games`;
 
   return (
     <>
@@ -55,13 +63,13 @@ export function HomeScreen({
         <>
           <div className={BLOCK}>
             {home.nextPractice ? (
-              <PracticeCard practice={home.nextPractice} href={trainHref} />
+              <PracticeCard practice={home.nextPractice} href={practiceHref(home.nextPractice.eventId)} />
             ) : (
-              // Sin acción: en esta fase todavía no se pueden crear sesiones desde la app.
               <EmptyState
                 icon={<TrainIcon size={28} />}
                 title="No hay entrenamientos programados"
                 body="Cuando haya una sesión en el calendario, la verás aquí."
+                action={canCreatePractice ? { label: "Nueva sesión", href: `${base}/train/new` } : undefined}
               />
             )}
           </div>
@@ -80,7 +88,7 @@ export function HomeScreen({
                 {home.week.map((item) => (
                   <ListRow
                     key={item.eventId}
-                    href={hrefByKind[item.kind]}
+                    href={weekHref(item)}
                     lead={<DateChip dow={item.dow} day={item.day} />}
                     title={item.title}
                     subtitle={item.subtitle}

@@ -259,12 +259,13 @@ describe("toPracticeListItems", () => {
       team_id: "team-a",
       status: "scheduled",
       starts_at: "2026-11-17T17:00:00+00:00",
+      location: "Pabellón 2",
       practice_plans: PLAN,
       ...overrides,
     };
   }
 
-  it("da el día y la hora en la zona del club, el equipo y el título, los minutos y los ejercicios", () => {
+  it("da el día y la hora en la zona del club, el equipo y el título, los minutos, los ejercicios y el lugar", () => {
     expect(toPracticeListItems([listRow()], TEAMS, "Europe/Madrid")).toEqual([
       {
         eventId: "event-1",
@@ -276,8 +277,15 @@ describe("toPracticeListItems", () => {
         totalMinutes: 60,
         itemCount: 3,
         status: "scheduled",
+        location: "Pabellón 2",
       },
     ]);
+  });
+
+  it("un entrenamiento sin lugar lo deja en null, tal cual", () => {
+    const [item] = toPracticeListItems([listRow({ location: null })], TEAMS, "Europe/Madrid");
+
+    expect(item?.location).toBeNull();
   });
 
   it("el día puede cambiar con la zona: las 23:30 UTC ya son del día siguiente en Madrid", () => {

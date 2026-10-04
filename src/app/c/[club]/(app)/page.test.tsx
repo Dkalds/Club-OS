@@ -58,4 +58,23 @@ describe("Inicio del club", () => {
       expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
     );
   });
+
+  // Sin próximo entrenamiento, el aviso ofrece crear la sesión solo a quien puede gestionarlas.
+  it.each(["coach", "admin"] as const)("sin entrenamiento a la vista, un %s ve «Nueva sesión»", async (role) => {
+    mocks.getClubContext.mockResolvedValue(clubContext(role));
+    mocks.getHomeData.mockResolvedValue({ ...HOME, hasTeams: true });
+
+    render(await ClubHomePage(PARAMS));
+
+    expect(screen.getByRole("link", { name: "Nueva sesión" })).toHaveAttribute("href", "/c/club-a/train/new");
+  });
+
+  it.each(["player", "guardian"] as const)("sin entrenamiento a la vista, un %s no ve «Nueva sesión»", async (role) => {
+    mocks.getClubContext.mockResolvedValue(clubContext(role));
+    mocks.getHomeData.mockResolvedValue({ ...HOME, hasTeams: true });
+
+    render(await ClubHomePage(PARAMS));
+
+    expect(screen.queryByRole("link", { name: "Nueva sesión" })).not.toBeInTheDocument();
+  });
 });
