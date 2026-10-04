@@ -9,7 +9,11 @@ vi.mock("@/modules/drills/actions", () => ({
   publishDrill: mocks.publishDrill,
   archiveDrill: mocks.archiveDrill,
 }));
-vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: mocks.refresh }) }));
+// Solo el router es de pega: `useAction` usa el `unstable_rethrow` de verdad.
+vi.mock("next/navigation", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("next/navigation")>()),
+  useRouter: () => ({ refresh: mocks.refresh }),
+}));
 
 import { DrillAdminActions } from "./drill-admin-actions";
 import { DRILL_TITLE_ID } from "./title-id";

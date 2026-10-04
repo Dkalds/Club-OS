@@ -17,7 +17,11 @@ vi.mock("@/modules/drills/actions", () => ({
   updateDrill: mocks.updateDrill,
   uploadDrillDiagram: mocks.uploadDrillDiagram,
 }));
-vi.mock("next/navigation", () => ({ useRouter: () => ({ push: mocks.push }) }));
+// Solo el router es de pega: `useAction` usa el `unstable_rethrow` de verdad.
+vi.mock("next/navigation", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("next/navigation")>()),
+  useRouter: () => ({ push: mocks.push }),
+}));
 
 import { DrillForm } from "./drill-form";
 
