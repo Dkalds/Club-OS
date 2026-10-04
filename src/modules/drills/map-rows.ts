@@ -15,10 +15,31 @@ type Tables = Database["public"]["Tables"];
 /** Los 100 ejercicios que como mucho enseña la lista (ver `searchDrills`). */
 export const SEARCH_LIMIT = 100;
 
+/** Los ejercicios que como mucho enseña cada principio de The Way (ver `getRelatedDrills`). */
+export const RELATED_PER_PRINCIPLE = 3;
+
+/**
+ * Los ejercicios que como mucho lee `getRelatedDrills` de una vez, antes de repartirlos entre
+ * principios. Es el tope de filas de la API (`max_rows` en `supabase/config.toml`): lo que
+ * PostgREST devolvería de todos modos, dicho aquí para que el corte no sea silencioso.
+ */
+export const RELATED_SCAN_LIMIT = 1000;
+
 /** Las columnas de la tarjeta de la lista; los objetivos van anidados por la tabla de vínculos. */
 export const SUMMARY_COLUMNS = `id, title, status, created_by,
   min_age, max_age, min_players, max_players, min_minutes, max_minutes,
   drill_focus_areas(focus_areas(slug, name, sort))`;
+
+/**
+ * Las de los ejercicios relacionados con un principio: las de la lista y, con `!inner`, sus
+ * vínculos con los principios que se piden. Con `!inner` solo salen los ejercicios que tienen
+ * alguno de esos vínculos, y el vínculo anidado es solo uno de los pedidos (el filtro de
+ * `getRelatedDrills` sobre `drill_principles.principle_id` actúa sobre las dos cosas).
+ */
+export const RELATED_COLUMNS = `id, title, status, created_by,
+  min_age, max_age, min_players, max_players, min_minutes, max_minutes,
+  drill_focus_areas(focus_areas(slug, name, sort)),
+  drill_principles!inner(principle_id)`;
 
 /**
  * Las de la ficha. Los principios y los Standards piden `status`: RLS le esconde lo no

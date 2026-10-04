@@ -7,11 +7,11 @@ import { buildSeedData, seedId } from "./data";
 // `restoreSeed` vive en `e2e/helpers/` (lo usan el arranque global y los specs de Gestión),
 // pero su test está aquí: Playwright toma como spec cualquier `*.test.ts` de `e2e/`.
 //
-// Un supabase-js falso que registra los borrados y, si se le dan filas, las borra de verdad
-// aplicando los filtros (`in`, `eq`, `not in`). Aquí se fija lo que hace que un borrado sea
-// seguro: qué tablas toca, en qué orden, en qué clubes, qué filas respeta y cuándo se niega.
-// Que de verdad deje pasar a la suite de e2e tras una ejecución abortada lo comprueba la
-// propia suite.
+// Un supabase-js falso que registra los borrados (de filas y de objetos de Storage) y, si se le
+// dan filas, las borra de verdad aplicando los filtros (`in`, `eq`, `not in`). Aquí se fija lo
+// que hace que un borrado sea seguro: qué tablas y qué carpetas toca, en qué orden, en qué
+// clubes, qué filas respeta y cuándo se niega. Que de verdad deje pasar a la suite de e2e tras
+// una ejecución abortada lo comprueba la propia suite.
 
 const runSeed = vi.hoisted(() => vi.fn());
 vi.mock("./run", () => ({ runSeed }));
@@ -32,15 +32,51 @@ function matches(row: Row, filters: Filter[]): boolean {
   });
 }
 
-function fakeClient(options: { failOnTable?: string; rows?: Record<string, Row[]> } = {}) {
+/**
+ * Lo que hay en Storage, como lo devuelve `list`: por carpeta, sus entradas. Un objeto lleva `id`;
+ * una subcarpeta, no (`id: null`), igual que en la API real.
+ */
+type Tree = Record<string, Array<{ name: string; id: string | null }>>;
+
+function fakeClient(
+  options: {
+    failOnTable?: string;
+    rows?: Record<string, Row[]>;
+    tree?: Tree;
+    failOnRemove?: boolean;
+  } = {},
+) {
   const deletes: Delete[] = [];
   const rows: Record<string, Row[]> = { ...options.rows };
+  const events: string[] = [];
+  const listed: Array<{ bucket: string; folder: string }> = [];
+  const removed: string[] = [];
   const client = {
+    storage: {
+      from(bucket: string) {
+        return {
+          async list(folder: string, listOptions?: { limit?: number; offset?: number }) {
+            listed.push({ bucket, folder });
+            const entries = options.tree?.[folder] ?? [];
+            const offset = listOptions?.offset ?? 0;
+            const limit = listOptions?.limit ?? 100;
+            return { data: entries.slice(offset, offset + limit), error: null };
+          },
+          async remove(paths: string[]) {
+            events.push("remove");
+            if (options.failOnRemove) return { data: null, error: { message: "fallo simulado" } };
+            removed.push(...paths);
+            return { data: [], error: null };
+          },
+        };
+      },
+    },
     from(table: string) {
       return {
         delete() {
           const call: Delete = { table, filters: [] };
           deletes.push(call);
+          events.push(`delete:${table}`);
           const query = {
             in(column: string, values: unknown[]) {
               call.filters.push(["in", column, values]);
@@ -68,7 +104,14 @@ function fakeClient(options: { failOnTable?: string; rows?: Record<string, Row[]
       };
     },
   };
-  return { client: client as unknown as SupabaseClient<Database>, deletes, rows };
+  return {
+    client: client as unknown as SupabaseClient<Database>,
+    deletes,
+    rows,
+    events,
+    listed,
+    removed,
+  };
 }
 
 const NOW = new Date("2026-10-02T10:00:00Z");
@@ -76,6 +119,8 @@ const data = buildSeedData(NOW);
 
 const SEED_IDS = {
   drills: data.drills.map((row) => row.id),
+  // El seed no posee ninguna ficha de medios: todas las de sus clubes son de un e2e abortado.
+  media_assets: [] as string[],
   way_sections: data.way_sections.map((row) => row.id),
   club_values: data.club_values.map((row) => row.id),
   game_principles: data.game_principles.map((row) => row.id),
@@ -86,6 +131,16 @@ const SEED_IDS = {
   events: data.events.map((row) => row.id),
 };
 const SWEPT_TABLES = Object.keys(SEED_IDS).sort();
+const SEED_ORGS = data.organizations.map((organization) => organization.id);
+
+/** Una carpeta de ejercicio con un objeto dentro, como la deja una subida: `org/<club>/drills/<ej>/<uuid>.png`. */
+function uploadedTree(orgId: string, drill: string, file: string): Tree {
+  return {
+    [`org/${orgId}`]: [{ name: "drills", id: null }],
+    [`org/${orgId}/drills`]: [{ name: drill, id: null }],
+    [`org/${orgId}/drills/${drill}`]: [{ name: file, id: "objeto" }],
+  };
+}
 
 beforeEach(() => {
   runSeed.mockReset();
@@ -99,15 +154,21 @@ afterEach(() => {
 });
 
 describe("restoreSeed", () => {
-  it("borra, en las tablas de la metodología, en los ejercicios y en las de las sesiones, y solo ahí, lo que el seed no conoce", async () => {
+  it("borra, en las cinco tablas de la metodología, en los ejercicios, en los medios y en las de las sesiones, y solo ahí, lo que el seed no conoce", async () => {
     const fake = fakeClient();
 
     await restoreSeed(NOW, fake.client);
 
     expect(fake.deletes.map((call) => call.table).sort()).toEqual(SWEPT_TABLES);
     expect(SWEPT_TABLES).toContain("drills");
+    expect(SWEPT_TABLES).toContain("media_assets");
     for (const call of fake.deletes) {
       const keep = call.filters.find(([op]) => op === "not.in");
+      if (call.table === "media_assets") {
+        // El seed no posee ninguna: se borran todas las de sus clubes, sin lista de excepciones.
+        expect(keep, call.table).toBeUndefined();
+        continue;
+      }
       expect(keep?.[1], call.table).toBe("id");
       expect(idsOf(keep?.[2]), call.table).toEqual(
         [...SEED_IDS[call.table as keyof typeof SEED_IDS]].sort(),
@@ -298,6 +359,101 @@ describe("restoreSeed", () => {
     expect(deletedWhenSeeding).toBe(SWEPT_TABLES.length);
   });
 
+  it("borra los ejercicios antes que las fichas de medios que usan: su diagrama se desliga, no se pierde", async () => {
+    const fake = fakeClient();
+
+    await restoreSeed(NOW, fake.client);
+
+    // `drills.diagram_media_id` apunta a `media_assets` con `on delete set null`: cualquier orden
+    // vale para la base de datos, pero así un ejercicio sobrante no llega a verse sin diagrama.
+    const order = fake.deletes.map((call) => call.table);
+    expect(order.indexOf("drills")).toBeLessThan(order.indexOf("media_assets"));
+  });
+
+  describe("los objetos de Storage", () => {
+    it("vacía la carpeta org/<club>/ del bucket club-media de cada club del seed, hasta el último objeto", async () => {
+      const [first, second] = SEED_ORGS;
+      const fake = fakeClient({
+        tree: {
+          ...uploadedTree(first, "ejercicio-a", "uno.png"),
+          ...uploadedTree(second, "ejercicio-b", "dos.webp"),
+        },
+      });
+
+      await restoreSeed(NOW, fake.client);
+
+      expect(fake.removed.sort()).toEqual(
+        [`org/${first}/drills/ejercicio-a/uno.png`, `org/${second}/drills/ejercicio-b/dos.webp`].sort(),
+      );
+      expect(new Set(fake.listed.map((call) => call.bucket))).toEqual(new Set(["club-media"]));
+    });
+
+    it("solo mira dentro de org/<club> de los clubes del seed: nunca otra carpeta del bucket", async () => {
+      const fake = fakeClient({
+        tree: {
+          ...uploadedTree("otro-club", "ejercicio-c", "tres.png"),
+          "": [{ name: "org", id: null }],
+        },
+      });
+
+      await restoreSeed(NOW, fake.client);
+
+      expect(fake.listed.map((call) => call.folder).sort()).toEqual(
+        SEED_ORGS.map((id) => `org/${id}`).sort(),
+      );
+      expect(fake.removed).toEqual([]);
+    });
+
+    it("sigue las páginas de un listado largo", async () => {
+      const [first] = SEED_ORGS;
+      const files = Array.from({ length: 205 }, (_, index) => ({ name: `f${index}.png`, id: `o${index}` }));
+      const fake = fakeClient({
+        tree: {
+          [`org/${first}`]: [{ name: "drills", id: null }],
+          [`org/${first}/drills`]: [{ name: "ejercicio-a", id: null }],
+          [`org/${first}/drills/ejercicio-a`]: files,
+        },
+      });
+
+      await restoreSeed(NOW, fake.client);
+
+      expect(fake.removed).toHaveLength(205);
+      expect(fake.removed).toContain(`org/${first}/drills/ejercicio-a/f204.png`);
+    });
+
+    it("no llama a remove si no hay nada que borrar", async () => {
+      const fake = fakeClient();
+
+      await restoreSeed(NOW, fake.client);
+
+      expect(fake.events.filter((event) => event === "remove")).toEqual([]);
+    });
+
+    it("borra los objetos tras las tablas y antes de sembrar", async () => {
+      const [first] = SEED_ORGS;
+      const fake = fakeClient({ tree: uploadedTree(first, "ejercicio-a", "uno.png") });
+      let eventsWhenSeeding: string[] = [];
+      runSeed.mockImplementation(async () => {
+        eventsWhenSeeding = [...fake.events];
+      });
+
+      await restoreSeed(NOW, fake.client);
+
+      const lastDelete = eventsWhenSeeding.map((event) => event.startsWith("delete:")).lastIndexOf(true);
+      expect(eventsWhenSeeding).toContain("remove");
+      expect(eventsWhenSeeding.indexOf("remove")).toBeGreaterThan(lastDelete);
+    });
+
+    it("si no se puede borrar un objeto lo dice con el bucket y no siembra a medias", async () => {
+      const [first] = SEED_ORGS;
+      const fake = fakeClient({ tree: uploadedTree(first, "ejercicio-a", "uno.png"), failOnRemove: true });
+
+      await expect(restoreSeed(NOW, fake.client)).rejects.toThrow(/club-media.*fallo simulado/);
+
+      expect(runSeed).not.toHaveBeenCalled();
+    });
+  });
+
   it("se niega con un Supabase que no es local: ni borra ni siembra", async () => {
     vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "https://proyecto.supabase.co");
     // Ni siquiera `ALLOW_REMOTE_SEED`, que autoriza `pnpm seed`, la autoriza a ella.
@@ -307,6 +463,8 @@ describe("restoreSeed", () => {
     await expect(restoreSeed(NOW, fake.client)).rejects.toThrow(/Supabase local/);
 
     expect(fake.deletes).toEqual([]);
+    expect(fake.listed).toEqual([]);
+    expect(fake.removed).toEqual([]);
     expect(runSeed).not.toHaveBeenCalled();
   });
 

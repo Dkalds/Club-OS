@@ -8,6 +8,10 @@
 // test ve qué filas salen: una consulta que pierde su filtro de club o de estado deja pasar
 // filas de otro club o borradores, y el test falla.
 //
+// Entiende `eq`, `in`, `order` y `limit`, también sobre una tabla anidada (`tabla.columna`), y que
+// `tabla!inner(...)` en el `select` deja solo las filas con alguna fila anidada que cumpla los
+// filtros de esa tabla (el único dato que lee de la cadena del `select`).
+//
 // Además de tablas, simula las funciones SQL que se llaman con `rpc()` (`search_drills`): su
 // «tabla» es la clave con el nombre de la función, y no filtra, devuelve las filas tal cual
 // las dejó el test, porque la función ya se prueba en la base de datos (pgTAP).
@@ -24,14 +28,19 @@ type Sort = { column: string; ascending: boolean };
 
 /**
  * Lo que pidió una consulta. `embedded` es lo pedido sobre una tabla anidada (`tabla.columna`).
- * `args` son los argumentos de un `rpc()` (`table` es el nombre de la función) y `limit` el tope
- * de filas, si lo hubo.
+ * `in` son las listas de valores de `in()`, y solo está si la consulta lo usó. `args` son los
+ * argumentos de un `rpc()` (`table` es el nombre de la función) y `limit` el tope de filas, si
+ * lo hubo.
  */
 export type Call = {
   table: string;
   eq: Record<string, unknown>;
   order: string[];
-  embedded: Record<string, { eq: Record<string, unknown>; order: string[] }>;
+  embedded: Record<
+    string,
+    { eq: Record<string, unknown>; order: string[]; in?: Record<string, readonly unknown[]> }
+  >;
+  in?: Record<string, readonly unknown[]>;
   args?: Record<string, unknown>;
   limit?: number;
 };
@@ -67,6 +76,7 @@ class FakeQuery implements PromiseLike<Result> {
   private readonly sorts: Sort[] = [];
   private readonly embeddedFilters: Record<string, Array<(row: Row) => boolean>> = {};
   private readonly embeddedSorts: Record<string, Sort[]> = {};
+  private readonly inner = new Set<string>();
   private head = false;
   private max: number | null = null;
 
@@ -81,8 +91,11 @@ class FakeQuery implements PromiseLike<Result> {
     calls.push(this.call);
   }
 
-  select(_columns?: string, options?: { count?: string; head?: boolean }) {
+  select(columns?: string, options?: { count?: string; head?: boolean }) {
     this.head = options?.head === true;
+    // Sin `!inner` una tabla anidada que no cumple el filtro solo se queda vacía; con él, la
+    // fila de la consulta deja de salir (es un `inner join`).
+    for (const [, table] of (columns ?? "").matchAll(/(\w+)!inner\(/g)) this.inner.add(table);
     return this;
   }
 
@@ -99,6 +112,22 @@ class FakeQuery implements PromiseLike<Result> {
     const name = column.slice(dot + 1);
     this.embedded(table).eq[name] = value;
     (this.embeddedFilters[table] ??= []).push((row) => row[name] === value);
+    return this;
+  }
+
+  /** `in("tabla.columna", valores)` filtra las filas anidadas de `tabla`, como `eq`. */
+  in(column: string, values: readonly unknown[]) {
+    const dot = column.indexOf(".");
+    if (dot === -1) {
+      (this.call.in ??= {})[column] = values;
+      this.filters.push((row) => values.includes(row[column]));
+      return this;
+    }
+
+    const table = column.slice(0, dot);
+    const name = column.slice(dot + 1);
+    (this.embedded(table).in ??= {})[name] = values;
+    (this.embeddedFilters[table] ??= []).push((row) => values.includes(row[name]));
     return this;
   }
 
@@ -146,7 +175,11 @@ class FakeQuery implements PromiseLike<Result> {
   private run(): { data: Row[] | null; error: Failure | null } {
     if (this.failure) return { data: null, error: this.failure };
 
-    const matching = this.rows.filter((row) => this.filters.every((filter) => filter(row)));
+    const matching = this.rows.filter(
+      (row) =>
+        this.filters.every((filter) => filter(row)) &&
+        [...this.inner].every((table) => this.nested(row, table).length > 0),
+    );
     const sorted = sortRows(matching, this.sorts);
     const data = (this.max === null ? sorted : sorted.slice(0, this.max)).map((row) =>
       this.withEmbedded(row),
@@ -154,16 +187,21 @@ class FakeQuery implements PromiseLike<Result> {
     return { data, error: null };
   }
 
+  /** Las filas de `table` anidadas en `row` que cumplen los filtros de esa tabla. */
+  private nested(row: Row, table: string): Row[] {
+    const nested = row[table];
+    if (!Array.isArray(nested)) return [];
+    return (nested as Row[]).filter((item) =>
+      (this.embeddedFilters[table] ?? []).every((filter) => filter(item)),
+    );
+  }
+
   /** Las filas anidadas que pide la consulta, ya filtradas y ordenadas; el resto de la fila igual. */
   private withEmbedded(row: Row): Row {
     const result = { ...row };
     for (const table of Object.keys(this.call.embedded)) {
-      const nested = row[table];
-      if (!Array.isArray(nested)) continue;
-      const kept = (nested as Row[]).filter((item) =>
-        (this.embeddedFilters[table] ?? []).every((filter) => filter(item)),
-      );
-      result[table] = sortRows(kept, this.embeddedSorts[table] ?? []);
+      if (!Array.isArray(row[table])) continue;
+      result[table] = sortRows(this.nested(row, table), this.embeddedSorts[table] ?? []);
     }
     return result;
   }

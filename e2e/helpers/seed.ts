@@ -42,9 +42,10 @@ export function seedNow(): Date {
 
 /**
  * Las tablas que los e2e de escritura pueden dejar con filas que el seed no conoce: las de las
- * sesiones (el constructor crea sesiones, planes e ítems), los ejercicios (la ficha crea y cambia
- * los suyos) y las cinco de la metodología del club (Gestión escribe sus contenidos y The Way,
- * sus borradores). Cada fase que añade tablas que sus e2e escriben, la suma aquí.
+ * sesiones (el constructor crea sesiones, planes e ítems), los ejercicios (la ficha y el editor
+ * crean y cambian los suyos), las fichas de medios (`media_assets`) y las cinco de la
+ * metodología del club (Gestión escribe sus contenidos y The Way, sus borradores). Cada fase que
+ * añade tablas que sus e2e escriben, la suma aquí.
  *
  * El orden es el del borrado, y importa:
  *  - Las sesiones van primero: un ítem cuelga de su plan y un plan, de su evento, así que van
@@ -54,20 +55,74 @@ export function seedNow(): Date {
  *  - `drills` va antes que la metodología porque sus vínculos (`drill_principles`,
  *    `drill_standards`) apuntan a `game_principles` y `standards` sin cascada, y sus puntos,
  *    variantes y vínculos se van con él (`on delete cascade`): así un principio o un Standard
- *    sobrante al que apunta un ejercicio sobrante se puede borrar después. Un ejercicio del seed
- *    no se toca, y con él se quedan sus vínculos.
+ *    sobrante al que apunta un ejercicio sobrante se puede borrar después.
+ *  - `media_assets` va justo después de `drills`: `drills.diagram_media_id` apunta a ella con
+ *    `on delete set null`, de modo que cualquier orden valdría para la base de datos, pero así un
+ *    ejercicio sobrante ya no existe cuando su diagrama se desliga. Un ejercicio del seed no se
+ *    toca, y con él se quedan sus vínculos.
  */
 const WRITABLE_TABLES = [
   "practice_items",
   "practice_plans",
   "events",
   "drills",
+  "media_assets",
   "principle_points",
   "game_principles",
   "club_values",
   "standards",
   "way_sections",
 ] as const;
+
+/** El bucket privado de los medios del club (el mismo de `src/modules/media/storage.ts`). */
+const MEDIA_BUCKET = "club-media";
+
+/** Cuántas entradas se piden por página al listar una carpeta de Storage, y cuántas se borran por llamada. */
+const STORAGE_PAGE = 100;
+
+type Bucket = ReturnType<SupabaseClient<Database>["storage"]["from"]>;
+
+/**
+ * Las rutas de todos los objetos que hay bajo `folder`, de cualquier profundidad. `list` solo
+ * baja un nivel: devuelve los objetos de la carpeta y sus subcarpetas, y estas últimas se
+ * distinguen porque no tienen `id`. Pide las páginas hasta que una viene corta.
+ */
+async function listObjects(bucket: Bucket, folder: string): Promise<string[]> {
+  const paths: string[] = [];
+
+  for (let offset = 0; ; offset += STORAGE_PAGE) {
+    const { data, error } = await bucket.list(folder, { limit: STORAGE_PAGE, offset });
+    if (error) {
+      throw new Error(`No se pudo listar ${folder} en ${MEDIA_BUCKET}: ${error.message}`);
+    }
+
+    for (const entry of data) {
+      const path = `${folder}/${entry.name}`;
+      if (entry.id === null) paths.push(...(await listObjects(bucket, path)));
+      else paths.push(path);
+    }
+    if (data.length < STORAGE_PAGE) return paths;
+  }
+}
+
+/**
+ * Borra, por la API de Storage (no con SQL sobre `storage.objects`: eso dejaría el fichero),
+ * todo lo que hay en `org/<club>/` del bucket de medios de cada club del seed. El seed no sube
+ * nada, así que todo lo que hay ahí es de un e2e abortado.
+ */
+async function clearMediaObjects(db: SupabaseClient<Database>, organizationIds: string[]): Promise<void> {
+  const bucket = db.storage.from(MEDIA_BUCKET);
+
+  for (const organizationId of organizationIds) {
+    const paths = await listObjects(bucket, `org/${organizationId}`);
+    for (let start = 0; start < paths.length; start += STORAGE_PAGE) {
+      const { error } = await bucket.remove(paths.slice(start, start + STORAGE_PAGE));
+      if (error) {
+        throw new Error(`No se pudieron borrar los objetos de org/${organizationId} en ${MEDIA_BUCKET}: ${error.message}`);
+      }
+    }
+  }
+}
 
 /**
  * Deja los clubes del seed exactamente como los deja `runSeed(now)`: borra, en las tablas de
@@ -90,7 +145,8 @@ const WRITABLE_TABLES = [
  * Borra contenido, así que:
  *  - Solo corre con un Supabase local, diga lo que diga `ALLOW_REMOTE_SEED`. Con otro lanza,
  *    sin borrar nada. (Los specs que la llaman ya se saltan sus tests en ese caso.)
- *  - Solo toca los clubes del seed y solo esas tablas.
+ *  - Solo toca los clubes del seed, solo esas tablas y solo la carpeta `org/<club>/` de cada uno
+ *    en el bucket de medios.
  *  - NO está dentro de `runSeed`: `pnpm seed` con `ALLOW_REMOTE_SEED=true` borraría el
  *    contenido real de un entorno de demo.
  *
@@ -99,7 +155,7 @@ const WRITABLE_TABLES = [
 export async function restoreSeed(now: Date, client?: SupabaseClient<Database>): Promise<void> {
   if (!isLocalSupabaseUrl(readSupabaseEnv().url)) {
     throw new Error(
-      "restoreSeed borra contenido de la metodología, de la biblioteca y de las sesiones: solo se ejecuta contra un Supabase local.",
+      "restoreSeed borra contenido de la metodología, de la biblioteca, de las sesiones y de Storage: solo se ejecuta contra un Supabase local.",
     );
   }
 
@@ -111,6 +167,9 @@ export async function restoreSeed(now: Date, client?: SupabaseClient<Database>):
     practice_plans: data.practice_plans.map((row) => row.id),
     events: data.events.map((row) => row.id),
     drills: data.drills.map((row) => row.id),
+    // El seed no posee ninguna ficha de medios (sus ejercicios no llevan diagrama): todas las de
+    // sus clubes son de un e2e abortado.
+    media_assets: [],
     principle_points: data.principle_points.map((row) => row.id),
     game_principles: data.game_principles.map((row) => row.id),
     club_values: data.club_values.map((row) => row.id),
@@ -130,6 +189,8 @@ export async function restoreSeed(now: Date, client?: SupabaseClient<Database>):
       throw new Error(`No se pudieron borrar las filas de ${table} que no son del seed: ${error.message}`);
     }
   }
+
+  await clearMediaObjects(db, organizationIds);
 
   await runSeed(now, db);
 }

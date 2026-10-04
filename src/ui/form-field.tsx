@@ -42,12 +42,26 @@ export function FieldError({ id, children }: { id: string; children: ReactNode }
  * del aviso, y sin él quien guarda no vería que ha fallado. El formulario lo monta solo
  * cuando hay un error y lo quita al volver a enviar, así que cada fallo nuevo vuelve a
  * montarlo y a llevarse el foco.
+ *
+ * Con `focus={false}` no se lleva el foco, y se anuncia igual: es para el aviso general de un
+ * formulario que ya lleva el foco al primer campo que falla («Revisa los campos marcados.»),
+ * donde dos avisos disputándose el foco dejarían a quien guarda en el que no es.
  */
-export function FormAlert({ message, children }: { message: string; children?: ReactNode }) {
+export function FormAlert({
+  message,
+  focus = true,
+  children,
+}: {
+  message: string;
+  focus?: boolean;
+  children?: ReactNode;
+}) {
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    ref.current?.focus();
+    if (focus) ref.current?.focus();
+    // Solo al montarse: el formulario lo monta de nuevo en cada fallo.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
@@ -66,12 +80,26 @@ export function FormAlert({ message, children }: { message: string; children?: R
   );
 }
 
-/** Los atributos que enlazan un control con su mensaje de error, si lo hay. */
-function errorAttributes(error: string | undefined, errorId: string) {
+/**
+ * Los atributos que enlazan un control con su pista y con su mensaje de error, si los hay. La
+ * pista va primero: es lo que se lee siempre; el error, además, cuando ha fallado.
+ */
+function errorAttributes(error: string | undefined, errorId: string, hintId?: string) {
+  const described = [hintId, error ? errorId : undefined].filter(Boolean).join(" ");
+
   return {
     "aria-invalid": error ? (true as const) : undefined,
-    "aria-describedby": error ? errorId : undefined,
+    "aria-describedby": described || undefined,
   };
+}
+
+/** La pista de un campo («Separa con comas.»): lo que ayuda a rellenarlo, siempre a la vista. */
+function Hint({ id, children }: { id: string; children: ReactNode }) {
+  return (
+    <p id={id} className="text-body-s text-ink-3">
+      {children}
+    </p>
+  );
 }
 
 type TextFieldProps = {
@@ -80,6 +108,8 @@ type TextFieldProps = {
   value: string;
   onChange: (value: string) => void;
   error?: string;
+  /** Una línea de ayuda bajo el campo, que lo describe además de su etiqueta. */
+  hint?: string;
 } & (
   | { type?: "text"; maxLength: number; min?: never; max?: never }
   | { type: "number"; maxLength?: number; min?: number; max?: number }
@@ -102,10 +132,12 @@ export function TextField({
   min,
   max,
   error,
+  hint,
   type = "text",
 }: TextFieldProps) {
   const id = useId();
   const errorId = `${id}-error`;
+  const hintId = `${id}-hint`;
 
   return (
     <div className={FIELD_CLASS}>
@@ -122,9 +154,10 @@ export function TextField({
         min={min}
         max={max}
         onChange={(event) => onChange(event.target.value)}
-        {...errorAttributes(error, errorId)}
+        {...errorAttributes(error, errorId, hint ? hintId : undefined)}
         className={SINGLE_LINE}
       />
+      {hint ? <Hint id={hintId}>{hint}</Hint> : null}
       {error ? <FieldError id={errorId}>{error}</FieldError> : null}
     </div>
   );
@@ -137,6 +170,7 @@ export function TextAreaField({
   onChange,
   maxLength,
   error,
+  hint,
   rows = 4,
 }: {
   label: string;
@@ -145,10 +179,13 @@ export function TextAreaField({
   onChange: (value: string) => void;
   maxLength: number;
   error?: string;
+  /** Una línea de ayuda bajo el área, que la describe además de su etiqueta. */
+  hint?: string;
   rows?: number;
 }) {
   const id = useId();
   const errorId = `${id}-error`;
+  const hintId = `${id}-hint`;
 
   return (
     <div className={FIELD_CLASS}>
@@ -162,9 +199,10 @@ export function TextAreaField({
         value={value}
         maxLength={maxLength}
         onChange={(event) => onChange(event.target.value)}
-        {...errorAttributes(error, errorId)}
+        {...errorAttributes(error, errorId, hint ? hintId : undefined)}
         className={`${FIELD_CONTROL_CLASS} min-h-(--target-min) resize-y py-(--space-3)`}
       />
+      {hint ? <Hint id={hintId}>{hint}</Hint> : null}
       {error ? <FieldError id={errorId}>{error}</FieldError> : null}
     </div>
   );

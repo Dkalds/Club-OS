@@ -167,6 +167,42 @@ describe("TextField", () => {
       "h-(--target-min)",
     );
   });
+  describe("con una pista", () => {
+    it("la pista se enseña bajo el campo y lo describe", () => {
+      render(
+        <TextField label="Material" name="equipment" value="" onChange={() => {}} maxLength={50} hint="Separa con comas." />,
+      );
+
+      const input = screen.getByLabelText("Material");
+      expect(screen.getByText("Separa con comas.")).toBeInTheDocument();
+      expect(input).toHaveAccessibleDescription("Separa con comas.");
+    });
+
+    it("con error, el campo se describe con la pista y con el error, y el error sigue siendo la alerta", () => {
+      render(
+        <TextField
+          label="Material"
+          name="equipment"
+          value=""
+          onChange={() => {}}
+          maxLength={50}
+          hint="Separa con comas."
+          error="Demasiado material."
+        />,
+      );
+
+      const input = screen.getByLabelText("Material");
+      expect(input).toHaveAccessibleDescription("Separa con comas. Demasiado material.");
+      expect(screen.getByRole("alert")).toHaveTextContent("Demasiado material.");
+      expect(screen.getByRole("alert")).not.toHaveTextContent("Separa con comas.");
+    });
+
+    it("sin pista no cambia nada: ningún aria-describedby", () => {
+      render(<TextField label="Material" name="equipment" value="" onChange={() => {}} maxLength={50} />);
+
+      expect(screen.getByLabelText("Material")).not.toHaveAttribute("aria-describedby");
+    });
+  });
 });
 
 describe("TextAreaField", () => {
@@ -216,6 +252,35 @@ describe("TextAreaField", () => {
     const message = screen.getByText("Máximo 200 caracteres.");
     expect(textarea).toHaveAttribute("aria-invalid", "true");
     expect(textarea).toHaveAttribute("aria-describedby", message.id);
+  });
+
+  it("la pista se enseña bajo el área y la describe, junto con el error si lo hay", () => {
+    const { rerender } = render(
+      <TextAreaField
+        label="Organización"
+        name="setupMd"
+        value=""
+        onChange={() => {}}
+        maxLength={5000}
+        hint="Admite negritas, cursivas y listas."
+      />,
+    );
+    const textarea = screen.getByLabelText("Organización");
+    expect(screen.getByText("Admite negritas, cursivas y listas.")).toBeInTheDocument();
+    expect(textarea).toHaveAccessibleDescription("Admite negritas, cursivas y listas.");
+
+    rerender(
+      <TextAreaField
+        label="Organización"
+        name="setupMd"
+        value=""
+        onChange={() => {}}
+        maxLength={5000}
+        hint="Admite negritas, cursivas y listas."
+        error="Demasiado largo."
+      />,
+    );
+    expect(textarea).toHaveAccessibleDescription("Admite negritas, cursivas y listas. Demasiado largo.");
   });
 
   it("es un control del sistema: surface-2, borde line-strong, radius-md y al menos target-min", () => {
@@ -318,5 +383,21 @@ describe("FormAlert", () => {
     rerender(<FormAlert key="2" message="Segundo fallo." />);
 
     expect(screen.getByRole("alert")).toHaveFocus();
+  });
+
+  it("sin `focus` no se lleva el foco: lo lleva a otra parte quien la monta", () => {
+    const { rerender } = render(<input aria-label="Un campo" />);
+    screen.getByLabelText("Un campo").focus();
+
+    rerender(
+      <>
+        <input aria-label="Un campo" />
+        <FormAlert message="Revisa los campos marcados." focus={false} />
+      </>,
+    );
+
+    expect(screen.getByRole("alert")).toHaveTextContent("Revisa los campos marcados.");
+    expect(screen.getByRole("alert")).not.toHaveFocus();
+    expect(screen.getByLabelText("Un campo")).toHaveFocus();
   });
 });

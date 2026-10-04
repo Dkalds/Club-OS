@@ -6,6 +6,7 @@ type Role = ClubContext["membership"]["role"];
 export type Action =
   | "way.manage"
   | "admin.access"
+  | "drill.view"
   | "drill.create"
   | "drill.publish"
   | "practice.manage";
@@ -14,6 +15,9 @@ export type Action =
 const ALLOWED_ROLES: Record<Action, readonly Role[]> = {
   "way.manage": ["admin"],
   "admin.access": ["admin"],
+  // La biblioteca es del cuerpo técnico (RLS: `can_see_drill`): un jugador o una familia no
+  // ven ningún ejercicio. Sirve para no ofrecerles lo que les llevaría a una lista vacía.
+  "drill.view": ["admin", "coach"],
   // El entrenador escribe borradores; publicarlos (y archivarlos) es de la dirección.
   "drill.create": ["admin", "coach"],
   "drill.publish": ["admin"],

@@ -26,7 +26,7 @@ vi.mock("@/lib/supabase/server", () => ({ createClient: mocks.createClient }));
 vi.mock("@/lib/log", () => ({ logError: mocks.logError }));
 vi.mock("@/modules/media/storage", () => ({ signedUrl: mocks.signedUrl }));
 
-import { getDrill, getDrillFormOptions, getFocusAreas, searchDrills } from "./queries";
+import { getDrill, getDrillFormOptions, getFocusAreas, getRelatedDrills, searchDrills } from "./queries";
 
 // Las lecturas de la biblioteca, contra un doble de la base de datos que aplica los filtros y el
 // orden que recibe (ver `methodology/test-support.ts`). Lo que se fija aquí es lo que RLS no
@@ -770,6 +770,235 @@ describe("getDrill", () => {
 
       await expectReadError(() => getDrill(CTX, DRILL_ID), "drills.viewer");
     });
+  });
+});
+
+// ── getRelatedDrills ─────────────────────────────────────────────────────────────────────
+
+describe("getRelatedDrills", () => {
+  const P1 = uuid(21);
+  const P2 = uuid(22);
+  const P3 = uuid(23);
+  const NOT_ASKED = uuid(29);
+
+  /**
+   * Un ejercicio tal como lo devuelve la lectura de relacionados: su fila de lista y, anidados,
+   * los vínculos con los principios pedidos (la consulta solo trae esos).
+   */
+  function related(n: number, title: string, principleIds: string[], overrides: Row = {}): Row {
+    return drillRow(uuid(200 + n), ORG, {
+      title,
+      drill_principles: principleIds.map((principle_id) => ({ principle_id })),
+      ...overrides,
+    });
+  }
+
+  it("sin principios no consulta nada: un objeto vacío", async () => {
+    const calls = install({ drills: [related(1, "Un ejercicio", [P1])] });
+
+    await expect(getRelatedDrills(CTX, [])).resolves.toEqual({});
+
+    expect(mocks.createClient).not.toHaveBeenCalled();
+    expect(calls).toEqual([]);
+  });
+
+  it("una sola consulta para todos los principios, del club y publicados", async () => {
+    const calls = install({ drills: [related(1, "Un ejercicio", [P1, P2])] });
+
+    await getRelatedDrills(CTX, [P1, P2, P3]);
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0].table).toBe("drills");
+    // Filtra por club y por estado ella misma: RLS también deja ver al autor sus borradores y a
+    // dirección todo, y aquí solo cuenta lo publicado.
+    expect(calls[0].eq).toEqual({ organization_id: ORG, status: "published" });
+    expect(calls[0].embedded.drill_principles.in).toEqual({ principle_id: [P1, P2, P3] });
+  });
+
+  it("lee por título (y por id, para desempatar) y con un tope", async () => {
+    const calls = install({ drills: [related(1, "Un ejercicio", [P1])] });
+
+    await getRelatedDrills(CTX, [P1]);
+
+    expect(calls[0].order).toEqual(["title", "id"]);
+    // El tope es el de la API (`max_rows`): explícito, para que no sea un corte silencioso.
+    expect(calls[0].limit).toBe(1000);
+  });
+
+  it("tiene una entrada por cada principio pedido, también los que no tienen ejercicios", async () => {
+    install({ drills: [related(1, "Un ejercicio", [P1])] });
+
+    const result = await getRelatedDrills(CTX, [P1, P2, P3]);
+
+    expect(Object.keys(result).sort()).toEqual([P1, P2, P3].sort());
+    expect(result[P1].map((drill) => drill.title)).toEqual(["Un ejercicio"]);
+    expect(result[P2]).toEqual([]);
+    expect(result[P3]).toEqual([]);
+  });
+
+  it("sin ningún ejercicio, todas las entradas vacías", async () => {
+    install({ drills: [] });
+
+    await expect(getRelatedDrills(CTX, [P1, P2])).resolves.toEqual({ [P1]: [], [P2]: [] });
+  });
+
+  it("un principio repetido en la petición es una sola entrada", async () => {
+    install({ drills: [related(1, "Un ejercicio", [P1])] });
+
+    const result = await getRelatedDrills(CTX, [P1, P1]);
+
+    expect(Object.keys(result)).toEqual([P1]);
+    expect(result[P1]).toHaveLength(1);
+  });
+
+  it("solo salen los publicados: ni borradores ni archivados", async () => {
+    install({
+      drills: [
+        related(1, "Publicado", [P1]),
+        related(2, "Borrador", [P1], { status: "draft" }),
+        related(3, "Archivado", [P1], { status: "archived" }),
+      ],
+    });
+
+    const result = await getRelatedDrills(CTX, [P1]);
+
+    expect(result[P1].map((drill) => drill.title)).toEqual(["Publicado"]);
+  });
+
+  it("solo salen los del club: el ejercicio de otro club no, aunque RLS lo dejara ver", async () => {
+    install({
+      drills: [
+        related(1, "Del club", [P1]),
+        related(2, "De otro club", [P1], { organization_id: OTHER_ORG }),
+      ],
+    });
+
+    const result = await getRelatedDrills(CTX, [P1]);
+
+    expect(result[P1].map((drill) => drill.title)).toEqual(["Del club"]);
+  });
+
+  it("un ejercicio de un principio que no se ha pedido no sale", async () => {
+    install({
+      drills: [
+        related(1, "Del principio pedido", [P1]),
+        related(2, "De otro principio", [NOT_ASKED]),
+        related(3, "Sin principios", []),
+      ],
+    });
+
+    const result = await getRelatedDrills(CTX, [P1]);
+
+    expect(Object.keys(result)).toEqual([P1]);
+    expect(result[P1].map((drill) => drill.title)).toEqual(["Del principio pedido"]);
+  });
+
+  it("corta en tres por principio, en orden de título", async () => {
+    install({
+      drills: [
+        related(1, "Delta", [P1]),
+        related(2, "Alfa", [P1]),
+        related(3, "Echo", [P1]),
+        related(4, "Bravo", [P1]),
+        related(5, "Charlie", [P1]),
+      ],
+    });
+
+    const result = await getRelatedDrills(CTX, [P1]);
+
+    expect(result[P1].map((drill) => drill.title)).toEqual(["Alfa", "Bravo", "Charlie"]);
+  });
+
+  it("el corte es de cada principio: los de uno no gastan el cupo de otro", async () => {
+    install({
+      drills: [
+        related(1, "Alfa", [P1]),
+        related(2, "Bravo", [P1]),
+        related(3, "Charlie", [P1]),
+        related(4, "Delta", [P1]),
+        related(5, "Echo", [P2]),
+        related(6, "Foxtrot", [P2]),
+      ],
+    });
+
+    const result = await getRelatedDrills(CTX, [P1, P2]);
+
+    expect(result[P1].map((drill) => drill.title)).toEqual(["Alfa", "Bravo", "Charlie"]);
+    expect(result[P2].map((drill) => drill.title)).toEqual(["Echo", "Foxtrot"]);
+  });
+
+  it("un ejercicio de varios principios sale en cada uno, y cuenta en el cupo de cada uno", async () => {
+    install({
+      drills: [
+        related(1, "Alfa", [P1, P2]),
+        related(2, "Bravo", [P2]),
+        related(3, "Charlie", [P1, P2]),
+        related(4, "Delta", [P2]),
+      ],
+    });
+
+    const result = await getRelatedDrills(CTX, [P1, P2]);
+
+    expect(result[P1].map((drill) => drill.title)).toEqual(["Alfa", "Charlie"]);
+    expect(result[P2].map((drill) => drill.title)).toEqual(["Alfa", "Bravo", "Charlie"]);
+  });
+
+  it("el orden es el del título aunque las filas lleguen de otro modo, y a igualdad, el del id", async () => {
+    install({
+      drills: [related(3, "Misma", [P1]), related(2, "Zeta", [P1]), related(1, "Misma", [P1])],
+    });
+
+    const result = await getRelatedDrills(CTX, [P1]);
+
+    expect(result[P1].map((drill) => [drill.title, drill.id])).toEqual([
+      ["Misma", uuid(201)],
+      ["Misma", uuid(203)],
+      ["Zeta", uuid(202)],
+    ]);
+  });
+
+  it("cada ejercicio sale como un DrillSummary, con sus objetivos en el orden del club", async () => {
+    install({
+      drills: [
+        related(1, "Rebote + salida", [P1], {
+          created_by: SOMEONE,
+          min_age: 12,
+          max_age: 14,
+          min_players: 6,
+          max_players: 12,
+          min_minutes: 10,
+          max_minutes: 15,
+          drill_focus_areas: [focusLink(F2, 2), focusLink(F1, 1)],
+        }),
+      ],
+    });
+
+    const result = await getRelatedDrills(CTX, [P1]);
+
+    expect(result[P1]).toEqual([
+      {
+        id: uuid(201),
+        title: "Rebote + salida",
+        status: "published",
+        createdBy: SOMEONE,
+        minAge: 12,
+        maxAge: 14,
+        minPlayers: 6,
+        maxPlayers: 12,
+        minMinutes: 10,
+        maxMinutes: 15,
+        focus: [
+          { slug: `objetivo-${tag(F1)}`, name: `Objetivo ${tag(F1)}` },
+          { slug: `objetivo-${tag(F2)}`, name: `Objetivo ${tag(F2)}` },
+        ],
+      },
+    ]);
+  });
+
+  it("un error de lectura se registra y lanza: no es «sin ejercicios»", async () => {
+    install({}, { failing: { drills: FAILURE } });
+
+    await expectReadError(() => getRelatedDrills(CTX, [P1]), "drills.related");
   });
 });
 

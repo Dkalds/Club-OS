@@ -32,6 +32,7 @@ const ADMIN_ONLY: Action[] = ["way.manage", "admin.access", "drill.publish"];
 const EXPECTED: Record<Action, Record<Role, boolean>> = {
   "way.manage": { admin: true, coach: false, player: false, guardian: false },
   "admin.access": { admin: true, coach: false, player: false, guardian: false },
+  "drill.view": { admin: true, coach: true, player: false, guardian: false },
   "drill.create": { admin: true, coach: true, player: false, guardian: false },
   "drill.publish": { admin: true, coach: false, player: false, guardian: false },
   "practice.manage": { admin: true, coach: true, player: false, guardian: false },
@@ -65,6 +66,13 @@ describe("can", () => {
     for (const action of ACTIONS) {
       expect(can(contextWithRole(role), action)).toBe(false);
     }
+  });
+
+  it("la biblioteca es del cuerpo técnico: dirección y entrenadores, no jugadores ni familias", () => {
+    expect(can(contextWithRole("admin"), "drill.view")).toBe(true);
+    expect(can(contextWithRole("coach"), "drill.view")).toBe(true);
+    expect(can(contextWithRole("player"), "drill.view")).toBe(false);
+    expect(can(contextWithRole("guardian"), "drill.view")).toBe(false);
   });
 
   it("un entrenador puede crear ejercicios, pero no publicarlos", () => {
