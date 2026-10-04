@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import Link from "next/link";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ACTION_ERROR_COPY, fail, ok, type ActionResult } from "@/lib/action-result";
 import type { WaySection } from "@/modules/methodology/types";
@@ -383,10 +384,31 @@ describe("SectionEditor", () => {
 // Quien escribe un texto largo espera un aviso antes de perderlo. «Volver» y el enlace a la lista
 // de valores, principios o Standards son enlaces normales, y cerrar o recargar la pestaña
 // tampoco guardan nada: mientras algún campo difiera de la última copia guardada, todo eso
-// pregunta (los enlaces con el diálogo de la app, la pestaña con el aviso del navegador). La
-// navegación interna por las pestañas de Gestión no se intercepta: App Router no tiene gancho
-// para bloquearla.
+// pregunta (los enlaces con el diálogo de la app, la pestaña con el aviso del navegador). También
+// los enlaces que el editor no pinta, como las pestañas de Gestión.
 describe("SectionEditor · cambios sin guardar", () => {
+  it("con cambios, un enlace de fuera del editor (una pestaña de Gestión) también pregunta", () => {
+    render(
+      <>
+        <nav aria-label="Gestión">
+          <Link href="/c/club-a/admin/values" prefetch={false}>
+            Valores
+          </Link>
+        </nav>
+        <SectionEditor clubSlug="club-a" section={section()} />
+      </>,
+    );
+    expect(clickLink("Valores")).toBe("navega");
+
+    fireEvent.change(body(), { target: { value: "Texto nuevo." } });
+    expect(clickLink("Valores")).toBe("se queda");
+    expect(leaveDialog()).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Salir sin guardar" }));
+    expect(mocks.push).toHaveBeenCalledTimes(1);
+    expect(mocks.push).toHaveBeenCalledWith("/c/club-a/admin/values");
+  });
+
   it("sin cambios no hay aviso: ni al cerrar la pestaña ni al volver", () => {
     renderEditor();
 

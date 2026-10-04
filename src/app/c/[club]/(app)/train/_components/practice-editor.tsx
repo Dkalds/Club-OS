@@ -24,9 +24,9 @@ import { PracticeForm, type PracticeFormValues } from "./practice-form";
  *   cual la dio la base de datos: no pasa por `Date`.
  * - La salida. Hay cambios sin guardar si los hay en la lista o en los datos (cada uno avisa de
  *   lo suyo con `onDirtyChange`). Mientras los haya, `useLeaveGuard` pide confirmación al
- *   cerrar o recargar la pestaña, y «Volver a la sesión» abre «¿Salir sin guardar?» antes de
- *   salir. El enlace «Volver a la sesión» del aviso de sesión cerrada no pregunta: lo que hay
- *   en pantalla ya no se puede guardar en ella.
+ *   cerrar o recargar la pestaña, y cualquier enlace que saque de la pantalla abre «¿Salir sin
+ *   guardar?» antes de salir: «Volver a la sesión» y, sobre todo, las pestañas de la navegación
+ *   inferior, que quedan justo debajo de «Guardar sesión».
  * - «Recargar», tras una copia obsoleta en cualquiera de los dos: quien lo pulsa ya ha
  *   decidido tirar lo suyo, así que `release` quita antes el aviso de la pestaña y el navegador
  *   no pregunta otra vez.

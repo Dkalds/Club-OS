@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import Link from "next/link";
 import { useState, useTransition } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -155,6 +156,186 @@ describe("useLeaveGuard · clic en un enlace", () => {
   });
 });
 
+// Lo que rodea a la pantalla que usa el gancho: la navegación de la app (enlaces de `next/link`,
+// como los de `BottomNavigation`) y otros enlaces que ella no pinta ni conoce. Ninguno lleva
+// `guard`.
+function Screen({ dirty, screens = 1 }: { dirty: boolean; screens?: number }) {
+  return (
+    <>
+      <nav aria-label="Principal">
+        <Link href="/c/club-a/way" prefetch={false}>
+          <span>The Way</span>
+        </Link>
+        <Link href="/c/club-a/train?scope=history#lista" prefetch={false}>
+          Histórico
+        </Link>
+        <Link href="/c/club-a/way" prefetch={false} target="_blank" rel="noreferrer">
+          The Way en otra pestaña
+        </Link>
+        <Link href="/c/club-a/way" prefetch={false} target="_self">
+          The Way aquí mismo
+        </Link>
+        <a href="/informe.pdf" download>
+          Descargar el informe
+        </a>
+        <a href="https://ayuda.example/guia">Ayuda</a>
+        <a href="#resumen">Ir al resumen</a>
+        <a href="#">Arriba</a>
+        <button type="button">Abrir menú</button>
+      </nav>
+      {Array.from({ length: screens }, (_, index) => (
+        <Harness key={index} dirty={dirty} />
+      ))}
+    </>
+  );
+}
+
+/** Pulsa `target` (un enlace, o algo de dentro) y dice si el clic habría llegado a navegar. */
+function click(target: Element, init: MouseEventInit = {}): "navega" | "se detiene" {
+  let outcome: "navega" | "se detiene" = "navega";
+  const cut = (event: Event) => {
+    outcome = event.defaultPrevented ? "se detiene" : "navega";
+    event.preventDefault();
+  };
+  document.addEventListener("click", cut);
+  fireEvent.click(target, init);
+  document.removeEventListener("click", cut);
+  return outcome;
+}
+
+const navLink = (name: string) => screen.getByRole("link", { name });
+const leaveDialogs = () => screen.queryAllByRole("alertdialog", { name: "¿Salir sin guardar?" });
+
+describe("useLeaveGuard · cualquier enlace de la app", () => {
+  // La navegación inferior queda a un dedo de «Guardar»: un toque fallido no puede tirar lo escrito.
+  it("con cambios, un enlace que la pantalla no conoce también se detiene y pregunta", () => {
+    render(<Screen dirty />);
+
+    // El toque cae en lo de dentro del enlace (su icono, su texto), no en el `<a>`.
+    expect(click(screen.getByText("The Way"))).toBe("se detiene");
+
+    expect(leaveDialogs()).toHaveLength(1);
+    expect(mocks.push).not.toHaveBeenCalled();
+  });
+
+  it("«Salir sin guardar» lleva a ese enlace, con su búsqueda y su ancla", () => {
+    render(<Screen dirty />);
+    click(navLink("Histórico"));
+
+    fireEvent.click(screen.getByRole("button", { name: "Salir sin guardar" }));
+
+    expect(mocks.push).toHaveBeenCalledTimes(1);
+    expect(mocks.push).toHaveBeenCalledWith("/c/club-a/train?scope=history#lista");
+    expect(leaveDialogs()).toHaveLength(0);
+  });
+
+  it("«Seguir editando» cierra el diálogo y no navega; otro clic vuelve a preguntar", () => {
+    render(<Screen dirty />);
+    click(navLink("The Way"));
+
+    fireEvent.click(screen.getByRole("button", { name: "Seguir editando" }));
+    expect(leaveDialogs()).toHaveLength(0);
+    expect(mocks.push).not.toHaveBeenCalled();
+
+    expect(click(navLink("The Way"))).toBe("se detiene");
+    expect(leaveDialogs()).toHaveLength(1);
+  });
+
+  it("sin cambios, el clic pasa y no pregunta nada", () => {
+    render(<Screen dirty={false} />);
+
+    expect(click(navLink("The Way"))).toBe("navega");
+    expect(click(navLink("Histórico"))).toBe("navega");
+    expect(leaveDialogs()).toHaveLength(0);
+  });
+
+  it("`target=\"_self\"` es navegar aquí mismo: también pregunta", () => {
+    render(<Screen dirty />);
+
+    expect(click(navLink("The Way aquí mismo"))).toBe("se detiene");
+    expect(leaveDialogs()).toHaveLength(1);
+  });
+
+  it.each([
+    ["Ctrl", { ctrlKey: true }],
+    ["Cmd", { metaKey: true }],
+    ["Mayús", { shiftKey: true }],
+    ["el botón central", { button: 1 }],
+  ])("con %s deja pasar el clic: abre otra pestaña y esta se queda como está", (_name, init) => {
+    render(<Screen dirty />);
+
+    expect(click(navLink("The Way"), init)).toBe("navega");
+    expect(leaveDialogs()).toHaveLength(0);
+  });
+
+  it.each([
+    ["un enlace que abre otra pestaña", "The Way en otra pestaña"],
+    ["una descarga", "Descargar el informe"],
+    ["un enlace a otro sitio", "Ayuda"],
+    ["un ancla de esta misma página", "Ir al resumen"],
+    ["un enlace vacío a esta misma página", "Arriba"],
+  ])("%s no saca de la pantalla: pasa sin preguntar", (_what, name) => {
+    render(<Screen dirty />);
+
+    expect(click(navLink(name))).toBe("navega");
+    expect(leaveDialogs()).toHaveLength(0);
+  });
+
+  it("lo que no es un enlace no se toca", () => {
+    render(<Screen dirty />);
+
+    expect(click(screen.getByRole("button", { name: "Abrir menú" }))).toBe("navega");
+    expect(leaveDialogs()).toHaveLength(0);
+  });
+
+  it("un enlace que además lleva `guard` abre el diálogo una sola vez, con su destino", () => {
+    render(<Screen dirty />);
+
+    expect(click(link())).toBe("se detiene");
+
+    expect(leaveDialogs()).toHaveLength(1);
+    fireEvent.click(screen.getByRole("button", { name: "Salir sin guardar" }));
+    expect(mocks.push).toHaveBeenCalledTimes(1);
+    expect(mocks.push).toHaveBeenCalledWith(HREF);
+  });
+
+  it("dos pantallas con el gancho no preguntan dos veces por el mismo clic", () => {
+    render(<Screen dirty screens={2} />);
+
+    expect(click(navLink("The Way"))).toBe("se detiene");
+
+    expect(leaveDialogs()).toHaveLength(1);
+  });
+
+  it("sigue a `dirty`: pregunta al haber cambios y deja de preguntar al dejar de haberlos", () => {
+    const { rerender } = render(<Screen dirty={false} />);
+
+    rerender(<Screen dirty />);
+    expect(click(navLink("The Way"))).toBe("se detiene");
+    fireEvent.click(screen.getByRole("button", { name: "Seguir editando" }));
+
+    rerender(<Screen dirty={false} />);
+    expect(click(navLink("The Way"))).toBe("navega");
+  });
+
+  it("`release` lo quita al momento, como el aviso de la pestaña", () => {
+    render(<Screen dirty />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Recargar" }));
+
+    expect(click(navLink("The Way"))).toBe("navega");
+    expect(leaveDialogs()).toHaveLength(0);
+  });
+
+  it("al salir de la pantalla ya no pregunta", () => {
+    const { rerender } = render(<Screen dirty />);
+
+    rerender(<Screen dirty screens={0} />);
+
+    expect(click(navLink("The Way"))).toBe("navega");
+  });
+});
+
 describe("LeaveGuardDialog", () => {
   it("pregunta en español, con la salida peligrosa marcada como tal", async () => {
     render(<Harness dirty />);
@@ -260,18 +441,29 @@ describe("useLeaveGuard · cerrar o recargar la pestaña", () => {
         </>
       );
     }
-    render(<Saver />);
+    render(
+      <>
+        <Link href="/c/club-a/way" prefetch={false}>
+          The Way
+        </Link>
+        <Saver />
+      </>,
+    );
     expect(unloadAsks()).toBe(true);
+    expect(click(navLink("The Way"))).toBe("se detiene");
 
-    let askedWhenShown: boolean | null = null;
+    // Ni la pestaña ni un enlace cualquiera de la app: los dos avisos siguen a `dirty` a la vez.
+    let askedWhenShown: { tab: boolean; link: boolean } | null = null;
     const observer = new MutationObserver(() => {
-      if (askedWhenShown === null && screen.queryByText("Guardado")) askedWhenShown = unloadAsks();
+      if (askedWhenShown === null && screen.queryByText("Guardado")) {
+        askedWhenShown = { tab: unloadAsks(), link: click(navLink("The Way")) === "se detiene" };
+      }
     });
     observer.observe(document.body, { childList: true, characterData: true, subtree: true });
     fireEvent.click(screen.getByRole("button", { name: "Guardar" }));
     await screen.findByText("Guardado");
     observer.disconnect();
 
-    expect(askedWhenShown).toBe(false);
+    expect(askedWhenShown).toEqual({ tab: false, link: false });
   });
 });

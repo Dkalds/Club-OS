@@ -375,6 +375,53 @@ test("salir sin guardar", async ({ page }) => {
   await expect(main).toContainText("10 min · 1 ejercicio");
 });
 
+test("salir por la navegación inferior también pregunta", async ({ page }) => {
+  // Review Focus 5: las pestañas quedan justo debajo de «Guardar sesión». Un toque fallido en
+  // una de ellas no puede tirar lo montado sin avisar.
+  test.skip(!CAN_WRITE, NEEDS_LOCAL_DB);
+  const eventId = await newSession(page, sessionTitle());
+  await addBlock(page, A);
+  await save(page);
+  const edit = new RegExp(`${CLUB}/train/${eventId}/edit$`);
+  const tab = page.getByRole("navigation", { name: "Principal" }).getByRole("link", { name: "Partidos" });
+  const dialog = page.getByRole("alertdialog", { name: "¿Salir sin guardar?" });
+  /** La pestaña ya está en pantalla, entera: no se sigue mientras su página aún llega. */
+  const arrived = async () => {
+    await expect(page).toHaveURL(new RegExp(`${CLUB}/games$`));
+    await expect(tab).toHaveAttribute("aria-current", "page");
+    await expect(title(page)).toHaveText("Partidos llega en una próxima fase");
+  };
+
+  await page.getByRole("button", { name: `Más minutos, ${A}` }).click();
+  await expect(rows(page).first()).toContainText("15'");
+
+  // «Seguir editando» se queda en el constructor, con el cambio.
+  await tab.click();
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole("button", { name: "Seguir editando" }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(page).toHaveURL(edit);
+  await expect(rows(page).first()).toContainText("15'");
+  await expect(saveButton(page)).toBeEnabled();
+
+  // «Salir sin guardar» lleva a esa pestaña.
+  await tab.click();
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole("button", { name: "Salir sin guardar" }).click();
+  await arrived();
+
+  // Y el cambio no se guardó.
+  await page.goto(`${CLUB}/train/${eventId}`);
+  await expect(page.getByRole("main").getByText("Total", { exact: true }).locator("..")).toContainText("10'");
+
+  // Sin cambios, las pestañas navegan sin preguntar.
+  await page.goto(`${CLUB}/train/${eventId}/edit`);
+  await hydrated(addButton(page));
+  await tab.click();
+  await arrived();
+  await expect(dialog).toHaveCount(0);
+});
+
 test("editar los datos", async ({ page }) => {
   test.skip(!CAN_WRITE, NEEDS_LOCAL_DB);
   const name = sessionTitle();

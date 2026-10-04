@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import Link from "next/link";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { ACTION_ERROR_COPY, fail, ok } from "@/lib/action-result";
 import type { PracticeDetail, SavedPracticeItem } from "@/modules/practice/types";
@@ -420,6 +421,47 @@ describe("PracticeEditor · una sola copia para los datos y para los ejercicios"
       "club-a",
       expect.objectContaining({ expectedUpdatedAt: UPDATED_AT }),
     );
+  });
+});
+
+describe("PracticeEditor · salir por un enlace que no es el suyo", () => {
+  it("con cambios, un enlace de fuera del editor (la navegación) también pregunta", () => {
+    render(
+      <>
+        <nav aria-label="Principal">
+          <Link href="/c/club-a/way" prefetch={false}>
+            The Way
+          </Link>
+        </nav>
+        <PracticeEditor
+          clubSlug="club-a"
+          practice={practice()}
+          options={{ teams: [{ id: TEAM, name: "Equipo A" }], focusAreas: [{ id: FOCUS, name: "Rebote" }] }}
+          initialValues={VALUES}
+        />
+      </>,
+    );
+    const outside = screen.getByRole("link", { name: "The Way" });
+    const clickOutside = () => {
+      let prevented = false;
+      const cut = (event: Event) => {
+        prevented = event.defaultPrevented;
+        event.preventDefault();
+      };
+      document.addEventListener("click", cut);
+      fireEvent.click(outside);
+      document.removeEventListener("click", cut);
+      return prevented ? "se queda" : "navega";
+    };
+
+    expect(clickOutside()).toBe("navega");
+
+    changeItems();
+    expect(clickOutside()).toBe("se queda");
+    expect(leaveDialog()).toBeInTheDocument();
+
+    click("Salir sin guardar");
+    expect(mocks.push).toHaveBeenCalledWith("/c/club-a/way");
   });
 });
 

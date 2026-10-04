@@ -39,12 +39,12 @@ const LIST_PAGES = {
  *
  * Sin guardar no se pierde nada en silencio: mientras algún campo difiera de la última copia
  * guardada (`dirty`), `useLeaveGuard` pide confirmación al cerrar o recargar la pestaña
- * (`beforeunload`) y los enlaces que sacan del editor («Volver» y «Ir a los valores…»)
- * abren el diálogo «¿Salir sin guardar?» antes de salir. La última copia guardada es la que se
+ * (`beforeunload`) y cualquier enlace que saque del editor abre el diálogo «¿Salir sin
+ * guardar?» antes de salir: «Volver» e «Ir a los valores…», y también los que no son suyos,
+ * como las pestañas de Gestión y «Volver a la app». La última copia guardada es la que se
  * abrió o, tras cada guardado, lo que se mandó. «Recargar», tras una copia obsoleta, no
- * pregunta: quien pulsa ya ha decidido tirar lo suyo, y `release` quita el aviso de la pestaña
- * antes de recargar. La navegación interna por las pestañas de Gestión no se intercepta: App
- * Router no tiene gancho para bloquearla.
+ * pregunta: quien pulsa ya ha decidido tirar lo suyo, y `release` quita los avisos antes de
+ * recargar. Los botones «atrás» y «adelante» del navegador no preguntan (ver `useLeaveGuard`).
  */
 export function SectionEditor({ clubSlug, section }: { clubSlug: string; section: WaySection }) {
   const { pending, failure, run } = useAction();
