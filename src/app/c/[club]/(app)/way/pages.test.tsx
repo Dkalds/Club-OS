@@ -27,6 +27,11 @@ vi.mock("@/modules/methodology/queries", () => ({
   getStandards: mocks.getStandards,
 }));
 vi.mock("@/modules/drills/queries", () => ({ getRelatedDrills: mocks.getRelatedDrills }));
+// El componente de cliente que lleva la página a su ancla no pinta nada: aquí se sustituye por
+// una marca para comprobar que cada página que tiene anclas lo monta. Lo que hace, en su test.
+vi.mock("@/ui/scroll-to-hash", () => ({
+  ScrollToHash: () => <span data-testid="scroll-to-hash" />,
+}));
 // Como el de verdad: `notFound()` corta el render lanzando.
 vi.mock("next/navigation", () => ({
   notFound: () => {
@@ -483,6 +488,42 @@ describe("/way/[section]", () => {
 
     expect(screen.queryByRole("heading", { level: 2, name: "UNO" })).not.toBeInTheDocument();
     expect(screen.queryByRole("heading", { level: 2, name: "PRIMER STANDARD" })).not.toBeInTheDocument();
+  });
+});
+
+// Los destinos de los anclas (`#principle-…`, `#standard-NN`) llegan en el contenido que se
+// transmite tras el `loading.tsx`, cuando el navegador ya ha dejado de buscar el fragmento de la
+// URL: estas páginas montan `ScrollToHash` con ese contenido, no un layout que se monta antes.
+describe("anclas de la URL", () => {
+  it.each([
+    ["una sección de principios", () => view({ section: section({ contentKind: "principles" }), principles: PRINCIPLES })],
+    ["una sección de Standards", () => view({ section: section({ contentKind: "standards" }), standards: STANDARDS })],
+  ])("%s monta ScrollToHash una vez", async (_name, make) => {
+    mocks.getWaySection.mockResolvedValue(make());
+
+    render(await WaySectionPage(SECTION_PARAMS));
+
+    expect(screen.getAllByTestId("scroll-to-hash")).toHaveLength(1);
+  });
+
+  it("la página de los Standards monta ScrollToHash una vez", async () => {
+    render(await WayStandardsPage(PARAMS));
+
+    expect(screen.getAllByTestId("scroll-to-hash")).toHaveLength(1);
+  });
+
+  it("también con la lista vacía: el contenido llega igual", async () => {
+    mocks.getStandards.mockResolvedValue([]);
+
+    render(await WayStandardsPage(PARAMS));
+
+    expect(screen.getAllByTestId("scroll-to-hash")).toHaveLength(1);
+  });
+
+  it("el índice de The Way no tiene destinos de ancla y no lo monta", async () => {
+    render(await WayPage(PARAMS));
+
+    expect(screen.queryByTestId("scroll-to-hash")).not.toBeInTheDocument();
   });
 });
 
