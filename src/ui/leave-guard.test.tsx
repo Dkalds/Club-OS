@@ -181,6 +181,7 @@ function Screen({ dirty, screens = 1 }: { dirty: boolean; screens?: number }) {
         <a href="https://ayuda.example/guia">Ayuda</a>
         <a href="#resumen">Ir al resumen</a>
         <a href="#">Arriba</a>
+        <a href="http://">Enlace roto</a>
         <button type="button">Abrir menú</button>
       </nav>
       {Array.from({ length: screens }, (_, index) => (
@@ -274,6 +275,8 @@ describe("useLeaveGuard · cualquier enlace de la app", () => {
     ["un enlace a otro sitio", "Ayuda"],
     ["un ancla de esta misma página", "Ir al resumen"],
     ["un enlace vacío a esta misma página", "Arriba"],
+    // Lo puede escribir cualquiera en un texto en Markdown: no lleva a ningún sitio, y no rompe nada.
+    ["un enlace con una dirección imposible", "Enlace roto"],
   ])("%s no saca de la pantalla: pasa sin preguntar", (_what, name) => {
     render(<Screen dirty />);
 

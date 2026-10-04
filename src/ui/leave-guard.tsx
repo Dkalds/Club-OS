@@ -19,6 +19,20 @@ function opensElsewhere(event: { ctrlKey: boolean; metaKey: boolean; shiftKey: b
 }
 
 /**
+ * La dirección de un enlace, o `null` si lo que lleva escrito no es una dirección (un enlace mal
+ * puesto en un texto en Markdown): el navegador no va a ningún sitio con él, y aquí no puede
+ * romper el oyente, que dejaría de proteger. Con `try` y no con `URL.canParse`, que los
+ * navegadores de hace un par de años no tienen.
+ */
+function parseUrl(href: string): URL | null {
+  try {
+    return new URL(href);
+  } catch {
+    return null;
+  }
+}
+
+/**
  * A dónde lleva dentro de la app un enlace pulsado, como ruta con su búsqueda y su ancla; `null`
  * si pulsarlo no saca de la pantalla: abre otra pestaña (`target` que no es `_self`), descarga
  * un fichero, va a otro sitio (otro origen, `mailto:`…) o es un ancla de esta misma página.
@@ -31,7 +45,8 @@ function internalDestination(anchor: HTMLAnchorElement): string | null {
   if (anchor.hasAttribute("download")) return null;
 
   // La propiedad `href` ya viene completa, resuelta contra la página.
-  const url = new URL(anchor.href);
+  const url = parseUrl(anchor.href);
+  if (url === null) return null;
   const here = new URL(document.URL);
   if (url.origin !== here.origin) return null;
 
