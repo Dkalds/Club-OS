@@ -8,6 +8,9 @@ import type { GamePrinciple, Standard } from "@/modules/methodology/types";
 import type { ClubContext } from "@/modules/tenancy/queries";
 import {
   DETAIL_COLUMNS,
+  RELATED_COLUMNS,
+  RELATED_PER_PRINCIPLE,
+  RELATED_SCAN_LIMIT,
   SEARCH_LIMIT,
   SUMMARY_COLUMNS,
   toDrillDetail,
@@ -157,6 +160,57 @@ export async function getDrill(ctx: ClubContext, drillId: string): Promise<Drill
   ]);
 
   return toDrillDetail(data, { userId, principlesSectionSlug, diagramUrl });
+}
+
+/**
+ * Los ejercicios publicados del club que trabajan cada uno de estos principios, para el bloque
+ * «Ejercicios relacionados» de The Way: por título, tres como mucho por principio, indexados por
+ * el id del principio. Tiene una entrada por cada id pedido, vacía si no hay ninguno. Sin ids no
+ * consulta nada.
+ *
+ * Es una sola lectura para todos los principios de la sección, no una por principio. Filtra por
+ * club y por `status = 'published'` ella misma: RLS también deja ver a su autor sus borradores y
+ * a dirección todo, y en The Way no sale nada que no esté publicado (tampoco un archivado, que
+ * ya no sale en búsquedas ni relacionados). `drill_principles!inner` deja solo los ejercicios con
+ * alguno de los principios pedidos, y el filtro sobre `drill_principles.principle_id` deja en
+ * cada fila solo esos vínculos: de ahí se reparte cada ejercicio entre sus principios.
+ *
+ * La lectura va ordenada por título (y por id, para desempatar) y con un tope
+ * (`RELATED_SCAN_LIMIT`); el corte a tres por principio se hace aquí, sobre filas ya ordenadas.
+ * El tope solo se notaría en un club con más de mil ejercicios publicados en estos principios,
+ * muy por encima de lo que lista la biblioteca (`SEARCH_LIMIT`).
+ */
+export async function getRelatedDrills(
+  ctx: ClubContext,
+  principleIds: string[],
+): Promise<Record<string, DrillSummary[]>> {
+  const related: Record<string, DrillSummary[]> = Object.fromEntries(
+    principleIds.map((id) => [id, []]),
+  );
+  if (principleIds.length === 0) return related;
+
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from("drills")
+    .select(RELATED_COLUMNS)
+    .eq("organization_id", ctx.org.id)
+    .eq("status", "published")
+    .in("drill_principles.principle_id", principleIds)
+    .order("title", { ascending: true })
+    .order("id", { ascending: true })
+    .limit(RELATED_SCAN_LIMIT);
+  if (error) throwReadError("drills.related", error);
+
+  for (const row of data) {
+    const drill = toDrillSummary(row);
+    for (const { principle_id } of row.drill_principles) {
+      const drills = related[principle_id];
+      if (drills && drills.length < RELATED_PER_PRINCIPLE) drills.push(drill);
+    }
+  }
+
+  return related;
 }
 
 /**

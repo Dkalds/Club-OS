@@ -1,9 +1,8 @@
-import { existsSync, readFileSync } from "node:fs";
-import path from "node:path";
 import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import type { DrillSummary } from "@/modules/drills/types";
 import { DrillCard } from "./drill-card";
+import { clientBoundary } from "./test-support";
 
 // Datos ficticios y neutros: los tests de `src/` no pueden nombrar a ningún club.
 function drill(overrides: Partial<DrillSummary> = {}): DrillSummary {
@@ -173,50 +172,9 @@ describe("DrillCard", () => {
 // Sin `"use client"` en ningún módulo de la fila: `DrillCard` es un componente de servidor y se
 // repite una vez por ejercicio. Si importa (aunque sea de pasada) un módulo de cliente, cada
 // fila se serializa y se hidrata, y el módulo arrastra a la página todo lo suyo (la hoja
-// inferior, Radix...). Se recorren sus importaciones relativas y con `@/`.
-const SRC = path.resolve(import.meta.dirname, "..");
-
-function resolveImport(from: string, spec: string): string | null {
-  const base = spec.startsWith("@/")
-    ? path.join(SRC, spec.slice(2))
-    : spec.startsWith(".")
-      ? path.resolve(path.dirname(from), spec)
-      : null;
-  if (!base) return null; // un paquete (react, next/link...): no es código del proyecto
-
-  const candidates = [
-    `${base}.ts`,
-    `${base}.tsx`,
-    path.join(base, "index.ts"),
-    path.join(base, "index.tsx"),
-  ];
-  return candidates.find((candidate) => existsSync(candidate)) ?? null;
-}
-
-function importGraph(entry: string): string[] {
-  const seen = new Set<string>();
-  const pending = [entry];
-  while (pending.length > 0) {
-    const file = pending.pop() as string;
-    if (seen.has(file)) continue;
-    seen.add(file);
-    const source = readFileSync(file, "utf8");
-    for (const [, spec] of source.matchAll(/(?:from|import)\s+["']([^"']+)["']/g)) {
-      const resolved = resolveImport(file, spec);
-      if (resolved) pending.push(resolved);
-    }
-  }
-
-  return [...seen];
-}
-
-// La directiva es lo primero del archivo, tras algún comentario como mucho.
-const USE_CLIENT = /^\s*(?:\/\/[^\n]*\n\s*|\/\*[\s\S]*?\*\/\s*)*["']use client["']/;
-
+// inferior, Radix...). El recorrido de importaciones es el de `test-support.ts`.
 describe("DrillCard · grafo de importaciones", () => {
-  const graph = importGraph(path.join(SRC, "ui", "drill-card.tsx")).map((file) =>
-    path.relative(SRC, file).replaceAll("\\", "/"),
-  );
+  const { graph, client } = clientBoundary("ui/drill-card.tsx");
 
   it("recorre de verdad sus dependencias", () => {
     expect(graph).toEqual(
@@ -225,10 +183,6 @@ describe("DrillCard · grafo de importaciones", () => {
   });
 
   it("no contiene ningún módulo de cliente", () => {
-    const client = graph.filter((file) =>
-      USE_CLIENT.test(readFileSync(path.join(SRC, file), "utf8")),
-    );
-
     expect(client).toEqual([]);
   });
 });

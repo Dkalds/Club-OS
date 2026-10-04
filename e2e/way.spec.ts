@@ -261,6 +261,13 @@ test("principios y Standards", async ({ page }) => {
   await page.setViewportSize(SHORT_VIEWPORT);
   await page.goto(`${CLUB}/way/standards#standard-03`);
   await expectClearOfHeader(page, page.locator("#standard-03"));
+  // Los principios llegan por streaming tras el `loading.tsx` de la sección (leen también sus
+  // ejercicios relacionados). Cargar la página con el ancla puesta hace que el navegador intente
+  // el salto mientras carga y deje de intentarlo al terminar; si el contenido llega después, no
+  // salta, y que llegue antes depende de lo rápido que responda el servidor. Se salta como lo
+  // hace quien pulsa un enlace dentro de la página: con ella ya pintada.
+  await page.goto(`${CLUB}/way/como-jugamos`);
+  await expect(page.locator("#principle-transicion")).toBeVisible();
   await page.goto(`${CLUB}/way/como-jugamos#principle-transicion`);
   await expectClearOfHeader(page, page.locator("#principle-transicion"));
 });

@@ -1,8 +1,10 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
+import type { DrillSummary } from "@/modules/drills/types";
 import type { ClubValue, GamePrinciple, Standard } from "@/modules/methodology/types";
 import { PrincipleCard } from "./principle-card";
 import { StandardBlock } from "./standard-block";
+import { clientBoundary } from "./test-support";
 import { ValueBlock } from "./value-block";
 
 // Datos neutros: los tests de `src/` no pueden nombrar a ningún club (pnpm check:guards).
@@ -139,6 +141,171 @@ describe("PrincipleCard", () => {
 
     expect(screen.getByRole("heading", { name: "Ataque" })).toBeInTheDocument();
     expectNoEmptyElements(container);
+  });
+});
+
+function drill(n: number, title: string): DrillSummary {
+  return {
+    id: `00000000-0000-4000-8000-00000000000${n}`,
+    title,
+    status: "published",
+    createdBy: null,
+    minAge: 12,
+    maxAge: null,
+    minPlayers: 6,
+    maxPlayers: 12,
+    minMinutes: 10,
+    maxMinutes: 15,
+    focus: [{ slug: "tiro", name: "Tiro" }],
+  };
+}
+
+const LIBRARY = "/c/club-a/drills?principle=ataque";
+
+function related(drills: DrillSummary[]) {
+  return { drills, href: LIBRARY };
+}
+
+/** Los enlaces de ficha (las filas de ejercicio), sin el de «Ver todos». */
+function rows() {
+  return screen.queryAllByRole("link").filter((link) => link.getAttribute("href") !== LIBRARY);
+}
+
+describe("PrincipleCard · ejercicios relacionados", () => {
+  const DRILLS = [drill(1, "Primer ejercicio"), drill(2, "Segundo ejercicio"), drill(3, "Tercer ejercicio")];
+
+  it("sin `related` queda como siempre: ni encabezado, ni filas, ni enlaces, ni aviso", () => {
+    const { container } = render(<PrincipleCard principle={PRINCIPLE} />);
+
+    expect(screen.queryByText("Ejercicios relacionados")).not.toBeInTheDocument();
+    expect(screen.queryByText("Aún no hay ejercicios con este principio.")).not.toBeInTheDocument();
+    expect(screen.queryAllByRole("link")).toHaveLength(0);
+    expect(container.querySelectorAll("h3")).toHaveLength(0);
+    // Sigue siendo lo que era: el título, el resumen y los seis puntos.
+    expect(screen.getByRole("heading", { level: 2, name: "Ataque" })).toBeInTheDocument();
+    expect(container.querySelectorAll("li")).toHaveLength(6);
+  });
+
+  it("con ejercicios, el encabezado es un <h3> bajo el título (<h2>) y tras los puntos", () => {
+    render(<PrincipleCard principle={PRINCIPLE} related={related(DRILLS)} />);
+
+    const title = screen.getByRole("heading", { level: 2, name: "Ataque" });
+    const heading = screen.getByRole("heading", { level: 3, name: "Ejercicios relacionados" });
+    expect(Boolean(title.compareDocumentPosition(heading) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
+    expect(
+      Boolean(screen.getByText("Punto seis").compareDocumentPosition(heading) & Node.DOCUMENT_POSITION_FOLLOWING),
+    ).toBe(true);
+  });
+
+  it("el encabezado va en la misma tarjeta, con el id y el ancla de siempre", () => {
+    const { container } = render(<PrincipleCard principle={PRINCIPLE} related={related(DRILLS)} />);
+
+    const article = container.querySelector("article");
+    expect(article).toHaveAttribute("id", "principle-ataque");
+    expect(article).toHaveClass("anchor-below-header");
+    expect(container.querySelectorAll("article")).toHaveLength(1);
+    expect(article).toContainElement(screen.getByRole("heading", { level: 3 }));
+  });
+
+  it("una fila por ejercicio, con su título y sus metadatos, enlazada a su ficha", () => {
+    render(<PrincipleCard principle={PRINCIPLE} related={related(DRILLS)} />);
+
+    expect(rows().map((link) => [link.textContent, link.getAttribute("href")])).toEqual([
+      ["Primer ejercicioU12+ · 6–12 jug. · 10–15 minTiro", "/c/club-a/drills/00000000-0000-4000-8000-000000000001"],
+      ["Segundo ejercicioU12+ · 6–12 jug. · 10–15 minTiro", "/c/club-a/drills/00000000-0000-4000-8000-000000000002"],
+      ["Tercer ejercicioU12+ · 6–12 jug. · 10–15 minTiro", "/c/club-a/drills/00000000-0000-4000-8000-000000000003"],
+    ]);
+  });
+
+  it("«Ver todos en la biblioteca» lleva al href dado, tras las filas", () => {
+    render(<PrincipleCard principle={PRINCIPLE} related={related(DRILLS)} />);
+
+    const all = screen.getByRole("link", { name: "Ver todos en la biblioteca" });
+    expect(all).toHaveAttribute("href", LIBRARY);
+    expect(Boolean(rows()[2].compareDocumentPosition(all) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
+  });
+
+  it("como mucho tres filas, las tres primeras, aunque lleguen más", () => {
+    const five = [...DRILLS, drill(4, "Cuarto ejercicio"), drill(5, "Quinto ejercicio")];
+
+    render(<PrincipleCard principle={PRINCIPLE} related={related(five)} />);
+
+    expect(rows().map((link) => link.textContent?.replace(/U12.*$/, ""))).toEqual([
+      "Primer ejercicio",
+      "Segundo ejercicio",
+      "Tercer ejercicio",
+    ]);
+    expect(screen.queryByText("Cuarto ejercicio")).not.toBeInTheDocument();
+  });
+
+  it("con uno solo, una fila y el enlace a la biblioteca", () => {
+    render(<PrincipleCard principle={PRINCIPLE} related={related([DRILLS[0]])} />);
+
+    expect(rows()).toHaveLength(1);
+    expect(screen.getByRole("link", { name: "Ver todos en la biblioteca" })).toBeInTheDocument();
+    expect(screen.queryByText("Aún no hay ejercicios con este principio.")).not.toBeInTheDocument();
+  });
+
+  it("la ruta de las fichas es la de la biblioteca, sin su consulta", () => {
+    render(
+      <PrincipleCard
+        principle={PRINCIPLE}
+        related={{ drills: [DRILLS[0]], href: "/c/otro-club/drills?principle=ataque&age=12" }}
+      />,
+    );
+
+    expect(rows()[0]).toHaveAttribute("href", "/c/otro-club/drills/00000000-0000-4000-8000-000000000001");
+  });
+
+  it("sin ejercicios mantiene el encabezado, lo dice y no enlaza a una lista vacía", () => {
+    const { container } = render(<PrincipleCard principle={PRINCIPLE} related={related([])} />);
+
+    expect(screen.getByRole("heading", { level: 3, name: "Ejercicios relacionados" })).toBeInTheDocument();
+    expect(screen.getByText("Aún no hay ejercicios con este principio.")).toBeInTheDocument();
+    expect(screen.queryAllByRole("link")).toHaveLength(0);
+    expect(container.querySelector("svg")).toBeNull();
+  });
+
+  it("el aviso de que no hay ejercicios no deja elementos vacíos", () => {
+    const { container } = render(
+      <PrincipleCard principle={{ ...PRINCIPLE, summary: null, points: [] }} related={related([])} />,
+    );
+
+    expectNoEmptyElements(container);
+  });
+
+  it("la lista sale a los bordes de la tarjeta: las filas no suman su relleno al de la tarjeta", () => {
+    render(<PrincipleCard principle={PRINCIPLE} related={related(DRILLS)} />);
+
+    // Las filas son hijos directos de la lista, que tapa el relleno de la tarjeta (`space-4`)
+    // con un margen negativo igual: el texto de la fila queda alineado con el del principio
+    // y los separadores llegan de borde a borde.
+    const list = rows()[0].parentElement?.parentElement as HTMLElement;
+    expect(list).toHaveClass("-mx-(--space-4)", "border-y", "border-line");
+    expect(list.children).toHaveLength(3);
+    expect(rows().every((link) => link.parentElement?.parentElement === list)).toBe(true);
+  });
+
+  it("el enlace a la biblioteca mide el área táctil mínima", () => {
+    render(<PrincipleCard principle={PRINCIPLE} related={related(DRILLS)} />);
+
+    expect(screen.getByRole("link", { name: "Ver todos en la biblioteca" })).toHaveClass("min-h-(--target-min)");
+  });
+});
+
+// `PrincipleCard` es un componente de servidor y se repite una vez por principio: al sumarle
+// `DrillCard` no puede arrastrar ningún módulo de cliente (la hoja inferior, Radix...).
+describe("PrincipleCard · grafo de importaciones", () => {
+  const { graph, client } = clientBoundary("ui/principle-card.tsx");
+
+  it("recorre de verdad sus dependencias", () => {
+    expect(graph).toEqual(
+      expect.arrayContaining(["ui/principle-card.tsx", "ui/drill-card.tsx", "ui/cta-button.tsx", "ui/card.tsx"]),
+    );
+  });
+
+  it("no contiene ningún módulo de cliente", () => {
+    expect(client).toEqual([]);
   });
 });
 
