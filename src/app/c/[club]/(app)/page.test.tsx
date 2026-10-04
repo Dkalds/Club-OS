@@ -1,0 +1,61 @@
+import { render, screen } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { HomeData } from "@/modules/home/types";
+import { clubContext } from "@/modules/tenancy/test-support";
+
+const mocks = vi.hoisted(() => ({ getClubContext: vi.fn(), getHomeData: vi.fn() }));
+
+vi.mock("@/modules/tenancy/queries", () => ({ getClubContext: mocks.getClubContext }));
+vi.mock("@/modules/home/queries", () => ({ getHomeData: mocks.getHomeData }));
+// Como el de verdad: `notFound()` corta el render lanzando.
+vi.mock("next/navigation", () => ({
+  notFound: () => {
+    throw new Error("NOT_FOUND");
+  },
+}));
+
+import ClubHomePage from "./page";
+
+// Datos neutros: los tests de `src/` no pueden nombrar a ningún club (pnpm check:guards).
+const PARAMS = { params: Promise.resolve({ club: "club-a" }), searchParams: Promise.resolve({}) };
+
+const HOME: HomeData = {
+  greeting: "Buenos días",
+  firstName: "Ana",
+  kicker: null,
+  nextPractice: null,
+  nextGame: null,
+  week: [],
+  hasTeams: false,
+};
+
+beforeEach(() => {
+  vi.resetAllMocks();
+  mocks.getHomeData.mockResolvedValue(HOME);
+});
+
+// La página se protege sola: un layout no protege a sus páginas.
+describe("Inicio del club", () => {
+  it("sin club (no existe o no es el tuyo), el 404, y no lee ningún dato", async () => {
+    mocks.getClubContext.mockResolvedValue(null);
+
+    await expect(ClubHomePage(PARAMS)).rejects.toThrow("NOT_FOUND");
+
+    expect(mocks.getClubContext).toHaveBeenCalledWith("club-a");
+    expect(mocks.getHomeData).not.toHaveBeenCalled();
+  });
+
+  it("con club, pide Inicio para ese contexto y con la hora del servidor, y lo pinta", async () => {
+    const ctx = clubContext("coach");
+    mocks.getClubContext.mockResolvedValue(ctx);
+
+    render(await ClubHomePage(PARAMS));
+
+    expect(screen.getByRole("heading", { level: 1, name: "Buenos días, Ana." })).toBeInTheDocument();
+    expect(mocks.getHomeData).toHaveBeenCalledTimes(1);
+    expect(mocks.getHomeData).toHaveBeenCalledWith(
+      ctx,
+      expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
+    );
+  });
+});

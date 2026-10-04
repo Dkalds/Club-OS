@@ -1,7 +1,6 @@
-import { notFound } from "next/navigation";
 import type { CSSProperties } from "react";
+import { requireClub } from "@/lib/guards";
 import { brandingToCssVars } from "@/modules/tenancy/branding";
-import { getClubContext } from "@/modules/tenancy/queries";
 
 // Depende de la sesión: nunca se prerenderiza ni se comparte entre usuarios.
 export const dynamic = "force-dynamic";
@@ -11,10 +10,10 @@ export const dynamic = "force-dynamic";
  * área lo ponen los layouts de dentro, `(app)/layout.tsx` (la app móvil del entrenador) y
  * `admin/layout.tsx` (Gestión).
  *
- * Si el club no existe o la persona no es miembro, `notFound()`: el mismo 404 en los dos
- * casos, pintado por `src/app/not-found.tsx`, fuera de este marco y sin nada del club.
+ * Si el club no existe o la persona no es miembro, `requireClub` da el 404: el mismo en los
+ * dos casos, pintado por `src/app/not-found.tsx`, fuera de este marco y sin nada del club.
  *
- * Si no se puede saber (Supabase no responde), `getClubContext` lanza y lo recoge
+ * Si no se puede saber (Supabase no responde), la consulta del contexto lanza y lo recoge
  * `src/app/error.tsx`, también fuera de este marco: lo que lanza un layout sube al límite
  * del segmento de arriba, no al `error.tsx` de su carpeta. Es la misma página de error para
  * cualquier club, sea de quien sea. Esta carpeta no tiene `error.tsx` propio: lo que lancen
@@ -29,10 +28,7 @@ export const dynamic = "force-dynamic";
  */
 export default async function ClubLayout({ children, params }: LayoutProps<"/c/[club]">) {
   const { club } = await params;
-  const context = await getClubContext(club);
-  if (!context) notFound();
-
-  const { org, branding } = context;
+  const { org, branding } = await requireClub(club);
 
   return (
     <div
