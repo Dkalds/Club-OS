@@ -295,7 +295,7 @@ Reglas: `mutate` es el de `methodology/actions.ts` movido tal cual, con la etiqu
   export type FocusOption = { id: string; name: string };
   export type PracticeItemDraft = { id?: string; drillId: string | null; title: string; phase: string | null; minutes: number; notes: string | null };
   export type SavedPracticeItem = PracticeItemDraft & { id: string };
-  export type PracticeListItem = { eventId: string; teamName: string; dow: string; day: string; time: string; title: string; totalMinutes: number; itemCount: number; status: PracticeStatus };
+  export type PracticeListItem = { eventId: string; teamName: string; dow: string; day: string; time: string; title: string; totalMinutes: number; itemCount: number; status: PracticeStatus; location: string | null };
   export type PracticeDetail = { eventId: string; planId: string; teamId: string; teamName: string; status: PracticeStatus; startsAt: string; endsAt: string; slotLabel: string; location: string | null; title: string; primaryFocus: FocusOption | null; secondaryFocus: FocusOption | null; notes: string | null; items: SavedPracticeItem[]; standards: Standard[]; updatedAt: string; canEdit: boolean };
   export type PhaseBlock<T> = { phase: string | null; startIndex: number; items: T[]; minutes: number };
   ```
@@ -459,7 +459,7 @@ Pantalla `/train` (la entrada «Biblioteca de ejercicios» que añade la Task 10
 ### Task 13: Nueva sesión y detalle, con duplicar y cancelar
 
 **Files:**
-- Create: `src/app/c/[club]/(app)/train/new/page.tsx`, `[eventId]/page.tsx`, `[eventId]/loading.tsx`, `_components/practice-form.tsx`, `_components/practice-actions.tsx` (+ tests de los dos), `e2e/practice-session.spec.ts`
+- Create: `src/app/c/[club]/(app)/train/new/page.tsx`, `[eventId]/page.tsx`, `[eventId]/loading.tsx`, `[eventId]/error.tsx` («No se pudo cargar la sesión» / «Revisa la conexión y vuelve a intentarlo.»), `_components/practice-form.tsx`, `_components/practice-actions.tsx` (+ tests de los dos), `e2e/practice-session.spec.ts`
 - Modify: `src/ui/form-field.tsx` (+ test), `playwright.config.ts`, `e2e/train.spec.ts`
 
 **Interfaces:**
