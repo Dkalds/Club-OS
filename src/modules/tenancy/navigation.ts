@@ -67,11 +67,14 @@ export function adminNavItems(clubSlug: string, terminology: Terminology): Admin
 
 /**
  * La pestaña a la que pertenece una ruta del club. Cuenta el primer segmento tras
- * `/c/{slug}`, entero: `/c/club/train/…` es Entrenar. Todo lo demás es Inicio.
+ * `/c/{slug}`, entero: `/c/club/train/…` es Entrenar. La biblioteca de ejercicios
+ * (`/c/club/drills/…`) tiene su propio segmento pero vive bajo Entrenar, así que también lo
+ * activa; no es una pestaña y por eso no está en `navItems`. Todo lo demás es Inicio.
  */
 export function activeNavKey(pathname: string, clubSlug: string): NavKey {
   const [, root, club, section] = pathname.split("/");
   if (root !== "c" || club !== clubSlug) return "home";
+  if (section === "drills") return "train";
 
   return isSectionKey(section) ? section : "home";
 }

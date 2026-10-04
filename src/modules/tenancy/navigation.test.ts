@@ -141,10 +141,41 @@ describe("activeNavKey", () => {
     expect(activeNavKey(pathname, SLUG)).toBe(key);
   });
 
+  it("activeNavKey('/c/club-a/drills/abc', 'club-a') === 'train'", () => {
+    expect(activeNavKey("/c/club-a/drills/abc", SLUG)).toBe("train");
+  });
+
+  it.each([
+    "/c/club-a/drills",
+    "/c/club-a/drills/",
+    "/c/club-a/drills/new",
+    "/c/club-a/drills/4b0c6c0e-5d0a-4a57-9f5e-0c3b3f1d2a10",
+    "/c/club-a/drills/4b0c6c0e-5d0a-4a57-9f5e-0c3b3f1d2a10/edit",
+  ])("la biblioteca de ejercicios cuelga de Entrenar: %s → train", (pathname) => {
+    expect(activeNavKey(pathname, SLUG)).toBe("train");
+  });
+
+  it("la biblioteca no es una pestaña: no aparece entre las de la navegación", () => {
+    expect(navItems(SLUG, {}).map((item) => item.href)).not.toContain("/c/club-a/drills");
+  });
+
   it("solo cuenta el segmento entero, no un prefijo", () => {
     expect(activeNavKey("/c/club-a/trainers", SLUG)).toBe("home");
     expect(activeNavKey("/c/club-a/teams", SLUG)).toBe("home");
     expect(activeNavKey("/c/club-a/wayfinder", SLUG)).toBe("home");
+    expect(activeNavKey("/c/club-a/drillsx", SLUG)).toBe("home");
+    expect(activeNavKey("/c/club-a/drill", SLUG)).toBe("home");
+  });
+
+  it("«drills» solo cuenta justo tras el club, no más adentro", () => {
+    expect(activeNavKey("/c/club-a/admin/drills", SLUG)).toBe("home");
+    expect(activeNavKey("/c/club-a/way/drills", SLUG)).toBe("way");
+  });
+
+  it("un segmento con el nombre de una propiedad de Object no se cuela", () => {
+    expect(activeNavKey("/c/club-a/constructor", SLUG)).toBe("home");
+    expect(activeNavKey("/c/club-a/__proto__", SLUG)).toBe("home");
+    expect(activeNavKey("/c/club-a/toString", SLUG)).toBe("home");
   });
 
   it("una sección que no es una pestaña cae en Inicio", () => {
@@ -162,5 +193,10 @@ describe("activeNavKey", () => {
     expect(activeNavKey("/c/club-ab/train", SLUG)).toBe("home");
     expect(activeNavKey("/c/club-a-b/train", SLUG)).toBe("home");
     expect(activeNavKey("/c/club-b/train", SLUG)).toBe("home");
+  });
+
+  it("la biblioteca de otro club no activa Entrenar en este", () => {
+    expect(activeNavKey("/c/club-b/drills", SLUG)).toBe("home");
+    expect(activeNavKey("/c/club-ab/drills/abc", SLUG)).toBe("home");
   });
 });
