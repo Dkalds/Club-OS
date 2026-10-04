@@ -18,8 +18,10 @@ import { FormAlert, TextField } from "@/ui/form-field";
  * «Editar sesión» es el `primary` de la pantalla y lleva al constructor. «Duplicar» (`secondary`)
  * abre un panel, no un diálogo (`aria-expanded`): la fecha y la hora de la copia, que parten de
  * lo que propone la página (la semana siguiente, a la misma hora del club). «Crear copia» es el
- * botón del propio panel y abre el detalle de la copia. `copied` lo mantiene parado desde que sale
- * bien hasta que la página cambia: un segundo toque en ese rato crearía otra copia.
+ * botón del propio panel y abre el detalle de la copia: `secondary` si la sesión se puede editar
+ * (el `primary` de la pantalla es «Editar sesión») y `primary` si no (es entonces lo principal).
+ * `copied` lo mantiene parado desde que sale bien hasta que la página cambia: un segundo toque
+ * en ese rato crearía otra copia.
  *
  * «Cancelar sesión» (`danger`) pregunta antes con `ConfirmDialog`: cancelar saca la sesión de
  * Inicio y de Próximas, y no se deshace desde aquí. El diálogo se queda abierto, con sus botones
@@ -90,7 +92,8 @@ export function PracticeActions({
         variant="secondary"
         block
         aria-expanded={panelOpen}
-        aria-controls={panelId}
+        // Solo mientras el panel está en el documento: un `aria-controls` no apunta a lo que no existe.
+        aria-controls={panelOpen ? panelId : undefined}
         onClick={() => setPanelOpen((open) => !open)}
       >
         Duplicar
@@ -115,7 +118,12 @@ export function PracticeActions({
               onChange={setTime}
               error={copyErrors.time}
             />
-            <CTAButton variant="primary" type="submit" block disabled={duplicating.pending || copied}>
+            <CTAButton
+              variant={canEdit ? "secondary" : "primary"}
+              type="submit"
+              block
+              disabled={duplicating.pending || copied}
+            >
               Crear copia
             </CTAButton>
           </form>

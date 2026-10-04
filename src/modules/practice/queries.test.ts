@@ -26,6 +26,7 @@ type Failure = { name: string; code: string; message: string };
 type Result = { data: Row[] | null; error: Failure | null };
 type Call = {
   table: string;
+  select: string | null;
   eq: Record<string, unknown>;
   in: Record<string, unknown[]>;
   gt: Record<string, string>;
@@ -69,11 +70,12 @@ class FakeQuery implements PromiseLike<Result> {
     private readonly failure: Failure | null,
     calls: Call[],
   ) {
-    this.call = { table, eq: {}, in: {}, gt: {}, or: null, order: [], limit: null };
+    this.call = { table, select: null, eq: {}, in: {}, gt: {}, or: null, order: [], limit: null };
     calls.push(this.call);
   }
 
-  select() {
+  select(columns?: string) {
+    this.call.select = columns ?? null;
     return this;
   }
 
@@ -418,16 +420,36 @@ describe("listPractices", () => {
     expect(teamCount).toBe(2);
   });
 
-  it("una sesión sin plan sale como «Entrenamiento sin plan», con 0 min y 0 ejercicios", async () => {
+  it("una sesión sin plan sale como «Entrenamiento sin plan», con los minutos de su franja y 0 ejercicios", async () => {
     installDatabase(listStore());
 
     const { practices } = await listPractices(COACH, "history", NOW);
 
+    // De 16:00 a 17:15 UTC: 75 min, no 0.
     expect(practices.find((practice) => practice.eventId === "done")).toMatchObject({
       title: "Entrenamiento sin plan",
-      totalMinutes: 0,
+      totalMinutes: 75,
       itemCount: 0,
     });
+  });
+
+  it("un plan sin ítems dura su franja y uno con ítems, lo que suman", async () => {
+    installDatabase({
+      ...teamStore(),
+      events: [
+        eventRow("empty", TEAM_A, "2026-10-06T16:00:00+00:00", "2026-10-06T17:00:00+00:00", {
+          practice_plans: [{ title: "Plan vacío", practice_items: [] }],
+        }),
+        eventRow("filled", TEAM_A, "2026-10-08T16:00:00+00:00", "2026-10-08T17:00:00+00:00"),
+      ],
+    });
+
+    const { practices } = await listPractices(COACH, "upcoming", NOW);
+
+    expect(practices.map((practice) => [practice.eventId, practice.totalMinutes, practice.itemCount])).toEqual([
+      ["empty", 60, 0],
+      ["filled", 45, 2],
+    ]);
   });
 
   it("la dirección ve las de todos los equipos del club, y ninguna de otro club", async () => {
@@ -458,6 +480,16 @@ describe("listPractices", () => {
       day: "6",
       time: "10:00",
     });
+  });
+
+  it("pide el fin de cada sesión: sin él no se puede decir cuánto dura una que aún no tiene ejercicios", async () => {
+    const calls = installDatabase(listStore());
+
+    await listPractices(COACH, "upcoming", NOW);
+
+    const events = calls.find((entry) => entry.table === "events");
+    expect(events?.select).toMatch(/\bstarts_at\b/);
+    expect(events?.select).toMatch(/\bends_at\b/);
   });
 
   it("filtra siempre por club, por tipo y por los equipos gestionables: nunca pregunta por todo el club", async () => {

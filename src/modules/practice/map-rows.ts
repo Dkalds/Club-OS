@@ -1,7 +1,7 @@
 import type { Database } from "@/lib/database.types";
 import { dayChip, formatEventSlot, localTime } from "@/lib/time";
 import type { Standard } from "@/modules/methodology/types";
-import { totalMinutes } from "./items";
+import { sessionMinutes } from "./items";
 import type {
   FocusOption,
   PracticeDetail,
@@ -49,10 +49,12 @@ export const TEAM_COLUMNS = "id, name, seasons!inner(is_current)";
 export const STAFF_TEAM_COLUMNS = "teams!inner(id, name, seasons!inner(is_current))";
 
 /**
- * La lista: el evento con su lugar, el título del plan y los minutos de sus ítems. El nombre
- * del equipo no se pide: sale de los equipos gestionables, que ya se han leído.
+ * La lista: el evento con su franja y su lugar, el título del plan y los minutos de sus ítems.
+ * El fin de la franja se pide para decir cuánto dura una sesión que aún no tiene ejercicios. El
+ * nombre del equipo no se pide: sale de los equipos gestionables, que ya se han leído.
  */
-export const LIST_COLUMNS = "id, team_id, status, starts_at, location, practice_plans(title, practice_items(minutes))";
+export const LIST_COLUMNS =
+  "id, team_id, status, starts_at, ends_at, location, practice_plans(title, practice_items(minutes))";
 
 /**
  * El detalle. Los dos focos del plan apuntan a la misma tabla, y cada uno lleva el nombre de
@@ -105,8 +107,11 @@ export type PracticeDetailRow = Pick<
   practice_plans: Embedded<PracticePlanRow>;
 };
 
-/** Una fila de `events` con el título del plan y los minutos de sus ítems, para la lista. */
-export type PracticeListRow = Pick<Tables["events"]["Row"], "id" | "team_id" | "starts_at" | "location"> & {
+/** Una fila de `events` con su franja, el título del plan y los minutos de sus ítems, para la lista. */
+export type PracticeListRow = Pick<
+  Tables["events"]["Row"],
+  "id" | "team_id" | "starts_at" | "ends_at" | "location"
+> & {
   status: PracticeStatus;
   practice_plans: Embedded<{ title: string; practice_items: Array<{ minutes: number }> | null }>;
 };
@@ -130,7 +135,9 @@ export function toStaffTeamOptions(rows: StaffTeamRow[]): TeamOption[] {
 /**
  * Las filas de la lista, en el orden en que llegan. El día y la hora salen en `timezone` (la
  * del club) y el nombre del equipo, de `teams`. El lugar pasa tal cual: quien pinta decide qué
- * hacer con uno en blanco. Sin plan, o sin ítems, son 0 min y 0 ejercicios.
+ * hacer con uno en blanco. Los minutos son los de los ítems y, sin ítems (con plan vacío o sin
+ * plan), los de la franja del evento: una sesión recién creada dura lo que se programó. Sin plan
+ * ni ítems son 0 ejercicios.
  */
 export function toPracticeListItems(
   rows: PracticeListRow[],
@@ -151,7 +158,7 @@ export function toPracticeListItems(
       day,
       time: localTime(row.starts_at, timezone),
       title: plan?.title ?? NO_PLAN_TITLE,
-      totalMinutes: totalMinutes(items),
+      totalMinutes: sessionMinutes(items, row.starts_at, row.ends_at),
       itemCount: items.length,
       status: row.status,
       location: row.location,

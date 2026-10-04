@@ -259,6 +259,8 @@ describe("toPracticeListItems", () => {
       team_id: "team-a",
       status: "scheduled",
       starts_at: "2026-11-17T17:00:00+00:00",
+      // 75 min de franja, que no son los 60 de los ítems del plan: con ítems manda la suma.
+      ends_at: "2026-11-17T18:15:00+00:00",
       location: "Pabellón 2",
       practice_plans: PLAN,
       ...overrides,
@@ -298,22 +300,47 @@ describe("toPracticeListItems", () => {
     expect(item).toMatchObject({ dow: "Mié", day: "18", time: "00:30" });
   });
 
-  it("sin plan (null, lista vacía o sin ítems) es «Entrenamiento sin plan», con 0 min y 0 ejercicios", () => {
+  it("sin plan (null o lista vacía) es «Entrenamiento sin plan», con los minutos de su franja y 0 ejercicios", () => {
+    const items = toPracticeListItems(
+      [listRow({ id: "a", practice_plans: null }), listRow({ id: "b", practice_plans: [] })],
+      TEAMS,
+      "Europe/Madrid",
+    );
+
+    expect(items.map((item) => [item.title, item.totalMinutes, item.itemCount])).toEqual([
+      ["Entrenamiento sin plan", 75, 0],
+      ["Entrenamiento sin plan", 75, 0],
+    ]);
+  });
+
+  it("un plan sin ítems (null o lista vacía) conserva su título y dura su franja, no 0 min", () => {
     const items = toPracticeListItems(
       [
-        listRow({ id: "a", practice_plans: null }),
-        listRow({ id: "b", practice_plans: [] }),
-        listRow({ id: "c", practice_plans: { title: "Con título", practice_items: null } }),
+        listRow({ id: "a", practice_plans: { title: "Con título", practice_items: null } }),
+        listRow({ id: "b", practice_plans: { title: "Con título", practice_items: [] } }),
+        // Una sesión de una hora: sale con 60 min junto a sus «18:00», no con 0.
+        listRow({
+          id: "c",
+          starts_at: "2026-11-17T17:00:00+00:00",
+          ends_at: "2026-11-17T18:00:00+00:00",
+          practice_plans: { title: "Con título", practice_items: [] },
+        }),
       ],
       TEAMS,
       "Europe/Madrid",
     );
 
     expect(items.map((item) => [item.title, item.totalMinutes, item.itemCount])).toEqual([
-      ["Entrenamiento sin plan", 0, 0],
-      ["Entrenamiento sin plan", 0, 0],
-      ["Con título", 0, 0],
+      ["Con título", 75, 0],
+      ["Con título", 75, 0],
+      ["Con título", 60, 0],
     ]);
+  });
+
+  it("con ítems manda la suma de los ítems, no la franja", () => {
+    const [item] = toPracticeListItems([listRow()], TEAMS, "Europe/Madrid");
+
+    expect(item).toMatchObject({ totalMinutes: 60, itemCount: 3 });
   });
 
   it("lee el plan igual como objeto que como lista de uno", () => {

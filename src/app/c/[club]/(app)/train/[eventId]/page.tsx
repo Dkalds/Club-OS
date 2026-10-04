@@ -4,7 +4,7 @@ import { can } from "@/lib/permissions";
 import { isoToLocalInputs, nextWeeklySlot } from "@/lib/time";
 import { formatStandardNumber } from "@/modules/methodology/format";
 import { minutesLabel } from "@/modules/practice/format";
-import { phaseBlocks, totalMinutes } from "@/modules/practice/items";
+import { phaseBlocks, sessionMinutes, totalMinutes } from "@/modules/practice/items";
 import { getPractice } from "@/modules/practice/queries";
 import { standardsLabel } from "@/modules/tenancy/navigation";
 import { BackLink } from "@/ui/back-link";
@@ -32,7 +32,9 @@ const STANDARDS_SHOWN = 3;
  *
  * Los ejercicios van en bloques de fase seguida (`phaseBlocks`), numerados a lo largo de toda
  * la sesión. La fase ya la dice la cabecera del bloque, así que las filas no la repiten. Una
- * sesión sin ejercicios dice que no los tiene y, si se puede editar, lleva a hacerlo.
+ * sesión sin ejercicios dice que no los tiene; si se puede editar, la salida es el «Editar
+ * sesión» de las acciones, y si no, volver a Entrenar. En la cabecera, una sesión sin ejercicios
+ * dura su franja (`sessionMinutes`), no 0 min.
  *
  * Las acciones (editar, duplicar, cancelar) las ve quien gestiona sesiones; `can` solo muestra u
  * oculta: lo que protege es RLS y cada acción. La fecha que propone «Duplicar» se calcula aquí,
@@ -47,7 +49,9 @@ export default async function PracticePage({ params }: PageProps<"/c/[club]/trai
   if (!practice) notFound();
 
   const trainHref = `/c/${ctx.org.slug}/train`;
-  const minutes = totalMinutes(practice.items);
+  // El total de los ítems es el de la lista; lo que dura la sesión, el de la cabecera, es ese
+  // mismo total y, sin ejercicios, su franja.
+  const itemsMinutes = totalMinutes(practice.items);
   const shownStandards = practice.standards.slice(0, STANDARDS_SHOWN);
   const moreStandards = practice.standards.length - shownStandards.length;
   const notes = practice.notes?.trim();
@@ -56,12 +60,19 @@ export default async function PracticePage({ params }: PageProps<"/c/[club]/trai
     <div className="flex flex-col gap-(--space-6) px-(--space-4) pt-(--space-2)">
       <BackLink href={trainHref} label="Entrenar" />
 
-      <PracticeSummary practice={{ ...practice, totalMinutes: minutes, itemCount: practice.items.length }} />
+      <PracticeSummary
+        practice={{
+          ...practice,
+          totalMinutes: sessionMinutes(practice.items, practice.startsAt, practice.endsAt),
+          itemCount: practice.items.length,
+        }}
+      />
 
       {shownStandards.length > 0 ? (
         <section className="flex flex-col gap-(--space-3)">
           <SectionHeader title={standardsLabel(ctx.branding.terminology)} />
-          <ul className="flex flex-wrap items-center gap-(--space-2)">
+          {/* `role="list"`: sin viñetas, Safari con VoiceOver deja de anunciarla como lista. */}
+          <ul role="list" className="flex flex-wrap items-center gap-(--space-2)">
             {shownStandards.map((standard) => (
               <li key={standard.id} className="max-w-full min-w-0">
                 <StandardBadge
@@ -108,20 +119,21 @@ export default async function PracticePage({ params }: PageProps<"/c/[club]/trai
             </section>
           ))}
           <Card variant="flush">
-            <PracticeTotal minutes={minutes} />
+            <PracticeTotal minutes={itemsMinutes} />
           </Card>
         </div>
       ) : practice.canEdit ? (
+        // Sin acción propia: la salida es el «Editar sesión» de las acciones, que va justo debajo.
+        // Dos «Editar sesión» primary en una misma pantalla romperían «un primario por pantalla».
         <EmptyState
           icon={<TrainIcon size={28} />}
           title="Esta sesión aún no tiene ejercicios"
           body="Añade ejercicios para prepararla."
-          action={{ label: "Editar sesión", href: `${trainHref}/${practice.eventId}/edit` }}
         />
       ) : (
         <EmptyState
           icon={<TrainIcon size={28} />}
-          title="Esta sesión aún no tiene ejercicios"
+          title="Sesión sin ejercicios"
           body="No se añadieron ejercicios a esta sesión."
           action={{ label: "Volver a Entrenar", href: trainHref }}
         />

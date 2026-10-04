@@ -133,6 +133,13 @@ async function createSession(
   await expect(title(page)).toHaveText(session.title);
 }
 
+/**
+ * Las filas de ejercicios del detalle: las de las listas de bloques (`role="list"` explícito de
+ * `Card as="ul"`) que no llevan ningún enlace. La lista de Standards también es un `ul` con
+ * `role="list"`, pero sus filas son enlaces; la de objetivos de la cabecera no lleva el rol.
+ */
+const ITEM_ROWS = 'ul[role="list"]:not(:has(a)) > li';
+
 /** La fila de una sesión en la lista de Entrenar: el enlace que lleva su título. */
 function row(page: Page, sessionName: string) {
   return page.locator(`main a[href^="${CLUB}/train/"]:not([href$="/new"])`).filter({ hasText: sessionName });
@@ -182,14 +189,17 @@ test("crear una sesión", async ({ page }) => {
   const main = page.getByRole("main");
   await expect(main).toContainText("Alevín A");
   await expect(main).toContainText("18:00–19:00");
+  // Sin ejercicios dura su franja (60 min), no 0; y el único «Editar sesión» es el de las acciones.
+  await expect(main.getByText("60 min · Sin ejercicios todavía", { exact: true })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Editar sesión" })).toHaveCount(1);
   await expect(main.getByRole("list", { name: "Objetivos" })).toContainText("Defensa");
   await page.screenshot({ path: "test-results/train-empty-375.png", fullPage: true });
 
-  // Y en Próximas, a su día y sin ejercicios.
+  // Y en Próximas, a su día, con sus 60 min y sin ejercicios.
   await page.goto(`${CLUB}/train`);
   const created = row(page, name);
   await expect(created).toHaveCount(1);
-  await expect(created).toContainText("Sin ejercicios todavía");
+  await expect(created).toContainText("60 min · Sin ejercicios todavía");
   const chip = dayChip(addLocalDays(new Date().toISOString(), 3, TZ), TZ);
   await expect(created).toContainText(`${chip.dow}${chip.day}`);
   await expect(created).toContainText("18:00");
@@ -272,7 +282,7 @@ test("duplicar", async ({ page }) => {
   await expect(page).not.toHaveURL(new RegExp(`${ALEVIN_UPCOMING}$`));
   await expect(title(page)).toHaveText(originalTitle);
   const main = page.getByRole("main");
-  await expect(main.locator('ul[role="list"] > li')).toHaveCount(5);
+  await expect(main.locator(ITEM_ROWS)).toHaveCount(5);
   await expect(main.getByText("Total", { exact: true }).locator("..")).toContainText("75'");
   // Con su día: el de la propuesta, que no es el de la original.
   await expect(main).toContainText("18:00–19:15");
@@ -282,7 +292,7 @@ test("duplicar", async ({ page }) => {
   await page.goto(original);
   await expect(title(page)).toHaveText(originalTitle);
   await expect(main).toContainText(slot);
-  await expect(main.locator('ul[role="list"] > li')).toHaveCount(5);
+  await expect(main.locator(ITEM_ROWS)).toHaveCount(5);
   await expect(main.getByText("Total", { exact: true }).locator("..")).toContainText("75'");
 });
 
@@ -302,7 +312,7 @@ test("cancelar", async ({ page }) => {
   await expect(dialog).toContainText("Dejará de salir en Inicio y en Próximas. Seguirá en el histórico.");
   await dialog.getByRole("button", { name: "Volver" }).click();
   await expect(dialog).toHaveCount(0);
-  await expect(page.getByRole("link", { name: "Editar sesión" }).first()).toBeVisible();
+  await expect(page.getByRole("link", { name: "Editar sesión" })).toBeVisible();
   await expect(page.getByRole("main")).not.toContainText("Cancelada");
   await page.goto(`${CLUB}/train`);
   await expect(row(page, name)).toHaveCount(1);

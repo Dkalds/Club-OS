@@ -139,7 +139,7 @@ describe("buildHome · próximo entrenamiento", () => {
     expect(home.week[0]?.subtitle).toBe("Sin plan");
   });
 
-  it("un plan sin ítems tiene 0 min y 0 ejercicios, con su título", () => {
+  it("un plan sin ítems dura su franja y tiene 0 ejercicios, con su título", () => {
     const home = buildHome(
       input([
         practice("empty", "2026-10-06T16:00:00Z", "2026-10-06T17:15:00Z", {
@@ -150,7 +150,22 @@ describe("buildHome · próximo entrenamiento", () => {
       TZ,
     );
 
-    expect(home.nextPractice).toMatchObject({ title: "Plan vacío", totalMinutes: 0, drillCount: 0 });
+    // De 18:00 a 19:15: 75 min, no 0.
+    expect(home.nextPractice).toMatchObject({ title: "Plan vacío", totalMinutes: 75, drillCount: 0 });
+  });
+
+  it("un plan con ítems dura lo que suman, aunque su franja sea otra", () => {
+    const home = buildHome(
+      input([
+        practice("short", "2026-10-06T16:00:00Z", "2026-10-06T17:00:00Z", {
+          plan: { title: "Plan", focus: [], itemMinutes: [10, 15, 15, 20, 15] },
+        }),
+      ]),
+      NOW,
+      TZ,
+    );
+
+    expect(home.nextPractice).toMatchObject({ totalMinutes: 75, drillCount: 5 });
   });
 
   it("elige el más temprano aunque lleguen desordenados y no toca la entrada", () => {

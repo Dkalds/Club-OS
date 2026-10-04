@@ -137,6 +137,7 @@ describe("/train/new, sin equipos", () => {
     render(await NewPracticePage(props()));
 
     expect(screen.getByRole("heading", { level: 2, name: "Aún no estás en ningún equipo" })).toBeInTheDocument();
+    expect(screen.getByText("Cuando dirección te asigne un equipo, podrás crear sus sesiones.")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Volver a Entrenar" })).toHaveAttribute("href", "/c/club-a/train");
     expect(screen.queryByTestId("form")).not.toBeInTheDocument();
   });

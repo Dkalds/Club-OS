@@ -330,9 +330,10 @@ test.describe("el detalle de una sesión", () => {
     for (const { phase } of items) {
       await expect(main.getByRole("heading", { level: 2, name: phase, exact: true }).first()).toBeVisible();
     }
-    // Las filas son las listas de ejercicios (`role="list"` explícito de `Card as="ul"`), no la de
-    // objetivos de la cabecera ni la de Standards.
-    const rows = main.locator('ul[role="list"] > li');
+    // Las filas son las de las listas de bloques (`role="list"` explícito de `Card as="ul"`) que no
+    // llevan enlaces: la lista de Standards también tiene el rol, pero sus filas son enlaces, y la de
+    // objetivos de la cabecera no lo tiene.
+    const rows = main.locator('ul[role="list"]:not(:has(a)) > li');
     await expect(rows).toHaveCount(items.length);
     for (const [index, item] of items.entries()) {
       const number = String(index + 1).padStart(2, "0");

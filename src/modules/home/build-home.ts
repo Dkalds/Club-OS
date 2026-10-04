@@ -7,6 +7,7 @@ import {
   localTime,
   startOfLocalDay,
 } from "@/lib/time";
+import { sessionMinutes } from "@/modules/practice/items";
 import type { HomeData, HomeEvent, HomeGame, HomeInput, HomePractice, WeekItem } from "./types";
 
 const PRACTICE_WITHOUT_PLAN = "Entrenamiento sin plan";
@@ -30,19 +31,17 @@ function byStart(a: Upcoming, b: Upcoming): number {
   return a.startMs - b.startMs || compareById(a.event.id, b.event.id);
 }
 
-function sum(values: number[]): number {
-  return values.reduce((total, value) => total + value, 0);
-}
-
 function toPractice(item: Upcoming, teamName: string, tz: string): HomePractice {
   const { event } = item;
   const { plan } = event;
+  // Lo que dura es lo que suman sus ítems y, sin ítems (con plan vacío o sin plan), su franja.
+  const items = (plan?.itemMinutes ?? []).map((minutes) => ({ minutes }));
   return {
     eventId: event.id,
     teamName,
     slotLabel: formatEventSlot(event.startsAt, event.endsAt, tz),
     title: plan ? plan.title : PRACTICE_WITHOUT_PLAN,
-    totalMinutes: plan ? sum(plan.itemMinutes) : Math.round((item.endMs - item.startMs) / 60_000),
+    totalMinutes: sessionMinutes(items, event.startsAt, event.endsAt),
     drillCount: plan ? plan.itemMinutes.length : 0,
     focus: plan ? [...plan.focus] : [],
     location: event.location,

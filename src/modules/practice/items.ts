@@ -22,6 +22,22 @@ export function totalMinutes(items: Array<{ minutes: number }>): number {
 }
 
 /**
+ * Lo que dura una sesión, para decirlo en texto («75 min»): lo que suman sus ítems y, si aún no
+ * tiene ninguno, su franja (de `startsAt` a `endsAt`, en minutos enteros). Una sesión recién
+ * creada dura lo que se programó, no 0 min. Los instantes son ISO con zona, y nunca sale un
+ * negativo.
+ */
+export function sessionMinutes(
+  items: Array<{ minutes: number }>,
+  startsAt: string,
+  endsAt: string,
+): number {
+  if (items.length > 0) return totalMinutes(items);
+
+  return Math.max(0, Math.round((Date.parse(endsAt) - Date.parse(startsAt)) / 60_000));
+}
+
+/**
  * Una copia de `items` con el elemento de `from` llevado a la posición `to`; los demás se
  * corren para hacerle sitio. Con índices iguales o que no existen no hay movimiento. No muta
  * la entrada.

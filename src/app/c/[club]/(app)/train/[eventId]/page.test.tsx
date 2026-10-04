@@ -154,6 +154,18 @@ describe("/train/[eventId], cabecera", () => {
     expect(within(screen.getByRole("list", { name: "Objetivos" })).getByText("Rebote")).toBeInTheDocument();
   });
 
+  it("una sesión sin ejercicios dura su franja: de 18:00 a 19:15, 75 min", async () => {
+    await renderPage({ items: [] });
+
+    expect(screen.getByText("75 min · Sin ejercicios todavía · Pabellón 2")).toBeInTheDocument();
+  });
+
+  it("una sesión sin ejercicios de una hora dura 60 min, no 0", async () => {
+    await renderPage({ items: [], startsAt: "2026-10-06T16:00:00.000Z", endsAt: "2026-10-06T17:00:00.000Z" });
+
+    expect(screen.getByText("60 min · Sin ejercicios todavía · Pabellón 2")).toBeInTheDocument();
+  });
+
   it("una sesión cancelada lo dice con su palabra", async () => {
     await renderPage({ status: "cancelled", canEdit: false });
 
@@ -184,6 +196,8 @@ describe("/train/[eventId], Standards", () => {
     await renderPage({ standards: [standard(2), standard(11)] });
 
     const standards = within(section("Standards"));
+    // Lista de verdad también en Safari, que sin viñetas deja de anunciarla como tal.
+    expect(standards.getByRole("list")).toHaveAttribute("role", "list");
     expect(standards.getByRole("link", { name: "02 Standard 2" })).toHaveAttribute(
       "href",
       "/c/club-a/way/standards#standard-02",
@@ -299,38 +313,45 @@ describe("/train/[eventId], ejercicios", () => {
   });
 
   describe("sin ejercicios", () => {
-    it("una sesión que se puede editar lo dice y ofrece ir a editarla", async () => {
+    it("una sesión que se puede editar lo dice, sin acción propia: el «Editar sesión» es el de las acciones", async () => {
       await renderPage({ items: [], canEdit: true });
 
       expect(
         screen.getByRole("heading", { level: 2, name: "Esta sesión aún no tiene ejercicios" }),
       ).toBeInTheDocument();
       expect(screen.getByText("Añade ejercicios para prepararla.")).toBeInTheDocument();
-      const edit = within(screen.getByText("Añade ejercicios para prepararla.").closest("div") as HTMLElement).getByRole(
-        "link",
-        { name: "Editar sesión" },
-      );
-      expect(edit).toHaveAttribute("href", "/c/club-a/train/e-1/edit");
+      // Una pantalla, un solo «Editar sesión» (el primary de `PracticeActions`): el aviso no
+      // lleva otro, ni ningún otro enlace ni botón.
+      const empty = screen.getByText("Añade ejercicios para prepararla.").closest("div") as HTMLElement;
+      expect(within(empty).queryByRole("link")).not.toBeInTheDocument();
+      expect(within(empty).queryByRole("button")).not.toBeInTheDocument();
+      expect(screen.queryByRole("link", { name: "Editar sesión" })).not.toBeInTheDocument();
+      expect(actionsProps()).toMatchObject({ eventId: "e-1", canEdit: true });
       expect(screen.queryByText("Total")).not.toBeInTheDocument();
       expect(itemRows()).toHaveLength(0);
     });
 
-    it("una sesión cerrada dice que no se añadieron, y ofrece volver a Entrenar", async () => {
+    it("una sesión cerrada dice «Sesión sin ejercicios», que no se añadieron, y ofrece volver a Entrenar", async () => {
       await renderPage({ items: [], canEdit: false, status: "done" });
 
+      expect(screen.getByRole("heading", { level: 2, name: "Sesión sin ejercicios" })).toBeInTheDocument();
       expect(screen.getByText("No se añadieron ejercicios a esta sesión.")).toBeInTheDocument();
       expect(screen.queryByText("Añade ejercicios para prepararla.")).not.toBeInTheDocument();
+      expect(screen.queryByText("Esta sesión aún no tiene ejercicios")).not.toBeInTheDocument();
       expect(screen.getByRole("link", { name: "Volver a Entrenar" })).toHaveAttribute("href", "/c/club-a/train");
       expect(screen.queryByRole("link", { name: "Editar sesión" })).not.toBeInTheDocument();
     });
 
-    it("sin permiso para editar, igual: no se ofrece editar", async () => {
+    it("sin permiso para editar, igual: no se ofrece editar y no se pintan las acciones", async () => {
       mocks.getClubContext.mockResolvedValue(clubContext("player"));
 
       await renderPage({ items: [], canEdit: false });
 
+      expect(screen.getByRole("heading", { level: 2, name: "Sesión sin ejercicios" })).toBeInTheDocument();
       expect(screen.getByText("No se añadieron ejercicios a esta sesión.")).toBeInTheDocument();
+      expect(screen.getByRole("link", { name: "Volver a Entrenar" })).toBeInTheDocument();
       expect(screen.queryByRole("link", { name: "Editar sesión" })).not.toBeInTheDocument();
+      expect(screen.queryByTestId("actions")).not.toBeInTheDocument();
     });
   });
 });

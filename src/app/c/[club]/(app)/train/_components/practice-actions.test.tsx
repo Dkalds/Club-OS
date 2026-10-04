@@ -109,12 +109,14 @@ describe("PracticeActions · duplicar", () => {
     renderActions();
 
     expect(duplicateToggle()).toHaveAttribute("aria-expanded", "false");
+    // Nunca apunta a un id que no está en el documento: sin panel, sin `aria-controls`.
+    expect(duplicateToggle()).not.toHaveAttribute("aria-controls");
     expect(screen.queryByLabelText("Fecha")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Hora")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Crear copia" })).not.toBeInTheDocument();
   });
 
-  it("abre «Fecha» y «Hora» con lo que propone la página, y «Crear copia» como primary del panel", () => {
+  it("abre «Fecha» y «Hora» con lo que propone la página, y «Crear copia» es secondary: lo principal es «Editar sesión»", () => {
     renderActions();
 
     openDuplicate();
@@ -126,11 +128,13 @@ describe("PracticeActions · duplicar", () => {
     expect(screen.getByLabelText("Hora")).toHaveValue("18:00");
     const submit = screen.getByRole("button", { name: "Crear copia" });
     expect(submit).toHaveAttribute("type", "submit");
-    expect(submit).toHaveClass("bg-brand-accent", "w-full");
-    // El botón apunta al panel que abre.
-    expect(duplicateToggle().getAttribute("aria-controls")).toBe(
-      screen.getByLabelText("Fecha").closest("form")?.id,
-    );
+    expect(submit).toHaveClass("border-line-strong", "w-full");
+    expect(submit).not.toHaveClass("bg-brand-accent");
+    // El botón apunta al panel que abre, que está en el documento.
+    const panelId = duplicateToggle().getAttribute("aria-controls");
+    expect(panelId).toBeTruthy();
+    expect(screen.getByLabelText("Fecha").closest("form")?.id).toBe(panelId);
+    expect(document.getElementById(panelId as string)).toBeInTheDocument();
     // No es un diálogo: nada tapa el resto de la pantalla.
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
@@ -150,13 +154,24 @@ describe("PracticeActions · duplicar", () => {
     expect(screen.getByLabelText("Fecha")).toHaveValue("2026-10-20");
   });
 
-  it("también se duplica una sesión cerrada, sin poder editar", () => {
+  it("al cerrarlo, el botón deja de apuntar al panel", () => {
+    renderActions();
+
+    openDuplicate();
+    openDuplicate();
+
+    expect(duplicateToggle()).not.toHaveAttribute("aria-controls");
+  });
+
+  it("también se duplica una sesión cerrada, sin poder editar, y entonces «Crear copia» es el primary", () => {
     renderActions({ canEdit: false });
 
     openDuplicate();
 
     expect(screen.getByLabelText("Fecha")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Crear copia" })).toBeInTheDocument();
+    const submit = screen.getByRole("button", { name: "Crear copia" });
+    expect(submit).toHaveClass("bg-brand-accent", "w-full");
+    expect(submit).not.toHaveClass("border-line-strong");
   });
 
   it("«Crear copia» duplica esa sesión en la fecha y la hora elegidas y abre el detalle de la copia", async () => {
