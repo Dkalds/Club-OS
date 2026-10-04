@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   AGE_OPTIONS,
+  MAX_QUERY_LENGTH,
   MINUTE_OPTIONS,
   PLAYER_OPTIONS,
   filterHref,
@@ -98,6 +99,11 @@ describe("parseDrillFilters", () => {
       const parsed = parseDrillFilters({ q: "a".repeat(200) });
 
       expect(parsed.q).toBe("a".repeat(80));
+    });
+
+    it("MAX_QUERY_LENGTH es 80 y es el corte de la búsqueda (lo que una pantalla pasa a maxLength)", () => {
+      expect(MAX_QUERY_LENGTH).toBe(80);
+      expect(parseDrillFilters({ q: "a".repeat(MAX_QUERY_LENGTH + 1) }).q).toBe("a".repeat(MAX_QUERY_LENGTH));
     });
 
     it("exactamente 80 no se toca", () => {
@@ -261,6 +267,12 @@ describe("filterHref", () => {
     expect([...url.searchParams.keys()]).toEqual(["q"]);
     expect(url.searchParams.get("q")).toBe(q);
     expect(parseHref(href)).toEqual({ q });
+  });
+
+  it("el espacio de los lados de una q no sobrevive al viaje de ida y vuelta: se recorta", () => {
+    const href = filterHref(PATH, {}, { q: "rebote " });
+
+    expect(parseHref(href)).toEqual({ q: "rebote" });
   });
 
   it("la q no se come a los demás filtros aunque lleve «&»", () => {

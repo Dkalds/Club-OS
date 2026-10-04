@@ -23,8 +23,12 @@ const AGE_RANGE = { min: 8, max: 18 } as const;
 const PLAYERS_RANGE = { min: 1, max: 40 } as const;
 const MINUTES_RANGE = { min: 1, max: 120 } as const;
 
-/** Lo más largo que se busca. Más allá no es una búsqueda, es una pared de texto. */
-const MAX_QUERY_LENGTH = 80;
+/**
+ * Lo más largo que se busca (en caracteres). Más allá no es una búsqueda, es una pared de
+ * texto. Es el corte de `parseDrillFilters`; el campo de búsqueda de la pantalla lo recibe
+ * como `maxLength`, para que lo que se teclea nunca pase de lo que la URL conserva.
+ */
+export const MAX_QUERY_LENGTH = 80;
 
 /** Un slug: minúsculas y dígitos separados por guiones sueltos («transicion-defensiva»). */
 const SLUG_RE = /^[a-z0-9]+(-[a-z0-9]+)*$/;
@@ -46,11 +50,11 @@ const CONTROL_CHARS_RE = /\p{Cc}/gu;
 
 /**
  * La búsqueda de texto: sin caracteres de control, recortada, ausente si queda vacía y
- * limitada a 80 caracteres. Cada carácter de control se lee como un espacio: `?q=%00` llega
- * como un NUL, que una columna `text` de Postgres no puede guardar, y la búsqueda fallaría
- * con un error de la base de datos en vez de no encontrar nada. El corte cuenta caracteres,
- * no unidades UTF-16: partir un emoji por la mitad dejaría un sustituto suelto con el que
- * `encodeURIComponent` lanza una excepción.
+ * limitada a `MAX_QUERY_LENGTH` (80) caracteres. Cada carácter de control se lee como un
+ * espacio: `?q=%00` llega como un NUL, que una columna `text` de Postgres no puede guardar, y
+ * la búsqueda fallaría con un error de la base de datos en vez de no encontrar nada. El corte
+ * cuenta caracteres, no unidades UTF-16: partir un emoji por la mitad dejaría un sustituto
+ * suelto con el que `encodeURIComponent` lanza una excepción.
  */
 function parseQuery(raw: string | undefined): string | undefined {
   if (raw === undefined) return undefined;
@@ -120,8 +124,9 @@ function isSet(value: string | number | undefined): value is string | number {
  * el mismo orden (`q, focus, principle, age, players, minutes`), con los valores codificados,
  * y sin filtros queda la ruta a secas, sin «?».
  *
- * `pathname` es la ruta sin query. Un `q` con espacios, «&» o tildes sobrevive al viaje de
- * ida y vuelta por `parseDrillFilters`.
+ * `pathname` es la ruta sin query. Un `q` con espacios interiores, «&» o tildes sobrevive al
+ * viaje de ida y vuelta por `parseDrillFilters`, salvo los espacios de los lados: el lector los
+ * recorta (`q: "rebote "` vuelve como `"rebote"`), y corta lo que pase de `MAX_QUERY_LENGTH`.
  */
 export function filterHref(
   pathname: string,

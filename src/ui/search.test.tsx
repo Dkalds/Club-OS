@@ -90,15 +90,70 @@ describe("Search", () => {
     expect(onSearch).toHaveBeenCalledWith("outl");
   });
 
-  it("no manda espacios de más: busca el texto tal cual lo escribe quien busca", () => {
+  it("no manda los espacios de los lados: envía el texto recortado, y el campo conserva lo escrito", () => {
     const onSearch = vi.fn();
     render(<Search placeholder="Buscar ejercicios…" onSearch={onSearch} />);
 
     type("  outl ");
     act(() => vi.advanceTimersByTime(250));
 
-    // Recortar y normalizar es cosa de quien interpreta la búsqueda (`parseDrillFilters`).
-    expect(onSearch).toHaveBeenCalledWith("  outl ");
+    expect(onSearch).toHaveBeenCalledTimes(1);
+    expect(onSearch).toHaveBeenCalledWith("outl");
+    // Quien teclea no ve cómo se le recorta lo que escribe.
+    expect(field()).toHaveValue("  outl ");
+  });
+
+  it("un texto de solo espacios no es una búsqueda", () => {
+    const onSearch = vi.fn();
+    render(<Search placeholder="Buscar ejercicios…" onSearch={onSearch} />);
+
+    type("   ");
+    act(() => vi.advanceTimersByTime(1000));
+
+    expect(onSearch).not.toHaveBeenCalled();
+  });
+
+  it("un defaultValue con espacios a los lados no busca al montarse ni al teclear lo mismo", () => {
+    const onSearch = vi.fn();
+    render(<Search placeholder="Buscar ejercicios…" defaultValue=" outlet " onSearch={onSearch} />);
+    act(() => vi.advanceTimersByTime(1000));
+    expect(onSearch).not.toHaveBeenCalled();
+
+    type("outlet");
+    act(() => vi.advanceTimersByTime(1000));
+
+    expect(onSearch).not.toHaveBeenCalled();
+  });
+
+  it("Intro con espacios a los lados busca el texto recortado", () => {
+    const onSearch = vi.fn();
+    render(<Search placeholder="Buscar ejercicios…" onSearch={onSearch} />);
+
+    type("  outl ");
+    fireEvent.keyDown(field(), { key: "Enter" });
+
+    expect(onSearch.mock.calls).toEqual([["outl"]]);
+  });
+
+  it("un espacio detrás de una palabra ya buscada no busca ni toca el campo", () => {
+    const onSearch = vi.fn();
+    render(<Search placeholder="Buscar ejercicios…" defaultValue="rebote" onSearch={onSearch} />);
+
+    type("rebote ");
+    act(() => vi.advanceTimersByTime(1000));
+
+    expect(onSearch).not.toHaveBeenCalled();
+    expect(field()).toHaveValue("rebote ");
+  });
+
+  it("maxLength llega al campo, y sin él no lo limita", () => {
+    const { rerender } = render(
+      <Search placeholder="Buscar ejercicios…" maxLength={80} onSearch={() => {}} />,
+    );
+    expect(field()).toHaveAttribute("maxlength", "80");
+
+    rerender(<Search placeholder="Buscar ejercicios…" onSearch={() => {}} />);
+    expect(field()).not.toHaveAttribute("maxlength");
   });
 
   it("Intro busca al momento, sin esperar, y solo una vez", () => {
@@ -360,5 +415,64 @@ describe("Search · sigue a defaultValue", () => {
     expect(field()).toHaveValue("outlets");
     act(() => vi.advanceTimersByTime(250));
     expect(onSearch.mock.calls).toEqual([["outlets"]]);
+  });
+});
+
+// El contrato con la página: el campo manda su texto recortado y la URL lo devuelve tal cual lo
+// parsea la página (`parseQuery` recorta, y nada más: en `maxLength` no cambia lo que se manda).
+// El eco de lo enviado es entonces idéntico, byte a byte, a lo que el campo guardó como enviado.
+describe("Search · el eco de la URL con el texto recortado", () => {
+  it("«rebote » se busca como «rebote»; su eco no pisa el espacio ni el foco, y se sigue escribiendo", () => {
+    const onSearch = vi.fn();
+    const { rerender } = render(<Search placeholder="Buscar ejercicios…" onSearch={onSearch} />);
+    act(() => field().focus());
+    type("rebote ");
+    act(() => vi.advanceTimersByTime(250));
+    expect(onSearch.mock.calls).toEqual([["rebote"]]);
+
+    // La URL vuelve con la búsqueda ya recortada.
+    rerender(<Search placeholder="Buscar ejercicios…" defaultValue="rebote" onSearch={onSearch} />);
+
+    expect(field()).toHaveValue("rebote ");
+    expect(field()).toHaveFocus();
+    act(() => vi.advanceTimersByTime(1000));
+    expect(onSearch).toHaveBeenCalledTimes(1);
+
+    // Quien busca sigue: «rebote o», no «reboteo».
+    type("rebote o");
+    expect(field()).toHaveValue("rebote o");
+    act(() => vi.advanceTimersByTime(250));
+    expect(onSearch.mock.calls).toEqual([["rebote"], ["rebote o"]]);
+  });
+
+  it("lo que se teclea mientras llega el eco recortado se conserva", () => {
+    const onSearch = vi.fn();
+    const { rerender } = render(<Search placeholder="Buscar ejercicios…" onSearch={onSearch} />);
+    type("rebote ");
+    act(() => vi.advanceTimersByTime(250));
+
+    type("rebote p");
+    rerender(<Search placeholder="Buscar ejercicios…" defaultValue="rebote" onSearch={onSearch} />);
+
+    expect(field()).toHaveValue("rebote p");
+    act(() => vi.advanceTimersByTime(250));
+    expect(onSearch.mock.calls).toEqual([["rebote"], ["rebote p"]]);
+  });
+
+  it("un valor de fuera con espacios a los lados se muestra y se da por buscado, recortado", () => {
+    const onSearch = vi.fn();
+    const { rerender } = render(
+      <Search placeholder="Buscar ejercicios…" defaultValue="outlet" onSearch={onSearch} />,
+    );
+
+    rerender(<Search placeholder="Buscar ejercicios…" defaultValue=" pase " onSearch={onSearch} />);
+    act(() => vi.advanceTimersByTime(1000));
+    expect(field()).toHaveValue(" pase ");
+    expect(onSearch).not.toHaveBeenCalled();
+
+    // Escribir lo mismo, con o sin los espacios, no es una búsqueda nueva.
+    type("pase");
+    act(() => vi.advanceTimersByTime(1000));
+    expect(onSearch).not.toHaveBeenCalled();
   });
 });
