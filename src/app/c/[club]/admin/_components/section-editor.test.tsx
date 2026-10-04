@@ -523,6 +523,30 @@ describe("SectionEditor · cambios sin guardar", () => {
     expect(leaveDialog()).not.toBeInTheDocument();
   });
 
+  // El resultado de guardar se pinta en una transición, y los efectos de esa pintura corren en
+  // un turno posterior. `findByText` resuelve en cuanto el texto entra en el documento, y el test
+  // de arriba, que mira el aviso después, depende de quién llegue antes (el turno de React o el
+  // temporizador de Testing Library; bajo carga, a veces el segundo). Aquí se mira en el mismo
+  // instante en que aparece «Cambios guardados.»: ya no hay aviso en la pestaña y «Volver» no pregunta.
+  it("al aparecer «Cambios guardados.», el aviso de la pestaña ya está quitado y «Volver» no pregunta", async () => {
+    renderEditor();
+    fireEvent.change(body(), { target: { value: "Texto nuevo." } });
+    expect(unloadAsks()).toBe(true);
+
+    let seen: { tabAsks: boolean; backAsks: boolean } | null = null;
+    const observer = new MutationObserver(() => {
+      if (seen === null && screen.queryByText("Cambios guardados.")) {
+        seen = { tabAsks: unloadAsks(), backAsks: clickLink() === "se queda" };
+      }
+    });
+    observer.observe(document.body, { childList: true, characterData: true, subtree: true });
+    save();
+    await screen.findByText("Cambios guardados.");
+    observer.disconnect();
+
+    expect(seen).toEqual({ tabAsks: false, backAsks: false });
+  });
+
   it("lo guardado es la nueva copia: escribir otra vez después de guardar vuelve a avisar", async () => {
     renderEditor();
     fireEvent.change(body(), { target: { value: "Primera versión." } });

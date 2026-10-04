@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { useState, useTransition } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({ push: vi.fn() }));
@@ -227,5 +228,50 @@ describe("useLeaveGuard · cerrar o recargar la pestaña", () => {
 
     first.unmount();
     expect(unloadAsks()).toBe(false);
+  });
+
+  // `dirty` suele dejar de serlo al llegar el resultado de guardar, que se aplica en una
+  // transición: una pintura que no es urgente y cuyos efectos pasivos React corre en un turno
+  // posterior. Un efecto pasivo dejaría el aviso puesto un instante después de enseñar lo
+  // guardado (el navegador preguntaría al cerrar la pestaña sin nada pendiente, y un test que
+  // mirase en cuanto aparece el texto, según la carga, lo vería puesto). El aviso sigue a
+  // `dirty` en la misma pintura. Se mira en el instante en que el texto entra en el documento:
+  // un MutationObserver corre justo después de esa pintura y antes de cualquier otro turno.
+  it("al quitarse `dirty` en una transición, el aviso se quita en la misma pintura", async () => {
+    function Saver() {
+      const [dirty, setDirty] = useState(true);
+      const [, startTransition] = useTransition();
+      useLeaveGuard(dirty);
+
+      function save() {
+        // Como `useAction`: la espera es una transición y el resultado, otra, tras un await.
+        startTransition(async () => {
+          await Promise.resolve();
+          startTransition(() => setDirty(false));
+        });
+      }
+
+      return (
+        <>
+          <p>{dirty ? "Sin guardar" : "Guardado"}</p>
+          <button type="button" onClick={save}>
+            Guardar
+          </button>
+        </>
+      );
+    }
+    render(<Saver />);
+    expect(unloadAsks()).toBe(true);
+
+    let askedWhenShown: boolean | null = null;
+    const observer = new MutationObserver(() => {
+      if (askedWhenShown === null && screen.queryByText("Guardado")) askedWhenShown = unloadAsks();
+    });
+    observer.observe(document.body, { childList: true, characterData: true, subtree: true });
+    fireEvent.click(screen.getByRole("button", { name: "Guardar" }));
+    await screen.findByText("Guardado");
+    observer.disconnect();
+
+    expect(askedWhenShown).toBe(false);
   });
 });

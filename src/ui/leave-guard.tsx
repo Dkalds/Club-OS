@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useState, type MouseEvent } from "react";
+import { useCallback, useLayoutEffect, useState, type MouseEvent } from "react";
 import { ConfirmDialog } from "./confirm-dialog";
 
 /**
@@ -48,7 +48,13 @@ export function useLeaveGuard(dirty: boolean): {
     event.returnValue = "";
   }, []);
 
-  useEffect(() => {
+  // Un efecto de layout y no uno pasivo: corre dentro de la misma pintura que cambia `dirty`.
+  // `dirty` deja de serlo al llegar el resultado de guardar, que React pinta en una transición,
+  // y los efectos pasivos de una transición corren en un turno posterior: durante ese rato la
+  // pantalla diría «Cambios guardados.» y el navegador aún preguntaría al cerrar la pestaña.
+  // (Los enlaces no tienen ese desfase: `guard` lee el `dirty` de la última pintura.) Añadir y
+  // quitar un oyente es instantáneo, no retrasa nada.
+  useLayoutEffect(() => {
     if (!dirty) return;
     window.addEventListener("beforeunload", warnBeforeUnload);
     return () => window.removeEventListener("beforeunload", warnBeforeUnload);
