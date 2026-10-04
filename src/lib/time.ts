@@ -1,4 +1,4 @@
-import { TZDate } from "@date-fns/tz";
+import { TZDate, tzOffset } from "@date-fns/tz";
 
 // Todo lo que sale de aquí se calcula en la zona que se le pasa (`organizations.timezone`),
 // nunca en la del dispositivo ni en la del servidor (regla 7). Los nombres de días y meses
@@ -110,19 +110,24 @@ export function addLocalDays(iso: string, days: number, tz: string): string {
 
 const DATE_INPUT = /^(\d{4})-(\d{2})-(\d{2})$/;
 const TIME_INPUT = /^(\d{2}):(\d{2})$/;
+const MINUTE_MS = 60 * 1000;
+const DAY_MS = 24 * 60 * MINUTE_MS;
 /** Solo para estimar por dónde empezar a contar semanas; las candidatas son de calendario. */
-const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+const WEEK_MS = 7 * DAY_MS;
 
 /**
  * El día `date` (`YYYY-MM-DD`) a la hora `time` (`HH:mm`) del reloj de `tz`, como ISO en UTC.
  *
  * Con el cambio de hora no toda hora de pared corresponde a un único instante. Una que no
  * existe (02:30 el día que se pasa de las 02:00 a las 03:00) se adelanta lo que dura el hueco
- * y queda en las 03:30, que es lo que hace `Date`; una que se repite (02:30 cuando se vuelve
- * de las 03:00 a las 02:00) es la primera de las dos. Lo que no se admite es un día que no
- * existe (30 de febrero): el calendario lo llevaría al 2 de marzo y se guardaría otro día
- * del que se escribió. Por eso se comprueba que el día construido sea el pedido; la hora no,
- * porque en el hueco cambia a propósito.
+ * y queda en las 03:30; una que se repite (02:30 cuando se vuelve de las 03:00 a las 02:00)
+ * es la primera de las dos. Lo que no se admite es un día que no existe (30 de febrero): el
+ * calendario lo llevaría al 2 de marzo y se guardaría otro día del que se escribió.
+ *
+ * El instante se calcula con los desfases de `tz`, sin construir la fecha por sus campos: ese
+ * constructor (el de `Date` y el de `TZDate`) pasa por la zona del servidor, y con la hora
+ * que se repite daba la primera ocurrencia en una máquina en Madrid y la segunda en una en
+ * UTC (regla 7).
  */
 export function zonedDateTimeToIso(date: string, time: string, tz: string): string {
   const dateParts = DATE_INPUT.exec(date);
@@ -131,15 +136,30 @@ export function zonedDateTimeToIso(date: string, time: string, tz: string): stri
 
   const [year, month, day] = dateParts.slice(1).map(Number);
   const [hours, minutes] = timeParts.slice(1).map(Number);
-  // `TZDate` desborda en vez de fallar: las 25:00 serían la 01:00 del día siguiente.
+  // `Date.UTC` desborda en vez de fallar: las 25:00 serían la 01:00 del día siguiente.
   if (hours > 23 || minutes > 59) throw new RangeError("Fecha u hora no válidas");
 
-  const built = new TZDate(year, month - 1, day, hours, minutes, 0, 0, tz);
-  // Una zona que no existe da `NaN`, que tampoco coincide con ningún año.
-  if (built.getFullYear() !== year || built.getMonth() !== month - 1 || built.getDate() !== day) {
+  // El reloj de pared leído como si fuera UTC: el instante es ese menos el desfase de `tz`.
+  const wall = Date.UTC(year, month - 1, day, hours, minutes);
+  const asUtc = new Date(wall);
+  if (asUtc.getUTCFullYear() !== year || asUtc.getUTCMonth() !== month - 1 || asUtc.getUTCDate() !== day) {
     throw new RangeError("Fecha u hora no válidas");
   }
-  return toIso(built);
+
+  // Los desfases que `tz` puede tener a esa hora: el de un día antes y el de un día después.
+  // Solo difieren si hay un cambio de hora por medio. Una zona que no existe da `NaN`.
+  const before = tzOffset(tz, new Date(wall - DAY_MS));
+  const after = tzOffset(tz, new Date(wall + DAY_MS));
+  if (Number.isNaN(before) || Number.isNaN(after)) throw new RangeError("Fecha u hora no válidas");
+
+  // Vale el instante en el que `tz` tiene de verdad el desfase con el que se calculó. La hora
+  // que se repite da dos y se toma el primero; la que no existe no da ninguno y se lee con el
+  // desfase de antes del cambio, que es adelantarla lo que dura el hueco.
+  const instants = [before, after]
+    .map((offset) => wall - offset * MINUTE_MS)
+    .filter((instant) => tzOffset(tz, new Date(instant)) * MINUTE_MS === wall - instant);
+  const instant = instants.length > 0 ? Math.min(...instants) : wall - before * MINUTE_MS;
+  return new Date(instant).toISOString();
 }
 
 /**

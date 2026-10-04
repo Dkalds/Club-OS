@@ -539,6 +539,8 @@ describe("independencia de la zona del dispositivo (regla 7)", () => {
       expect(addLocalDays("2026-10-22T22:00:00Z", 7, MADRID)).toBe("2026-10-29T23:00:00.000Z");
       expect(zonedDateTimeToIso("2026-11-17", "18:00", MADRID)).toBe("2026-11-17T17:00:00.000Z");
       expect(zonedDateTimeToIso("2026-03-29", "02:30", MADRID)).toBe("2026-03-29T01:30:00.000Z");
+      // La hora que se repite: con el servidor en UTC salía la segunda ocurrencia.
+      expect(zonedDateTimeToIso("2026-10-25", "02:30", MADRID)).toBe("2026-10-25T00:30:00.000Z");
       expect(isoToLocalInputs("2026-11-17T17:00:00.000Z", MADRID)).toEqual({
         date: "2026-11-17",
         time: "18:00",
