@@ -19,7 +19,7 @@ const target = readE2eTarget(process.env);
 // de empezar, lo que una ejecución abortada dejara en la metodología y en los ejercicios (`restoreSeed`). Sin eso,
 // una ejecución de `admin` matada a medias haría fallar a `mobile`, y `admin` (que no corre si
 // `mobile` falla) no volvería a limpiar nunca.
-const ADMIN_SPECS = [/admin\.spec\.ts/, /drill-detail\.spec\.ts/];
+const ADMIN_SPECS = [/admin\.spec\.ts/, /drill-detail\.spec\.ts/, /drill-editor\.spec\.ts/];
 
 // La pantalla de referencia del móvil.
 const MOBILE_VIEWPORT = { width: 375, height: 812 };

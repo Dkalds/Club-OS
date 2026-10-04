@@ -27,10 +27,13 @@ export type FilterProps = {
 // el botón es el área (`target-min`) y la píldora de dentro es lo que se ve. El estado sale
 // de `aria-pressed` del botón, que es el `group` de la píldora. El anillo de foco va por
 // dentro de la píldora: la fila se desplaza en horizontal, y eso recorta lo que sobresale.
+// `max-w-full`: en una fila que se desplaza no cambia nada, pero un chip en un grupo que pasa a
+// otra línea (un formulario) no puede ser más ancho que la pantalla; su texto, si es largo, se
+// trunca con `truncate` en quien lo monta.
 const CHIP_BUTTON =
-  "group inline-flex min-h-(--target-min) shrink-0 cursor-pointer items-center focus-visible:outline-hidden";
+  "group inline-flex min-h-(--target-min) max-w-full shrink-0 cursor-pointer items-center focus-visible:outline-hidden";
 const CHIP_PILL =
-  "inline-flex h-9 items-center gap-(--space-1) rounded-pill border border-line bg-surface-2 px-(--space-3) " +
+  "inline-flex h-9 max-w-full items-center gap-(--space-1) rounded-pill border border-line bg-surface-2 px-(--space-3) " +
   "text-body-s font-semibold whitespace-nowrap text-ink-2 " +
   "group-aria-pressed:border-brand-accent group-aria-pressed:bg-brand-accent-soft group-aria-pressed:text-brand-accent " +
   "group-focus-visible:outline-2 group-focus-visible:-outline-offset-2 group-focus-visible:outline-focus-ring";

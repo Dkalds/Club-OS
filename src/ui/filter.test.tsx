@@ -448,6 +448,20 @@ describe("Chip", () => {
     expect(chip).toHaveClass("min-h-(--target-min)");
     expect(chip.firstElementChild).toHaveClass("h-9", "rounded-pill");
   });
+
+  it("nunca es más ancho que lo que lo contiene: un texto largo se trunca en vez de ensanchar la pantalla", () => {
+    render(
+      <Chip pressed={false} onClick={() => {}}>
+        <span className="truncate">Un texto larguísimo</span>
+      </Chip>,
+    );
+
+    // En una fila que se desplaza no importa; en un grupo que pasa a otra línea (un formulario)
+    // un chip más ancho que la pantalla la desbordaría.
+    const chip = screen.getByRole("button", { name: "Un texto larguísimo" });
+    expect(chip).toHaveClass("max-w-full");
+    expect(chip.firstElementChild).toHaveClass("max-w-full");
+  });
 });
 
 describe("FilterSheetChip", () => {
