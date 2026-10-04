@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { requireAdmin, requireClub } from "@/lib/guards";
+import { adminPage } from "@/lib/guards";
 import { getSectionForAdmin } from "@/modules/methodology/admin-queries";
 import { SectionEditor } from "../../_components/section-editor";
 
@@ -10,13 +10,7 @@ import { SectionEditor } from "../../_components/section-editor";
  *
  * El formulario es de cliente y se queda con lo que trae esta página al abrirla.
  */
-export default async function AdminWaySectionPage({
-  params,
-}: PageProps<"/c/[club]/admin/way/[sectionId]">) {
-  const { club, sectionId } = await params;
-  const ctx = await requireClub(club);
-  requireAdmin(ctx);
-
+export default adminPage<{ club: string; sectionId: string }>(async (ctx, { sectionId }) => {
   const section = await getSectionForAdmin(ctx, sectionId);
   if (!section) notFound();
 
@@ -26,4 +20,4 @@ export default async function AdminWaySectionPage({
       <SectionEditor clubSlug={ctx.org.slug} section={section} />
     </>
   );
-}
+});

@@ -41,9 +41,11 @@ check_absent "src/ menciona a un club (Arcángel / c9a45c / Club Demo / 3fb8af)"
 # Regla 2: la clave de servicio nunca entra en src/.
 check_absent "src/ menciona SERVICE_ROLE" -rn 'SERVICE_ROLE'
 
-# Gestión: cada página de /admin llama ella misma a `requireClub(` y a `requireAdmin(`. Un
-# layout no protege a sus páginas (Next puede pintar una página sin volver a ejecutar su
-# layout), así que la comprobación del layout no basta. La ruta lleva corchetes y paréntesis:
+# Gestión: el export por defecto de cada página de /admin es `adminPage(...)` (src/lib/guards.ts),
+# que comprueba el club y el permiso antes de ejecutar nada de la página. Un layout no protege
+# a sus páginas (Next puede pintar una página sin volver a ejecutar su layout), así que la
+# comprobación del layout no basta. Se mira la línea entera, desde su principio: mencionar
+# `adminPage(` en un comentario, o llamarlo sin exportarlo, no cuenta. La ruta lleva corchetes:
 # va entre comillas.
 #
 # Un guard que no encuentra qué comprobar no protege nada y pasaría: sin la carpeta (la han
@@ -58,15 +60,14 @@ elif [ -z "$(find "$admin_dir" -type f -name 'page.[jt]s*')" ]; then
   echo
   fail=1
 else
-  for call in 'requireClub(' 'requireAdmin('; do
-    unguarded="$(find "$admin_dir" -type f -name 'page.[jt]s*' -exec grep -LF "$call" {} + || true)"
-    if [ -n "$unguarded" ]; then
-      echo "FALLO: páginas de Gestión sin $call (regla: cada page.tsx de /admin llama a requireClub( y a requireAdmin( ella misma)"
-      echo "$unguarded"
-      echo
-      fail=1
-    fi
-  done
+  # `[(<]`: con o sin los parámetros de la ruta declarados (`adminPage<{ ... }>(`).
+  unguarded="$(find "$admin_dir" -type f -name 'page.[jt]s*' -exec grep -L '^export default adminPage[(<]' {} + || true)"
+  if [ -n "$unguarded" ]; then
+    echo "FALLO: páginas de Gestión que no exportan por defecto adminPage( (regla: cada page.tsx de /admin es \`export default adminPage(async (ctx, params) => ...)\`, que comprueba el club y el permiso antes de ejecutar la página)"
+    echo "$unguarded"
+    echo
+    fail=1
+  fi
 fi
 
 # Tokens generados desde design/tokens.json. Se activa cuando existe el generador.
