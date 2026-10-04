@@ -12,7 +12,8 @@
 --      solo lectura para los usuarios.
 --   4. Ni los eventos ni los planes se borran: no hay `grant delete` ni política que lo abra.
 --      Los ítems sí, porque guardar un plan es dejar su lista tal como llega.
---   5. Una fila no cambia de club, de equipo, de tipo, de evento, de plan ni de autor.
+--   5. Una fila no cambia de club, de equipo, de tipo, de evento, de plan ni de autor, y quién
+--      guardó un plan por última vez lo anota un trigger, no quien guarda.
 --
 -- Son dos capas, y cada una cierra lo que la otra no puede. Las políticas deciden sobre qué
 -- filas se escribe. Los privilegios, que aquí son siempre por columna, deciden qué se puede
@@ -71,7 +72,7 @@ grant execute on function private.can_edit_plan(uuid) to authenticated;
 -- Al crear no se eligen el `id`, el estado ni el autor, que salen de sus valores por defecto:
 -- un evento nace `scheduled`, y un plan nace `draft`, de tipo `practice` y a nombre de quien lo
 -- crea (`created_by` y `updated_by`). Al cambiar no se tocan el club, el equipo, el tipo, el
--- evento, el plan ni el autor.
+-- evento, el plan, el autor ni quién guardó por última vez.
 
 -- De un evento se cambian las horas, el lugar y el estado (cerrarlo: `done` o `cancelled`).
 grant insert (organization_id, team_id, kind, starts_at, ends_at, location)
@@ -79,13 +80,13 @@ grant insert (organization_id, team_id, kind, starts_at, ends_at, location)
 grant update (starts_at, ends_at, location, status)
   on table public.events to authenticated;
 
--- `updated_by` lo escriben las funciones de guardado (en la migración siguiente), que son
--- `security invoker`. `updated_at` no está: lo mueve el trigger, y es el testigo de la copia
--- obsoleta. Tampoco `is_template` ni `actual_minutes`, que nadie escribe todavía.
+-- `updated_at` y `updated_by` no están: los fijan sus triggers, no quien guarda. El primero es
+-- el testigo de la copia obsoleta; el segundo, más abajo. Tampoco `is_template` ni
+-- `actual_minutes`, que nadie escribe todavía.
 grant insert (
   organization_id, team_id, event_id, title, primary_focus_id, secondary_focus_id, notes
 ) on table public.practice_plans to authenticated;
-grant update (title, primary_focus_id, secondary_focus_id, notes, status, updated_by)
+grant update (title, primary_focus_id, secondary_focus_id, notes, status)
   on table public.practice_plans to authenticated;
 
 -- `completed` y `actual_minutes` (lo que pasó en la pista) no están: llegan con su fase.
@@ -94,6 +95,42 @@ grant insert (organization_id, plan_id, sort, phase, drill_id, title_override, m
 grant update (sort, phase, drill_id, title_override, minutes, notes)
   on table public.practice_items to authenticated;
 grant delete on table public.practice_items to authenticated;
+
+-- ── updated_by ───────────────────────────────────────────────────────────────────────
+-- Quién guardó un plan por última vez no lo dice quien guarda: lo fija la base de datos. Con
+-- el privilegio sobre la columna, quien gestiona un equipo podría anotar a cualquier otra
+-- cuenta, de su club o de otro, o dejar al editor anterior como autor de su cambio; y el 23503
+-- de un id que no existe le diría qué cuentas hay.
+--
+-- Con sesión, el valor es siempre el usuario de la sesión, traiga lo que traiga la sentencia:
+-- quitar el privilegio de la columna es la primera barrera, y esta, la segunda. Sin sesión
+-- (el seed, que escribe con la clave de servicio) se queda el que traiga la sentencia.
+create function private.set_updated_by()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  new.updated_by := coalesce((select auth.uid()), new.updated_by);
+  return new;
+end;
+$$;
+
+-- Solo la ejecuta el trigger: al dispararlo no hace falta `execute`.
+revoke all on function private.set_updated_by() from public, anon, authenticated;
+
+-- El trigger solo actúa en las sentencias que alguien lanza, no en los cambios que llegan
+-- desde otro trigger (`pg_trigger_depth() = 0`: la condición se evalúa antes de entrar en
+-- este). Es por la acción `on delete set null` de `created_by` y de `updated_by`: es un
+-- `update` de `practice_plans` que hace el trigger de la clave foránea, y pasa por los
+-- triggers de la tabla. Sin la condición, borrar una cuenta desde una sesión volvería a anotar
+-- en `updated_by` al usuario de esa sesión en vez de dejarlo a null; y si la cuenta borrada es
+-- la de la propia sesión, anotaría a quien ya no existe y el borrado fallaría con 23503.
+create trigger practice_plans_set_updated_by
+  before update on public.practice_plans
+  for each row
+  when (pg_trigger_depth() = 0)
+  execute function private.set_updated_by();
 
 -- ── Políticas de events ──────────────────────────────────────────────────────────────
 -- Se crea un entreno programado en un equipo que se gestiona. El club de la fila no hace

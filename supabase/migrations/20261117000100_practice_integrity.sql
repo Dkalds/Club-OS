@@ -140,7 +140,9 @@ alter table public.events
 -- ── Columnas ─────────────────────────────────────────────────────────────────────────
 -- `updated_at` es el testigo de la concurrencia optimista del constructor de sesiones, como
 -- en `drills`: quien edita envía el que leyó. `updated_by` es quien guardó por última vez:
--- toma por defecto el usuario de la sesión y pasa a null si se borra su cuenta. En las
+-- al crear el plan toma por defecto el usuario de la sesión, y pasa a null si se borra su
+-- cuenta. Aquí solo se fija al crear: que siga siendo verdad en cada cambio lo mantiene el
+-- trigger `practice_plans_set_updated_by`, de `20261117000200_practice_write.sql`. En las
 -- filas que ya existen, `updated_at` es el instante de esta migración y `updated_by` queda
 -- a null.
 --

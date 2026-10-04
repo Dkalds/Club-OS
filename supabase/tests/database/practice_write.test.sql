@@ -19,7 +19,7 @@
 -- final. Los datos son ficticios y solo de este test.
 begin;
 
-select plan(109);
+select plan(118);
 
 -- ── Fixtures (como postgres) ─────────────────────────────────────────────────────────
 -- Como en practice_integrity.test.sql, más un ayudante en T1 y sesiones cerradas:
@@ -286,8 +286,7 @@ select results_eq(
   $$with u as (
       update practice_plans
       set title = 'Plan de c1 y c1b', primary_focus_id = current_setting('fx.f_rebote')::uuid,
-          secondary_focus_id = null, notes = 'Retocado por c1b', status = 'ready',
-          updated_by = (select auth.uid())
+          secondary_focus_id = null, notes = 'Retocado por c1b', status = 'ready'
       where title = 'Plan de c1'
       returning 1
     )
@@ -296,6 +295,8 @@ select results_eq(
   'c1b cambia el plan que creó c1'
 );
 
+-- Quién guardó por última vez no lo dice c1b (no tiene privilegio sobre `updated_by`): lo
+-- fija un trigger con el usuario de la sesión. El autor no cambia.
 select results_eq(
   $$select created_by, updated_by, status from practice_plans where title = 'Plan de c1 y c1b'$$,
   $$values (current_setting('fx.c1')::uuid, current_setting('fx.c1b')::uuid, 'ready')$$,
@@ -320,6 +321,31 @@ select results_eq(
     select count(*)::int from d$$,
   array[1],
   'c1b borra el ítem'
+);
+
+-- Un segundo cambio, ahora de c1: quien guardó por última vez pasa a ser él.
+select tests.authenticate_as(current_setting('fx.c1')::uuid);
+
+select results_eq(
+  $$with u as (update practice_plans set notes = 'Retocado por c1'
+               where title = 'Plan de c1 y c1b' returning updated_by)
+    select updated_by from u$$,
+  $$values (current_setting('fx.c1')::uuid)$$,
+  'un segundo cambio, de c1, lo anota a él'
+);
+
+-- Sin sesión, como el seed (que escribe con la clave de servicio), el trigger no tiene a
+-- quién anotar y deja a quien estaba. `clear_authentication` vacía los claims, y `reset role`
+-- vuelve a postgres.
+select tests.clear_authentication();
+reset role;
+
+select results_eq(
+  $$with u as (update practice_plans set notes = 'Retocado sin sesión'
+               where title = 'Plan de c1 y c1b' returning updated_by)
+    select updated_by from u$$,
+  $$values (current_setting('fx.c1')::uuid)$$,
+  'sin sesión, un cambio deja a quien había guardado por última vez'
 );
 
 -- Un plan del equipo sin evento (sin fecha todavía) es del cuerpo técnico, como los demás.
@@ -955,6 +981,14 @@ select throws_ok(
   'un plan no cambia de autor'
 );
 
+-- Ni quién lo guardó por última vez: podría anotar a cualquier cuenta, de su club o de otro.
+select throws_ok(
+  $$update practice_plans set updated_by = current_setting('fx.c2')::uuid
+    where id = current_setting('fx.plan_suelto')::uuid$$,
+  '42501', 'permission denied for table practice_plans',
+  'nadie escribe a mano quién guardó un plan por última vez'
+);
+
 -- `updated_at` es el testigo de la copia obsoleta: lo mueve el trigger, no quien guarda.
 select throws_ok(
   $$update practice_plans set updated_at = now()
@@ -1152,8 +1186,8 @@ select results_eq(
 -- los 42501 de «ni club, ni equipo…» no dicen si la política aguantaría sola; y sin la lectura
 -- abierta, a quien mueve una fila a un equipo que no ve lo pararía antes la política de
 -- lectura, con el mismo mensaje. Con las dos cosas abiertas, lo único que queda entre un
--- usuario y la fila es la política de escritura. Todo se quita aquí mismo (y, en todo caso, se
--- deshace con la transacción).
+-- usuario y la fila es la política de escritura (y, para `updated_by`, su trigger). Todo se
+-- quita aquí mismo (y, en todo caso, se deshace con la transacción).
 create policy events_select_member_simulada
   on events for select to authenticated
   using (private.is_member(organization_id));
@@ -1167,7 +1201,7 @@ create policy practice_items_select_member_simulada
   using (private.is_member(organization_id));
 
 grant insert (status), update (team_id, kind) on table public.events to authenticated;
-grant update (team_id) on table public.practice_plans to authenticated;
+grant update (team_id, updated_by) on table public.practice_plans to authenticated;
 grant update (plan_id) on table public.practice_items to authenticated;
 
 select tests.authenticate_as(current_setting('fx.c2')::uuid);
@@ -1288,10 +1322,21 @@ select throws_ok(
   'la política impide que c1 pase un ítem a un plan cerrado'
 );
 
+-- Y el trigger de `updated_by`, también solo: con el privilegio de la columna concedido la
+-- sentencia ya no falla, pero quien queda anotado es quien la lanza. c1 dice que «Plan suelto
+-- de T1» lo guardó c2 (el último había sido adminA, más arriba) y queda anotado él.
+select results_eq(
+  $$with u as (update practice_plans set updated_by = current_setting('fx.c2')::uuid
+               where id = current_setting('fx.plan_suelto')::uuid returning updated_by)
+    select updated_by from u$$,
+  $$values (current_setting('fx.c1')::uuid)$$,
+  'el trigger anota a c1 aunque su sentencia diga que guardó c2'
+);
+
 reset role;
 
 revoke insert (status), update (team_id, kind) on table public.events from authenticated;
-revoke update (team_id) on table public.practice_plans from authenticated;
+revoke update (team_id, updated_by) on table public.practice_plans from authenticated;
 revoke update (plan_id) on table public.practice_items from authenticated;
 
 drop policy events_select_member_simulada on events;
@@ -1416,11 +1461,37 @@ select results_eq(
   'coachB edita el plan de TB y no el de T1'
 );
 
--- ── La función de RLS nueva (catálogo) ───────────────────────────────────────────────
--- `stable security definer` con `search_path` vacío, y fuera del alcance de anon (PUBLIC
--- incluido). Los privilegios y las políticas de las tres tablas los fijan posture.test.sql y
--- calendar.test.sql.
+-- ── Borrar la cuenta de quien guardó un plan ─────────────────────────────────────────
+-- La acción `on delete set null` de `created_by` y de `updated_by` es un `update` de
+-- `practice_plans`, y pasa por el trigger de `updated_by`. Se borra a c1 con sus propios
+-- claims todavía en la sesión, que es el peor caso: si el trigger actuara, volvería a anotar
+-- a c1, que ya no existe, y el borrado fallaría con 23503. Con los claims de otro (así lo
+-- hace practice_integrity.test.sql) anotaría a ese otro en vez de dejar null. Es lo último
+-- que hace el test con c1: al borrarlo se va también su membresía.
+select tests.authenticate_as(current_setting('fx.c1')::uuid);
 reset role;
+
+select results_eq(
+  $$select created_by, updated_by from practice_plans where title = 'Plan de c1 y c1b'$$,
+  $$values (current_setting('fx.c1')::uuid, current_setting('fx.c1')::uuid)$$,
+  'control: c1 creó «Plan de c1 y c1b» y fue el último en guardarlo'
+);
+
+select lives_ok(
+  $$delete from auth.users where id = current_setting('fx.c1')::uuid$$,
+  'borrar la cuenta de quien guardó un plan no falla, tampoco desde su propia sesión'
+);
+
+select results_eq(
+  $$select created_by, updated_by from practice_plans where title = 'Plan de c1 y c1b'$$,
+  $$values (null::uuid, null::uuid)$$,
+  'el plan se queda, sin autor y sin nadie anotado como el último en guardarlo'
+);
+
+-- ── La función de RLS y el trigger nuevos (catálogo) ─────────────────────────────────
+-- `can_edit_plan`: `stable security definer` con `search_path` vacío, y fuera del alcance de
+-- anon (PUBLIC incluido). Los privilegios y las políticas de las tres tablas los fijan
+-- posture.test.sql y calendar.test.sql.
 
 select results_eq(
   $$select count(*)::int from pg_proc as f
@@ -1439,6 +1510,23 @@ select is_empty(
       and f.proname = 'can_edit_plan'
       and has_function_privilege('anon', f.oid, 'execute')$$,
   'anon no puede ejecutar can_edit_plan'
+);
+
+-- La función del trigger de `updated_by` solo la ejecuta el trigger.
+select has_trigger(
+  'public'::name, 'practice_plans'::name, 'practice_plans_set_updated_by'::name,
+  'practice_plans tiene su trigger de updated_by'::text
+);
+
+select results_eq(
+  $$select p.proconfig = array['search_path=""'],
+           has_function_privilege('public', p.oid, 'execute'),
+           has_function_privilege('anon', p.oid, 'execute'),
+           has_function_privilege('authenticated', p.oid, 'execute')
+    from pg_proc as p
+    where p.pronamespace = 'private'::regnamespace and p.proname = 'set_updated_by'$$,
+  $$values (true, false, false, false)$$,
+  'set_updated_by tiene search_path vacío y no la ejecuta PUBLIC, anon ni authenticated'
 );
 
 select * from finish();

@@ -174,7 +174,8 @@ select set_eq(
     from (values
       -- Sesiones (20261117000200). Al crear no se eligen el id, el estado ni el autor: los
       -- ponen los valores por defecto. Al cambiar no se tocan el club, el equipo, el tipo, el
-      -- evento, el plan ni el autor. `updated_at` lo mueve el trigger.
+      -- evento, el plan ni el autor. `updated_at` y `updated_by` de un plan los fijan sus
+      -- triggers, no quien guarda.
       ('events', 'insert',
         array['organization_id', 'team_id', 'kind', 'starts_at', 'ends_at', 'location']),
       ('events', 'update', array['starts_at', 'ends_at', 'location', 'status']),
@@ -182,7 +183,7 @@ select set_eq(
         array['organization_id', 'team_id', 'event_id', 'title', 'primary_focus_id',
               'secondary_focus_id', 'notes']),
       ('practice_plans', 'update',
-        array['title', 'primary_focus_id', 'secondary_focus_id', 'notes', 'status', 'updated_by']),
+        array['title', 'primary_focus_id', 'secondary_focus_id', 'notes', 'status']),
       ('practice_items', 'insert',
         array['organization_id', 'plan_id', 'sort', 'phase', 'drill_id', 'title_override',
               'minutes', 'notes']),
