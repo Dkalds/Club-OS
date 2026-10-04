@@ -41,35 +41,46 @@ export function seedNow(): Date {
 }
 
 /**
- * Las tablas que los e2e de escritura pueden dejar con filas que el seed no conoce: las cinco
- * de la metodología del club (Gestión escribe sus contenidos y The Way, sus borradores) y las
- * tres de las sesiones (el constructor crea sesiones, planes e ítems). Cada fase que añade
- * tablas que sus e2e escriben, la suma aquí.
+ * Las tablas que los e2e de escritura pueden dejar con filas que el seed no conoce: las de las
+ * sesiones (el constructor crea sesiones, planes e ítems), los ejercicios (la ficha crea y cambia
+ * los suyos) y las cinco de la metodología del club (Gestión escribe sus contenidos y The Way,
+ * sus borradores). Cada fase que añade tablas que sus e2e escriben, la suma aquí.
  *
- * El orden es el del borrado, y en las sesiones importa: un ítem cuelga de su plan y un plan,
- * de su evento, así que van ítems, planes y, al final, eventos.
+ * El orden es el del borrado, y importa:
+ *  - Las sesiones van primero: un ítem cuelga de su plan y un plan, de su evento, así que van
+ *    ítems, planes y, al final, eventos. Y los ítems, antes que `drills`: apuntan a un ejercicio
+ *    por clave foránea sin cascada, y un ejercicio al que todavía apunta un ítem no se puede
+ *    borrar.
+ *  - `drills` va antes que la metodología porque sus vínculos (`drill_principles`,
+ *    `drill_standards`) apuntan a `game_principles` y `standards` sin cascada, y sus puntos,
+ *    variantes y vínculos se van con él (`on delete cascade`): así un principio o un Standard
+ *    sobrante al que apunta un ejercicio sobrante se puede borrar después. Un ejercicio del seed
+ *    no se toca, y con él se quedan sus vínculos.
  */
 const WRITABLE_TABLES = [
+  "practice_items",
+  "practice_plans",
+  "events",
+  "drills",
   "principle_points",
   "game_principles",
   "club_values",
   "standards",
   "way_sections",
-  "practice_items",
-  "practice_plans",
-  "events",
 ] as const;
 
 /**
  * Deja los clubes del seed exactamente como los deja `runSeed(now)`: borra, en las tablas de
  * `WRITABLE_TABLES` y en los clubes del seed, toda fila cuyo id no sea de `buildSeedData(now)`,
  * y después siembra, que devuelve a lo suyo lo que el seed sí posee (texto, estado, orden,
- * número) y quita los puntos que sobren de sus principios.
+ * número) y quita los puntos que sobren de sus principios y los hijos que sobren de sus
+ * ejercicios.
  *
  * Es lo que hace que la suite se recupere sola de una ejecución abortada: lo que esta dejó a
- * medias (una sección, un Standard, un borrador o una sesión de un spec) no vale como dato de
- * la siguiente, y quien lo ve falla sin que el fallo señale a la causa. Sin listas de slugs ni
- * de números escritas a mano: lo que no es del seed no sobrevive, se llame como se llame.
+ * medias (una sección, un Standard, un borrador, un ejercicio `E2E …` o una sesión de un spec)
+ * no vale como dato de la siguiente, y quien lo ve falla sin que el fallo señale a la causa. Sin
+ * listas de slugs ni de números escritas a mano: lo que no es del seed no sobrevive, se llame
+ * como se llame.
  *
  * De `events` solo se borran los entrenos (`kind = 'practice'`): los partidos tienen su propio
  * tratamiento en una fase posterior y un partido que no es del seed no se toca. Los planes sin
@@ -88,7 +99,7 @@ const WRITABLE_TABLES = [
 export async function restoreSeed(now: Date, client?: SupabaseClient<Database>): Promise<void> {
   if (!isLocalSupabaseUrl(readSupabaseEnv().url)) {
     throw new Error(
-      "restoreSeed borra contenido de la metodología: solo se ejecuta contra un Supabase local.",
+      "restoreSeed borra contenido de la metodología, de la biblioteca y de las sesiones: solo se ejecuta contra un Supabase local.",
     );
   }
 
@@ -96,14 +107,15 @@ export async function restoreSeed(now: Date, client?: SupabaseClient<Database>):
   const data = buildSeedData(now);
   const organizationIds = data.organizations.map((organization) => organization.id);
   const seedIds = {
+    practice_items: data.practice_items.map((row) => row.id),
+    practice_plans: data.practice_plans.map((row) => row.id),
+    events: data.events.map((row) => row.id),
+    drills: data.drills.map((row) => row.id),
     principle_points: data.principle_points.map((row) => row.id),
     game_principles: data.game_principles.map((row) => row.id),
     club_values: data.club_values.map((row) => row.id),
     standards: data.standards.map((row) => row.id),
     way_sections: data.way_sections.map((row) => row.id),
-    practice_items: data.practice_items.map((row) => row.id),
-    practice_plans: data.practice_plans.map((row) => row.id),
-    events: data.events.map((row) => row.id),
   } satisfies Record<(typeof WRITABLE_TABLES)[number], string[]>;
 
   for (const table of WRITABLE_TABLES) {

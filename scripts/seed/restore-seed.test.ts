@@ -75,6 +75,7 @@ const NOW = new Date("2026-10-02T10:00:00Z");
 const data = buildSeedData(NOW);
 
 const SEED_IDS = {
+  drills: data.drills.map((row) => row.id),
   way_sections: data.way_sections.map((row) => row.id),
   club_values: data.club_values.map((row) => row.id),
   game_principles: data.game_principles.map((row) => row.id),
@@ -98,12 +99,13 @@ afterEach(() => {
 });
 
 describe("restoreSeed", () => {
-  it("borra, en las tablas de la metodología y en las de las sesiones y solo ahí, lo que el seed no conoce", async () => {
+  it("borra, en las tablas de la metodología, en los ejercicios y en las de las sesiones, y solo ahí, lo que el seed no conoce", async () => {
     const fake = fakeClient();
 
     await restoreSeed(NOW, fake.client);
 
     expect(fake.deletes.map((call) => call.table).sort()).toEqual(SWEPT_TABLES);
+    expect(SWEPT_TABLES).toContain("drills");
     for (const call of fake.deletes) {
       const keep = call.filters.find(([op]) => op === "not.in");
       expect(keep?.[1], call.table).toBe("id");
@@ -150,6 +152,43 @@ describe("restoreSeed", () => {
     const order = fake.deletes.map((call) => call.table);
     expect(order.indexOf("practice_items")).toBeLessThan(order.indexOf("practice_plans"));
     expect(order.indexOf("practice_plans")).toBeLessThan(order.indexOf("events"));
+  });
+
+  it("borra los ítems de las sesiones antes que los ejercicios a los que apuntan", async () => {
+    const fake = fakeClient();
+
+    await restoreSeed(NOW, fake.client);
+
+    // `practice_items.(organization_id, drill_id)` apunta a `drills` sin cascada: con un
+    // ejercicio que aún tuviera ítems, el borrado de los ejercicios sobrantes fallaría.
+    const order = fake.deletes.map((call) => call.table);
+    expect(order.indexOf("practice_items")).toBeLessThan(order.indexOf("drills"));
+  });
+
+  it("borra los ejercicios antes que los principios y los Standards a los que se vinculan", async () => {
+    const fake = fakeClient();
+
+    await restoreSeed(NOW, fake.client);
+
+    // `drill_principles` y `drill_standards` cuelgan de `game_principles` y `standards` sin
+    // cascada: sus filas se van con el ejercicio (en cascada), y solo entonces se puede
+    // borrar un principio o un Standard sobrante al que un ejercicio sobrante apuntaba.
+    const order = fake.deletes.map((call) => call.table);
+    expect(order.indexOf("drills")).toBeLessThan(order.indexOf("game_principles"));
+    expect(order.indexOf("drills")).toBeLessThan(order.indexOf("standards"));
+    expect(order.indexOf("principle_points")).toBeLessThan(order.indexOf("game_principles"));
+  });
+
+  it("de los ejercicios respeta todos los del seed (los dos clubes) y nada más", async () => {
+    const fake = fakeClient();
+
+    await restoreSeed(NOW, fake.client);
+
+    const drills = fake.deletes.find((call) => call.table === "drills");
+    const keep = drills?.filters.find(([op]) => op === "not.in");
+    expect(SEED_IDS.drills.length).toBeGreaterThan(18);
+    expect(idsOf(keep?.[2])).toEqual([...SEED_IDS.drills].sort());
+    expect(drills?.filters.filter(([op]) => op === "in")).toHaveLength(1);
   });
 
   describe("con una sesión creada a mano en un club del seed", () => {

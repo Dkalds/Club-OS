@@ -9,16 +9,22 @@ import { readE2eTarget } from "./scripts/lib/e2e-target";
 // `scripts/lib/e2e-target.ts`; ver «Entorno remoto» en el README.
 const target = readE2eTarget(process.env);
 
-// Los e2e que modifican datos del seed (Gestión y los editores de las fases siguientes) van
-// en su propio proyecto, `admin`: en serie y después de `mobile`. `mobile` casi solo lee: el
-// único que escribe es `way.spec.ts`, que crea borradores suyos y los borra al acabar. Cada
-// fase que añade uno de esos specs lo suma a esta lista; `mobile` la ignora.
+// Los e2e que modifican datos del seed (Gestión, la ficha de ejercicio, las sesiones y los
+// editores de las fases siguientes) van en su propio proyecto, `admin`: en serie y después de
+// `mobile`. `mobile` casi solo lee: el único que escribe es `way.spec.ts`, que crea borradores
+// suyos y los borra al acabar. Cada fase que añade uno de esos specs lo suma a esta lista;
+// `mobile` la ignora.
 //
 // Ninguno de los dos proyectos depende de que el otro limpie: `e2e/global-setup.ts` borra, antes
-// de empezar, lo que una ejecución abortada dejara en la metodología (`restoreSeed`). Sin eso,
-// una ejecución de `admin` matada a medias haría fallar a `mobile`, y `admin` (que no corre si
-// `mobile` falla) no volvería a limpiar nunca.
-const ADMIN_SPECS = [/admin\.spec\.ts/, /practice-session\.spec\.ts/, /practice-builder\.spec\.ts/];
+// de empezar, lo que una ejecución abortada dejara en la metodología, en los ejercicios y en las
+// sesiones (`restoreSeed`). Sin eso, una ejecución de `admin` matada a medias haría fallar a
+// `mobile`, y `admin` (que no corre si `mobile` falla) no volvería a limpiar nunca.
+const ADMIN_SPECS = [
+  /admin\.spec\.ts/,
+  /drill-detail\.spec\.ts/,
+  /practice-session\.spec\.ts/,
+  /practice-builder\.spec\.ts/,
+];
 
 // La pantalla de referencia del móvil.
 const MOBILE_VIEWPORT = { width: 375, height: 812 };
