@@ -174,6 +174,70 @@ describe("check-guards.sh", () => {
       expect(status).toBe(0);
     });
 
+    // Un comentario que nombra un ancla (`#1abc` en una URL) o una entidad no es un color de la
+    // interfaz: solo cuentan las líneas de código. «Comentario» es la línea cuyo primer carácter
+    // que no es un espacio abre uno: `//`, `/*`, `*` (las de en medio de un bloque) o `{/*`
+    // (un comentario de JSX).
+    describe("un hex en un comentario", () => {
+      it.each([
+        ["de línea", "// Una URL con ancla, como /way#1abc, lleva a su sección.\nexport const a = 1;\n"],
+        ["de línea con sangría", "export function f() {\n  // Como /way#1abc.\n  return 1;\n}\n"],
+        ["de una sola línea entre /* y */", "/* Como /way#1abc. */\nexport const a = 1;\n"],
+        [
+          "de bloque, en una línea que empieza por *",
+          "/**\n * Una URL con ancla, como /way#1abc,\n * lleva a su sección.\n */\nexport const a = 1;\n",
+        ],
+        [
+          "de bloque, en una línea con sangría y tabulador",
+          "export function f() {\n\t/*\n\t * Como /way#1abc.\n\t */\n  return 1;\n}\n",
+        ],
+        [
+          "de JSX, en una línea que abre con {/*",
+          "export const a = (\n  <div>\n    {/* Como /way#1abc, #fff o #ff0000cc. */}\n    <p />\n  </div>\n);\n",
+        ],
+      ])("no cuenta si es %s", (_label, source) => {
+        const { status, output } = runGuards(withAdmin({ "ui/note.tsx": source }));
+
+        expect(output).toContain("check:guards OK");
+        expect(status).toBe(0);
+      });
+
+      it("el código de otra línea del mismo archivo sí cuenta, y el comentario no sale", () => {
+        const { status, output } = runGuards(
+          withAdmin({
+            "ui/note.tsx": [
+              "// Como /way#1abc.",
+              'export const bad = "#ff0000";',
+              "/** Un ancla, #1abc. */",
+              "",
+            ].join("\n"),
+          }),
+        );
+
+        expect(status).toBe(1);
+        expect(output).toContain("FALLO: src/ lleva un color hex");
+        expect(output).toContain('src/ui/note.tsx:2:export const bad = "#ff0000";');
+        expect(output).not.toContain("src/ui/note.tsx:1:");
+        expect(output).not.toContain("src/ui/note.tsx:3:");
+        expect(output).not.toContain("check:guards OK");
+      });
+
+      it.each([
+        ["en una clase de Tailwind", '<div className="bg-[#ff0000] p-4" />'],
+        ["en un style", '<div style={{ color: "#ff0000" }} />'],
+        ["en una línea de código con un comentario al final", 'const c = "#ff0000"; // el rojo'],
+        // El filtro mira cómo empieza la línea, no si hay un `//` en alguna parte: un comentario
+        // detrás de código sigue siendo una línea de código.
+        ["en un comentario que sigue a código en la misma línea", "const a = 1; // el ancla #1abc"],
+      ])("sigue contando en código: %s", (_label, line) => {
+        const { status, output } = runGuards(withAdmin({ "ui/note.tsx": `${line}\n` }));
+
+        expect(status).toBe(1);
+        expect(output).toContain("FALLO: src/ lleva un color hex");
+        expect(output).toContain(`src/ui/note.tsx:1:${line}`);
+      });
+    });
+
     it("un test con un hex no cuenta: puede nombrarlo para comprobar que no sale", () => {
       const { status, output } = runTsx("#ff0000", "ui/box.test.tsx");
 

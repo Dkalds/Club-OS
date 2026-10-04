@@ -66,7 +66,16 @@ tsx_only=(--include='*.tsx' --exclude='*.test.tsx')
 # Nada de colores hex: `#` y 3, 4, 6 u 8 dígitos (#rgb, #rgba, #rrggbb, #rrggbbaa) que acaban
 # ahí, para no confundir `#12345` ni `#1234567` con un color. [[:xdigit:]] y no [0-9a-f]:
 # no depende del locale.
-check_absent "src/ lleva un color hex (usa un token de color: bg-surface-1, text-ink...)" \
+#
+# Una línea de comentario no cuenta: un comentario que nombra un ancla (`/way#1abc`) o una
+# entidad no es un color de la interfaz, y el guard no puede distinguirlo de uno por su forma.
+# Es comentario la línea cuyo primer carácter que no es un espacio abre uno (`//`, `/*`, `*`
+# en las líneas de en medio de un bloque, o `{/*` en un comentario de JSX). Los comentarios
+# que siguen a código en su misma línea sí cuentan, igual que cualquier hex dentro de código
+# (un `className`, un `style`): ahí sí podría ser un color de verdad. La excepción se aplica
+# sobre la salida de grep (`archivo:línea:texto`), de ahí el prefijo.
+check_absent_except "src/ lleva un color hex (usa un token de color: bg-surface-1, text-ink...)" \
+  '^[^:]*:[0-9]+:[[:space:]]*(//|/\*|\*|\{/\*)' \
   -rnE "${tsx_only[@]}" '#([[:xdigit:]]{3,4}|[[:xdigit:]]{6}|[[:xdigit:]]{8})\b'
 
 # Nada de medidas entre corchetes con unidad (`min-h-[220px]`, `w-[70%]`). Las medidas son un
