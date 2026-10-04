@@ -4,15 +4,13 @@ import { useEffect, useState } from "react";
 import { MAX_QUERY_LENGTH } from "@/modules/drills/filters";
 import type { DrillSummary, FocusArea } from "@/modules/drills/types";
 import { findDrills } from "@/modules/practice/actions";
-import { MAX_ITEMS } from "@/modules/practice/limits";
+import { MAX_ITEMS_MESSAGE } from "@/modules/practice/limits";
 import { BottomSheet } from "@/ui/bottom-sheet";
 import { DrillCard } from "@/ui/drill-card";
 import { Filter } from "@/ui/filter";
 import { CheckIcon, SearchIcon, TrainIcon } from "@/ui/icons";
 import { Search } from "@/ui/search";
 import { EmptyState, ErrorState, LoadingState } from "@/ui/states";
-
-const LIMIT_REACHED = `Una sesión tiene como máximo ${MAX_ITEMS} ejercicios.`;
 
 /** Lo que se busca: el texto y el objetivo (su slug), cada uno solo si está puesto. */
 type Filters = { q?: string; focus?: string };
@@ -41,6 +39,18 @@ const ADD_PILL =
   "group-disabled:border-transparent group-disabled:bg-surface-2 group-disabled:text-ink-3";
 
 /**
+ * Lo que se anuncia al añadir un ejercicio. Un lector de pantalla solo anuncia un texto que
+ * cambia: si se añade el mismo ejercicio dos veces seguidas y el aviso fuera idéntico, la segunda
+ * vez se quedaría en silencio. Por eso, desde la segunda, el aviso cuenta las veces (por
+ * ejercicio, desde que se abrió la hoja). Contar es seguro en cualquier navegador y lector;
+ * vaciar la región y volver a llenarla en el mismo turno no lo es (React lo agrupa en una sola
+ * pintura y el lector no ve el cambio).
+ */
+function addedMessage(title: string, times: number): string {
+  return times === 1 ? `${title} añadido a la sesión.` : `${title} añadido otra vez (${times}).`;
+}
+
+/**
  * El selector de ejercicios del constructor de una sesión: una hoja inferior «Añadir
  * ejercicio» con la biblioteca del club, para añadir uno o varios a la sesión sin salir de ella.
  *
@@ -55,8 +65,9 @@ const ADD_PILL =
  * Elegir no cierra la hoja: `onPick` recibe el ejercicio, la fila pasa a «Añadido» y se puede
  * seguir. El botón sigue activo (volver a tocarlo lo añade otra vez, que es legítimo: dos
  * bloques del mismo ejercicio), y un aviso de estado, que siempre está en el árbol, lo dice a
- * quien no ve la pantalla. Cerrar y volver a abrir parte de cero: sin filtros, sin marcas y con
- * la primera página, porque lo añadido ya está en la lista del constructor.
+ * quien no ve la pantalla (y cuenta las veces si se repite el ejercicio: ver `addedMessage`).
+ * Cerrar y volver a abrir parte de cero: sin filtros, sin marcas, sin recuento y con la primera
+ * página, porque lo añadido ya está en la lista del constructor.
  *
  * El cuerpo de cada fila es un enlace a la ficha del ejercicio (`DrillCard`), y la acción de la
  * derecha queda fuera de él. Con `full` (la sesión ya lleva el máximo de ejercicios) los
@@ -79,7 +90,9 @@ export function DrillPicker({
 }) {
   const [request, setRequest] = useState<Request>({ id: 0, filters: {} });
   const [outcome, setOutcome] = useState<Outcome | null>(null);
-  const [added, setAdded] = useState<ReadonlySet<string>>(new Set());
+  // Cuántas veces se ha añadido cada ejercicio desde que se abrió la hoja (su id): quien está en el
+  // mapa lleva la marca «Añadido», y el número da un aviso distinto en cada repetición.
+  const [added, setAdded] = useState<ReadonlyMap<string, number>>(new Map());
   const [announcement, setAnnouncement] = useState("");
 
   // Reabrir parte de cero. Se ajusta durante el render, cuando cambia `open`
@@ -90,7 +103,7 @@ export function DrillPicker({
     setWasOpen(open);
     if (open) {
       setRequest((current) => ({ id: current.id + 1, filters: {} }));
-      setAdded(new Set());
+      setAdded(new Map());
       setAnnouncement("");
     }
   }
@@ -136,9 +149,10 @@ export function DrillPicker({
   }
 
   function pick(drill: DrillSummary) {
+    const times = (added.get(drill.id) ?? 0) + 1;
     onPick(drill);
-    setAdded((current) => new Set(current).add(drill.id));
-    setAnnouncement(`${drill.title} añadido a la sesión.`);
+    setAdded((current) => new Map(current).set(drill.id, times));
+    setAnnouncement(addedMessage(drill.title, times));
   }
 
   const loading = outcome === null || outcome.id !== request.id;
@@ -161,7 +175,7 @@ export function DrillPicker({
           <p role="status" className="sr-only">
             {announcement}
           </p>
-          {full ? <p className="text-body-s text-ink-2">{LIMIT_REACHED}</p> : null}
+          {full ? <p className="text-body-s text-ink-2">{MAX_ITEMS_MESSAGE}</p> : null}
         </div>
 
         {loading ? (

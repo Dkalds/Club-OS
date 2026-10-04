@@ -4,6 +4,7 @@ import {
   ITEM_NOTES_MAX,
   LOCATION_MAX,
   MAX_ITEMS,
+  MAX_ITEMS_MESSAGE,
   MAX_MINUTES,
   MAX_SESSION_MINUTES,
   MIN_MINUTES,
@@ -28,8 +29,6 @@ const TIME_MISSING = "Elige una hora.";
 const DURATION_RANGE = `La duración tiene que estar entre ${MIN_SESSION_MINUTES} y ${MAX_SESSION_MINUTES} minutos.`;
 const FOCUS_INVALID = "Elige un objetivo de la lista.";
 const FOCUS_REPEATED = "El objetivo secundario tiene que ser distinto del principal.";
-/** Lo que se dice al pasar de los ítems que caben en una sesión, en el constructor y al añadir desde la ficha. */
-export const ITEMS_COUNT = `Una sesión tiene como máximo ${MAX_ITEMS} ejercicios.`;
 const MINUTES_RANGE = `Entre ${MIN_MINUTES} y ${MAX_MINUTES} minutos.`;
 /** Un campo de texto que no es texto: solo lo manda un cliente manipulado, nunca el formulario. */
 const FIELD_INVALID = "Revisa este campo.";
@@ -161,7 +160,7 @@ const item = z.object({
 export const savePracticeItemsSchema = z.object({
   eventId: id,
   expectedUpdatedAt,
-  items: z.array(item, { error: FIELD_INVALID }).max(MAX_ITEMS, ITEMS_COUNT),
+  items: z.array(item, { error: FIELD_INVALID }).max(MAX_ITEMS, MAX_ITEMS_MESSAGE),
 });
 
 // ── Ejercicios de la biblioteca en la sesión ─────────────────────────────────────────────

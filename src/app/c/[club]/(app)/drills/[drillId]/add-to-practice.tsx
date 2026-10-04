@@ -97,8 +97,14 @@ function Sessions({
         </div>
       ) : null}
 
-      {/* Siempre en el árbol y vacía hasta que se añade: un lector de pantalla solo anuncia el texto que cambia en una región que ya existía. */}
-      <div role="status" className="px-(--space-4) empty:hidden">
+      {/*
+        Siempre en el árbol y vacía hasta que se añade: un lector de pantalla solo anuncia el texto
+        que cambia en una región que ya existía, y una región con `display: none` (`hidden`,
+        `empty:hidden`) no está en el árbol de accesibilidad: al pasar a visible con su texto no se
+        anuncia. Vacía no pinta nada, pero el hueco (`gap`) de la columna sí cuenta: el margen
+        negativo con `empty:` se come el de arriba, como en el formulario de la sesión.
+      */}
+      <div role="status" className="px-(--space-4) empty:-mt-(--space-3)">
         {added ? (
           <p className="flex items-center gap-(--space-2) text-body text-success">
             <CheckIcon size={20} />
@@ -154,9 +160,10 @@ function Sessions({
  * elegir otra. Sin sesiones, la hoja dice que no hay y ofrece «Nueva sesión».
  *
  * Quien la monta decide si se pinta (`practice.manage` y ejercicio publicado): aquí no se mira.
- * Con varios equipos (`teamCount`; sin él, los que se ven en las sesiones) cada fila empieza por
- * el suyo, como la lista de Entrenar. Mientras guarda, la hoja no se deja cerrar a medias: el
- * resultado llegaría a una pantalla sin hoja y quien lo pidió no sabría si se añadió.
+ * Con varios equipos (`teamCount`, los que puede gestionar quien entrena: lo da `listPractices`)
+ * cada fila empieza por el suyo, como la lista de Entrenar. Mientras guarda, la hoja no se deja
+ * cerrar a medias: el resultado llegaría a una pantalla sin hoja y quien lo pidió no sabría si
+ * se añadió.
  */
 export function AddToPractice({
   clubSlug,
@@ -167,13 +174,10 @@ export function AddToPractice({
   clubSlug: string;
   drillId: string;
   practices: PracticeListItem[];
-  teamCount?: number;
+  teamCount: number;
 }) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
-
-  const teamNames = new Set(practices.map((practice) => practice.teamName.trim()).filter(Boolean));
-  const teams = teamCount ?? teamNames.size;
 
   return (
     <>
@@ -197,7 +201,7 @@ export function AddToPractice({
           clubSlug={clubSlug}
           drillId={drillId}
           practices={practices}
-          teamCount={teams}
+          teamCount={teamCount}
           onBusyChange={setBusy}
         />
       </BottomSheet>

@@ -38,7 +38,7 @@ const PRACTICES = [
 type Props = Parameters<typeof AddToPractice>[0];
 
 function renderAdd(props: Partial<Props> = {}) {
-  return render(<AddToPractice clubSlug="club-a" drillId={DRILL} practices={PRACTICES} {...props} />);
+  return render(<AddToPractice clubSlug="club-a" drillId={DRILL} practices={PRACTICES} teamCount={1} {...props} />);
 }
 
 const openButton = () => screen.getByRole("button", { name: "Añadir a sesión" });
@@ -126,12 +126,14 @@ describe("AddToPractice · las sesiones", () => {
     expect(within(sheet()).getByText("Equipo B · 75 min · 5 ejercicios · Pabellón 2")).toBeInTheDocument();
   });
 
-  it("sin `teamCount`, los equipos distintos de las sesiones bastan para distinguirlas", async () => {
-    renderAdd({ practices: [practice(FIRST), practice(SECOND, { teamName: "Equipo B", title: "Otra" })] });
+  it("el nombre del equipo depende solo de `teamCount`, no de los equipos que se vean en las sesiones", async () => {
+    renderAdd({
+      teamCount: 1,
+      practices: [practice(FIRST), practice(SECOND, { teamName: "Equipo B", title: "Otra" })],
+    });
     await openSheet();
 
-    expect(within(sheet()).getByText(/^Equipo A · /)).toBeInTheDocument();
-    expect(within(sheet()).getByText(/^Equipo B · /)).toBeInTheDocument();
+    expect(within(sheet()).queryByText(/Equipo A|Equipo B/)).not.toBeInTheDocument();
   });
 
   it("las filas miden 44 px como mínimo y llevan solo tokens", async () => {
@@ -175,17 +177,32 @@ describe("AddToPractice · elegir una sesión", () => {
     expect(within(sheet()).queryByRole("button", { name: /Defensa en transición/ })).not.toBeInTheDocument();
   });
 
-  it("el aviso de lo añadido está en una región de estado que ya estaba en el árbol, y el foco va a «Abrir sesión»", async () => {
+  // Un lector de pantalla anuncia el texto que CAMBIA dentro de una región `status` que ya estaba
+  // en el árbol de accesibilidad; una región que pasa de `display: none` a visible con su texto en
+  // la misma pintura no se anuncia, y el foco se va a «Abrir sesión» sin que se oiga el aviso. Así
+  // que la región existe al abrir la hoja, vacía, es la misma después, y nada la oculta con CSS
+  // (jsdom no aplica CSS: se mira la clase, como en `section-editor.test.tsx`).
+  it("el aviso de lo añadido va en una región de estado que ya estaba en el árbol, vacía y sin ocultarse", async () => {
     renderAdd();
     await openSheet();
-    const regions = within(sheet()).getAllByRole("status");
-    expect(regions.some((region) => region.textContent === "")).toBe(true);
+    const region = within(sheet()).getByRole("status");
+    expect(region).toBeEmptyDOMElement();
+    expect(region.className).not.toMatch(/hidden|empty:hidden|sr-only/);
 
     fireEvent.click(row("Salida de presión"));
 
-    const open = await within(sheet()).findByRole("link", { name: "Abrir sesión" });
-    expect(regions.find((region) => region.textContent === "Añadido a Salida de presión.")).toBeDefined();
-    expect(open).toHaveFocus();
+    await within(sheet()).findByRole("link", { name: "Abrir sesión" });
+    expect(within(sheet()).getByRole("status")).toBe(region);
+    expect(region).toHaveTextContent("Añadido a Salida de presión.");
+  });
+
+  it("el foco va a «Abrir sesión» al añadir", async () => {
+    renderAdd();
+    await openSheet();
+
+    fireEvent.click(row("Salida de presión"));
+
+    expect(await within(sheet()).findByRole("link", { name: "Abrir sesión" })).toHaveFocus();
   });
 
   it("mientras guarda, las filas esperan y la hoja no se deja cerrar a medias", async () => {

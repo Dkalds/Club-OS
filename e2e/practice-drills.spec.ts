@@ -173,13 +173,21 @@ test("del principio al ejercicio y a la sesión", async ({ page }) => {
   const mine = choose.getByRole("button", { name: literally(name) });
   await expect(mine).toBeVisible();
   await expect(mine).toContainText("1 ejercicio");
+  // El aviso de «Añadido» se anuncia solo si su región de estado ya estaba en el árbol de
+  // accesibilidad antes de que llegara el texto: aquí, vacía y sin `display: none` (el selector por
+  // rol deja fuera lo que está en el árbol oculto, y jsdom no aplica CSS: solo un navegador lo ve).
+  const status = choose.getByRole("status");
+  await expect(status).toBeAttached();
+  await expect(status).toBeEmpty();
+  expect(await status.evaluate((element) => getComputedStyle(element).display)).not.toBe("none");
   await expectFitsMobile(page);
   await expectTouchTargets(choose.getByRole("button", { name: /E2E drills|Transición|Defensa/ }));
   expect(await choose.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
 
   await mine.click();
   await expect(choose.getByText(`Añadido a ${name}.`)).toBeVisible();
-  await page.screenshot({ path: "test-results/drill-add-to-practice-375.png" });
+  // Es la misma región de estado que había al abrir la hoja, ahora con su texto.
+  await expect(status).toHaveText(`Añadido a ${name}.`);
   const open = choose.getByRole("link", { name: "Abrir sesión" });
   await expect(open).toBeFocused();
   await expect(open).toHaveAttribute("href", `${CLUB}/train/${eventId}/edit`);
@@ -238,7 +246,6 @@ test("cinco ejercicios desde el selector", async ({ page }) => {
   }
   await expect(addedButton(picker, first)).toBeVisible();
   await expect(picker).toBeVisible();
-  await page.screenshot({ path: "test-results/drill-picker-375.png" });
   expect(await picker.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
 
   // Al cerrarla: cinco filas, cada una con sus minutos, y la suma de la barra.

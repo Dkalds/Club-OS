@@ -185,7 +185,12 @@ describe("DrillPicker · añadir", () => {
     expect(within(sheet()).getAllByText("Añadido")).toHaveLength(1);
   });
 
-  it("anuncia lo añadido en una región de estado que ya estaba en el árbol", async () => {
+  // Un lector de pantalla anuncia el texto que CAMBIA dentro de una región `status` que ya estaba
+  // en el árbol de accesibilidad: la región no puede aparecer (`display: none` → visible) con su
+  // texto. Aquí se esconde a la vista con `sr-only` (fuera de pantalla, pero dentro del árbol), no
+  // con `hidden` ni `empty:hidden`. jsdom no aplica CSS: se mira la clase, como en
+  // `section-editor.test.tsx`.
+  it("anuncia lo añadido en una región de estado que ya estaba en el árbol, vacía y sin `display: none`", async () => {
     renderPicker();
     await findSheet();
     await within(sheet()).findByText("Rebote + outlet");
@@ -193,10 +198,85 @@ describe("DrillPicker · añadir", () => {
       .getAllByRole("status")
       .find((region) => region.textContent === "") as HTMLElement;
     expect(status).toBeDefined();
+    expect(status).toHaveClass("sr-only");
+    expect(status.className).not.toMatch(/(^|\s)(hidden|empty:hidden)(\s|$)/);
 
     click("Añadir Rebote + outlet");
 
+    expect(within(sheet()).getAllByRole("status")).toContain(status);
     expect(status).toHaveTextContent("Rebote + outlet añadido a la sesión.");
+  });
+
+  // Si el texto no cambia, el lector no vuelve a anunciar nada: volver a añadir el mismo ejercicio
+  // seguido dejaría la segunda vez en silencio. Se cuenta, por ejercicio, así que cada aviso es
+  // distinto del anterior (en vez de vaciar la región y volver a llenarla, que en el mismo turno de
+  // React no llega al lector).
+  it("volver a añadir el mismo ejercicio cambia el aviso: «otra vez (2)», «otra vez (3)»", async () => {
+    renderPicker();
+    await findSheet();
+    await within(sheet()).findByText("Rebote + outlet");
+    const status = within(sheet())
+      .getAllByRole("status")
+      .find((region) => region.textContent === "") as HTMLElement;
+
+    click("Añadir Rebote + outlet");
+    expect(status.textContent).toBe("Rebote + outlet añadido a la sesión.");
+    click("Añadido. Volver a añadir Rebote + outlet");
+    expect(status.textContent).toBe("Rebote + outlet añadido otra vez (2).");
+    click("Añadido. Volver a añadir Rebote + outlet");
+    expect(status.textContent).toBe("Rebote + outlet añadido otra vez (3).");
+  });
+
+  it("cada aviso es distinto del anterior, intercalen o no otros ejercicios, y cuenta cada ejercicio por separado", async () => {
+    renderPicker();
+    await findSheet();
+    await within(sheet()).findByText("Rebote + outlet");
+    const status = within(sheet())
+      .getAllByRole("status")
+      .find((region) => region.textContent === "") as HTMLElement;
+
+    const heard: string[] = [];
+    for (const name of [
+      "Añadir Rebote + outlet",
+      "Añadido. Volver a añadir Rebote + outlet",
+      "Añadir 3 calles",
+      "Añadido. Volver a añadir 3 calles",
+      "Añadido. Volver a añadir Rebote + outlet",
+    ]) {
+      click(name);
+      heard.push(status.textContent ?? "");
+    }
+
+    expect(heard).toEqual([
+      "Rebote + outlet añadido a la sesión.",
+      "Rebote + outlet añadido otra vez (2).",
+      "3 calles añadido a la sesión.",
+      "3 calles añadido otra vez (2).",
+      "Rebote + outlet añadido otra vez (3).",
+    ]);
+    heard.forEach((text, index) => {
+      if (index > 0) expect(text).not.toBe(heard[index - 1]);
+    });
+  });
+
+  it("al reabrir la hoja, el recuento empieza de nuevo", async () => {
+    const { update } = renderPicker();
+    await findSheet();
+    await within(sheet()).findByText("Rebote + outlet");
+    click("Añadir Rebote + outlet");
+    click("Añadido. Volver a añadir Rebote + outlet");
+
+    update({ open: false });
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    update({ open: true });
+    await findSheet();
+    await within(sheet()).findByText("Rebote + outlet");
+    click("Añadir Rebote + outlet");
+
+    const status = within(sheet())
+      .getAllByRole("status")
+      .find((region) => region.textContent !== "") as HTMLElement;
+    expect(status.textContent).toBe("Rebote + outlet añadido a la sesión.");
   });
 
   it("el botón sigue activo: volver a tocarlo añade el ejercicio otra vez", async () => {

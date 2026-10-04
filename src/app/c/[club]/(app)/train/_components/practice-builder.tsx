@@ -19,7 +19,7 @@ import { ACTION_ERROR_COPY } from "@/lib/action-result";
 import { useAction } from "@/lib/use-action";
 import { savePracticeItems } from "@/modules/practice/actions";
 import { changeMinutes, moveItem, totalMinutes } from "@/modules/practice/items";
-import { DEFAULT_ITEM_MINUTES, MAX_ITEMS } from "@/modules/practice/limits";
+import { DEFAULT_ITEM_MINUTES, MAX_ITEMS, MAX_ITEMS_MESSAGE } from "@/modules/practice/limits";
 import type { PracticeItemDraft, SavedPracticeItem } from "@/modules/practice/types";
 import { Card } from "@/ui/card";
 import { CTAButton } from "@/ui/cta-button";
@@ -37,8 +37,6 @@ type Control = "toggle" | "up" | "down" | "add";
 /** Lo que se le dice al asa, para quien no puede arrastrar con el dedo ni con el ratón. */
 const KEYBOARD_INSTRUCTIONS =
   "Pulsa Espacio para coger el ejercicio, las flechas para moverlo y Espacio otra vez para soltarlo. Escape cancela.";
-
-const LIMIT_REACHED = `Una sesión tiene como máximo ${MAX_ITEMS} ejercicios.`;
 
 type Add = (item: PracticeItemDraft) => void;
 
@@ -430,7 +428,7 @@ export function PracticeBuilder({
       </CTAButton>
       {full ? (
         <p id={limitId} className="text-body-s text-ink-2">
-          {LIMIT_REACHED}
+          {MAX_ITEMS_MESSAGE}
         </p>
       ) : null}
 

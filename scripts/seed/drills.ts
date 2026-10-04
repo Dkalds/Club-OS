@@ -491,7 +491,7 @@ export const ARCANGEL_DRILLS: SeedDrill[] = [
       "Dos equipos de tres en media pista. Quien defiende ayuda cuando el balón entra en el carril y recupera su posición cuando sale.",
     points: [
       { text: "Ayuda con los pies antes que con las manos", key: true },
-      { text: "Comunica en voz alta antes de ayudar", key: true },
+      { text: "Comunica en voz alta antes de ayudar" },
       { text: "Recupera tu posición en cuanto el balón sale" },
     ],
     author: RAUL,
@@ -511,7 +511,7 @@ export const ARCANGEL_DRILLS: SeedDrill[] = [
       "Tres atacantes contra tres defensores en medio campo, con el balón siempre vivo. La presión empieza en cuanto el balón cruza la línea central.",
     points: [
       { text: "Presiona con la cadera baja y las manos activas", key: true },
-      { text: "Cierra el pase fácil y empuja hacia la banda", key: true },
+      { text: "Cierra el pase fácil y empuja hacia la banda" },
       { text: "Los demás defienden una acción por delante" },
     ],
     author: RAUL,
@@ -531,7 +531,7 @@ export const ARCANGEL_DRILLS: SeedDrill[] = [
       "Dos equipos de tres cerca del aro, con un tirador en cada posesión. Tras el tiro, los defensores bloquean a su rival y buscan el balón.",
     points: [
       { text: "Localiza a tu rival antes de que se tire", key: true },
-      { text: "Bloquea con el cuerpo y salta con las dos manos", key: true },
+      { text: "Bloquea con el cuerpo y salta con las dos manos" },
       { text: "Protege el balón con los codos abiertos" },
     ],
     author: RAUL,

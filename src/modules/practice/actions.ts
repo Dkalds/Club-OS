@@ -12,14 +12,13 @@ import { zonedDateTimeToIso } from "@/lib/time";
 import { parseDrillFilters } from "@/modules/drills/filters";
 import { searchDrills } from "@/modules/drills/queries";
 import type { DrillSummary } from "@/modules/drills/types";
-import { MAX_ITEMS } from "./limits";
+import { MAX_ITEMS, MAX_ITEMS_MESSAGE } from "./limits";
 import {
   addDrillToPracticeSchema,
   cancelPracticeSchema,
   createPracticeSchema,
   duplicatePracticeSchema,
   findDrillsSchema,
-  ITEMS_COUNT,
   savePracticeItemsSchema,
   updatePracticeMetaSchema,
   type AddDrillToPracticeInput,
@@ -451,7 +450,7 @@ export async function addDrillToPractice(
         updatedAt,
         items,
       }: PracticeToExtend): Promise<ActionResult<{ title: string }>> {
-        if (items.length >= MAX_ITEMS) return fail("INVALID", { items: ITEMS_COUNT });
+        if (items.length >= MAX_ITEMS) return fail("INVALID", { items: MAX_ITEMS_MESSAGE });
 
         const { error: saveError } = await db.rpc("save_practice_items", {
           p_plan: planId,

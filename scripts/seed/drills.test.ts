@@ -59,9 +59,6 @@ const ARCANGEL_TABLE: Row[] = [
   ["Bloqueo y rebote 3x3", [10, null], [6, 12], [10, 12], ["rebote"], [3]],
 ];
 
-// Los tres ejercicios que suma la Fase 4, por título.
-const PHASE_4_TITLES = ["Ayuda y recuperación 3x3", "Presión al balón en medio campo", "Bloqueo y rebote 3x3"];
-
 describe("ARCANGEL_DRILLS: la tabla del brief", () => {
   it("son 21, con título, edad, jugadores, minutos, focos y Standards de la tabla", () => {
     expect(ARCANGEL_DRILLS).toHaveLength(21);
@@ -160,10 +157,10 @@ describe("el resto de ejercicios de Arcángel", () => {
     }
   });
 
-  it("3 o 4 puntos: con 4 los dos primeros clave; con 3, solo el primero (los de la Fase 3) o los dos primeros (los tres de la Fase 4)", () => {
+  it("3 o 4 puntos: los dos primeros clave, o solo el primero si hay 3", () => {
     for (const drill of rest) {
       expect([3, 4], drill.title).toContain(drill.points.length);
-      const keyCount = drill.points.length === 4 || PHASE_4_TITLES.includes(drill.title) ? 2 : 1;
+      const keyCount = drill.points.length === 3 ? 1 : 2;
       expect(
         drill.points.map((p) => p.key === true),
         drill.title,

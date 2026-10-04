@@ -3,6 +3,13 @@
 
 /** Ítems por sesión: el tope que aplica la función de la base que guarda la sesión (más de 30 es `INVALID`). */
 export const MAX_ITEMS = 30;
+/**
+ * Lo que se dice al pasar de `MAX_ITEMS`: el esquema de las acciones, la acción de añadir desde la
+ * ficha y las pantallas (el constructor, el selector de ejercicios y la hoja de la ficha) dicen
+ * esta misma frase. Vive aquí, y no en el esquema, porque este módulo no lleva Zod y lo importan
+ * componentes de cliente.
+ */
+export const MAX_ITEMS_MESSAGE = `Una sesión tiene como máximo ${MAX_ITEMS} ejercicios.`;
 /** `check` de la base: los minutos de un ítem van de 1 a 120. */
 export const MIN_MINUTES = 1;
 /** `check` de la base: los minutos de un ítem van de 1 a 120. */
