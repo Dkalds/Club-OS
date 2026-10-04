@@ -95,7 +95,8 @@ test("el entrenador ve su próximo entrenamiento", async ({ page }) => {
 
   const card = practiceCard(page);
   await expect(card).toHaveCount(1);
-  await expect(card.getByText("Próximo entrenamiento")).toBeVisible();
+  // El kicker dice también a qué equipo toca.
+  await expect(card.getByText("Próximo entrenamiento · Alevín A")).toBeVisible();
   await expect(
     card.getByRole("heading", { level: 2, name: "Transición + rebote defensivo" }),
   ).toBeVisible();

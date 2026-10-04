@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { AnchorHTMLAttributes, ButtonHTMLAttributes, ReactNode } from "react";
 
-export type CTAButtonVariant = "primary" | "secondary" | "ghost" | "on-spotlight";
+export type CTAButtonVariant = "primary" | "secondary" | "ghost" | "on-spotlight" | "danger";
 export type CTAButtonSize = "md" | "live";
 
 type OwnProps = {
@@ -46,6 +46,10 @@ const VARIANT_CLASS: Record<CTAButtonVariant, string> = {
   // claro de la card destacada, así que aquí es `on-spotlight`.
   "on-spotlight":
     "border-transparent bg-on-spotlight px-(--space-5) text-brand-accent focus-visible:outline-on-spotlight",
+  // Lo destructivo (quitar, salir sin guardar): como `secondary`, pero con el borde y el texto
+  // en `danger`, que es de plataforma y no cambia con el club. Nunca relleno: el único relleno
+  // de una pantalla es el acento del CTA principal. Pulsado se tinta con `danger-soft`.
+  danger: `border-danger bg-transparent px-(--space-5) text-danger not-disabled:active:bg-danger-soft ${FOCUS_RING}`,
 };
 
 // `20px` del botón `live`: design/components/bundle.css; no hay estilo de texto con esa medida.

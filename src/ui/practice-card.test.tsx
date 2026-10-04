@@ -24,7 +24,7 @@ describe("PracticeCard", () => {
   it("muestra el kicker, el cuándo, el título, los metadatos y las etiquetas", () => {
     renderCard();
 
-    expect(screen.getByText("Próximo entrenamiento")).toBeInTheDocument();
+    expect(screen.getByText("Próximo entrenamiento · Equipo A")).toBeInTheDocument();
     expect(screen.getByText("Martes 6 oct · 18:00–19:15")).toBeInTheDocument();
     expect(
       screen.getByRole("heading", { level: 2, name: "Transición + rebote defensivo" }),
@@ -32,6 +32,19 @@ describe("PracticeCard", () => {
     expect(screen.getByText("75 min · 5 ejercicios · Pabellón 2")).toBeInTheDocument();
     expect(screen.getByText("Transición")).toBeInTheDocument();
     expect(screen.getByText("Rebote")).toBeInTheDocument();
+  });
+
+  it("sin equipo, el kicker es solo «Próximo entrenamiento», sin separador colgando", () => {
+    renderCard({ teamName: "" });
+
+    expect(screen.getByText("Próximo entrenamiento")).toBeInTheDocument();
+    expect(screen.queryByText(/·\s*$/)).not.toBeInTheDocument();
+  });
+
+  it("un equipo en blanco cuenta como sin equipo", () => {
+    renderCard({ teamName: "   " });
+
+    expect(screen.getByText("Próximo entrenamiento")).toBeInTheDocument();
   });
 
   it("ofrece «Abrir entrenamiento» como enlace al href dado", () => {
