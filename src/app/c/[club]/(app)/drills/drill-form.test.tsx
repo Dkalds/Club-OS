@@ -1397,10 +1397,9 @@ describe("DrillForm · cambios sin guardar", () => {
 
       pick(png());
 
-      await waitFor(() =>
-        expect(screen.getByRole("img", { name: "Vista previa del diagrama" })).toHaveAttribute("src", PREVIEW),
-      );
-      expect(unloadAsks()).toBe(true);
+      // El id nuevo llega al formulario un repintado después que la vista previa.
+      await waitFor(() => expect(unloadAsks()).toBe(true));
+      expect(screen.getByRole("img", { name: "Vista previa del diagrama" })).toHaveAttribute("src", PREVIEW);
     });
 
     it("añadir una fila y quitarla otra vez deja el formulario como estaba", () => {

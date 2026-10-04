@@ -14,9 +14,14 @@ vi.mock("./seed/run", () => ({ runSeed: mocks.runSeed }));
 vi.mock("./lib/admin-client", () => ({ readSupabaseEnv: mocks.readSupabaseEnv }));
 
 const CLI_PATH = path.resolve(import.meta.dirname, "seed.ts");
+/**
+ * Cada test importa `seed.ts` de cero tras `vi.resetModules()`: leerlo y transformarlo con el
+ * ordenador ocupado puede pasar de los 5 s por defecto (y de 1 s la espera de `vi.waitFor`).
+ */
+const IMPORT_TIMEOUT_MS = 30_000;
 const originalArgv = process.argv;
 
-describe("scripts/seed.ts", () => {
+describe("scripts/seed.ts", { timeout: IMPORT_TIMEOUT_MS }, () => {
   beforeEach(() => {
     vi.resetModules();
     mocks.runSeed.mockClear();
@@ -47,7 +52,7 @@ describe("scripts/seed.ts", () => {
     process.argv = [originalArgv[0], CLI_PATH];
 
     await import("./seed");
-    await vi.waitFor(() => expect(log).toHaveBeenCalledTimes(3));
+    await vi.waitFor(() => expect(log).toHaveBeenCalledTimes(3), { timeout: IMPORT_TIMEOUT_MS });
 
     expect(mocks.runSeed).toHaveBeenCalledTimes(1);
     expect(mocks.runSeed).toHaveBeenCalledWith(expect.any(Date));
