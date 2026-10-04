@@ -94,10 +94,9 @@ describe("useAction", () => {
     expect(onSuccess).not.toHaveBeenCalled();
   });
 
-  // Una acción que llama a `notFound()` (a quien guarda le han quitado el acceso) o que
-  // redirige no devuelve un `ActionResult`: en el cliente la llamada rechaza con el error de
-  // control de flujo de Next. Tragarlo dejaba un «No se pudo guardar. Inténtalo de nuevo.» que
-  // nunca iba a funcionar; tiene que llegar al límite de Next, que pinta el 404 o navega.
+  // Una acción que llama a `notFound()` o a `redirect()` no devuelve un `ActionResult`: en el
+  // cliente la llamada rechaza con el error de control de flujo de Next. No es un fallo al
+  // guardar: tiene que llegar al límite de Next que lo espera, el que pinta el 404 o navega.
   it.each([
     ["notFound()", () => notFound()],
     ["redirect()", () => redirect("/login")],

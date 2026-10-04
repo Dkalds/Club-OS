@@ -795,8 +795,10 @@ test("editar y archivar un valor", async ({ page }) => {
 test("si a quien edita le quitan el acceso, al guardar ve el 404", async ({ page, browserErrors }) => {
   test.skip(!CAN_WRITE, NEEDS_LOCAL_DB);
   // Raúl tiene un editor abierto y, mientras, deja de ser miembro del club. Al guardar, la
-  // acción responde con `notFound()`: se ve el 404, no un «No se pudo guardar. Inténtalo de
-  // nuevo.» que invitaría a reintentar algo que ya no va a funcionar.
+  // acción responde con `notFound()` y Next repinta la ruta, que ya es un 404: eso es lo que
+  // se ve, y no un «No se pudo guardar. Inténtalo de nuevo.» que invitaría a reintentar algo
+  // que ya no va a funcionar. Fija lo que ve la persona; quién lo consigue (el repintado de
+  // Next, el hook `useAction`) es cosa de sus tests.
   await openWayList(page);
   await page.getByRole("link", { name: /^Editar / }).first().click();
   await expect(page).toHaveURL(new RegExp(`${ADMIN}/way/[0-9a-f-]{36}$`));
