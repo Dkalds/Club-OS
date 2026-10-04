@@ -5,7 +5,10 @@ import { BottomSheet } from "./bottom-sheet";
 import { CheckIcon, ChevronDownIcon } from "./icons";
 
 // El archivo es de cliente por los chips que reaccionan al toque (`Filter`, `FilterSheetChip`).
-// `FilterTag` es una etiqueta sin comportamiento: sirve igual en una card de servidor.
+// `FilterTag`, la etiqueta sin comportamiento de las cards, vive en `./filter-tag`, que no es de
+// cliente: un componente de servidor (`DrillCard`) la importa de allí y no arrastra este
+// archivo, la hoja inferior ni Radix. Aquí se re-exporta para quien use todo el filtro.
+export { FilterTag } from "./filter-tag";
 
 export type FilterOption = { value: string; label: string };
 
@@ -156,18 +159,5 @@ function SheetOption({
       {children}
       {pressed ? <CheckIcon size={16} /> : null}
     </button>
-  );
-}
-
-/**
- * La etiqueta de objetivo de una card (`tag` de design/components/Filter): no es interactiva,
- * mide `min-h-6` y usa `radius-xs`. Las medidas de design/components/bundle.css
- * (`.cos-chip--tag`: 12px) no tienen estilo de texto de token.
- */
-export function FilterTag({ children }: { children: ReactNode }) {
-  return (
-    <span className="inline-flex min-h-6 items-center gap-(--space-1) rounded-xs border border-line bg-surface-2 px-(--space-2) text-[12px] leading-4 font-semibold whitespace-nowrap text-ink-2">
-      {children}
-    </span>
   );
 }

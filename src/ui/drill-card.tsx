@@ -2,8 +2,8 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { drillMeta } from "@/modules/drills/format";
 import type { DrillSummary } from "@/modules/drills/types";
-import { CourtThumb } from "./court";
-import { FilterTag } from "./filter";
+import { CourtThumb } from "./court-thumb";
+import { FilterTag } from "./filter-tag";
 import { DraftIcon } from "./icons";
 
 /**
@@ -20,6 +20,12 @@ import { DraftIcon } from "./icons";
  * La fila entera es un único enlace a `href`, así que es su área táctil. `action` (el
  * «Añadir» del selector) va a la derecha, FUERA del enlace: un botón dentro de un `<a>` no es
  * HTML válido y su toque no debe abrir la ficha. Es quien lo pasa quien le da sus 44px.
+ *
+ * Es un componente de servidor y se repite una vez por ejercicio: por eso solo importa módulos
+ * sin `"use client"` (`./court-thumb`, `./filter-tag`, no `./court` ni `./filter`, que traen los
+ * componentes de cliente y, con ellos, la hoja inferior y Radix). Un test recorre su grafo de
+ * importaciones y lo vigila. La miniatura es decorativa: no se cargan diagramas en las listas y
+ * su nombre se leería delante del título en cada fila.
  *
  * Pulsada, la parte enlazada pasa a `surface-3`, y `ink-3` no va sobre `surface-3`
  * (design/README.md, Color): los metadatos suben a `ink-2` mientras dura la pulsación. El foco va
@@ -45,7 +51,7 @@ export function DrillCard({
         prefetch={false}
         className="group flex min-w-0 flex-1 items-center gap-(--space-3) px-(--space-4) py-(--space-3) text-ink active:bg-surface-3 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus-ring"
       >
-        <CourtThumb />
+        <CourtThumb decorative />
         <span className="flex min-w-0 flex-1 flex-col gap-0.5">
           <span className="line-clamp-2 font-display text-title font-bold wrap-break-word uppercase">
             {drill.title}
