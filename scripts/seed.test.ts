@@ -76,7 +76,7 @@ describe("scripts/seed.ts", { timeout: IMPORT_TIMEOUT_MS }, () => {
     process.argv = [originalArgv[0], CLI_PATH];
 
     await import("./seed");
-    await vi.waitFor(() => expect(log).toHaveBeenCalledTimes(4));
+    await vi.waitFor(() => expect(log).toHaveBeenCalledTimes(4), { timeout: WAIT_TIMEOUT_MS });
 
     expect(log).toHaveBeenNthCalledWith(
       4,
