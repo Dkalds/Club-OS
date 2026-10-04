@@ -21,7 +21,7 @@
 -- se fuerza aquí a mano (`set constraints`). Los datos son ficticios y solo de este test.
 begin;
 
-select plan(157);
+select plan(162);
 
 -- ── Ayudas (solo existen en esta transacción) ────────────────────────────────────────
 -- Leen como el propietario, sin RLS: dicen lo que hay en la base, lo vea o no quien llama.
@@ -940,6 +940,36 @@ select throws_ok(
   'adminA tampoco guarda una plantilla privada'
 );
 
+-- ── El admin del club ────────────────────────────────────────────────────────────────
+-- adminA gestiona los equipos de su club sin estar en ningún cuerpo técnico: guarda y edita la
+-- sesión que creó en T2, donde el cuerpo técnico es c2.
+select lives_ok(
+  $$select public.save_practice_items(
+      tests.plan_of(current_setting('fx.e_admin')::uuid),
+      tests.token(tests.plan_of(current_setting('fx.e_admin')::uuid)),
+      jsonb_build_array(tests.item('Bloque de adminA', 20)))$$,
+  'adminA guarda los ítems de una sesión de T2'
+);
+
+select lives_ok(
+  $$select public.update_practice_session(
+      current_setting('fx.e_admin')::uuid,
+      tests.token(tests.plan_of(current_setting('fx.e_admin')::uuid)),
+      '2026-10-13T15:30:00Z', '2026-10-13T16:30:00Z', 'Sesión de adminA editada',
+      null, null, 'Pista de T2')$$,
+  'adminA edita los datos de una sesión de T2'
+);
+
+select results_eq(
+  $$select tests.summary(e.id), tests.items(pp.id), pp.updated_by
+    from events as e
+    join practice_plans as pp on pp.event_id = e.id
+    where e.id = current_setting('fx.e_admin')::uuid$$,
+  $$values ('2026-10-13 15:30–16:30 · Pista de T2 · scheduled · Sesión de adminA editada · ready',
+            '1·Bloque de adminA·20', current_setting('fx.admin_a')::uuid)$$,
+  'la sesión de T2 queda con el ítem, las horas, el lugar y el título de adminA, y a su nombre'
+);
+
 -- ── Sesión cerrada (Review Focus 5) ──────────────────────────────────────────────────
 -- Un entreno hecho o cancelado es histórico. Con la copia correcta, para que el error sea por
 -- estar cerrada y no por la copia.
@@ -1240,6 +1270,31 @@ select throws_ok(
   'P0002', 'NOT_FOUND',
   'c1 no edita un entreno sin plan: no hay sesión que editar'
 );
+
+-- Solo cuentan las membresías activas. c1 sigue en el cuerpo técnico de T1: lo que cambia es
+-- su membresía, que después vuelve a quedar activa para el resto del test.
+reset role;
+update memberships set status = 'revoked' where user_id = current_setting('fx.c1')::uuid;
+select tests.authenticate_as(current_setting('fx.c1')::uuid);
+
+select throws_ok(
+  $$select public.save_practice_items(
+      current_setting('fx.plan_t1')::uuid, current_setting('fx.u_t1')::timestamptz,
+      jsonb_build_array(tests.item('c1 revocado')))$$,
+  'P0002', 'NOT_FOUND',
+  'c1 con la membresía revocada no guarda la sesión de T1'
+);
+
+select throws_ok(
+  $$select public.create_practice_session(
+      current_setting('fx.t1')::uuid, '2026-11-03T16:00:00Z', '2026-11-03T17:00:00Z',
+      'No debe quedar', null, null, 'No debe quedar')$$,
+  'P0002', 'NOT_FOUND',
+  'c1 con la membresía revocada no crea una sesión en T1'
+);
+
+reset role;
+update memberships set status = 'active' where user_id = current_setting('fx.c1')::uuid;
 
 select results_eq(
   $$select tests.summary(current_setting('fx.e_t1')::uuid),
