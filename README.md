@@ -75,22 +75,24 @@ Si has usado Gestión en un club del seed, al volver a sembrar:
 - Lo que es del seed vuelve a su texto, su estado, su orden y su número.
 - Lo que creaste a mano se queda. Las secciones pasan detrás de las del seed, en el orden que tenían. Un Standard solo cambia de número si ocupaba uno de los del seed: pasa al primero libre, y `pnpm seed` lo dice al acabar.
 
+Con las sesiones de entrenamiento pasa lo mismo: las del seed vuelven a lo que dice el seed (título, estado, lugar y ejercicios) y cambian de fecha con él; las que creaste en la app se quedan.
+
 ## Tests
 
 | Comando | Qué prueba | Qué necesita |
 | --- | --- | --- |
 | `pnpm lint`, `pnpm typecheck` | ESLint y TypeScript | Nada más |
-| `pnpm check:guards` | Reglas 2 y 3 de CLAUDE.md, que cada página de Gestión se exporta con `adminPage` y tokens al día | Nada más |
+| `pnpm check:guards` | Reglas 2, 3 y 4 de CLAUDE.md (ni la clave de servicio ni nada de un club en `src/`; ni colores hex ni medidas entre corchetes con unidad en los componentes), que cada página de Gestión se exporta con `adminPage` y tokens al día | Nada más |
 | `pnpm test` | Unidad y componentes (Vitest) | Nada más |
-| `pnpm test:db` | RLS y aislamiento entre clubes (pgTAP) | Supabase local |
+| `pnpm test:db` | RLS y aislamiento entre clubes y entre equipos, las funciones SQL y la postura de privilegios de todo `public` (pgTAP) | Supabase local |
 | `pnpm test:int` | El seed, `generateLoginCode` (el código de acceso de los e2e) y Storage (`scripts/media/storage.int.test.ts`: el bucket `club-media` y sus políticas, con la sesión de cada usuario del seed) contra la base de datos | Supabase local con Storage, `.env.local` y el seed ya cargado (`pnpm seed`) |
 | `pnpm test:e2e` | La app en un móvil de 375×812 (Playwright) | Supabase local, `.env.local` y un puerto libre: el 3000, o el de `PORT`. Con `BASE_URL`, ver [Entorno remoto](#entorno-remoto) |
 
 - La primera vez, instala el navegador de los e2e: `pnpm exec playwright install chromium`.
 - Los e2e compilan y arrancan la app por su cuenta (`pnpm build && pnpm start`). Si ya hay algo en el puerto, lo usan tal cual. Con `BASE_URL` no arrancan nada: prueban esa URL.
 - **Otro puerto.** `PORT=3100 pnpm test:e2e` arranca y prueba la app en el 3100. Úsalo si el 3000 está ocupado (por ejemplo, con `pnpm dev`) o si pasas los e2e en dos copias del repo a la vez.
-- **Dos proyectos de Playwright.** `mobile` lee y corre en paralelo. `admin` son los specs que escriben (Gestión): van en serie y solo si `mobile` ha pasado. `pnpm test:e2e --project=mobile` lanza solo el primero.
-- **Los e2e borran contenido en local.** Al arrancar, y al empezar y acabar los specs de Gestión, dejan la metodología de los clubes del seed como recién sembrada: todo lo que hayas creado a mano en esos clubes (secciones, valores, principios, Standards) se borra. `pnpm seed` no borra nada; los e2e sí. Solo pasa con un Supabase local.
+- **Dos proyectos de Playwright.** `mobile` lee y corre en paralelo. `admin` son los specs que escriben (Gestión, la ficha y el editor de ejercicios, y las sesiones: crear, constructor y ejercicios en la sesión): van en serie y solo si `mobile` ha pasado. `pnpm test:e2e --project=mobile` lanza solo el primero. Un spec nuevo que escriba se añade a `ADMIN_SPECS`, en `playwright.config.ts`.
+- **Los e2e borran contenido en local.** Al arrancar, y al empezar y acabar los specs de Gestión y de sesiones, dejan los clubes del seed como recién sembrados: todo lo que hayas creado a mano en esos clubes se borra. Eso incluye la metodología (secciones, valores, principios, Standards), los ejercicios y sus diagramas (también los ficheros de `club-media`) y las sesiones de entrenamiento. Los partidos no se tocan. `pnpm seed` no borra nada; los e2e sí. Solo pasa con un Supabase local.
 - Los e2e siembran solos al arrancar, y solo si Supabase es local. Contra un Supabase remoto no siembran, no borran ni crean usuarios: usan los datos que ya haya, y los tests que escriben se saltan.
 - Ningún e2e crea usuarios. Si el usuario que necesita un test no existe, el test falla y pide sembrar ese entorno.
 
@@ -131,8 +133,29 @@ Lista, en este orden:
   - Postgres 15 o posterior (`show server_version;`): la clave foránea del diagrama usa `on delete set null (columna)`. El `config.toml` local fija la 17.
   - El rol con el que se migra puede crear políticas en `storage.objects` y escribir en `storage.buckets`.
 - [ ] **Aplicar las migraciones** con `pnpm supabase db push`, como arriba. Antes de confirmar, comprueba que la lista que enseña es la que viste en `migration list`: las cuatro de la Fase 3 y, si faltaban, las dos de la Fase 2.
-- [ ] **Volver a sembrar el demo** («Sembrar el demo», más abajo): sin los 20 ejercicios del seed la biblioteca sale vacía.
+- [ ] **Volver a sembrar el demo** («Sembrar el demo», más abajo): sin los ejercicios del seed (23 desde la Fase 4) la biblioteca sale vacía.
 - [ ] **Saber qué hace un nuevo seed con los ejercicios.** Devuelve cada ejercicio del seed a lo que dice el seed: texto, estado, puntos, variantes y vínculos, y pone a null su diagrama y su vídeo. Lo que alguien editó en la app sobre esos ejercicios se pierde, y un diagrama subido a uno de ellos queda desenlazado (su objeto de Storage y su ficha de `media_assets` no se borran).
+
+### Despliegue del Practice Builder (Fase 4)
+
+La Fase 4 trae tres migraciones: `20261117000100_practice_integrity`, `…000200_practice_write` y `…000300_practice_functions`. Van detrás de las cuatro de la Fase 3: sus versiones son posteriores y dan por hecho algo que trae la primera de aquellas (un `updated_at` que avanza dentro de una transacción). Como aquellas, tienen que estar aplicadas **antes de usar la preview del PR** y **antes de fusionar**: sin ellas, abrir una sesión falla (`/train/[eventId]` lee una columna que aún no existe) y no se puede crear ni guardar ninguna.
+
+`supabase db push` aplica todo lo que falte en el remoto, en orden de versión: si las de la Fase 3 (o las de la Fase 2) tampoco están, entran en el mismo paso, delante de estas tres. No hace falta aplicarlas por separado.
+
+No hay nada nuevo en Storage, ni en Auth, ni en las variables de entorno: ni buckets, ni ajustes del panel, ni variables en Vercel.
+
+Lista, en este orden:
+
+- [ ] **Ver qué falta por aplicar**: `pnpm supabase migration list` contra el proyecto enlazado. Tienen que faltar, como mucho, las de las Fases 2, 3 y 4.
+- [ ] **Saber qué hace la primera migración con lo que ya hay.** Añade restricciones sobre filas que existen (cada plan con evento es del equipo de ese evento y el evento es un entreno; títulos de 1 a 80 caracteres; un ítem lleva ejercicio o título) y falla, nombrando la restricción, si alguna fila no las cumple: no corrige nada en silencio. Hasta esta fase ningún usuario podía escribir sesiones, así que en el remoto solo están las del seed, que las cumplen.
+- [ ] **Aplicar las migraciones** con `pnpm supabase db push`. Antes de confirmar, comprueba que la lista que enseña es la que viste en `migration list`.
+- [ ] **Volver a sembrar el demo** («Sembrar el demo», más abajo). El seed de la Fase 4 añade a Arcángel tres ejercicios («Ayuda y recuperación 3x3», «Presión al balón en medio campo» y «Bloqueo y rebote 3x3»: 21 en total, 23 con los 2 de Club Demo), los enlaza a tres ítems de la sesión «Defensa presionante» y da a Alevín A una sesión cancelada, «Tiro libre y finalizaciones», para que el histórico tenga una. Un nuevo seed devuelve las sesiones del seed a lo que dice el seed (título, estado, lugar y ejercicios); las creadas en la app se quedan.
+- [ ] **Comprobar a mano**, en un móvil y con la app desplegada:
+  - Como entrenador (`alex@arcangel.test`): Entrenar → «Nueva sesión», crearla, añadirle un ejercicio y guardarla. Tiene que salir en «Próximas» y en Inicio si es la siguiente.
+  - Como la entrenadora de otro equipo (`nora@arcangel.test`): abrir la URL de esa sesión. Tiene que ver «No encontramos esta página», sin ningún dato de la sesión. Lo mismo con `marta@demo.test`, del otro club.
+  - Las horas: la sesión sale a la hora que se escribió, que es la del club (`organizations.timezone`), aunque el móvil esté en otra zona horaria.
+
+Las tres migraciones no rompen la app que haya desplegada antes de fusionar: la única pantalla que leía planes era Inicio, que embebe el plan en su evento sin nombrar la clave foránea que la primera migración sustituye.
 
 ### Variables en Vercel
 
@@ -221,7 +244,7 @@ pnpm seed
 Remove-Item Env:NEXT_PUBLIC_SUPABASE_URL, Env:SUPABASE_SERVICE_ROLE_KEY, Env:ALLOW_REMOTE_SEED, Variable:clave
 ```
 
-Las fechas del seed son relativas al día en que se siembra: vuelve a sembrar antes de una demo. Un nuevo seed también devuelve los ejercicios del seed a su versión original (ver «Despliegue de la biblioteca de ejercicios»).
+Las fechas del seed son relativas al día en que se siembra: vuelve a sembrar antes de una demo. Un nuevo seed también devuelve los ejercicios y las sesiones del seed a su versión original (ver «Despliegue de la biblioteca de ejercicios» y «Despliegue del Practice Builder»).
 
 ### E2E contra una URL desplegada
 
@@ -253,7 +276,7 @@ Remove-Item Env:BASE_URL, Env:NEXT_PUBLIC_SUPABASE_URL, Env:SUPABASE_SERVICE_ROL
 - El entorno tiene que estar sembrado de antemano. Contra un remoto los e2e no siembran ni crean usuarios, y no guardan sesiones: si falta un usuario del seed, fallan y piden sembrar. Sí reescriben el código de acceso de los usuarios que ya existen y abren sesiones con ellos, como cualquiera que entre.
 - Sin traza ni vídeo: una traza lleva la cookie de sesión de la ejecución y no debe acabar en un artefacto.
 - Para una preview con protección de despliegues, pide también `VERCEL_AUTOMATION_BYPASS_SECRET` (el secreto de «Protection Bypass for Automation» del proyecto en Vercel). Los tests lo envían en la cabecera `x-vercel-protection-bypass` solo en las peticiones al origen de `BASE_URL`. Nunca a otros dominios, y nunca a `localhost`, aunque la variable esté puesta. Si el secreto es incorrecto y la protección redirige a otro dominio, esa redirección lo lleva también: si un test acaba en vercel.com, cambia el secreto.
-- Los tests de Inicio (`e2e/home.spec.ts`) comparan con el calendario del seed y solo aciertan si el entorno se sembró hace poco. `E2E_SEED_NOW=<fecha ISO>` dice cuándo se sembró.
+- Los tests de Inicio (`e2e/home.spec.ts`) y los de la lista de sesiones (`e2e/train.spec.ts`) comparan con el calendario del seed y solo aciertan si el entorno se sembró hace poco. `E2E_SEED_NOW=<fecha ISO>` dice cuándo se sembró.
 
 ### Límites de Auth
 
@@ -263,5 +286,5 @@ Todas las peticiones a Auth salen de la IP del servidor de Vercel, así que los 
 
 No se editan a mano. CI falla si no están al día.
 
-- `src/ui/tokens.css` sale de `design/tokens.json` con `pnpm tokens`. Lleva un bloque `@theme` de Tailwind: no es CSS plano y solo funciona importado desde `src/app/globals.css`.
+- `src/ui/tokens.css` sale de `design/tokens.json` con `pnpm tokens`. Lleva un bloque `@theme` de Tailwind: no es CSS plano y solo funciona importado desde `src/app/globals.css`. El generador es estricto: si a `design/tokens.json` le falta una familia, un token no tiene nombre o valor, un nombre se repite o un alias apunta a un token que no existe, `pnpm tokens` falla y dice dónde, en vez de escribir un CSS roto.
 - `src/lib/database.types.ts` sale del esquema local con `pnpm db:types`. Regenéralo después de cada migración, con Supabase arrancado.

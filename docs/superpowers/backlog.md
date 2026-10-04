@@ -1,10 +1,14 @@
-# CLUB OS · Pendientes que dejan las Fases 1 a 3
+# CLUB OS · Pendientes que dejan las Fases 1 a 4
 
-Lo que las revisiones de las Fases 1, 2 y 3 dejaron para más adelante, ordenado por la fase que debe recogerlo. Nada de esto bloquea el cierre de las fases ya hechas. Cada plan de fase debería incorporar su bloque antes de empezar. Si una fase se cierra sin recoger el suyo, lo que quede se pasa a otra en este fichero: aquí no hay pendientes sin dueño.
+Lo que las revisiones de las Fases 1, 2, 3 y 4 dejaron para más adelante, ordenado por la fase que debe recogerlo. Nada de esto bloquea el cierre de las fases ya hechas. Cada plan de fase debería incorporar su bloque antes de empezar. Si una fase se cierra sin recoger el suyo, lo que quede se pasa a otra en este fichero: aquí no hay pendientes sin dueño.
 
 Estado de la Fase 1: tareas 1–11 hechas y revisadas. Verificado contra Supabase local real y desde una base vacía: `test:db` 208/208, `seed` dos veces, `test:int` 9/9, unidad 577/577, `test:e2e` 16/16. Task 12 (entorno remoto): la parte del repositorio está hecha (con ella, unidad 617/617 y `test:int` 11/11). Pendiente: lo que queda en los paneles (lista de abajo), primera ejecución real de CI y revisión en un móvil real.
 
 Estado de la Fase 3: tareas 1–14 hechas (las 13 de implementación revisadas una a una), y la rama entera revisada al final, sin ningún crítico. Hecho y verificado: la biblioteca (búsqueda sin tildes, filtros en la URL, ficha, editor con diagrama, ejercicios relacionados en The Way); el aislamiento entre clubes, entre entrenadores y frente a jugadores, en la base de datos y con tests que fallan si se rompe (pgTAP, integración con sesiones de usuario de verdad y e2e); lo importante de la revisión final, arreglado o documentado en la tanda de cierre (y los menores baratos, arreglados). Verificado contra Supabase local real y desde una base vacía (`supabase db reset`, `pnpm seed`, `pnpm db:types` sin deriva: `git diff --exit-code src/lib/database.types.ts` limpio): `supabase db lint` (`public`, `private`; por defecto también `extensions` y `tests`) sin errores, `lint`, `typecheck` y `check:guards` limpios, unidad 2622/2622 (117 ficheros), `test:db` 884/884 (9 ficheros), `test:int` 52/52 (3 ficheros) y `test:e2e` 76/76 (375×812, proyectos `mobile` y `admin`, a la primera). Tras los e2e, `pnpm seed` y `test:int` otra vez (52/52), y la comprobación con el cliente de administración: ningún ejercicio `E2E …`, ninguna fila de `media_assets` y ningún objeto en `club-media`; quedan los 20 ejercicios del seed. Repaso visual a 375×812 con los usuarios del seed (Álex, Irene, Raúl y Marta; 25 pantallas, y la biblioteca y el formulario a 1280 px): ningún defecto claro, una sola cabecera en cada pantalla, sin scroll horizontal ni textos cortados, áreas táctiles de 44 px o más, marca del club en chips, insignias y cabecera (turquesa en Club Demo, nada de Arcángel en su lista) y consola sin errores ni avisos. Lo que quedó a juicio del propietario está en «Decisiones de producto a confirmar». Pendiente, y lo cierra el propietario del proyecto: aplicar las cuatro migraciones al Supabase remoto antes de usar la preview y de fusionar (README, «Despliegue de la biblioteca de ejercicios (Fase 3)»; empieza por `supabase migration list`: las dos de la Fase 2 pueden estar pendientes también), una ejecución de CI en verde en el PR, la revisión en un móvil real con los usuarios del seed (Álex, Irene, Raúl, Nora y Marta) y la decisión sobre fotografías como diagrama (última sección). El PR no está abierto.
+
+Estado de la Fase 4: tareas 1–15 hechas y revisadas una a una, la rama entera revisada al final (sin ningún crítico) y una sola tanda de arreglos, re-revisada y limpia. Hecho y verificado: crear una sesión, montarla en el constructor (ejercicios de la biblioteca y bloques libres, que se ordenan arrastrando, con el teclado o con «Subir» y «Bajar», y se cronometran de cinco en cinco minutos), duplicarla, cancelarla y abrirla desde Inicio; «Añadir a sesión» desde la ficha de un ejercicio; el aislamiento entre clubes y entre equipos, en la base de datos (políticas, privilegios por columna y claves foráneas compuestas) y con tests que fallan si se rompe (pgTAP, y e2e con Nora, de otro equipo, y Marta, de otro club); la copia obsoleta entre dos entrenadores del mismo equipo; y las horas siempre en la zona del club, también con el móvil en otra. Verificado contra Supabase local real y desde una base vacía sobre el commit `c4c82e1`, el último que toca código (`supabase db reset`, `pnpm seed` dos veces, `pnpm db:types` sin deriva): `supabase db lint` sin errores, `lint`, `typecheck` y `check:guards` limpios, unidad 3612/3612 (147 ficheros), `test:db` 1237/1237 (13 ficheros), `test:int` 56/56 y `test:e2e` 109/109 (375×812; 57 del proyecto `mobile` y 52 del `admin`). Repaso a 375×812 con capturas de 14 pantallas (Álex, Raúl y Nora), antes de la tanda de arreglos: sin scroll horizontal, ningún control por debajo de 44 px y consola sin errores ni avisos. De la pestaña Entrenar a una sesión guardada con cinco ejercicios hay unos 11 toques y un solo campo que escribir, el título; no se ha cronometrado con una persona (la meta de la spec son menos de 3 minutos). Lo que quedó a juicio del propietario está en «Decisiones de producto a confirmar»: lo primero, que dirección escribe las sesiones de cualquier equipo y la spec dice que solo las lee. Pendiente, y lo cierra el propietario del proyecto: aplicar las tres migraciones al Supabase remoto antes de usar la preview y de fusionar (README, «Despliegue del Practice Builder (Fase 4)»); abrir el PR y mirar su primera ejecución de CI (ver «Notas menores del último repaso»); y la revisión en un móvil real con Álex, Irene, Nora, Marta y Raúl, porque arrastrar con el dedo solo se ha probado emulado. El PR no está abierto.
+
+La rama de la Fase 4 lleva dentro `main` (con la revisión de la Fase 2) y la Fase 3 hasta su commit de cierre, y su PR va detrás del de la Fase 3: sus migraciones no se despliegan antes que las de la biblioteca. La rama de la Fase 3 ha seguido después de ese cierre (fusionó `main` por su cuenta y volvió a tocar este fichero); esos commits no están aquí. Las dos ramas resolvieron por separado la fusión con `main` y llegaron a lo mismo con texto distinto en `src/lib/mutate.ts`, `src/lib/use-action.ts` y `src/modules/methodology/actions.ts`: al juntarlas puede haber conflictos de texto en esos ficheros, en el README y en este backlog. Lo que tiene que quedar: `mutate(config, …)` con `retryOnConflict`, `useAction` con `unstable_rethrow`, y `DrillForm` con `useLeaveGuard` (esta rama borró `src/lib/unsaved-changes.ts`).
 
 ## Correcciones al texto de los planes
 
@@ -15,10 +19,12 @@ Estado de la Fase 3: tareas 1–14 hechas (las 13 de implementación revisadas u
 - **Error frente a 404.** Una avería de Supabase lanza y llega a un límite de error; `null` y 404 quedan solo para «no existe o no eres miembro activo».
 - **Storage: la spec se implementa más estricta que como está escrita.** La spec habla de políticas de Storage «sobre el primer segmento» de la ruta (el club). Se implementó por visibilidad del ejercicio: leer, subir y borrar en `club-media` siguen la regla del ejercicio de la carpeta `org/{club}/drills/{ejercicio}/`, y nada más se puede leer (con la regla del primer segmento, un jugador o un entrenador sin acceso a un borrador listaba y firmaba su diagrama). La especificación no se ha editado.
 - **Región.** La especificación aprobada (`docs/spec/club-os-primera-entrega.md`, fila «Región» de la tabla) dice Fráncfort. La decisión del 3 oct 2026 es Irlanda para Supabase y Dublín para las funciones de Vercel. La especificación no se ha editado.
+- **Planes de sesión: dirección escribe, y la spec dice que lee.** La spec (§5, fila «Planes de sesión») da al admin «Lee todos». El contrato entre fases decía «admin o staff del equipo» y así se implementó: dirección crea, edita, duplica y cancela las sesiones de cualquier equipo de su club. Está pendiente de confirmar (la primera de «Decisiones de producto a confirmar»). La especificación no se ha editado.
+- **El plan de la Fase 4 no es la referencia de lo que hay.** Sus tipos y sus props cambiaron al ejecutarlo (`PracticeListItem.location`, `PracticeDetailItem.drillVisible`, `PracticeBuilder` sin `backHref`, `sessionMinutes`, `defaultSessionDate`…). Lo que la fase produjo está en el contrato entre fases, sección «Fase 4 · Practice Builder — produce».
 
 ## Fase 2 · The Way (cerrada)
 
-La Fase 2 se cerró sin recoger casi nada de este bloque. Lo que sigue pendiente está repartido en los bloques de las fases 3, 4 y 7 de aquí abajo, marcado con «(de la Fase 2)».
+La Fase 2 se cerró sin recoger casi nada de este bloque. Lo que tenía marcado con «(de la Fase 2)» para las fases 3 y 4 lo hizo la Fase 4 (ver su bloque); lo que sigue pendiente está en el de la Fase 7.
 
 Hecho, en la fase o al corregir la revisión de su PR:
 
@@ -28,52 +34,63 @@ Hecho, en la fase o al corregir la revisión de su PR:
 
 ## Fase 3 · Biblioteca (cerrada)
 
-- (de la Fase 2) Un test genérico de postura sobre todas las tablas de `public`: RLS activado, nada para `anon`, lo de `authenticated` contra una lista permitida (incluido qué columnas puede cambiar). Opcional: `alter default privileges … revoke`. La Fase 3 abrió la primera tabla que escriben los entrenadores y se cerró sin recogerlo: pasa a la Fase 4, antes de abrir más escritura.
+- (de la Fase 2) El test genérico de postura lo hizo la Fase 4: `supabase/tests/database/posture.test.sql` recorre el catálogo de `public` y comprueba RLS en toda tabla, nada para `anon` y los privilegios de `authenticated`, de tabla y de columna, contra dos listas escritas a mano. Cada tabla y cada `grant` nuevos se apuntan ahí. Lo que aún no fija (qué funciones ejecuta `authenticated`) está en la Fase 7. El `alter default privileges … revoke`, que era opcional, no se ha hecho: el test caza una tabla nueva que llegue con privilegios de más.
 
-## Fase 4 · Practice Builder
+## Fase 4 · Practice Builder (cerrada)
 
-- (de la Fase 2) El generador de tokens debe fallar con un alias desconocido (`{x}`) y validar la forma de `tokens.json`.
-- (de la Fase 2) Decidir una convención única para tamaños sin token. Hoy conviven medidas de la escala de Tailwind copiadas de `bundle.css` (`size-10`, `w-11`, `h-15`…) con expresiones sobre tokens (`min-w-[calc(var(--target-min)*4)]`). La Fase 4 trae mucha interfaz nueva: decidirlo antes.
-- (de la Fase 2) Comprobación de hex en `src/**/*.tsx` dentro de `check:guards` (la regla 4 no tiene guarda hoy), y de medidas fuera de la convención que se decida.
-- (de la Fase 2) `ListRow`: semántica de lista (`ul`/`li`) y documentar que las filas van como hijas directas de `Card flush`. Las listas de ejercicios y de ítems de una sesión la van a usar.
-- **Atar el equipo del plan al de su evento.** Hoy el esquema acepta un plan de T2 sobre un evento de T1. Con escritura de usuarios, un entrenador de otro equipo podría ocupar el evento (`event_id` es único). Solución de esquema: `unique (organization_id, team_id, id)` en `events`, FK de tres columnas en `practice_plans` y `check (event_id is null or team_id is not null)`. El plan de la Fase 4 no lo recoge.
-- Una sola regla de «staff de un equipo» (`private.can_manage_team`): hoy está escrita tres veces (`is_team_staff`, `can_see_person`, `can_see_plan`).
-- El autor de un plan lo sigue viendo tras dejar el cuerpo técnico. Decidir antes de abrir la autoría.
-- `practice_plans.created_by` sin acción `on delete`: borrar a un autor fallará con 23503.
-- El `kind` del evento no está atado al contenido (plan sobre un partido).
-- Fin de semana una hora tarde en zonas con hueco de medianoche por cambio de hora (Santiago, El Cairo, Azores): `startOfLocalDay(addLocalDays(now, 7))`. `inZone` debería rechazar fechas ISO sin desfase. No afecta a España ni a México.
-- `PracticeCard` no muestra el equipo: con dos equipos no se sabe de cuál es la sesión.
+La Fase 4 recogió su bloque entero y, del que la Fase 3 le dejó al cerrar (llegó cuando su plan ya estaba escrito), lo que tenía que ver con las sesiones o era barato. Lo que sigue pendiente está en los bloques «Lo que deja la Fase 4» de las fases 5, 6 y 7 y en «Pulido de la biblioteca», en la Fase 7.
 
-**Lo que deja la Fase 3 (primeras tareas de esta fase):**
+Hecho, del bloque que tenía:
 
-- `ClubContext` lleva el id del usuario: hoy `getDrill` hace un segundo `getClaims()` por ficha solo para saber `createdByMe`.
-- Andamiaje compartido para los tests de acciones (se ha copiado entre `methodology/actions.test.ts`, `drills/actions.test.ts` y `mutate.test.ts`) y para los e2e: `CAN_WRITE`, `targetIsLocal` y `expectFullyInRow` están copiados entre specs.
-- `restoreSeed` (`e2e/helpers/seed.ts`): `practice_items` va antes que `drills` en `WRITABLE_TABLES`, porque `practice_items.drill_id → drills` no tiene cascade; hoy no hace falta porque ningún e2e mete un ejercicio `E2E …` en una sesión.
-- Los ejercicios nuevos del seed no pueden romper lo que los e2e de la Fase 3 suponen: los tres primeros por título de cada principio (`way-drills.spec.ts`) y que ningún ejercicio de Arcángel visible para Álex case con `focus=rebote&age=10` (los casos «sin resultados» de `e2e/drills-library.spec.ts` esperan la lista vacía). El único que casa hoy es el borrador «Bloqueo de rebote» de Irene, que Álex no ve e Irene sí; el filtro no tiene que ver con el otro club. Un ejercicio publicado de Arcángel con objetivo `rebote` y edad U10 lo rompería. Los ejercicios `E2E …` no casan con ese filtro ni son del principio `rebote` con una edad fuera de 12.
-- Protección completa contra perder lo escrito, con `ConfirmDialog`: el «Volver» de la cabecera y la navegación inferior descartan un formulario largo de un toque. `DrillForm` y `SectionEditor` solo protegen el cierre de la pestaña y su propio «Cancelar»/«Volver» (con `window.confirm`), y pasan a `ConfirmDialog`.
-- Los límites del formulario de ejercicios (`maxLength`, topes de puntos y variantes) están duplicados entre `src/modules/drills/schema.ts` y `drill-form.tsx`: una sola fuente.
-- **Tiempo del trabajo `checks` de CI.** Con las esperas y los tiempos de test más amplios de los ficheros grandes de componentes (`asyncUtilTimeout` de 5 s y `testTimeout` de 15 s del proyecto `ui`), un fallo sistémico en ellos puede agotar el tope de 10 minutos del trabajo `checks` (`.github/workflows/ci.yml`) sin que llegue a salir un informe de tests. Subir el tope del trabajo o acotar los tiempos por fichero.
-- `src/modules/home/queries.ts` sigue con su propia copia del ayudante de errores de lectura que ya está en `src/lib/read-error.ts` (`throwReadError`): usar el común y borrar la copia. El comentario de `read-error.ts` ya dice que Inicio no lo usa.
-- `beforeunload` no pregunta en iOS Safari: en un iPhone, la única protección de `DrillForm` y `SectionEditor` contra perder lo escrito es su «Cancelar», hasta que llegue `ConfirmDialog` (punto de arriba).
-- Estado de espera de la lista de la biblioteca: con latencia real el chip cambia al momento y `aria-busy` está solo en la barra, no en la lista. Dos clases (`peer` en la barra, `peer-aria-busy:opacity-…` en la lista) bastarían.
-- La lectura de ejercicios relacionados va en serie tras la sección de principios y, si falla, tumba la sección entera para el cuerpo técnico: que su fallo no se lleve The Way.
-- La hoja de «Archivar» no se puede cerrar mientras corre la acción y no dice «Archivando…».
-- «Quitar diagrama» no limpia un error de subida anterior del servidor.
-- `/drills` llama a `getPrinciples(ctx)`, que carga todos los principios con sus puntos, solo para sacar el título del filtro de principio activo.
-- `createDrill` no es idempotente: una respuesta perdida con mala conexión y un reintento crean un segundo borrador, y un entrenador no puede borrar ni archivar el suyo.
-- Tras publicar dirección un borrador que su autor está editando, el autor recibe `STALE_COPY`, pulsa «Recargar» y cae en el 404 opaco de la URL de edición. Es correcto según las reglas, pero confunde: redirigir a la ficha.
+- (de la Fase 2) El generador de tokens falla con un alias desconocido y valida la forma de `tokens.json` (`validateTokens`, en `scripts/tokens-to-css.ts`).
+- (de la Fase 2) Convención única de medidas: token, escala de Tailwind y literal con unidad solo en tipografía (`design/README.md`, «Espaciado y layout»). Con ella dejan de estar pendientes los `min-h-8` de `drill-sections.tsx` (escala) y las dos medidas del bloque de Standard y del chip (tipografía).
+- (de la Fase 2) `check:guards` comprueba los colores hex y las medidas entre corchetes en los `.tsx` de `src/` (regla 4). Lo que no mira está en la Fase 7.
+- (de la Fase 2) `ListRow` es un `<li>` y va dentro de `<Card variant="flush" as="ul">`; está documentado en `design/README.md` y en `design/components/ListRow/README.md`.
+- El plan va atado al equipo y al tipo de su evento: clave foránea de cuatro columnas (`practice_plans_event_fkey`) y `check (event_id is null or team_id is not null)`. Con ella queda cerrado también el lado de los planes de la regla de `kind`: un plan no cuelga de un partido.
+- Una sola regla de cuerpo técnico, `private.is_team_staff`: `can_see_person`, `can_see_plan` y la nueva `can_manage_team` la llaman.
+- `practice_plans.created_by` es `on delete set null`: borrar la cuenta de un autor ya no falla.
+- El fin de «Esta semana» en Inicio ya no se corre una hora donde el cambio de hora cae a medianoche (`build-home.ts`, con su test en `America/Santiago`), y `src/lib/time.ts` rechaza un ISO sin `Z` ni desfase.
+- `PracticeCard` dice el equipo en su cabecera («Próximo entrenamiento · Alevín A»).
+- Decidido, y pendiente de confirmar: el autor de un plan de equipo deja de verlo al dejar su cuerpo técnico (ver «Decisiones de producto a confirmar»).
+
+Hecho, de lo que dejó la Fase 3 para el principio de esta fase:
+
+- Protección contra perder lo escrito con `ConfirmDialog`: `DrillForm`, `SectionEditor` y el constructor usan `useLeaveGuard` (`src/ui/leave-guard.tsx`). Cualquier enlace de la app, también el «Volver» de la cabecera y la navegación inferior, abre «¿Salir sin guardar?». Ya no hay `window.confirm` ni `src/lib/unsaved-changes.ts`. Con ello queda cubierto el punto de iOS: `beforeunload` sigue sin preguntar en iOS Safari al cerrar la pestaña, pero los enlaces sí preguntan. Lo que no cubre (el botón «atrás» y el gesto de volver) está en «Decisiones de producto a confirmar».
+- El trabajo `checks` de CI tiene 20 minutos (`.github/workflows/ci.yml`).
+- Inicio usa el `throwReadError` común (`src/modules/home/queries.ts`).
+- `restoreSeed` borra `practice_items` antes que `drills`, y con ellos las sesiones que no son del seed.
+- Los tres ejercicios nuevos del seed conviven con los e2e de la Fase 3, que hubo que ajustar: uno de ellos, «Bloqueo y rebote 3x3», casa con `focus=rebote&age=10`, así que los casos «sin resultados» de `e2e/drills-library.spec.ts` filtran ahora por `focus=rebote&q=canasta`; y `e2e/drill-detail.spec.ts` espera el botón «Añadir a sesión».
+
+El resto de ese bloque son retoques de la biblioteca sin relación con las sesiones: pasa a la Fase 7, «Pulido de la biblioteca (lo dejó la Fase 3)».
 
 ## Fase 5 · Live Practice
 
 - La URL firmada del diagrama caduca a los 10 minutos (`signedUrl(path, expiresIn = 600)`): una pantalla de Live abierta mucho rato o sin conexión la pierde. Decidir cómo se piden o se cachean los diagramas de la sesión.
 - La ficha dice «Pista sin diagrama» cuando la URL firmada de un diagrama enlazado ha caducado y la imagen no carga (`CourtDiagram` cae a la pista vacía). En Live eso sería engañoso.
 
+**Lo que deja la Fase 4 (primeras tareas de esta fase):**
+
+- `PracticeForm` en modo crear (`/train/new`; `train/_components/practice-form.tsx`) no tiene aviso de salida. Es el único formulario de la pestaña Entrenar que todavía pierde lo escrito con un toque en la navegación inferior. Le falta `useLeaveGuard(dirty)` y su `LeaveGuardDialog`, como en el constructor. Se dejó fuera porque el formulario es corto (ocho campos) y la fase solo admitía una tanda de arreglos.
+- **Los ítems nuevos no reciben su `id` tras guardar.** `savePracticeItems` devuelve solo `updatedAt`, y el constructor (`toItem`, en `train/_components/practice-rows.ts`) vuelve a mandar sin `id` los ítems que se añadieron en esa visita: cada guardado siguiente los borra y los vuelve a crear con otro id. Hoy no se nota. Con Live sí: un ítem recreado pierde `completed` y `actual_minutes`, y cualquier estado que guarde ids de ítems (`LiveItem.id`, lo que se guarde en el dispositivo) apunta a filas que ya no existen. Arreglo: que el guardado devuelva los ítems y el constructor les ponga su `id`. Va con dos reglas del contrato entre fases: nada guarda ids de ítems a través de un guardado (C23), y toda escritura en `practice_items` mueve el `updated_at` del plan (C22).
+- `insert … returning` sobre `practice_plans` da `42501` a un usuario autorizado: la política de lectura (`can_see_plan(id)`) busca por id una fila que todavía no existe. Las funciones de la Fase 4 insertan sin `returning` y leen por `event_id`, pero ningún test lo fija y la próxima función que inserte un plan puede caer en ello. Arreglo de raíz: una política de lectura escrita sobre las columnas de la fila, como `drills_select_visible`. No pasar las funciones a `security definer` para esquivarlo.
+- La puerta de entrada de las funciones (sesión abierta, bloqueo del evento, bloqueo del plan y copia obsoleta) está escrita dos veces, en `update_practice_session` y en `save_practice_items` (`20261117000300_practice_functions.sql`). `record_live_progress` sería la tercera: extraerla entonces.
+- `listPractices` corta cada pestaña en 50 sesiones sin decirlo (`LIST_LIMIT`, en `src/modules/practice/queries.ts`), y el `DateChip` del histórico no enseña el mes. Dirección, con varios equipos, llega a 50 en pocas semanas, y a partir de ahí el histórico parece haber perdido sesiones.
+- Borrar una cuenta mueve el `updated_at` de los planes que creó o guardó (el `on delete set null` es un `update` y pasa por el trigger): quien esté editando una de esas sesiones recibe «Alguien ha cambiado esto…» sin que nadie haya cambiado nada.
+- **Una respuesta perdida parece la edición de otra persona.** Si el guardado llega a la base pero su respuesta se pierde (mala cobertura en el pabellón), `useAction` dice «No se pudo guardar»; al reintentar, la copia ya es otra y sale `STALE_COPY`, y «Recargar» tira lo que se cambió desde entonces. Pasa hoy en el constructor, y la sincronización de Live trabaja justo en esas condiciones.
+
 ## Fase 6 · Equipo, jugadores y partidos
 
 - El límite de 30 eventos de Inicio mezcla entrenamientos y partidos y puede esconder el próximo partido.
 - «Mis equipos» = temporada actual. Hoy `team_staff` no filtra por temporada ni se usa `archived_at`.
 - `GameCard`: cada equipo se anuncia dos veces a lectores de pantalla; tono del avatar rival por selector descendiente.
-- Partido colgado de un evento de entrenamiento (lado de partidos de la regla de `kind`).
+- Partido colgado de un evento de entrenamiento (lado de partidos de la regla de `kind`). El lado de los planes lo cerró la Fase 4.
+
+**Lo que deja la Fase 4:**
+
+- **Un entreno sin plan sale en las listas y su detalle es un 404.** `listPractices` e Inicio lo pintan como «Entrenamiento sin plan» y lo enlazan a `/train/{id}`, pero `getPractice` devuelve `null` si el evento no tiene plan (`toPracticeDetail`, en `src/modules/practice/map-rows.ts`). Desde la app no se llega a ese estado, porque `create_practice_session` crea el evento y el plan a la vez; la primera fase que cree o importe eventos por otra vía se lo encuentra. O no se listan, o el detalle pinta lo mínimo.
+- `home-screen.tsx` decide el enlace de cada fila de «Esta semana» con un ternario: un entreno va a su sesión y todo lo demás, a `/games`. Cuando los partidos tengan su pantalla, un `switch` con `never`: hoy un tercer tipo de evento enlazaría a Partidos sin que nadie lo decidiera.
+- «Aún no estás en ningún equipo» (`src/modules/practice/practice-list.tsx` y `train/new/page.tsx`) sale a cualquiera que no tenga equipos gestionables, también a quien no le corresponde: al admin de un club recién creado, todavía sin equipos, se le dice «Cuando dirección te asigne un equipo…», y en la lista de Entrenar lo lee también un jugador o un tutor que sí tiene equipo. Va con «Mis equipos», de arriba.
+- Los equipos gestionables se filtran por temporada actual con embeds `!inner` (`TEAM_COLUMNS` y `STAFF_TEAM_COLUMNS`, en `map-rows.ts`), y ningún test lo prueba con datos de verdad: el seed solo tiene la temporada actual. Un equipo de una temporada pasada en el seed lo cubriría. Va con «Mis equipos», de arriba.
 
 ## Fase 7 · Gestión y cierre
 
@@ -106,7 +123,54 @@ Hecho, en la fase o al corregir la revisión de su PR:
 - `getRelatedDrills` lee como mucho 1.000 filas por título para repartirlas: por encima, los principios cuyos ejercicios ordenan tarde dirían «Aún no hay ejercicios con este principio» sin que sea cierto.
 - El e2e del 404 opaco compara solo el texto de `main`: comparar también `response.status()` y el título de la página.
 - Accesibilidad (axe): el chip de `FilterSheetChip` con valor se llama solo «U12» (se pierde «Edad») y tiene `aria-pressed` y `aria-haspopup` sin `aria-expanded`; el chip de principio activo se llama «Quitar filtro de principio» sin el título (WCAG 2.5.3); «Ver todos en la biblioteca» se repite por principio sin contexto que los distinga; «Ver vídeo» no avisa de que abre otra pestaña; en un fallo de la ficha el mismo mensaje probablemente se lee dos veces (alerta y descripción del botón); la fila de chips da un salto horizontal al hidratar en una carga completa.
-- Tamaños sin token (`min-h-8` en `drill-sections.tsx`): ya está en la lista de la Fase 2 («convención única para tamaños y espaciados»).
+
+**Pulido de la biblioteca (lo dejó la Fase 3):**
+
+Lo que la Fase 3 dejó para el principio de la Fase 4 y la Fase 4 no recogió: retoques de la biblioteca sin relación con las sesiones. Los dos últimos puntos los añade el cierre de la Fase 4.
+
+- `ClubContext` lleva el id del usuario: hoy `getDrill` hace un segundo `getClaims()` por ficha solo para saber `createdByMe`.
+- Andamiaje compartido para los tests de acciones (se ha copiado entre `methodology/actions.test.ts`, `drills/actions.test.ts` y `mutate.test.ts`) y para los e2e: `CAN_WRITE`, `targetIsLocal` y `expectFullyInRow` están copiados entre specs (ver también «Tests», en «Lo que deja la Fase 4»).
+- Los límites del formulario de ejercicios (`maxLength`, topes de puntos y variantes) están duplicados entre `src/modules/drills/schema.ts` y `drill-form.tsx`: una sola fuente, como el `limits.ts` del módulo de sesiones.
+- Estado de espera de la lista de la biblioteca: con latencia real el chip cambia al momento y `aria-busy` está solo en la barra, no en la lista. Dos clases (`peer` en la barra, `peer-aria-busy:opacity-…` en la lista) bastarían.
+- La lectura de ejercicios relacionados va en serie tras la sección de principios y, si falla, tumba la sección entera para el cuerpo técnico: que su fallo no se lleve The Way.
+- La hoja de «Archivar» no se puede cerrar mientras corre la acción y no dice «Archivando…».
+- «Quitar diagrama» no limpia un error de subida anterior del servidor.
+- `/drills` llama a `getPrinciples(ctx)`, que carga todos los principios con sus puntos, solo para sacar el título del filtro de principio activo.
+- `createDrill` no es idempotente: una respuesta perdida con mala conexión y un reintento crean un segundo borrador, y un entrenador no puede borrar ni archivar el suyo.
+- Tras publicar dirección un borrador que su autor está editando, el autor recibe `STALE_COPY`, pulsa «Recargar» y cae en el 404 opaco de la URL de edición. Es correcto según las reglas, pero confunde: redirigir a la ficha.
+- En `DrillForm`, lo que se escribe mientras un guardado está en curso se pierde si el guardado acaba bien: el propio formulario navega a la ficha con `router.push` (`drills/drill-form.tsx`), y un cambio de ruta hecho por código no pasa por el aviso de salida. Es anterior a la Fase 4 y sus tests fijan ese comportamiento tal cual.
+- Ningún e2e cubre el diálogo «¿Salir sin guardar?» del formulario de ejercicios: solo tests de unidad y una comprobación a mano en el navegador. El del constructor sí lo tiene (`e2e/practice-builder.spec.ts`).
+
+**Lo que deja la Fase 4:**
+
+- Base de datos, para la revisión de seguridad:
+  - Un ítem puede enlazar un ejercicio que quien lo escribe no ve (el borrador de otro entrenador) si conoce su uuid: las políticas de `practice_items` no miran `drill_id`. Endurecer con `drill_id is null or private.can_see_drill(drill_id)` en el alta y en el cambio. La interfaz no lo ofrece (`findDrills` y `addDrillToPractice` solo dan publicados) y el detalle no enlaza lo que no se ve (`drillVisible`); queda quien llame a mano a `savePracticeItems` o a la API.
+  - `char_length(title) between 1 and 80` admite un título de solo espacios, en `practice_plans.title` y en `practice_items.title_override`. Zod lo recorta; por la API directa pasa.
+  - `posture.test.sql` no fija qué funciones puede ejecutar `authenticated` (en especial las `security definer`), ni las secuencias, ni `relforcerowsecurity`.
+  - Un `id`, un `drill_id` o unos `minutes` malformados dentro de un elemento de `p_items` dan `22P02` o `22003`, no `INVALID` (`save_practice_items`). La acción los para antes con Zod; por la API directa sale un error fuera del contrato.
+  - No hay test automático de concurrencia para las funciones de sesión: el bloqueo del evento y el del plan se comprobaron a mano, con dos sesiones de `psql`. Falta un test de dos conexiones en `test:int`.
+  - `listPractices` interpola `nowIso` en un `.or(...)` de PostgREST sin validarlo (`src/modules/practice/queries.ts`). Hoy es siempre `new Date().toISOString()` del servidor: ninguna página debe pasarle un valor que venga de la petición.
+  - Coste de la lista (estimado, sin medir): la política de `events` ejecuta dos funciones por fila antes de ordenar y cortar, cada sesión listada paga `can_see_plan` por su plan y otra vez por cada ítem embebido, y el histórico no tiene suelo de fecha, así que crece toda la temporada, sobre todo para dirección. `EXPLAIN ANALYZE` con una temporada realista. Va con «Coste de las políticas con función por fila», de arriba.
+- Código repetido, en una pasada:
+  - **Un solo gancho para «la última copia guardada».** `PracticeBuilder` y `PracticeForm` llevan `dirty` con dos fuentes de verdad (la copia guardada, en estado, y `latest`, un ref que se pone al día en un efecto): una ventana teórica de milisegundos. `DrillForm` y `SectionEditor` repiten la misma mecánica. Un gancho compartido lo arregla en un sitio. Con él, lo que venía de la Fase 2: `SectionEditor` lleva su propio estado de «guardado» y su región de estado al lado de `useConfirmation` y `EditorForm` (`editor-shell.tsx`), que hacen lo mismo para los otros tres editores, y el margen `empty:-mt-(--space-5)` de esa región tiene que coincidir a mano con el `gap` del formulario.
+  - `Embedded<T>` y `one()` están copiados en `tenancy/queries.ts`, `home/map-rows.ts` y `practice/map-rows.ts`, y el mismo desempaquetado va en línea dos veces en `practice/actions.ts` (`findPractice` y `readPracticeToExtend`): uno solo, en `src/lib`.
+  - `FIELD_SEPARATOR` está tres veces (`src/lib/time.ts`, `home/build-home.ts`, `practice/format.ts`) y «Entrenamiento sin plan», dos (`home/build-home.ts`, `practice/map-rows.ts`).
+  - `confirm-dialog.tsx` repite de `bottom-sheet.tsx` cómo encuentra el contenedor del club y cómo devuelve el foco a quien lo abrió: un gancho común.
+  - Las pestañas de `practice-list.tsx` copian las clases de los chips de `ui/filter.tsx`; la etiqueta de objetivo está escrita en `practice-card.tsx` y en `practice-summary.tsx`; y la fila-botón de `add-to-practice.tsx` copia la forma de `ListRow`.
+  - `PracticeItemView` tiene una prop `phase` que solo recibe `null` (`train/[eventId]/page.tsx`: la fase la dice la cabecera del bloque).
+  - La página de editar (`train/[eventId]/edit/page.tsx`) lee los objetivos del club dos veces (el `getFocusAreas` privado de `practice/queries.ts` y el de `drills/queries.ts`) y los equipos, que en modo editar no se usan.
+  - La ficha de un ejercicio publicado ejecuta `listPractices` en cada carga, se abra o no la hoja «Añadir a sesión» (`drills/[drillId]/page.tsx`): pedirlas al abrir la hoja.
+- Interfaz y accesibilidad:
+  - Tras «Salir sin guardar», `useLeaveGuard` deja quitadas sus tres protecciones (el aviso de la pestaña, los clics en enlaces y `guard`) hasta que `dirty` pase por falso (`src/ui/leave-guard.tsx`). Si un destino dejara la pantalla montada (un enlace a la misma ruta con otra query, una descarga), el formulario, aún con cambios, se quedaría sin aviso. Hoy ninguna de las tres pantallas que usan el gancho tiene un enlace así; si llega uno, hay que volver a armar los avisos.
+  - El foco de teclado puede quedar debajo de la barra fija de «Guardar sesión» (WCAG 2.2, 2.4.11): `scroll-padding-bottom` en el contenedor que se desplaza. Y los errores de una fila que no tienen campo propio (los minutos, el título de un ejercicio) no están asociados a ningún control (`train/_components/practice-row-editor.tsx`).
+  - En «Histórico» vacío y con permiso hay dos botones principales: «Nueva sesión», arriba, y «Ver próximas», en el aviso. El arreglo es una variante secundaria para la acción de `EmptyState`.
+  - `findDrills` pasa por el tope de 100 de `searchDrills` antes de quitar lo que no está publicado: para dirección, los borradores ocupan hueco, y el selector no avisa de que la lista está cortada.
+  - El formulario de la sesión no refleja la normalización que provoca: un objetivo secundario elegido sin principal se guarda como principal, y el formulario lo sigue enseñando como secundario hasta recargar (`practice-form.tsx`).
+- Guards y diseño:
+  - Los guards de hex y de medidas solo miran `.tsx` (`scripts/check-guards.sh`): una clase escrita en un `.ts` no se comprueba. El de medidas solo conoce `px`, `rem`, `em` y `%`: `min-h-[50vh]` pasa. Y el de hex marca, en código, una entidad numérica (`&#8212;`) o un ancla con forma de color (`#add`).
+  - `design/`, que es la fuente de verdad visual, no recoge lo que la fase añadió. No hay variante `danger` en `design/components/CTAButton` ni en `bundle.css`, ni vista previa de `ConfirmDialog`, del diálogo de salida ni de `PracticeSummary`. «Fecha y datos» es un desplegable hecho a mano en el editor: el sistema no tiene un componente para eso. Y las notas de uso de `shadow-sheet` («solo hojas inferiores y la barra del Live Mode») y de `scrim` («velo sobre fotografía») en `design/tokens.json` son más estrechas que el código: `ConfirmDialog` usa los dos y la fila que se arrastra, la sombra.
+- Tests:
+  - Los e2e siguen copiando su andamiaje: `targetIsLocal` y `CAN_WRITE` están en cinco sitios (`admin.spec.ts`, `drill-detail.spec.ts`, `drill-editor.spec.ts`, `way.spec.ts` y `e2e/helpers/train.ts`), `hydrated` en dos y `expectFitsMobile` en tres. Los specs de Entrenar ya comparten `e2e/helpers/train.ts`: llevar a un helper común los demás.
 
 ## Lista para la Task 12 (entorno remoto)
 
@@ -136,6 +200,14 @@ Pendiente (paneles y primera ejecución):
 - Fuera de CI, Playwright reutiliza un servidor ya abierto en el puerto 3000 aunque esté construido contra otro Supabase.
 - `scripts/seed.ts` y `scripts/tokens-to-css.ts`: si el repo se abre a través de un enlace simbólico, la guarda de entrada puede no reconocer la ejecución directa y terminar sin hacer nada.
 - Secreto de bypass de Vercel: Chromium reenvía las cabeceras que cambia una ruta de Playwright a las redirecciones de esa petición, también a otro dominio (comprobado; la documentación de Playwright dice lo contrario), y Playwright no vuelve a pasar la redirección por la ruta. Con un secreto incorrecto, la protección redirige a vercel.com y esa petición lo lleva. Con uno válido no pasa. Si alguna vez preocupa, validar el secreto con una petición previa en el arranque global.
+- **«The destination stream closed early» en el log del servidor.** Salió en algunas pasadas de los e2e de la Fase 4 (en 3 de 9, sin que fallara ningún test) y se diagnosticó antes de cerrar. No es un defecto de la app y no hay nada que arreglar.
+  - Qué lo emite: en este Next, una navegación de cliente pide una respuesta RSC que el servidor va pintando por partes. Si el cliente suelta esa respuesta cuando al servidor aún le quedan componentes por pintar, React aborta el render con ese mensaje. Next lo registra como error porque solo reconoce un corte del cliente por el nombre del error (`AbortError`, `ResponseAborted`), y este es un `Error` sin nombre propio.
+  - Qué significa: alguien cerró la pestaña o navegó a otra parte a mitad de un render. No se pierde nada (era una lectura), y producción lo registrará cada vez que pase.
+  - Cómo se comprobó: se reprodujo a propósito cortando peticiones RSC a mitad (31 de 34 cortes dejaron la línea) y con un control: las mismas peticiones, sin cortar, no la dejaron nunca. Cortar la carga de un documento HTML tampoco la produce. Ningún código de la app lanza.
+  - Qué queda sin probar: qué test de los e2e lo dispara (por descarte, uno de `drills-library.spec.ts` que acaba justo después de volver a «Entrenar», mientras su respuesta sigue llegando; en las pasadas del diagnóstico la línea no salió sola ni una vez) y por qué empezó a verse al fusionar la Fase 3 (lo probable: más tests en paralelo). Ninguna de las dos cosas lo convierte en un defecto. Si se quiere el log de los e2e limpio, ese test puede esperar al contenido de «Entrenar» antes de acabar.
+- Cada pasada de los e2e deja una vez en el log del servidor `[auth.request-code] AuthApiError status=422 code=otp_disabled`: es el login por invitación respondiendo a un email que no existe. Camino esperado, registrado como error (va con «nivel de log de los eventos esperados», en la Fase 7).
+- `CLAUDE.md` dice que `pnpm check:guards` comprueba las «reglas 2, 3 y tokens sincronizados». Desde la Fase 4 comprueba también la regla 4 (ni colores hex ni medidas entre corchetes con unidad en los componentes) y, desde la revisión de la Fase 2, que cada página de Gestión se exporta con `adminPage`. Esa línea la cambia el propietario: `CLAUDE.md` no se edita en el cierre de una fase.
+- **CI, tras la Fase 4.** La suite de unidad es más del doble que la de `main`, y todo lo verificado en la fase es local. El trabajo `checks` (lint, tipos, guards y unidad) tiene ahora 20 minutos de tope en vez de 10. Hay que mirar la primera ejecución del PR de la Fase 4: cuánto tarda `checks` y si `e2e` (30 minutos, con 109 tests) va holgado.
 
 ## Decisiones de producto a confirmar
 
@@ -144,6 +216,17 @@ Pendiente (paneles y primera ejecución):
 - Con Auth caído, el proxy lleva a `/login` en vez de mostrar la pantalla de error. Con la base o PostgREST caídos sí se ve la pantalla de error.
 - Las cookies de sesión son `httpOnly` y `Secure`. La app no tiene cliente de Supabase en el navegador y la Fase 5 debe sincronizar por `POST /api/live-progress`.
 - En tests de `src/` quedan nombres de persona y títulos de sesión de las vistas previas del diseño («Álex Prieto», «Transición + rebote defensivo»). La guarda cubre la identidad de los clubes, no esos ejemplos.
+- **Lo que deja la Fase 4.** El plan de la fase se escribió y se ejecutó sin que el propietario lo revisara antes, así que nada de esto está confirmado:
+  - **Dirección escribe las sesiones de cualquier equipo; la spec (§5) dice que las lee.** El contrato entre fases decía «admin o staff del equipo» y se implementó así (`private.can_manage_team`). No toca el aislamiento entre clubes ni entre equipos. Si dirección solo debe leer: una migración pequeña (que `can_edit_plan` y el alta de planes pidan ser del cuerpo técnico del equipo), sus tests y esconder las acciones a quien no lo es.
+  - **El botón «atrás» y el gesto de volver no preguntan antes de salir del constructor**, y nada se guarda hasta «Guardar sesión»: cinco ejercicios elegidos se pierden con un gesto. En un móvil es la salida accidental más probable, y toca el primer riesgo de producto de la spec (que montar una sesión no cueste más que el papel). Los enlaces, la navegación inferior y cerrar la pestaña sí preguntan. Lo cubriría un borrador en `sessionStorage` o guardar solo.
+  - **Una sesión hecha o cancelada es de solo lectura y no se restaura.** Cancelar no se deshace desde la app (la salida es duplicarla), y una sesión ya hecha no se puede corregir. Se decidió así para proteger el histórico que usará la cobertura.
+  - **Las plantillas no tienen interfaz.** La spec da al entrenador «sus plantillas»; un plan sin equipo no lo crea ni lo edita ningún usuario. «Duplicar» cubre el caso de repetir una sesión.
+  - **Quien creó un plan de un equipo y deja su cuerpo técnico deja de verlo.** Los planes de un equipo son de su cuerpo técnico, no de quien los escribió. Lo contrario es una línea de `can_see_plan`.
+  - **Los datos de la sesión y sus ejercicios comparten una sola versión.** Dos entrenadores que editan mitades distintas de la misma sesión (uno la hora, otro los ejercicios) chocan: el segundo recibe «Alguien ha cambiado esto…». «Añadir a sesión» desde la ficha de un ejercicio invalida también un constructor abierto en otro móvil.
+  - **La regla 8 (qué/por qué) se cumple en el detalle de la sesión, no en las filas.** El detalle enseña los objetivos y los Standards de sus ejercicios; las filas de la lista de Entrenar y las del constructor, ninguno. Es lo mismo que hacen las filas de «Esta semana» desde la Fase 1, pero es una lectura estrecha de una regla que no se negocia.
+  - **Dos cabeceras distintas en la pestaña Entrenar.** Las pantallas de ejercicios llevan la cabecera de detalle («‹ Ejercicio … Editar», sin la de marca); las de sesión, la de marca y un enlace «Entrenar» debajo. Quien va de un ejercicio a una sesión ve cambiar la cabecera de forma. Hay que elegir una (convención C18 del contrato).
+  - **El copy nuevo no lo ha validado producto.** Entre otros: «Sesión sin ejercicios» / «No se añadieron ejercicios a esta sesión.», «Aún no estás en ningún equipo» / «Cuando dirección te asigne un equipo, podrás crear sus sesiones.», «Has quitado {título}.», «Editar {título}», «Esta sesión ya está cerrada y no se puede cambiar. Duplícala para reutilizarla.», «¿Cancelar esta sesión?» / «Dejará de salir en Inicio y en Próximas. Seguirá en el histórico.» y «¿Salir sin guardar?» / «Tienes cambios sin guardar. Si sales, se pierden.».
+  - Del repaso visual a 375 px: en la lista de Entrenar el título y el subtítulo se cortan con puntos suspensivos, y con varios equipos (dirección) el subtítulo empieza por el equipo y ya no llega a enseñar el lugar. Y el 404 de una sesión ajena ofrece «Volver a tus clubes», no volver a Entrenar.
 
 # CLUB OS · Pendientes que deja la Fase 2
 
@@ -153,7 +236,7 @@ Estado de la Fase 2: tareas 1–11 hechas y revisadas, revisión final de toda l
 
 ## Del bloque que la Fase 1 dejó para la Fase 2
 
-El plan de la Fase 2 se ejecutó tal como estaba escrito, sin incorporar ese bloque. Lo hecho y el reparto de lo que queda están arriba: «Fase 2 · The Way (cerrada)» y los bloques de las fases 3, 4 y 7.
+El plan de la Fase 2 se ejecutó tal como estaba escrito, sin incorporar ese bloque. Lo hecho y el reparto de lo que queda están arriba: «Fase 2 · The Way (cerrada)», «Fase 4 · Practice Builder (cerrada)», que hizo lo que ese bloque dejaba para las fases 3 y 4, y el bloque de la Fase 7.
 
 - A medias: la etiqueta «The Way» por defecto está en `wayLabel` (`tenancy/navigation.ts`), pero el nombre por defecto de la metodología sigue aparte en `tenancy/queries.ts:51`.
 - Sigue sin haber «cambiar de club» en el menú de cuenta, y `(app)/error.tsx` no usa `useSelectedLayoutSegment`.
@@ -163,7 +246,7 @@ El plan de la Fase 2 se ejecutó tal como estaba escrito, sin incorporar ese blo
 La revisión del PR, ya fusionado, dejó hallazgos que se corrigieron en un PR aparte (migración `20261021000100_methodology_integrity`). Lo que una fase siguiente debe copiar de esos arreglos:
 
 - **`update` por columna.** En las tablas de la metodología, `authenticated` solo puede cambiar las columnas que la app edita: ni `organization_id`, ni `id`, ni el slug. Una tabla nueva que los usuarios editen debe hacer lo mismo: las políticas no pueden impedir que quien administra dos clubes pase una fila de uno a otro.
-- **Altas que calculan número o slug.** Leen la lista y luego insertan: el único de la tabla frena la carrera y la acción reintenta (`retryOnConflict` en `src/modules/methodology/actions.ts`). Un único que se renumera en bloque tiene que ser diferible.
+- **Altas que calculan número o slug.** Leen la lista y luego insertan: el único de la tabla frena la carrera y la acción reintenta (`retryOnConflict`, que desde la Fase 4 está en `src/lib/mutate.ts`, al alcance de cualquier módulo). Un único que se renumera en bloque tiene que ser diferible.
 - **El seed y lo creado a mano.** `pnpm seed` no borra nada: recoloca lo que choca (`scripts/seed/strays.ts`). Una tabla nueva con un único que el seed escribe necesita el mismo cuidado.
 - **Páginas de Gestión.** Se exportan con `adminPage` (`src/lib/guards.ts`); `pnpm check:guards` rechaza una página de `/admin` que se proteja a mano.
 
@@ -171,13 +254,18 @@ La revisión del PR, ya fusionado, dejó hallazgos que se corrigieron en un PR a
 
 Piezas de la Fase 2 que las fases siguientes van a copiar o reutilizar. Más barato moverlas ahora que después de cuatro copias.
 
-- `useAction()` vive en `src/app/c/[club]/admin/_components/use-action.ts` y es genérico: llevarlo a `src/lib/`. El formulario de ejercicios de la Fase 3 cuelga de `(app)/` y lo necesita.
-- Extraer a `src/lib/` la parte genérica de `mutate` (`methodology/actions.ts`: Zod, `requireClub`, permiso, registro de errores inesperados, revalidación), parametrizada por permiso y rutas.
-- Un `limits.ts` sin Zod que importen `schema.ts` y los editores: hoy `MAX_POINTS` y los `maxLength` (40, 80, 200, 300, 500) están escritos dos veces y cada capa fija su propio literal en sus tests.
-- Argumentos opcionales de las funciones SQL: al final y con `default null`. Así el generador de tipos los marca opcionales y sobra el cast de `p_summary` (`actions.ts`). Afecta a las funciones de las fases 4 y 6.
+Las Fases 3 y 4 ya han pasado. Hecho en ellas:
+
+- `useAction()` está en `src/lib/use-action.ts`.
+- La parte genérica de `mutate` está en `src/lib/mutate.ts`, parametrizada por permiso, etiqueta de log y rutas, con `retryOnConflict`.
+- `throwReadError` es una sola función, en `src/lib/read-error.ts`, y la usan también las lecturas de Inicio.
+
+Lo que sigue pendiente pasa a la Fase 7 (limpieza), porque ya no queda un «antes» en el que hacerlo:
+
+- Un `limits.ts` sin Zod que importen `schema.ts` y los editores de la metodología: hoy `MAX_POINTS` y los `maxLength` (40, 80, 200, 300, 500) están escritos dos veces y cada capa fija su propio literal en sus tests. El módulo de sesiones ya lo hace así (`src/modules/practice/limits.ts`); el de ejercicios tiene el mismo pendiente («Pulido de la biblioteca»).
+- Argumentos opcionales de las funciones SQL: al final y con `default null`. Así el generador de tipos los marca opcionales y sobra el cast de `p_summary` (`methodology/actions.ts`), que sigue ahí. Las funciones de la Fase 4 ya lo cumplen; afecta a las de la Fase 6.
 - Fixture de `ClubContext` para tests en un solo sitio: `tenancy/test-support.ts` ya lo ofrece, pero siguen teniendo el suyo `lib/guards.test.ts`, `lib/permissions.test.ts`, `methodology/actions.test.ts`, `tenancy/queries.test.ts`, `home/queries.test.ts` y `(app)/coming-soon.test.tsx`. Lo mismo para los fixtures de pgTAP: unas 90 líneas repetidas entre `methodology.test.sql` y `methodology_functions.test.sql`; un helper en `supabase/seed.sql` ahorra la copia a cada fase.
-- E2E del proyecto `admin`: `e2e/admin.spec.ts` tiene unas 790 líneas y sus helpers (`hydrated`, `field`, `title`, `openList`, `itemCard`) son locales. Moverlos a `e2e/helpers/` y partir el spec por pantalla, sumando los nuevos a `ADMIN_SPECS`. `hydrated()` lee el marcador interno `__reactProps$` de React: una subida de versión rompería todos los tests de Gestión a la vez.
-- `throwReadError` (`methodology/map-rows.ts`) y el `fail` privado de `home/queries.ts:16` son la misma función: una sola, junto a `src/lib/log.ts`.
+- E2E del proyecto `admin`: `e2e/admin.spec.ts` tiene sus helpers (`hydrated`, `field`, `title`, `openList`, `itemCard`) locales. Moverlos a `e2e/helpers/` (los specs de Entrenar ya comparten `e2e/helpers/train.ts`) y partir el spec por pantalla, sumando los nuevos a `ADMIN_SPECS`. `hydrated()` lee el marcador interno `__reactProps$` de React: una subida de versión rompería a la vez todos los tests que lo usan.
 
 ## Fase 3 · Biblioteca de ejercicios
 
@@ -185,10 +273,15 @@ Piezas de la Fase 2 que las fases siguientes van a copiar o reutilizar. Más bar
 - Cuando haya enlaces con ancla dentro de la app (`StandardBadge` hacia `/way/standards#standard-NN`), comprobar que una navegación de cliente cae en el ancla: los e2e solo prueban la carga completa, y el router puede hacer su desplazamiento mientras se ve el `loading.tsx`.
 - `safeHref` deja pasar `https:foo` y `https:/ruta`, que el navegador resuelve como relativas al propio origen.
 
-## Fase 4 · Practice Builder
+## Fase 4 · Practice Builder (cerrada)
 
-- Con `ConfirmDialog`, sustituir el `window.confirm` del editor de sección. De paso: el enlace «Ir a los valores / principios / Standards» de ese editor sale sin preguntar con cambios sin guardar (`section-editor.tsx`), y «Volver» pregunta también con Ctrl/Cmd+clic.
-- `SectionEditor` lleva su propio estado de «guardado» y su región de estado, al lado de `useConfirmation` y `EditorForm` (`editor-shell.tsx`), que hacen lo mismo para los otros tres editores. El margen `empty:-mt-(--space-5)` de esa región tiene que coincidir a mano con el `gap` del formulario.
+Hecho:
+
+- El editor de sección ya no usa `window.confirm`: pregunta con el diálogo de la app (`useLeaveGuard` y `LeaveGuardDialog`, de `src/ui/leave-guard.tsx`, sobre `ConfirmDialog`). Con cambios sin guardar, cualquier enlace que saque de la pantalla abre «¿Salir sin guardar?»: «Volver», «Ir a los valores / principios / Standards», las pestañas de Gestión y «Volver a la app». Un clic con Ctrl o Cmd, que abre otra pestaña, ya no pregunta.
+
+Pasa a la Fase 7 (arriba, «Lo que deja la Fase 4», «Código repetido»), porque es un refactor de la Fase 2 sin relación con las sesiones:
+
+- Unificar el estado de «guardado» y la región de estado de `SectionEditor` con `useConfirmation` y `EditorForm` (`editor-shell.tsx`).
 
 ## Fase 7 · Gestión y cierre
 
@@ -229,8 +322,8 @@ Piezas de la Fase 2 que las fases siguientes van a copiar o reutilizar. Más bar
 - Publicar y pasar a borrador no guardan quién ni cuándo.
 - Las cuentas de jugador y de tutor, si entran, leen The Way: el contexto de club admite a cualquier miembro activo.
 - Un borrador o una sección que no existe muestran «No encontramos esta página» con código HTTP 200 (la respuesta ya está en curso); un club ajeno sigue dando un 404 real.
-- El token `header-height` (56px) entró en `design/tokens.json` sin pasar por diseño, y los componentes nuevos de la Fase 2 no tienen vista previa en `design/components/`. Dos medidas siguen fuera de tokens (el número de 40 px del bloque de Standard y el interletrado del chip): van con la convención que ya pide el bloque de la Fase 1.
-- Salir del editor de sección con cambios sin guardar avisa en «Volver», al recargar y al cerrar la pestaña, pero no al navegar por las pestañas de Gestión ni con «Volver a la app».
+- El token `header-height` (56px) entró en `design/tokens.json` sin pasar por diseño, y los componentes nuevos de la Fase 2 no tienen vista previa en `design/components/`. Dos medidas siguen fuera de tokens (el número de 40 px del bloque de Standard y el interletrado del chip): las dos son de tipografía y caben en la convención de medidas que fijó la Fase 4 (`design/README.md`, «Espaciado y layout»).
+- Salir del editor de sección con cambios sin guardar avisa en cualquier enlace de la app (desde la Fase 4, también en las pestañas de Gestión y en «Volver a la app»), al recargar y al cerrar la pestaña. No avisa con el botón «atrás» ni con el gesto de volver del navegador: es la misma decisión pendiente del constructor de sesiones (primera sección de «Decisiones de producto a confirmar»).
 - **Fotografías como diagrama.** Hoy `uploadDrillDiagram` acepta cualquier PNG, JPEG o WebP de hasta 2 MiB: nada distingue un dibujo de una foto de la pizarra o del entrenamiento, la ficha de `media_assets` se registra siempre con `contains_minor = false` y el JPEG conserva su EXIF (ubicación, hora, dispositivo). Con el ejercicio publicado, lo ve todo el cuerpo técnico del club. Lo único que hay delante es un texto de ayuda en el formulario («Sube solo el dibujo de la pista. No subas fotos en las que salgan jugadores.»). La regla 5 de CLAUDE.md pide consentimiento registrado para fotos de menores.
   - Se aceptó por ahora porque el plan espera ese canal (la foto de la pizarra como diagrama, Task 14, paso 3) y la exposición está acotada: bucket privado, solo cuerpo técnico, URLs firmadas de 10 minutos. Falta que Daniel lo confirme.
   - Alternativas: una confirmación explícita al subir («no salen jugadores»), o quitar los metadatos en el servidor (recodificar la imagen, con una dependencia nueva). Y, en la Fase 7, que el consentimiento nunca se fíe de `contains_minor` para esta carpeta.
@@ -254,6 +347,6 @@ Piezas de la Fase 2 que las fases siguientes van a copiar o reutilizar. Más bar
   - Los títulos de sección «Coaching points» y «Principios» no se configuran por club: `Terminology` solo tiene `way` y `standards`.
   - El Markdown de «Organización», escrito por un entrenador, puede llevar enlaces https externos que ve todo el cuerpo técnico. `MarkdownBody` restringe los protocolos, pero no está definido el modelo de confianza del contenido del cuerpo técnico.
   - Quedan objetos y fichas de medios huérfanos al sustituir o abandonar una subida. Plan: «Fuera».
-  - Un nuevo seed sobre un demo remoto pisa lo editado en los ejercicios del seed (18 de Arcángel y 2 de Club Demo). Es el mismo diseño que el seed de metodología de la Fase 2.
+  - Un nuevo seed sobre un demo remoto pisa lo editado en los ejercicios del seed (21 de Arcángel desde la Fase 4, y 2 de Club Demo). Es el mismo diseño que el seed de metodología de la Fase 2.
   - La búsqueda ordena por título, no por relevancia. El plan fija `order('title')`.
   - La rama de la Fase 3 está apilada sobre el PR abierto de la Fase 2: la estrategia de fusión (cambiar la base del PR o rebasar tras un squash) es un riesgo del montaje, no del código.
