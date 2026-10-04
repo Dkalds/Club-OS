@@ -1,3 +1,4 @@
+import { unstable_rethrow } from "next/navigation";
 import { useState, useTransition } from "react";
 import { fail, type ActionError, type ActionResult } from "@/lib/action-result";
 
@@ -14,6 +15,10 @@ export type Failure = { error: ActionError; fieldErrors: Record<string, string> 
  *   hasta que termina, y los botones se desactivan con él.
  * - Una acción siempre devuelve un `ActionResult`, pero la llamada puede lanzar (la red se cae
  *   a medias, el servidor no responde): eso es un `SAVE_FAILED`, sin el mensaje del error.
+ * - Salvo lo que lanza el propio Next para dirigir el flujo: si la acción llamó a `notFound()`
+ *   (a quien guarda le han quitado el acceso) o redirige, la llamada rechaza con ese error y
+ *   aquí se relanza (`unstable_rethrow`). Dentro de la transición, React lo sube al límite de
+ *   Next, que pinta el 404 o navega. Reintentar no serviría de nada.
  * - Si va bien, llama a `onSuccess` con sus datos; si no, `failure` se queda con el error y los
  *   errores de campo (vacíos si no hay).
  *
@@ -33,7 +38,8 @@ export function useAction() {
       let result: ActionResult<T>;
       try {
         result = await call();
-      } catch {
+      } catch (error) {
+        unstable_rethrow(error);
         result = fail("SAVE_FAILED");
       }
       startTransition(() => {

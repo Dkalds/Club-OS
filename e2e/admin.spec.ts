@@ -33,6 +33,8 @@ const CLUB = `/c/${ARCANGEL.slug}`;
 const ADMIN = `${CLUB}/admin`;
 
 const ORGANIZATION_ID = seedId(ARCANGEL.slug, "organization");
+/** La membresía de Raúl en su club: la que un test revoca y repone. */
+const RAUL_MEMBERSHIP_ID = seedId(ARCANGEL.slug, "membership:raul");
 
 const SECTION_TITLE = "Plan de temporada";
 const SECTION_SLUG = "plan-de-temporada";
@@ -788,4 +790,39 @@ test("editar y archivar un valor", async ({ page }) => {
   await expect(page.getByRole("main").getByRole("heading", { level: 2 })).toHaveCount(2);
   await page.goto(`${CLUB}/way`);
   await expect(indexRow(page, "Nuestra cultura")).toContainText("2 valores");
+});
+
+test("si a quien edita le quitan el acceso, al guardar ve el 404", async ({ page, browserErrors }) => {
+  test.skip(!CAN_WRITE, NEEDS_LOCAL_DB);
+  // Raúl tiene un editor abierto y, mientras, deja de ser miembro del club. Al guardar, la
+  // acción responde con `notFound()`: se ve el 404, no un «No se pudo guardar. Inténtalo de
+  // nuevo.» que invitaría a reintentar algo que ya no va a funcionar.
+  await openWayList(page);
+  await page.getByRole("link", { name: /^Editar / }).first().click();
+  await expect(page).toHaveURL(new RegExp(`${ADMIN}/way/[0-9a-f-]{36}$`));
+  const editor = new URL(page.url()).pathname;
+  await openEditor(page, editor);
+  // El guardado es una petición a la URL del editor y responde 404: Chromium lo anota.
+  browserErrors.allowNotFound(editor);
+
+  const db = createAdminClient();
+  const setStatus = (status: "active" | "revoked") =>
+    db.from("memberships").update({ status }).eq("id", RAUL_MEMBERSHIP_ID).select("id");
+
+  const revoked = await setStatus("revoked");
+  expect(revoked.error).toBeNull();
+  expect(revoked.data).toHaveLength(1);
+  try {
+    await field(page, "Título").fill("Ya sin acceso");
+    await page.getByRole("button", { name: "Guardar cambios" }).click();
+
+    await expect(page.getByRole("heading", { level: 1, name: "No encontramos esta página" })).toBeVisible();
+    await expect(page.getByText("No se pudo guardar. Inténtalo de nuevo.")).toHaveCount(0);
+    await expect(page.getByText("Cambios guardados.")).toHaveCount(0);
+  } finally {
+    // Pase lo que pase, Raúl vuelve a ser miembro: el resto de specs entra con él. Si el
+    // proceso muere antes de llegar aquí, el siguiente arranque global lo repone al sembrar.
+    const restored = await setStatus("active");
+    expect(restored.error).toBeNull();
+  }
 });

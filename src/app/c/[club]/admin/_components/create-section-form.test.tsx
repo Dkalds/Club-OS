@@ -5,7 +5,11 @@ import { ACTION_ERROR_COPY, fail, ok } from "@/lib/action-result";
 const mocks = vi.hoisted(() => ({ createWaySection: vi.fn(), push: vi.fn() }));
 
 vi.mock("@/modules/methodology/actions", () => ({ createWaySection: mocks.createWaySection }));
-vi.mock("next/navigation", () => ({ useRouter: () => ({ push: mocks.push }) }));
+// Solo el router es de pega: `useAction` usa el `unstable_rethrow` de verdad.
+vi.mock("next/navigation", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("next/navigation")>()),
+  useRouter: () => ({ push: mocks.push }),
+}));
 
 import { CreateSectionForm } from "./create-section-form";
 
