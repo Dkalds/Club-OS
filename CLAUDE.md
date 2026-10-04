@@ -30,7 +30,7 @@ Plataforma SaaS multi-club para clubes de baloncesto de formación. CB Arcángel
 - `pnpm dev`: app en local (requiere `pnpm supabase start`)
 - `pnpm test`: Vitest (unidad y componentes)
 - `pnpm test:db`: tests pgTAP de RLS (`supabase test db`)
-- `pnpm test:int`: integración contra Supabase local (seed)
+- `pnpm test:int`: integración contra Supabase local (seed). Los tests que necesitan la clave de servicio viven en `scripts/`, nunca en `src/`
 - `pnpm test:e2e`: Playwright en viewport móvil
 - `pnpm seed`: datos de ejemplo (Arcángel + Club Demo); se niega a correr contra un Supabase remoto salvo `ALLOW_REMOTE_SEED=true`
 - `pnpm tokens`: regenera `src/ui/tokens.css` desde `design/tokens.json`

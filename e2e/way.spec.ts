@@ -302,8 +302,9 @@ test("la URL de un ancla lleva al destino aunque el contenido llegue después de
   // Los 200 ms no se alargan para dar más margen a quien mira: pasados los 300 ms, React destapa
   // el contenido en cuanto llega, todavía antes de que acabe la carga, y el navegador encuentra
   // el ancla él solo. Comprobado quitando `ScrollToHash`: con 400 ms o más el test pasa igual,
-  // y con 200 ms falla, que es lo que debe. Por eso lo que pasa antes de que llegue el contenido
-  // no se afirma a una hora concreta, y lo que prueba que llegó tarde es `proxy.splits()`.
+  // y con 200 ms falla, que es lo que debe. Por eso no se afirma nada de lo que pasa antes de que
+  // llegue el contenido («aún no se ve» se cumpliría también con una página en blanco): que llegó
+  // tarde lo prueba `proxy.splits()`, y que la página fue sola a su destino, `expectClearOfHeader`.
   const proxy = await startSlowContentProxy(baseURL ?? "", {
     path: `${CLUB}/way/como-jugamos`,
     holdMs: 200,
@@ -318,13 +319,7 @@ test("la URL de un ancla lleva al destino aunque el contenido llegue después de
       waitUntil: "commit",
     });
 
-    // Al principio el destino aún no se ve: no está en la página o llega oculto, en el segmento
-    // que React destapa unos 100 ms después. (No `toHaveCount(0)`: pasado el corte del proxy el
-    // destino ya está en el DOM, oculto, y esa espera no se cumpliría nunca. Tampoco se espera
-    // al esqueleto: solo se ve unos 300 ms y con un corredor lento podría haberse ido ya.)
-    await expect(page.locator("#principle-transicion")).not.toBeVisible();
-
-    // Y cuando llega, la página está en el principio, bajo la cabecera fija.
+    // Cuando el contenido llega, la página está en el principio, bajo la cabecera fija.
     await expectClearOfHeader(page, page.locator("#principle-transicion"));
     await expect(page.getByRole("status", { name: "Cargando" })).toHaveCount(0);
     expect(proxy.splits(), "el proxy ha partido la respuesta de la sección").toBe(1);
