@@ -161,7 +161,7 @@ Reglas:
 
 Privilegios de `authenticated` (además del `select` actual):
 - `events`: `insert (organization_id, team_id, kind, starts_at, ends_at, location)`, `update (starts_at, ends_at, location, status)`.
-- `practice_plans`: `insert (organization_id, team_id, event_id, title, primary_focus_id, secondary_focus_id, notes)`, `update (title, primary_focus_id, secondary_focus_id, notes, status, updated_by)`.
+- `practice_plans`: `insert (organization_id, team_id, event_id, title, primary_focus_id, secondary_focus_id, notes)`, `update (title, primary_focus_id, secondary_focus_id, notes, status)`. `updated_by` no se concede: lo fija el trigger `practice_plans_set_updated_by` (`private.set_updated_by()`, `before update`, solo en sentencias directas) con el usuario de la sesión.
 - `practice_items`: `insert (organization_id, plan_id, sort, phase, drill_id, title_override, minutes, notes)`, `update (sort, phase, drill_id, title_override, minutes, notes)`, `delete`.
 
 Políticas (`to authenticated`):
@@ -205,13 +205,13 @@ Políticas (`to authenticated`):
 Reglas, en este orden en cada función:
 1. El equipo (o el evento `practice`, o el plan) no existe o `not private.can_manage_team(team)` → `NOT_FOUND`. Quien no puede escribir nunca recibe `STALE_COPY` ni `SESSION_CLOSED`.
 2. (`update_practice_session`, `save_practice_items`) evento no `scheduled` → `SESSION_CLOSED`.
-3. (las mismas) `select … for update` del plan; `updated_at <> p_expected_updated_at` → `STALE_COPY`.
+3. (las mismas) `select … for update` del evento y del plan (el del evento evita que un cierre simultáneo se cuele entre la comprobación y la escritura); `updated_at <> p_expected_updated_at` → `STALE_COPY`.
 4. Entrada: `p_items` null, que no sea un array o con más de 30 elementos → `INVALID`; un `id` que no es un ítem de ese plan → `INVALID`; `p_starts_at` null en `duplicate_practice` → `INVALID`.
 
 Efectos:
-- `create_practice_session`: evento `practice` `scheduled` del club del equipo y su plan (`status 'draft'`, `created_by` del usuario).
-- `update_practice_session`: horas y lugar del evento; título, focos y notas del plan; `updated_by`; devuelve el `updated_at` nuevo.
-- `save_practice_items`: borra los ítems del plan cuyo `id` no llega, actualiza los que llegan con `id` (conservan `completed` y `actual_minutes`) e inserta los que no lo traen; `sort` = posición desde 1; `title_override = title`; plan `status = 'ready'` con algún ítem y `'draft'` sin ninguno; `updated_by`; devuelve el `updated_at` nuevo.
+- `create_practice_session`: evento `practice` `scheduled` del club del equipo y su plan (`status 'draft'`, `created_by` del usuario). El plan se inserta sin `returning` (la política de lectura busca la fila por id antes de que exista y daría `42501`) y se lee por `event_id`.
+- `update_practice_session`: horas y lugar del evento; título, focos y notas del plan; devuelve el `updated_at` nuevo. Ninguna función nombra `updated_by` (no tiene el privilegio): lo sella el trigger en cada `update` del plan.
+- `save_practice_items`: borra los ítems del plan cuyo `id` no llega, actualiza los que llegan con `id` (conservan `completed` y `actual_minutes`) e inserta los que no lo traen; `sort` = posición desde 1; `title_override = title`; plan `status = 'ready'` con algún ítem y `'draft'` sin ninguno, con un `update` del plan que se hace siempre (es el que mueve `updated_at` y sella `updated_by`); devuelve el `updated_at` nuevo.
 - `duplicate_practice`: vale cualquier estado del origen. Evento nuevo `scheduled` del mismo equipo, con el mismo lugar y la misma duración desde `p_starts_at`; plan con título, focos y notas; ítems copiados en orden sin `completed` ni `actual_minutes`; `status` como en `save_practice_items`.
 
 - [ ] **Step 1: Test que falla** `practice_functions.test.sql` (fixtures de la Task 4):
