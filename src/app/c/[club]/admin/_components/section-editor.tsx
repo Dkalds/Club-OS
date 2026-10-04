@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type FormEvent, type MouseEvent } from "react";
 import { ACTION_ERROR_COPY } from "@/lib/action-result";
+import { useAction } from "@/lib/use-action";
 import { updateWaySection } from "@/modules/methodology/actions";
 import {
   CONTENT_KIND_OPTIONS,
@@ -12,7 +13,6 @@ import { CTAButton } from "@/ui/cta-button";
 import { FormAlert, SelectField, TextAreaField, TextField } from "@/ui/form-field";
 import { CheckIcon } from "@/ui/icons";
 import { MarkdownEditor } from "@/ui/markdown-editor";
-import { useAction } from "./use-action";
 
 /** Lo que enseña una sección que no es de texto y dónde se edita: su lista y su página. */
 const LIST_PAGES = {

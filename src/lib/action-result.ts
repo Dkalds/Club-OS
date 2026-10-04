@@ -5,7 +5,13 @@ import type { ZodError } from "zod";
  * de dominio con nombre (`GOAL_LIMIT`, `LAST_ADMIN`…) lo añade aquí y a `ACTION_ERROR_COPY`:
  * `fromDbError` lo reconoce solo, por estar en esa tabla.
  */
-export type ActionError = "SAVE_FAILED" | "STALE_COPY" | "INVALID" | "NOT_FOUND" | "SECTION_LIMIT";
+export type ActionError =
+  | "SAVE_FAILED"
+  | "STALE_COPY"
+  | "INVALID"
+  | "NOT_FOUND"
+  | "SECTION_LIMIT"
+  | "SESSION_CLOSED";
 
 export type ActionResult<T> =
   | { ok: true; data: T }
@@ -18,6 +24,7 @@ export const ACTION_ERROR_COPY: Record<ActionError, string> = {
   INVALID: "Revisa los campos marcados.",
   NOT_FOUND: "No encontramos este contenido.",
   SECTION_LIMIT: "Ya hay 99 secciones, el máximo. Reutiliza una que tengas en borrador.",
+  SESSION_CLOSED: "Esta sesión ya está cerrada y no se puede cambiar. Duplícala para reutilizarla.",
 };
 
 export function ok<T>(data: T): ActionResult<T> {

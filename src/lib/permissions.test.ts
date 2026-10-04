@@ -20,15 +20,22 @@ function contextWithRole(role: ClubContext["membership"]["role"]): ClubContext {
   };
 }
 
-const ACTIONS: Action[] = ["way.manage", "admin.access"];
+/** Las acciones que solo hace administración. */
+const ADMIN_ONLY: Action[] = ["way.manage", "admin.access"];
+/** Todas las acciones: quien administra las puede todas. */
+const ACTIONS: Action[] = [...ADMIN_ONLY, "practice.manage"];
 
 describe("can", () => {
   it.each(ACTIONS)("un admin puede %s", (action) => {
     expect(can(contextWithRole("admin"), action)).toBe(true);
   });
 
-  it.each(ACTIONS)("un entrenador no puede %s", (action) => {
+  it.each(ADMIN_ONLY)("un entrenador no puede %s", (action) => {
     expect(can(contextWithRole("coach"), action)).toBe(false);
+  });
+
+  it("un entrenador puede gestionar sesiones", () => {
+    expect(can(contextWithRole("coach"), "practice.manage")).toBe(true);
   });
 
   it.each(["player", "guardian"] as const)("un %s no puede ninguna acción", (role) => {

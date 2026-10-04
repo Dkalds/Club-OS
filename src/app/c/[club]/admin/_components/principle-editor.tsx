@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
+import { useAction } from "@/lib/use-action";
 import { createPrinciple, savePrinciple } from "@/modules/methodology/actions";
 import { moveAt } from "@/modules/methodology/order";
 import type { GamePrinciple } from "@/modules/methodology/types";
@@ -8,7 +9,6 @@ import { CTAButton } from "@/ui/cta-button";
 import { FIELD_LABEL_CLASS, FieldError, TextAreaField, TextField } from "@/ui/form-field";
 import { EditorForm, focusField, ItemCard, NewItemCard, useConfirmation } from "./editor-shell";
 import { ItemControls } from "./item-controls";
-import { useAction } from "./use-action";
 
 /** Los puntos que admite un principio: el mismo tope que `savePrincipleSchema`. */
 const MAX_POINTS = 12;

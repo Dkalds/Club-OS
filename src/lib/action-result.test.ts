@@ -51,6 +51,7 @@ describe("ACTION_ERROR_COPY", () => {
       INVALID: "Revisa los campos marcados.",
       NOT_FOUND: "No encontramos este contenido.",
       SECTION_LIMIT: "Ya hay 99 secciones, el máximo. Reutiliza una que tengas en borrador.",
+      SESSION_CLOSED: "Esta sesión ya está cerrada y no se puede cambiar. Duplícala para reutilizarla.",
     });
   });
 
@@ -67,6 +68,13 @@ describe("fromDbError", () => {
     expect(fromDbError({ code: "P0001", message: "STALE_COPY" })).toStrictEqual({
       ok: false,
       error: "STALE_COPY",
+    });
+  });
+
+  it("P0001 con SESSION_CLOSED devuelve SESSION_CLOSED", () => {
+    expect(fromDbError({ code: "P0001", message: "SESSION_CLOSED" })).toStrictEqual({
+      ok: false,
+      error: "SESSION_CLOSED",
     });
   });
 
