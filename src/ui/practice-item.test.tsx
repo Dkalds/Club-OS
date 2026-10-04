@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
-import { PracticeItem, PracticeItemView, PracticeTotal } from "./practice-item";
+import { PracticeItem, PracticeItemView, PracticeTotal, practiceItemName } from "./practice-item";
 
 // Datos neutros: los tests de `src/` no pueden nombrar a ningún club (pnpm check:guards).
 const TITLE = "Movilidad + rueda de pases";
@@ -334,6 +334,26 @@ describe("PracticeItem", () => {
     expect(container.querySelector("li")).toBeNull();
     expect(screen.queryByRole("listitem")).not.toBeInTheDocument();
   });
+
+  it("marca sus controles, para que quien la monta pueda devolverles el foco", () => {
+    renderItem({ expanded: true });
+
+    expect(toggle()).toHaveAttribute("data-control", "toggle");
+    expect(screen.getByRole("button", { name: `Subir ${TITLE}` })).toHaveAttribute("data-control", "up");
+    expect(screen.getByRole("button", { name: `Bajar ${TITLE}` })).toHaveAttribute("data-control", "down");
+    expect(screen.getByRole("button", { name: `Quitar ${TITLE}` })).toHaveAttribute("data-control", "remove");
+  });
+});
+
+describe("practiceItemName", () => {
+  it("es el título, sin espacios alrededor", () => {
+    expect(practiceItemName("  3 calles ")).toBe("3 calles");
+  });
+
+  it("sin título, o en blanco, es «Sin título»: el mismo nombre que usan los botones de la fila", () => {
+    expect(practiceItemName("")).toBe("Sin título");
+    expect(practiceItemName("   ")).toBe("Sin título");
+  });
 });
 
 describe("PracticeItemView", () => {
@@ -400,5 +420,15 @@ describe("PracticeTotal", () => {
     const { container } = render(<PracticeTotal minutes={75} />);
 
     expect(container.firstElementChild).toHaveClass("border-t", "border-line-strong");
+  });
+
+  it("con `inline` es solo «Total» y la suma, sin borde ni relleno: para la barra de guardado", () => {
+    const { container } = render(<PracticeTotal minutes={75} inline />);
+
+    expect(screen.getByText("Total")).toHaveClass("font-display", "text-title");
+    expect(screen.getByText("75'")).toHaveAttribute("aria-hidden", "true");
+    expect(screen.getByText("75 minutos")).toBeInTheDocument();
+    expect(container.firstElementChild).not.toHaveClass("border-t");
+    expect(container.firstElementChild?.className).not.toMatch(/p[xy]-/);
   });
 });

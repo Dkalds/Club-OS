@@ -3,8 +3,8 @@ import { practiceMeta, statusLabel } from "@/modules/practice/format";
 import type { FocusOption, PracticeDetail, PracticeStatus } from "@/modules/practice/types";
 import { CheckIcon, CloseIcon } from "./icons";
 
-// Sin `"use client"` ni hooks: se pinta en el servidor, en el detalle de una sesión y en su
-// editor.
+// Sin `"use client"` ni hooks: se pinta en el servidor, en el detalle de una sesión, y dentro
+// de un componente de cliente, en su editor.
 
 /** El icono y el color de cada estado que no es lo normal; con la palabra al lado, nunca solo. */
 const STATUS_STYLE: Partial<Record<PracticeStatus, { icon: ReactNode; className: string }>> = {
@@ -23,6 +23,11 @@ const STATUS_STYLE: Partial<Record<PracticeStatus, { icon: ReactNode; className:
  * inventan. Una sesión programada no lleva estado; una hecha o cancelada lo dice con su
  * palabra y un icono, en `success` y `danger`.
  *
+ * `totalMinutes` e `itemCount` van juntos o no van. Sin ellos, de los metadatos queda solo el
+ * lugar (y sin lugar, nada): es el caso del editor, donde la duración y el recuento cambian con
+ * cada toque y el total de lo que hay en pantalla lo dice su barra de guardado. Una cifra de
+ * lo guardado, al lado, lo contradiría.
+ *
  * Medidas de las etiquetas (12px, 24px de alto) de design/components/bundle.css.
  */
 export function PracticeSummary({
@@ -31,9 +36,14 @@ export function PracticeSummary({
   practice: Pick<
     PracticeDetail,
     "teamName" | "slotLabel" | "title" | "location" | "status" | "primaryFocus" | "secondaryFocus"
-  > & { totalMinutes: number; itemCount: number };
+  > &
+    ({ totalMinutes: number; itemCount: number } | { totalMinutes?: undefined; itemCount?: undefined });
 }) {
-  const { teamName, slotLabel, title, location, status, totalMinutes, itemCount } = practice;
+  const { teamName, slotLabel, title, location, status } = practice;
+  const meta =
+    practice.totalMinutes === undefined
+      ? location?.trim()
+      : practiceMeta({ totalMinutes: practice.totalMinutes, itemCount: practice.itemCount, location });
   const goals = [practice.primaryFocus, practice.secondaryFocus].filter(
     (goal): goal is FocusOption => goal !== null,
   );
@@ -45,9 +55,7 @@ export function PracticeSummary({
       {teamName ? <p className="text-label text-ink-2 uppercase">{teamName}</p> : null}
       <p className="text-body-strong tabular-nums">{slotLabel}</p>
       <h1 className="font-display text-display-l wrap-break-word uppercase">{title}</h1>
-      <p className="text-body-s text-ink-2 tabular-nums">
-        {practiceMeta({ totalMinutes, itemCount, location })}
-      </p>
+      {meta ? <p className="text-body-s text-ink-2 tabular-nums">{meta}</p> : null}
       {statusText && statusStyle ? (
         <p className={`flex items-center gap-(--space-2) text-body-strong ${statusStyle.className}`}>
           {statusStyle.icon}

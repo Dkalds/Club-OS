@@ -62,7 +62,9 @@ function renderForm(props: Partial<Props> = {}) {
 
 function renderEdit(overrides: Partial<PracticeFormValues> = {}, props: Partial<Props> = {}) {
   const onSaved = vi.fn();
-  const edit = { eventId: EVENT, expectedUpdatedAt: UPDATED_AT, onSaved };
+  const onDirtyChange = vi.fn();
+  const onReload = vi.fn();
+  const edit = { eventId: EVENT, expectedUpdatedAt: UPDATED_AT, onSaved, onDirtyChange, onReload };
   const element = (next: Partial<Props>) => (
     <PracticeForm
       clubSlug="club-a"
@@ -74,7 +76,14 @@ function renderEdit(overrides: Partial<PracticeFormValues> = {}, props: Partial<
     />
   );
   const view = render(element({}));
-  return { ...view, onSaved, edit, update: (next: Partial<Props>) => view.rerender(element(next)) };
+  return {
+    ...view,
+    onSaved,
+    onDirtyChange,
+    onReload,
+    edit,
+    update: (next: Partial<Props>) => view.rerender(element(next)),
+  };
 }
 
 const change = (label: string, value: string) =>
@@ -168,7 +177,7 @@ describe("PracticeForm · nueva sesión", () => {
     expect(screen.queryByRole("button", { name: "Guardar datos" })).not.toBeInTheDocument();
   });
 
-  it("crea la sesión con lo escrito, la duración como número, y abre su detalle", async () => {
+  it("crea la sesión con lo escrito, la duración como número, y abre su constructor", async () => {
     renderForm({ options: { teams: TWO_TEAMS, focusAreas: FOCUS_AREAS } });
 
     change("Equipo", TEAM_B);
@@ -193,8 +202,8 @@ describe("PracticeForm · nueva sesión", () => {
       secondaryFocusId: FOCUS_TRANSICION,
       location: "Pabellón 2",
     });
-    // La sesión se identifica por su uuid, nunca por su título.
-    expect(mocks.push).toHaveBeenCalledWith(`/c/club-a/train/${NEW_EVENT}`);
+    // Al constructor, a añadirle los ejercicios. La sesión se identifica por su uuid, nunca por su título.
+    expect(mocks.push).toHaveBeenCalledWith(`/c/club-a/train/${NEW_EVENT}/edit`);
   });
 
   it("con un solo equipo, el campo no está pero su id se envía igualmente", async () => {
@@ -503,5 +512,116 @@ describe("PracticeForm · editar los datos", () => {
     await screen.findByText("Escribe un título.");
     expect(screen.getByLabelText("Título")).toHaveAccessibleDescription("Escribe un título.");
     expect(screen.getByLabelText("Notas")).toHaveAccessibleDescription("Máximo 2000 caracteres.");
+  });
+
+  // Review Focus 2: otra persona guardó antes.
+  it("una copia obsoleta ofrece «Recargar», que avisa a quien lo monta; lo escrito sigue ahí", async () => {
+    mocks.updatePracticeMeta.mockResolvedValue(fail("STALE_COPY"));
+    const { onReload } = renderEdit();
+
+    change("Lugar", "Pabellón 3");
+    save();
+
+    const alert = (await screen.findByText(ACTION_ERROR_COPY.STALE_COPY)).closest('[role="alert"]') as HTMLElement;
+    const reload = within(alert).getByRole("button", { name: "Recargar" });
+    expect(reload).toHaveAttribute("type", "button");
+    expect(reload).toHaveClass("border-line-strong");
+    expect(screen.getByLabelText("Lugar")).toHaveValue("Pabellón 3");
+    expect(onReload).not.toHaveBeenCalled();
+
+    fireEvent.click(reload);
+
+    expect(onReload).toHaveBeenCalledTimes(1);
+    // «Recargar» no envía el formulario.
+    expect(mocks.updatePracticeMeta).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(["SAVE_FAILED", "SESSION_CLOSED", "INVALID"] as const)("un %s no ofrece «Recargar»", async (error) => {
+    mocks.updatePracticeMeta.mockResolvedValue(fail(error));
+    renderEdit();
+
+    save();
+
+    await screen.findByText(ACTION_ERROR_COPY[error]);
+    expect(screen.queryByRole("button", { name: "Recargar" })).not.toBeInTheDocument();
+  });
+});
+
+describe("PracticeForm · editar los datos · cambios sin guardar", () => {
+  it("avisa a quien lo monta cuando algo difiere de lo guardado, y cuando vuelve a coincidir", () => {
+    const { onDirtyChange } = renderEdit({ location: "Pabellón 2" });
+    expect(onDirtyChange).not.toHaveBeenCalled();
+
+    change("Lugar", "Pabellón 3");
+    expect(onDirtyChange).toHaveBeenLastCalledWith(true);
+
+    change("Hora", "19:00");
+    change("Lugar", "Pabellón 2");
+    expect(onDirtyChange).toHaveBeenLastCalledWith(true);
+
+    change("Hora", "18:00");
+    expect(onDirtyChange).toHaveBeenLastCalledWith(false);
+  });
+
+  it.each([
+    ["Título", "Otro título"],
+    ["Fecha", "2026-10-09"],
+    ["Hora", "19:00"],
+    ["Duración (min)", "60"],
+    ["Objetivo principal", FOCUS_REBOTE],
+    ["Objetivo secundario", FOCUS_TRANSICION],
+    ["Lugar", "Pabellón 3"],
+    ["Notas", "Otra nota."],
+  ])("cambiar «%s» cuenta como cambio sin guardar", (label, value) => {
+    const { onDirtyChange } = renderEdit();
+
+    change(label, value);
+
+    expect(onDirtyChange).toHaveBeenLastCalledWith(true);
+  });
+
+  it("al guardar deja de haberlos: lo enviado es la nueva copia guardada", async () => {
+    const { onDirtyChange, onSaved } = renderEdit();
+
+    change("Lugar", "Pabellón 3");
+    save();
+
+    await waitFor(() => expect(onSaved).toHaveBeenCalledTimes(1));
+    expect(onDirtyChange).toHaveBeenLastCalledWith(false);
+
+    // Volver a lo de antes de guardar ya es un cambio.
+    change("Lugar", "");
+    expect(onDirtyChange).toHaveBeenLastCalledWith(true);
+    change("Lugar", "Pabellón 3");
+    expect(onDirtyChange).toHaveBeenLastCalledWith(false);
+  });
+
+  it("si falla, los cambios siguen sin guardar", async () => {
+    mocks.updatePracticeMeta.mockResolvedValue(fail("SAVE_FAILED"));
+    const { onDirtyChange } = renderEdit();
+
+    change("Lugar", "Pabellón 3");
+    save();
+
+    await screen.findByText(ACTION_ERROR_COPY.SAVE_FAILED);
+    expect(onDirtyChange).toHaveBeenLastCalledWith(true);
+    expect(onDirtyChange).not.toHaveBeenCalledWith(false);
+  });
+
+  it("lo que se escribe mientras guarda sigue sin guardar", async () => {
+    const pending = deferred<{ updatedAt: string }>();
+    mocks.updatePracticeMeta.mockReturnValue(pending.promise);
+    const { onDirtyChange, onSaved } = renderEdit();
+
+    change("Lugar", "Pabellón 3");
+    save();
+    await waitFor(() => expect(screen.getByRole("button", { name: "Guardar datos" })).toBeDisabled());
+    change("Lugar", "Pabellón 4");
+    pending.finish(ok({ updatedAt: NEXT_UPDATED_AT }));
+
+    await waitFor(() => expect(onSaved).toHaveBeenCalledTimes(1));
+    expect(onDirtyChange).toHaveBeenLastCalledWith(true);
+    expect(screen.getByRole("status")).toBeEmptyDOMElement();
+    expect(screen.getByLabelText("Lugar")).toHaveValue("Pabellón 4");
   });
 });

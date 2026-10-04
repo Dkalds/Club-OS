@@ -16,6 +16,15 @@ import { ChevronDownIcon, ChevronRightIcon, ChevronUpIcon, MinusIcon, PlusIcon, 
 /** El título que se lee y se anuncia cuando un bloque libre aún no tiene (recién añadido). */
 const UNTITLED = "Sin título";
 
+/**
+ * Cómo se nombra un ítem en lo que se lee y en lo que se anuncia: su título, o «Sin título» si
+ * aún no tiene. Es el nombre que llevan los botones de la fila («Subir 3 calles»); quien la
+ * monta lo usa para lo suyo (el asa, los anuncios al mover), y así todos dicen lo mismo.
+ */
+export function practiceItemName(title: string): string {
+  return title.trim() || UNTITLED;
+}
+
 const NUMBER = "w-9 shrink-0 font-display text-numeral text-brand-accent tabular-nums";
 const MINUTES = "w-10 shrink-0 text-center font-display text-[20px] font-bold tabular-nums";
 
@@ -47,7 +56,7 @@ function PhaseAndTitle({ phase, title }: { phase: string | null; title: string }
           <span className="block text-label text-ink-2 uppercase">{phase}</span>{" "}
         </>
       ) : null}
-      <span className="block text-body-strong wrap-break-word">{title.trim() || UNTITLED}</span>
+      <span className="block text-body-strong wrap-break-word">{practiceItemName(title)}</span>
     </>
   );
 }
@@ -93,7 +102,8 @@ function MinutesButton({
  * acciones «Subir», «Bajar» y «Quitar». Los botones solo con icono llevan el título en su
  * nombre («Más minutos, 3 calles»): en una lista de ítems, sin él no se sabría de cuál se habla.
  * «Subir» y «Bajar» se desactivan en los extremos (`isFirst`, `isLast`) y son la alternativa
- * a arrastrar.
+ * a arrastrar. Los cuatro controles van marcados (`data-control`: `toggle`, `up`, `down`,
+ * `remove`): al mover o quitar una fila, quien la monta devuelve el foco al que toca.
  *
  * No es un `<li>`: quien la monta en una lista pone el suyo, y con él lo que necesite, como
  * la referencia y la transformación de dnd-kit. Cada fila lleva su separador, un borde arriba
@@ -130,7 +140,7 @@ export function PracticeItem({
   onRemove: () => void;
   children?: ReactNode;
 }) {
-  const name = title.trim() || UNTITLED;
+  const name = practiceItemName(title);
 
   return (
     <div
@@ -149,6 +159,7 @@ export function PracticeItem({
         <span className={NUMBER}>{itemNumber(index)}</span>
         <button
           type="button"
+          data-control="toggle"
           aria-expanded={expanded}
           onClick={onToggle}
           className="min-h-(--target-min) min-w-0 flex-1 cursor-pointer text-left focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus-ring"
@@ -172,6 +183,7 @@ export function PracticeItem({
           <div className="flex items-center gap-(--space-2)">
             <CTAButton
               variant="secondary"
+              data-control="up"
               aria-label={`Subir ${name}`}
               disabled={isFirst}
               onClick={() => onMove("up")}
@@ -180,6 +192,7 @@ export function PracticeItem({
             </CTAButton>
             <CTAButton
               variant="secondary"
+              data-control="down"
               aria-label={`Bajar ${name}`}
               disabled={isLast}
               onClick={() => onMove("down")}
@@ -188,6 +201,7 @@ export function PracticeItem({
             </CTAButton>
             <CTAButton
               variant="danger"
+              data-control="remove"
               aria-label={`Quitar ${name}`}
               icon={<TrashIcon size={16} />}
               className="ml-auto"
@@ -259,10 +273,19 @@ export function PracticeItemView({
  * La fila del total de una sesión, al final de la lista: «Total» y la suma de los minutos de
  * sus ítems (`builderMinutes`). La suma no se guarda, se calcula. Una raya `line-strong` la
  * separa de las filas.
+ *
+ * Con `inline` es solo «Total» y la suma, juntos y sin raya ni relleno: para la barra de
+ * guardado del constructor, que pone el suyo.
  */
-export function PracticeTotal({ minutes }: { minutes: number }) {
+export function PracticeTotal({ minutes, inline = false }: { minutes: number; inline?: boolean }) {
   return (
-    <div className="flex items-center justify-between border-t border-line-strong px-(--space-4) py-(--space-3)">
+    <div
+      className={
+        inline
+          ? "flex items-baseline gap-(--space-2)"
+          : "flex items-center justify-between border-t border-line-strong px-(--space-4) py-(--space-3)"
+      }
+    >
       <span className="font-display text-title uppercase">Total</span>
       <Minutes minutes={minutes} className="font-display text-numeral tabular-nums" />
     </div>

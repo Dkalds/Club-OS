@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { ACTION_ERROR_COPY } from "@/lib/action-result";
 import { useAction } from "@/lib/use-action";
 import { createPractice, updatePracticeMeta } from "@/modules/practice/actions";
@@ -42,21 +42,34 @@ function blankToNull(text: string): string | null {
   return text.trim() === "" ? null : text;
 }
 
+/** Si dos copias del formulario dicen lo mismo, campo a campo, tal como están escritas. */
+function sameValues(a: PracticeFormValues, b: PracticeFormValues): boolean {
+  return (Object.keys(a) as Array<keyof PracticeFormValues>).every((field) => a[field] === b[field]);
+}
+
 /**
  * Los datos de una sesión de entrenamiento, para crearla o, con `edit`, para cambiarlos.
  *
  * Sin `edit` es el alta (`/train/new`): pregunta por el equipo si hay más de uno (con uno solo
  * no hay nada que elegir y su id se envía igualmente), y «Crear sesión» es el `primary` de la
- * pantalla. Al crear, abre el detalle de la sesión nueva. `created` mantiene el botón parado
- * desde que sale bien hasta que la página cambia: la navegación tarda, y un segundo toque en
- * ese rato crearía otra sesión.
+ * pantalla. Al crear, abre el constructor de la sesión nueva, que es lo siguiente: añadirle
+ * los ejercicios. `created` mantiene el botón parado desde que sale bien hasta que la página
+ * cambia: la navegación tarda, y un segundo toque en ese rato crearía otra sesión.
  *
  * Con `edit` son los datos de una sesión que ya existe (los del constructor): no pregunta por
  * el equipo, que no se cambia, y añade las notas. Su botón es `secondary`, porque lo principal
  * de esa pantalla es guardar la sesión. Guarda con `updatePracticeMeta` y la copia esperada de
  * `edit.expectedUpdatedAt`, que es la que tiene quien lo monta (el mismo `updatedAt` que
  * comparte con la lista de ejercicios): al guardar le entrega el nuevo con `onSaved`. Los
- * guardados que fallan no dicen «Datos guardados.».
+ * guardados que fallan no dicen «Datos guardados.». Si otra persona guardó antes (`STALE_COPY`),
+ * el aviso ofrece «Recargar» (`edit.onReload`): hasta que se pulsa, lo escrito sigue ahí.
+ *
+ * Con `edit` avisa también de si hay cambios sin guardar (`edit.onDirtyChange`): quien lo monta
+ * es quien pregunta antes de salir, porque en su pantalla hay más cosas que guardar. Los hay
+ * mientras algún campo difiera de la última copia guardada, que es `initial` o, tras cada
+ * guardado, lo que se envió. Avisa en el mismo manejador que cambia el campo o que recibe el
+ * resultado, y no con un efecto: así quien lo monta lo sabe en la misma pintura, y al aparecer
+ * «Datos guardados.» ya no hay aviso al cerrar la pestaña.
  *
  * El estado sale de `initial` una sola vez. Si guardar falla, no se pierde nada de lo escrito:
  * el error de cada campo sale bajo él (`fieldErrors`) y el aviso general, arriba.
@@ -70,21 +83,28 @@ export function PracticeForm({
   clubSlug: string;
   options: { teams: TeamOption[]; focusAreas: FocusOption[] };
   initial: PracticeFormValues;
-  edit?: { eventId: string; expectedUpdatedAt: string; onSaved: (updatedAt: string) => void };
+  edit?: {
+    eventId: string;
+    expectedUpdatedAt: string;
+    onSaved: (updatedAt: string) => void;
+    onDirtyChange: (dirty: boolean) => void;
+    onReload: () => void;
+  };
 }) {
   const router = useRouter();
   const { pending, failure, run } = useAction();
-  const [teamId, setTeamId] = useState(initial.teamId);
-  const [title, setTitle] = useState(initial.title);
-  const [date, setDate] = useState(initial.date);
-  const [time, setTime] = useState(initial.time);
-  const [durationMinutes, setDurationMinutes] = useState(initial.durationMinutes);
-  const [primaryFocusId, setPrimaryFocusId] = useState(initial.primaryFocusId);
-  const [secondaryFocusId, setSecondaryFocusId] = useState(initial.secondaryFocusId);
-  const [location, setLocation] = useState(initial.location);
-  const [notes, setNotes] = useState(initial.notes);
+  const [values, setValues] = useState(initial);
+  // La última copia guardada: contra ella se mide si hay cambios sin guardar.
+  const [lastSaved, setLastSaved] = useState(initial);
+  // Lo escrito ahora mismo, para el manejador que recibe el resultado de un guardado: es de
+  // cuando se envió, y mientras tanto se ha podido seguir escribiendo.
+  const latest = useRef(initial);
   const [saved, setSaved] = useState(false);
   const [created, setCreated] = useState(false);
+
+  useEffect(() => {
+    latest.current = values;
+  }, [values]);
 
   const focusOptions = [
     NO_FOCUS,
@@ -92,10 +112,12 @@ export function PracticeForm({
   ];
 
   /** Tocar cualquier campo deja sin efecto el «Datos guardados.» del guardado anterior. */
-  function touch<V>(setValue: (value: V) => void) {
-    return (value: V) => {
-      setValue(value);
+  function touch(field: keyof PracticeFormValues) {
+    return (value: string) => {
+      const next = { ...values, [field]: value };
+      setValues(next);
       setSaved(false);
+      edit?.onDirtyChange(!sameValues(next, lastSaved));
     };
   }
 
@@ -104,17 +126,19 @@ export function PracticeForm({
     if (pending || created) return;
     setSaved(false);
 
+    // Lo que se envía es lo que queda guardado: si se escribe mientras guarda, eso sigue sin guardar.
+    const sent = values;
     // Lo que no es de un campo de texto, en su tipo: `Number("")` es 0, que la acción rechaza
     // como toda duración fuera de rango, con su mensaje bajo el campo. Un objetivo sin elegir
     // se envía como `""`, que el esquema de la acción ya convierte en null.
     const session = {
-      title,
-      date,
-      time,
-      durationMinutes: Number(durationMinutes),
-      primaryFocusId,
-      secondaryFocusId,
-      location: blankToNull(location),
+      title: sent.title,
+      date: sent.date,
+      time: sent.time,
+      durationMinutes: Number(sent.durationMinutes),
+      primaryFocusId: sent.primaryFocusId,
+      secondaryFocusId: sent.secondaryFocusId,
+      location: blankToNull(sent.location),
     };
 
     if (edit) {
@@ -124,21 +148,24 @@ export function PracticeForm({
             eventId: edit.eventId,
             expectedUpdatedAt: edit.expectedUpdatedAt,
             ...session,
-            notes: blankToNull(notes),
+            notes: blankToNull(sent.notes),
           }),
         ({ updatedAt }) => {
-          setSaved(true);
+          const dirty = !sameValues(latest.current, sent);
+          setLastSaved(sent);
+          setSaved(!dirty);
           edit.onSaved(updatedAt);
+          edit.onDirtyChange(dirty);
         },
       );
       return;
     }
 
     run(
-      () => createPractice(clubSlug, { teamId, ...session }),
+      () => createPractice(clubSlug, { teamId: sent.teamId, ...session }),
       ({ eventId }) => {
         setCreated(true);
-        router.push(`/c/${clubSlug}/train/${eventId}`);
+        router.push(`/c/${clubSlug}/train/${eventId}/edit`);
       },
     );
   }
@@ -147,23 +174,31 @@ export function PracticeForm({
 
   return (
     <form onSubmit={submit} noValidate className="flex flex-col gap-(--space-4)">
-      {failure ? <FormAlert message={ACTION_ERROR_COPY[failure.error]} /> : null}
+      {failure ? (
+        <FormAlert message={ACTION_ERROR_COPY[failure.error]}>
+          {edit && failure.error === "STALE_COPY" ? (
+            <CTAButton variant="secondary" className="self-start" onClick={edit.onReload}>
+              Recargar
+            </CTAButton>
+          ) : null}
+        </FormAlert>
+      ) : null}
 
       {!edit && options.teams.length > 1 ? (
         <SelectField
           label="Equipo"
           name="teamId"
-          value={teamId}
+          value={values.teamId}
           options={options.teams.map((team) => ({ value: team.id, label: team.name }))}
-          onChange={touch(setTeamId)}
+          onChange={touch("teamId")}
           error={errors.teamId}
         />
       ) : null}
       <TextField
         label="Título"
         name="title"
-        value={title}
-        onChange={touch(setTitle)}
+        value={values.title}
+        onChange={touch("title")}
         maxLength={TITLE_MAX}
         error={errors.title}
       />
@@ -171,24 +206,24 @@ export function PracticeForm({
         label="Fecha"
         name="date"
         type="date"
-        value={date}
-        onChange={touch(setDate)}
+        value={values.date}
+        onChange={touch("date")}
         error={errors.date}
       />
       <TextField
         label="Hora"
         name="time"
         type="time"
-        value={time}
-        onChange={touch(setTime)}
+        value={values.time}
+        onChange={touch("time")}
         error={errors.time}
       />
       <TextField
         label="Duración (min)"
         name="durationMinutes"
         type="number"
-        value={durationMinutes}
-        onChange={touch(setDurationMinutes)}
+        value={values.durationMinutes}
+        onChange={touch("durationMinutes")}
         min={MIN_SESSION_MINUTES}
         max={MAX_SESSION_MINUTES}
         error={errors.durationMinutes}
@@ -196,24 +231,24 @@ export function PracticeForm({
       <SelectField
         label="Objetivo principal"
         name="primaryFocusId"
-        value={primaryFocusId}
+        value={values.primaryFocusId}
         options={focusOptions}
-        onChange={touch(setPrimaryFocusId)}
+        onChange={touch("primaryFocusId")}
         error={errors.primaryFocusId}
       />
       <SelectField
         label="Objetivo secundario"
         name="secondaryFocusId"
-        value={secondaryFocusId}
+        value={values.secondaryFocusId}
         options={focusOptions}
-        onChange={touch(setSecondaryFocusId)}
+        onChange={touch("secondaryFocusId")}
         error={errors.secondaryFocusId}
       />
       <TextField
         label="Lugar"
         name="location"
-        value={location}
-        onChange={touch(setLocation)}
+        value={values.location}
+        onChange={touch("location")}
         maxLength={LOCATION_MAX}
         error={errors.location}
       />
@@ -221,8 +256,8 @@ export function PracticeForm({
         <TextAreaField
           label="Notas"
           name="notes"
-          value={notes}
-          onChange={touch(setNotes)}
+          value={values.notes}
+          onChange={touch("notes")}
           maxLength={NOTES_MAX}
           rows={4}
           error={errors.notes}

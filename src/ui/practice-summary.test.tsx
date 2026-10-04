@@ -3,7 +3,8 @@ import { describe, expect, it } from "vitest";
 import { PracticeSummary } from "./practice-summary";
 
 // Datos neutros: los tests de `src/` no pueden nombrar a ningún club (pnpm check:guards).
-type Practice = Parameters<typeof PracticeSummary>[0]["practice"];
+// La sesión de estos tests lleva su duración y su recuento; sin ellos se prueba aparte.
+type Practice = Extract<Parameters<typeof PracticeSummary>[0]["practice"], { totalMinutes: number }>;
 
 const PRACTICE: Practice = {
   teamName: "Equipo A",
@@ -93,6 +94,39 @@ describe("PracticeSummary", () => {
     renderSummary({ itemCount: 0, totalMinutes: 0 });
 
     expect(screen.getByText("0 min · Sin ejercicios todavía · Pabellón 2")).toBeInTheDocument();
+  });
+
+  describe("sin la duración ni el recuento (el editor, donde cambian con cada toque)", () => {
+    const WITHOUT_NUMBERS = {
+      teamName: PRACTICE.teamName,
+      slotLabel: PRACTICE.slotLabel,
+      title: PRACTICE.title,
+      location: PRACTICE.location,
+      status: PRACTICE.status,
+      primaryFocus: PRACTICE.primaryFocus,
+      secondaryFocus: PRACTICE.secondaryFocus,
+    };
+
+    it("de los metadatos queda solo el lugar; el resto de la cabecera, igual", () => {
+      render(<PracticeSummary practice={WITHOUT_NUMBERS} />);
+
+      expect(screen.getByText("Pabellón 2")).toBeInTheDocument();
+      expect(screen.queryByText(/\bmin\b/)).not.toBeInTheDocument();
+      expect(screen.queryByText(/ejercicio/)).not.toBeInTheDocument();
+      expect(screen.getByText("Equipo A")).toBeInTheDocument();
+      expect(screen.getByRole("heading", { level: 1, name: "Transición + rebote defensivo" })).toBeInTheDocument();
+      expect(within(screen.getByRole("list", { name: "Objetivos" })).getAllByRole("listitem")).toHaveLength(2);
+    });
+
+    it.each([null, "", "   "])("y sin lugar (%j) no queda línea de metadatos", (location) => {
+      const { container } = render(<PracticeSummary practice={{ ...WITHOUT_NUMBERS, location }} />);
+
+      // El equipo, la franja y nada más: ningún párrafo vacío.
+      expect([...container.querySelectorAll("p")].map((line) => line.textContent)).toEqual([
+        "Equipo A",
+        "Martes 6 oct · 18:00–19:15",
+      ]);
+    });
   });
 
   it("una sesión hecha lo dice con la palabra «Hecho», en success y con un icono", () => {

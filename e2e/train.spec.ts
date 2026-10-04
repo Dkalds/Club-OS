@@ -1,10 +1,11 @@
-import type { Locator, Page } from "@playwright/test";
+import type { Page } from "@playwright/test";
 import { ARCANGEL, CLUB_DEMO, seedId } from "../scripts/seed/data";
 import { seedSchedule } from "../scripts/seed/dates";
 import { dayChip, formatEventSlot, localTime } from "../src/lib/time";
 import { seedNow } from "./helpers/seed";
 import { openAs } from "./helpers/sessions";
 import { expect, test } from "./helpers/test";
+import { expectFitsMobile, expectTouchTargets } from "./helpers/train";
 
 // Necesita el Supabase local arrancado. `e2e/global-setup.ts` lo siembra justo antes de los
 // tests (Arcángel y Club Demo), deja el instante de esa siembra en `seedNow()` y guarda una
@@ -251,25 +252,6 @@ test.describe("cada uno lo suyo", () => {
   });
 });
 
-/** Alto y ancho de cada elemento, con su nombre en el mensaje, de al menos 44 px. */
-async function expectTouchTargets(targets: Locator): Promise<void> {
-  const all = await targets.all();
-  expect(all.length).toBeGreaterThan(0);
-  for (const target of all) {
-    const box = await target.boundingBox();
-    const label = (await target.innerText()).replace(/\s+/g, " ").trim();
-    expect(box?.height, `alto de «${label}»`).toBeGreaterThanOrEqual(44);
-    expect(box?.width, `ancho de «${label}»`).toBeGreaterThanOrEqual(44);
-  }
-}
-
-async function expectFitsMobile(page: Page): Promise<void> {
-  await page.evaluate(() => document.fonts.ready);
-  expect(page.viewportSize()?.width).toBe(375);
-  const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
-  expect(scrollWidth).toBeLessThanOrEqual(375);
-}
-
 test("cabe en el móvil, con áreas táctiles de 44 px y sin errores de consola", async ({ page, browserErrors }) => {
   // La pantalla más llena: la dirección, con las sesiones de dos equipos y el nombre del equipo
   // delante de cada metadato.
@@ -343,7 +325,7 @@ test.describe("el detalle de una sesión", () => {
     }
     await expect(main.getByText("Total", { exact: true }).locator("..")).toContainText("75'");
 
-    // Quien entrena puede editarla (la pantalla del constructor es de la tarea siguiente: aquí no se abre).
+    // Quien entrena puede editarla (el constructor escribe: lo abre `practice-builder.spec.ts`).
     await expect(page.getByRole("link", { name: "Editar sesión" })).toHaveAttribute("href", `${CLUB}/train/${eventId}/edit`);
     await expect(page.getByRole("button", { name: "Duplicar" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Cancelar sesión" })).toBeVisible();
