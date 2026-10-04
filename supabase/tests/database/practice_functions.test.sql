@@ -21,7 +21,7 @@
 -- se fuerza aquí a mano (`set constraints`). Los datos son ficticios y solo de este test.
 begin;
 
-select plan(162);
+select plan(164);
 
 -- ── Ayudas (solo existen en esta transacción) ────────────────────────────────────────
 -- Leen como el propietario, sin RLS: dicen lo que hay en la base, lo vea o no quien llama.
@@ -827,6 +827,15 @@ select throws_ok(
   'el mismo id dos veces da INVALID'
 );
 
+-- La copia se mira antes que la entrada: la misma lista nula de arriba, con una copia
+-- antigua, da STALE_COPY.
+select throws_ok(
+  $$select public.save_practice_items(
+      current_setting('fx.p_new')::uuid, '2000-01-01T00:00:00Z', null)$$,
+  'P0001', 'STALE_COPY',
+  'con una copia antigua, una lista nula da STALE_COPY y no INVALID'
+);
+
 -- Los checks y las claves foráneas de la tabla salen con su propio código.
 select throws_ok(
   $$select public.save_practice_items(
@@ -1020,6 +1029,15 @@ select throws_ok(
       '2026-11-03T16:00:00Z', '2026-11-03T17:00:00Z', 'Reabierta')$$,
   'P0001', 'SESSION_CLOSED',
   'con una copia antigua, editar un entreno cancelado da SESSION_CLOSED y no STALE_COPY'
+);
+
+-- Y con una entrada inválida: que la sesión esté cerrada se dice también antes que la entrada.
+-- Con la copia correcta, para que el error no pueda ser por la copia.
+select throws_ok(
+  $$select public.save_practice_items(
+      current_setting('fx.plan_done')::uuid, current_setting('fx.u_done')::timestamptz, null)$$,
+  'P0001', 'SESSION_CLOSED',
+  'con una lista nula, guardar un entreno hecho da SESSION_CLOSED y no INVALID'
 );
 
 -- El admin tampoco: cerrada es cerrada para todos.
