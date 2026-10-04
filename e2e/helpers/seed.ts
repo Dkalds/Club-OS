@@ -41,9 +41,13 @@ export function seedNow(): Date {
 }
 
 /**
- * Las cinco tablas de la metodología del club. Son las únicas que los e2e de escritura
- * (Gestión) y los borradores de los de lectura (The Way) pueden dejar con filas que el seed
- * no conoce. Cada fase que añade tablas que sus e2e escriben, la suma aquí.
+ * Las tablas que los e2e de escritura pueden dejar con filas que el seed no conoce: las cinco
+ * de la metodología del club (Gestión escribe sus contenidos y The Way, sus borradores) y las
+ * tres de las sesiones (el constructor crea sesiones, planes e ítems). Cada fase que añade
+ * tablas que sus e2e escriben, la suma aquí.
+ *
+ * El orden es el del borrado, y en las sesiones importa: un ítem cuelga de su plan y un plan,
+ * de su evento, así que van ítems, planes y, al final, eventos.
  */
 const WRITABLE_TABLES = [
   "principle_points",
@@ -51,18 +55,26 @@ const WRITABLE_TABLES = [
   "club_values",
   "standards",
   "way_sections",
+  "practice_items",
+  "practice_plans",
+  "events",
 ] as const;
 
 /**
- * Deja la metodología de los clubes del seed exactamente como la deja `runSeed(now)`: borra,
- * en las cinco tablas de `WRITABLE_TABLES` y en los clubes del seed, toda fila cuyo id no sea
- * de `buildSeedData(now)`, y después siembra, que devuelve a lo suyo lo que el seed sí posee
- * (texto, estado, orden, número) y quita los puntos que sobren de sus principios.
+ * Deja los clubes del seed exactamente como los deja `runSeed(now)`: borra, en las tablas de
+ * `WRITABLE_TABLES` y en los clubes del seed, toda fila cuyo id no sea de `buildSeedData(now)`,
+ * y después siembra, que devuelve a lo suyo lo que el seed sí posee (texto, estado, orden,
+ * número) y quita los puntos que sobren de sus principios.
  *
  * Es lo que hace que la suite se recupere sola de una ejecución abortada: lo que esta dejó a
- * medias (una sección, un Standard o un borrador de un spec) no vale como dato de la
- * siguiente, y quien lo ve falla sin que el fallo señale a la causa. Sin listas de slugs ni
+ * medias (una sección, un Standard, un borrador o una sesión de un spec) no vale como dato de
+ * la siguiente, y quien lo ve falla sin que el fallo señale a la causa. Sin listas de slugs ni
  * de números escritas a mano: lo que no es del seed no sobrevive, se llame como se llame.
+ *
+ * De `events` solo se borran los entrenos (`kind = 'practice'`): los partidos tienen su propio
+ * tratamiento en una fase posterior y un partido que no es del seed no se toca. Los planes sin
+ * equipo (las plantillas privadas) que no son del seed se borran como los demás: son del club
+ * por `organization_id`.
  *
  * Borra contenido, así que:
  *  - Solo corre con un Supabase local, diga lo que diga `ALLOW_REMOTE_SEED`. Con otro lanza,
@@ -89,11 +101,17 @@ export async function restoreSeed(now: Date, client?: SupabaseClient<Database>):
     club_values: data.club_values.map((row) => row.id),
     standards: data.standards.map((row) => row.id),
     way_sections: data.way_sections.map((row) => row.id),
+    practice_items: data.practice_items.map((row) => row.id),
+    practice_plans: data.practice_plans.map((row) => row.id),
+    events: data.events.map((row) => row.id),
   } satisfies Record<(typeof WRITABLE_TABLES)[number], string[]>;
 
   for (const table of WRITABLE_TABLES) {
     const keep = seedIds[table];
     let strays = db.from(table).delete().in("organization_id", organizationIds);
+    // `filter` y no `eq`: `kind` no está en todas las tablas del bucle y `eq` solo acepta
+    // columnas de la unión de sus filas. Es el mismo `kind=eq.practice` de PostgREST.
+    if (table === "events") strays = strays.filter("kind", "eq", "practice");
     if (keep.length > 0) strays = strays.not("id", "in", `(${keep.join(",")})`);
     const { error } = await strays;
     if (error) {
