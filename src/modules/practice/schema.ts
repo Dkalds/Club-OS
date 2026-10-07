@@ -160,6 +160,7 @@ const item = z.object({
 export const savePracticeItemsSchema = z.object({
   eventId: id,
   expectedUpdatedAt,
+  saveId: id,
   items: z.array(item, { error: FIELD_INVALID }).max(MAX_ITEMS, MAX_ITEMS_MESSAGE),
 });
 

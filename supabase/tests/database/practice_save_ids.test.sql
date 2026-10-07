@@ -8,7 +8,7 @@
 --   · los errores de la Fase 4 siguen funcionando con la firma nueva.
 begin;
 
-select plan(22);
+select plan(27);
 
 -- ── Ayudas ───────────────────────────────────────────────────────────────────────────
 
@@ -260,6 +260,80 @@ select throws_ok(
     )$$,
   '22023', 'INVALID',
   'INVALID: p_items no es un array'
+);
+
+-- ── Task 2: p_save_id idempotencia ────────────────────────────────────────────────────────
+-- Si p_expected_updated_at no coincide PERO last_save_id = p_save_id, la respuesta se perdió:
+-- la función devuelve el estado actual sin escribir nada.
+
+-- Reabrimos la sesión (la cerramos en el test 7, la reabrimos en el 8).
+do $$
+begin
+  update public.events set status = 'scheduled'
+  where id = current_setting('fx.e1')::uuid;
+end
+$$;
+
+select tests.authenticate_as(current_setting('fx.c1')::uuid);
+
+-- 9. Guardar con save_id S a partir de la copia actual → éxito normal.
+select lives_ok(
+  $$select set_config('fx.u_pre_s',
+      tests.token_spi(current_setting('fx.plan')::uuid)::text, true)$$,
+  'anotamos copia antes del guardado con save_id'
+);
+
+select lives_ok(
+  $$select set_config('fx.save_s',
+      public.save_practice_items(
+        current_setting('fx.plan')::uuid,
+        current_setting('fx.u_pre_s')::timestamptz,
+        '[{"title":"Reintento","minutes":5}]'::jsonb,
+        'aaaaaaaa-0000-4000-8000-000000000001'::uuid
+      )::text, true)$$,
+  'save_id S: primer guardado con save_id tiene éxito'
+);
+
+-- 10. Repetir la misma llamada (copia antigua U_pre_s, mismo S) → devuelve estado actual sin escribir.
+select lives_ok(
+  $$select set_config('fx.save_s2',
+      public.save_practice_items(
+        current_setting('fx.plan')::uuid,
+        current_setting('fx.u_pre_s')::timestamptz,
+        '[{"title":"Reintento","minutes":5}]'::jsonb,
+        'aaaaaaaa-0000-4000-8000-000000000001'::uuid
+      )::text, true)$$,
+  'save_id S repetido con copia antigua: no lanza'
+);
+
+select ok(
+  (current_setting('fx.save_s2')::jsonb ->> 'updated_at')::timestamptz =
+  tests.token_spi(current_setting('fx.plan')::uuid),
+  'save_id idempotente: devuelve el updated_at actual del plan'
+);
+
+-- 11. Copia antigua + save_id diferente S2 → STALE_COPY (no es un reintento del mismo guardado).
+select throws_ok(
+  $$select public.save_practice_items(
+      current_setting('fx.plan')::uuid,
+      current_setting('fx.u_pre_s')::timestamptz,
+      '[{"title":"Otro","minutes":5}]'::jsonb,
+      'aaaaaaaa-0000-4000-8000-000000000002'::uuid
+    )$$,
+  'P0001', 'STALE_COPY',
+  'copia antigua + save_id diferente → STALE_COPY'
+);
+
+-- 12. Sin save_id (null) y copia antigua → STALE_COPY (comportamiento anterior sin cambios).
+select throws_ok(
+  $$select public.save_practice_items(
+      current_setting('fx.plan')::uuid,
+      current_setting('fx.u_pre_s')::timestamptz,
+      '[{"title":"Sin sid","minutes":5}]'::jsonb,
+      null::uuid
+    )$$,
+  'P0001', 'STALE_COPY',
+  'sin save_id y copia antigua → STALE_COPY'
 );
 
 select * from finish();

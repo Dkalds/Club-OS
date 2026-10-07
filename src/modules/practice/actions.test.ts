@@ -247,7 +247,7 @@ const draft: PracticeItemDraft = {
   notes: null,
 };
 
-const save = { eventId: EVENT, expectedUpdatedAt: STAMP, items: [draft] };
+const save = { eventId: EVENT, expectedUpdatedAt: STAMP, saveId: "aaaaaaaa-0000-4000-8000-000000000099", items: [draft] };
 const duplicate = { eventId: EVENT, date: "2026-11-24", time: "18:00" };
 const addDrill = { eventId: EVENT, drillId: DRILL };
 
@@ -1028,6 +1028,7 @@ describe("savePracticeItems", () => {
     const result = await savePracticeItems("club-a", {
       eventId: EVENT,
       expectedUpdatedAt: "2026-11-17T10:00:00.123456+00:00",
+      saveId: "aaaaaaaa-0000-4000-8000-000000000099",
       items: [withId, withoutId],
     });
 
@@ -1037,6 +1038,7 @@ describe("savePracticeItems", () => {
         args: {
           p_plan: PLAN,
           p_expected_updated_at: "2026-11-17T10:00:00.123456+00:00",
+          p_save_id: "aaaaaaaa-0000-4000-8000-000000000099",
           p_items: [
             {
               id: ITEM,

@@ -305,6 +305,7 @@ export async function savePracticeItems(
         p_plan: practice.data.planId,
         p_expected_updated_at: data.expectedUpdatedAt,
         p_items: data.items.map(toRpcItem),
+        p_save_id: data.saveId,
       });
       if (error) return fromDb(error);
 

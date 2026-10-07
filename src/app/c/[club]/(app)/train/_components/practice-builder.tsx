@@ -149,6 +149,9 @@ export function PracticeBuilder({
   // Las claves de las filas en el orden del último envío: los errores llegan por posición.
   const [sentKeys, setSentKeys] = useState<string[]>([]);
   const [saved, setSaved] = useState(false);
+  // Identificador del intento de guardado en curso: el mismo en reintentos (sin cambios),
+  // uno nuevo tras cada cambio del usuario. Permite a la BD distinguir reintentos de ediciones.
+  const saveIdRef = useRef(crypto.randomUUID());
   const [announcement, setAnnouncement] = useState("");
   const root = useRef<HTMLDivElement>(null);
   // A qué control devolver el foco cuando la lista se repinte: `row` es la clave de su fila.
@@ -204,6 +207,7 @@ export function PracticeBuilder({
    * lo llama parte de la lista de la última pintura (`rows`): un cambio por evento.
    */
   function change(next: Row[]) {
+    saveIdRef.current = crypto.randomUUID();
     setRows(next);
     setSaved(false);
     onDirtyChange(!sameRows(next, savedRows));
@@ -298,6 +302,7 @@ export function PracticeBuilder({
         const result = await savePracticeItems(clubSlug, {
           eventId,
           expectedUpdatedAt,
+          saveId: saveIdRef.current,
           items: sent.map(toItem),
         });
         // Con errores de campo se abre la primera fila que tenga alguno: su mensaje sale dentro.

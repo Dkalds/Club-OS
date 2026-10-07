@@ -1,19 +1,26 @@
 -- Los ids de los ítems son estables entre guardados del constructor (C23).
+-- Una respuesta perdida no parece la edición de otra persona (Task 2).
 --
 -- `save_practice_items` cambia su tipo de retorno: de `timestamptz` a `jsonb` con
 -- `{ "updated_at": "<texto>", "item_ids": ["<uuid>", …] }`. Postgres no permite cambiar el
 -- tipo de retorno con `create or replace`, así que se elimina la función con su firma actual
 -- y se crea de nuevo con la nueva, sin tocar permisos o privilegios más de lo necesario.
 --
--- Se añade también `p_save_id uuid default null` para la Task 2 (respuesta perdida). Aquí
--- no se usa todavía: el parámetro existe, llega como null y se ignora. La Task 2 rellena su
--- semántica en la misma migración (que aún no está en main).
+-- Task 2: `practice_plans.last_save_id` guarda el `p_save_id` del último guardado con éxito.
+-- Si `p_expected_updated_at` no coincide pero `last_save_id = p_save_id`, la respuesta se
+-- perdió: se devuelve el estado actual sin escribir nada. Si no coincide ninguno de los dos,
+-- `STALE_COPY` como antes. El cliente genera un UUID nuevo por intento lógico y lo reutiliza
+-- en los reintentos del mismo guardado.
 --
 -- El `item_ids` devuelve los ids en el mismo orden que `p_items`, que es el orden de la
 -- sesión en la interfaz. El constructor los pone a cada ítem por posición al recibir la
 -- respuesta: un ítem que llegó sin `id` se queda con el que le asignó la base de datos, y
 -- uno que llegó con `id` conserva el suyo. Así el siguiente guardado los envía con `id` y
 -- la base no los borra y re-crea (C23).
+
+-- Columna para el identicador del último guardado.
+alter table public.practice_plans
+  add column if not exists last_save_id uuid;
 
 drop function public.save_practice_items(uuid, timestamptz, jsonb);
 
@@ -34,6 +41,7 @@ declare
   v_event uuid;
   v_status public.event_status;
   v_current timestamptz;
+  v_last_save_id uuid;
   v_updated_at timestamptz;
   v_item_ids uuid[];
 begin
@@ -73,8 +81,8 @@ begin
   end if;
 
   -- Y el plan.
-  select pp.updated_at
-  into v_current
+  select pp.updated_at, pp.last_save_id
+  into v_current, v_last_save_id
   from public.practice_plans as pp
   where pp.organization_id = v_org
     and pp.id = p_plan
@@ -85,6 +93,20 @@ begin
   end if;
 
   if v_current is distinct from p_expected_updated_at then
+    -- La copia del cliente no es la actual. ¿Es un reintento del mismo guardado?
+    if p_save_id is not null and v_last_save_id = p_save_id then
+      -- Respuesta perdida: el guardado ya se aplicó. Devolver el estado actual sin escribir.
+      select array_agg(pi.id order by pi.sort)
+      into v_item_ids
+      from public.practice_items as pi
+      where pi.organization_id = v_org
+        and pi.plan_id = p_plan;
+
+      return jsonb_build_object(
+        'updated_at', to_jsonb(v_current),
+        'item_ids', coalesce(to_jsonb(v_item_ids), '[]'::jsonb)
+      );
+    end if;
     raise exception 'STALE_COPY' using errcode = 'P0001';
   end if;
 
@@ -159,9 +181,10 @@ begin
   from jsonb_array_elements(p_items) with ordinality as it (item, pos)
   where it.item ->> 'id' is null;
 
-  -- Siempre: mueve `updated_at` y anota `updated_by`.
+  -- Siempre: mueve `updated_at`, anota `updated_by` y guarda el `save_id`.
   update public.practice_plans as pp
-  set status = case when jsonb_array_length(p_items) > 0 then 'ready' else 'draft' end
+  set status = case when jsonb_array_length(p_items) > 0 then 'ready' else 'draft' end,
+      last_save_id = p_save_id
   where pp.organization_id = v_org
     and pp.id = p_plan
   returning pp.updated_at into v_updated_at;

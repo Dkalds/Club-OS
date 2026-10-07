@@ -83,7 +83,7 @@ const save = () => fireEvent.click(saveButton());
 const total = () => screen.getByText("Total").parentElement as HTMLElement;
 
 /** Lo que recibió la acción en su llamada número `call` (la primera es la 0). */
-function sent(call = 0): { eventId: string; expectedUpdatedAt: string; items: PracticeItemDraft[] } {
+function sent(call = 0): { eventId: string; expectedUpdatedAt: string; saveId: string; items: PracticeItemDraft[] } {
   return mocks.savePracticeItems.mock.calls[call][1];
 }
 
@@ -627,7 +627,8 @@ describe("PracticeBuilder · guardar", () => {
     expect(mocks.savePracticeItems).toHaveBeenCalledTimes(1);
     expect(mocks.savePracticeItems.mock.calls[0][0]).toBe("club-a");
     // Los ítems en su orden, con sus `id`, y nada de lo que el constructor lleva por dentro.
-    expect(sent()).toStrictEqual({ eventId: EVENT, expectedUpdatedAt: UPDATED_AT, items: [B, A, C] });
+    expect(sent()).toMatchObject({ eventId: EVENT, expectedUpdatedAt: UPDATED_AT, items: [B, A, C] });
+    expect(sent().saveId).toMatch(/^[0-9a-f-]{36}$/);
     expect(onSaved).toHaveBeenCalledTimes(1);
     expect(onSaved).toHaveBeenCalledWith(NEXT_UPDATED_AT);
 
@@ -848,6 +849,51 @@ describe("PracticeBuilder · cuando falla", () => {
     expect(screen.queryByText(/fallo de red/)).not.toBeInTheDocument();
     expect(rows()[0]).toHaveTextContent("15'");
     expect(saveButton()).toBeEnabled();
+  });
+
+  it("el guardado lleva un saveId en forma de UUID", async () => {
+    renderBuilder();
+    click("Más minutos, Rueda de pases");
+    save();
+
+    await screen.findByText("Sesión guardada.");
+    expect(sent(0).saveId).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
+  });
+
+  it("reintentar tras un fallo de red envía el mismo saveId", async () => {
+    mocks.savePracticeItems
+      .mockRejectedValueOnce(new Error("fallo de red"))
+      .mockResolvedValue(ok({ updatedAt: NEXT_UPDATED_AT, itemIds: ITEM_IDS }));
+    renderBuilder();
+    click("Más minutos, Rueda de pases");
+
+    save();
+    await screen.findByText(ACTION_ERROR_COPY.SAVE_FAILED);
+
+    save();
+    await screen.findByText("Sesión guardada.");
+
+    expect(sent(0).saveId).toBeDefined();
+    expect(sent(1).saveId).toBe(sent(0).saveId);
+  });
+
+  it("tras un cambio, el siguiente guardado usa un saveId nuevo", async () => {
+    mocks.savePracticeItems
+      .mockRejectedValueOnce(new Error("fallo de red"))
+      .mockResolvedValue(ok({ updatedAt: NEXT_UPDATED_AT, itemIds: ITEM_IDS }));
+    renderBuilder();
+    click("Más minutos, Rueda de pases");
+
+    save();
+    await screen.findByText(ACTION_ERROR_COPY.SAVE_FAILED);
+
+    click("Más minutos, Rueda de pases");
+    save();
+    await screen.findByText("Sesión guardada.");
+
+    expect(sent(0).saveId).toBeDefined();
+    expect(sent(1).saveId).toBeDefined();
+    expect(sent(1).saveId).not.toBe(sent(0).saveId);
   });
 
   it("al volver a guardar se quita el aviso anterior", async () => {
