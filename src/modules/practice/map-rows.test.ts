@@ -331,6 +331,7 @@ describe("toPracticeListItems", () => {
         teamName: "Equipo A",
         dow: "Mar",
         day: "17",
+        month: "nov",
         time: "18:00",
         title: "Transición + rebote defensivo",
         totalMinutes: 60,

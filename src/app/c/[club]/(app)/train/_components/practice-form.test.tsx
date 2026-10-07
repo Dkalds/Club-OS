@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import Link from "next/link";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ACTION_ERROR_COPY, fail, ok, type ActionResult } from "@/lib/action-result";
 
@@ -677,5 +678,54 @@ describe("PracticeForm · editar los datos · cambios sin guardar", () => {
     expect(onDirtyChange).toHaveBeenLastCalledWith(true);
     expect(screen.getByRole("status")).toBeEmptyDOMElement();
     expect(screen.getByLabelText("Lugar")).toHaveValue("Pabellón 4");
+  });
+});
+
+// ── Aviso al salir (modo crear) ───────────────────────────────────────────────────────────────
+// Con el formulario de crear sin guardar, un clic en la navegación de la app abre
+// «¿Salir sin guardar?». El modo editar ya delega en el editor (practice-editor.tsx).
+describe("PracticeForm · crear · aviso al salir", () => {
+  function clickLink(link: HTMLElement): "navega" | "se queda" {
+    let outcome: "navega" | "se queda" = "navega";
+    const cut = (event: Event) => {
+      outcome = event.defaultPrevented ? "se queda" : "navega";
+      event.preventDefault();
+    };
+    document.addEventListener("click", cut);
+    fireEvent.click(link);
+    document.removeEventListener("click", cut);
+    return outcome;
+  }
+
+  function renderWithNav() {
+    const { unmount } = render(
+      <>
+        <nav aria-label="Principal">
+          <Link href="/c/club-a/way" prefetch={false}>
+            The Way
+          </Link>
+        </nav>
+        <PracticeForm
+          clubSlug="club-a"
+          options={{ teams: ONE_TEAM, focusAreas: FOCUS_AREAS }}
+          initial={INITIAL}
+        />
+      </>,
+    );
+    return { nav: screen.getByRole("link", { name: "The Way" }), unmount };
+  }
+
+  it("sin cambios, un clic en la navegación navega sin preguntar", () => {
+    const { nav, unmount } = renderWithNav();
+    expect(clickLink(nav)).toBe("navega");
+    expect(screen.queryByRole("alertdialog", { name: "¿Salir sin guardar?" })).not.toBeInTheDocument();
+    unmount();
+  });
+
+  it("con un campo cambiado, un clic en la navegación abre «¿Salir sin guardar?»", () => {
+    const { nav } = renderWithNav();
+    fireEvent.change(screen.getByLabelText("Título"), { target: { value: "Salida de presión" } });
+    expect(clickLink(nav)).toBe("se queda");
+    expect(screen.getByRole("alertdialog", { name: "¿Salir sin guardar?" })).toBeInTheDocument();
   });
 });

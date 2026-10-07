@@ -27,7 +27,7 @@ export default async function TrainPage({ params, searchParams }: PageProps<"/c/
   const { scope: requested } = await searchParams;
   const scope = requested === "history" ? "history" : "upcoming";
 
-  const { practices, teamCount } = await listPractices(ctx, scope, new Date().toISOString());
+  const { practices, teamCount, truncated } = await listPractices(ctx, scope, new Date().toISOString());
 
   return (
     <div className="flex flex-col gap-(--space-6) px-(--space-4) pt-(--space-6)">
@@ -39,6 +39,7 @@ export default async function TrainPage({ params, searchParams }: PageProps<"/c/
         practices={practices}
         teamCount={teamCount}
         canCreate={can(ctx, "practice.manage")}
+        truncated={truncated}
       />
 
       <section className="flex flex-col gap-(--space-3)">

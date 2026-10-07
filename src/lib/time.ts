@@ -73,6 +73,12 @@ export function dayChip(iso: string, tz: string): { dow: string; day: string } {
   return { dow: WEEKDAYS_SHORT[date.getDay()], day: String(date.getDate()) };
 }
 
+/** El mes abreviado y el día del mes sin cero a la izquierda: `{ month: 'oct', day: '8' }`. */
+export function monthChip(iso: string, tz: string): { month: string; day: string } {
+  const date = inZone(iso, tz);
+  return { month: MONTHS[date.getMonth()], day: String(date.getDate()) };
+}
+
 /** «18:00», de 24 horas. */
 export function localTime(iso: string, tz: string): string {
   return clock(inZone(iso, tz));
