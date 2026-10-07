@@ -289,7 +289,7 @@ export async function updatePracticeMeta(
 export async function savePracticeItems(
   clubSlug: string,
   input: SavePracticeItemsInput,
-): Promise<ActionResult<{ updatedAt: string }>> {
+): Promise<ActionResult<{ updatedAt: string; itemIds: string[] }>> {
   return mutate(
     "save-practice-items",
     clubSlug,
@@ -301,14 +301,15 @@ export async function savePracticeItems(
       const practice = await findPractice(run, data.eventId);
       if (!practice.ok) return practice;
 
-      const { data: updatedAt, error } = await db.rpc("save_practice_items", {
+      const { data: result, error } = await db.rpc("save_practice_items", {
         p_plan: practice.data.planId,
         p_expected_updated_at: data.expectedUpdatedAt,
         p_items: data.items.map(toRpcItem),
       });
       if (error) return fromDb(error);
 
-      return ok({ updatedAt });
+      const rpc = result as unknown as { updated_at: string; item_ids: string[] };
+      return ok({ updatedAt: rpc.updated_at, itemIds: rpc.item_ids });
     },
   );
 }

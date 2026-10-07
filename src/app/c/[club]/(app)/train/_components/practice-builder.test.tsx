@@ -17,6 +17,10 @@ const DRILL = "00000000-0000-4000-8000-0000000000d1";
 const UPDATED_AT = "2026-10-04T10:00:00.123456+00:00";
 const NEXT_UPDATED_AT = "2026-10-04T10:05:00.654321+00:00";
 const THIRD_UPDATED_AT = "2026-10-04T10:06:00.000001+00:00";
+/** Un id nuevo que devolvería el servidor para el cuarto ítem (uno sin id al guardar). */
+const NEW_ID = "00000000-0000-4000-8000-0000000000a4";
+const ITEM_IDS = ["00000000-0000-4000-8000-000000000001", "00000000-0000-4000-8000-000000000002", "00000000-0000-4000-8000-000000000003"];
+const ITEM_IDS_WITH_NEW = [...ITEM_IDS, NEW_ID];
 
 function item(n: number, title: string, phase: string | null, minutes: number): SavedPracticeItem {
   return {
@@ -104,7 +108,7 @@ let consoleErrors: ReturnType<typeof vi.spyOn>;
 let consoleWarnings: ReturnType<typeof vi.spyOn>;
 beforeEach(() => {
   vi.resetAllMocks();
-  mocks.savePracticeItems.mockResolvedValue(ok({ updatedAt: NEXT_UPDATED_AT }));
+  mocks.savePracticeItems.mockResolvedValue(ok({ updatedAt: NEXT_UPDATED_AT, itemIds: ITEM_IDS }));
   consoleErrors = vi.spyOn(console, "error").mockImplementation(() => {});
   consoleWarnings = vi.spyOn(console, "warn").mockImplementation(() => {});
 });
@@ -608,9 +612,11 @@ describe("PracticeBuilder · guardar", () => {
   });
 
   it("guardar envía el orden nuevo", async () => {
+    // El primer guardado envía [B, A, C]: el servidor devuelve los ids en ese mismo orden.
+    const IDS_BAC = [B.id, A.id, C.id];
     mocks.savePracticeItems
-      .mockResolvedValueOnce(ok({ updatedAt: NEXT_UPDATED_AT }))
-      .mockResolvedValueOnce(ok({ updatedAt: THIRD_UPDATED_AT }));
+      .mockResolvedValueOnce(ok({ updatedAt: NEXT_UPDATED_AT, itemIds: IDS_BAC }))
+      .mockResolvedValueOnce(ok({ updatedAt: THIRD_UPDATED_AT, itemIds: IDS_BAC }));
     const { onSaved, update } = renderBuilder();
     open("Activación Rueda de pases");
     click("Bajar Rueda de pases");
@@ -654,6 +660,27 @@ describe("PracticeBuilder · guardar", () => {
     });
   });
 
+  it("el segundo guardado incluye el id del ejercicio añadido en el primero", async () => {
+    mocks.savePracticeItems.mockResolvedValueOnce(ok({ updatedAt: NEXT_UPDATED_AT, itemIds: ITEM_IDS_WITH_NEW }));
+    const { update } = renderBuilder();
+
+    click("Añadir bloque libre");
+    fireEvent.change(screen.getByLabelText("Título"), { target: { value: "Juego libre" } });
+    save();
+
+    await screen.findByText("Sesión guardada.");
+    // El primero va sin id (ítem nuevo).
+    expect(sent(0).items[3]).toStrictEqual({ drillId: null, title: "Juego libre", phase: null, minutes: 10, notes: null });
+
+    // Ahora el builder tiene el id del ítem nuevo. El segundo guardado lo lleva.
+    update({ expectedUpdatedAt: NEXT_UPDATED_AT });
+    click("Más minutos, Juego libre");
+    save();
+
+    await waitFor(() => expect(mocks.savePracticeItems).toHaveBeenCalledTimes(2));
+    expect(sent(1).items[3]).toStrictEqual({ id: NEW_ID, drillId: null, title: "Juego libre", phase: null, minutes: 15, notes: null });
+  });
+
   it("dice «Sesión guardada.» en una región de estado que ya estaba, y un cambio lo quita", async () => {
     renderBuilder();
     // La región está siempre en el árbol: un lector de pantalla solo anuncia lo que cambia dentro.
@@ -671,7 +698,7 @@ describe("PracticeBuilder · guardar", () => {
   });
 
   it("mientras guarda no se puede enviar otra vez, y al terminar vuelve a no haber cambios", async () => {
-    const pending = deferred<{ updatedAt: string }>();
+    const pending = deferred<{ updatedAt: string; itemIds: string[] }>();
     mocks.savePracticeItems.mockReturnValue(pending.promise);
     const { onSaved } = renderBuilder();
     click("Más minutos, Rueda de pases");
@@ -682,14 +709,14 @@ describe("PracticeBuilder · guardar", () => {
     expect(onSaved).not.toHaveBeenCalled();
     expect(screen.queryByText("Sesión guardada.")).not.toBeInTheDocument();
 
-    pending.finish(ok({ updatedAt: NEXT_UPDATED_AT }));
+    pending.finish(ok({ updatedAt: NEXT_UPDATED_AT, itemIds: ITEM_IDS }));
     await screen.findByText("Sesión guardada.");
     expect(saveButton()).toBeDisabled();
     expect(mocks.savePracticeItems).toHaveBeenCalledTimes(1);
   });
 
   it("lo que se cambia mientras guarda sigue sin guardar: no dice «Sesión guardada.»", async () => {
-    const pending = deferred<{ updatedAt: string }>();
+    const pending = deferred<{ updatedAt: string; itemIds: string[] }>();
     mocks.savePracticeItems.mockReturnValue(pending.promise);
     const { onSaved, onDirtyChange } = renderBuilder();
     click("Más minutos, Rueda de pases");
@@ -697,7 +724,7 @@ describe("PracticeBuilder · guardar", () => {
     await waitFor(() => expect(saveButton()).toBeDisabled());
 
     click("Más minutos, Tres calles");
-    pending.finish(ok({ updatedAt: NEXT_UPDATED_AT }));
+    pending.finish(ok({ updatedAt: NEXT_UPDATED_AT, itemIds: ITEM_IDS }));
 
     await waitFor(() => expect(onSaved).toHaveBeenCalledWith(NEXT_UPDATED_AT));
     expect(screen.queryByText("Sesión guardada.")).not.toBeInTheDocument();
@@ -723,7 +750,7 @@ describe("PracticeBuilder · con otro guardado de la pantalla en marcha", () => 
   });
 
   it("avisa a quien lo monta de que está guardando, desde el toque, y de que ha terminado", async () => {
-    const pending = deferred<{ updatedAt: string }>();
+    const pending = deferred<{ updatedAt: string; itemIds: string[] }>();
     mocks.savePracticeItems.mockReturnValue(pending.promise);
     const { onPendingChange } = renderBuilder();
     click("Más minutos, Rueda de pases");
@@ -733,7 +760,7 @@ describe("PracticeBuilder · con otro guardado de la pantalla en marcha", () => 
     // En el mismo toque, sin esperar a ninguna pintura: el otro guardado se cierra ya.
     expect(onPendingChange).toHaveBeenLastCalledWith(true);
 
-    pending.finish(ok({ updatedAt: NEXT_UPDATED_AT }));
+    pending.finish(ok({ updatedAt: NEXT_UPDATED_AT, itemIds: ITEM_IDS }));
     await screen.findByText("Sesión guardada.");
     await waitFor(() => expect(onPendingChange).toHaveBeenLastCalledWith(false));
   });

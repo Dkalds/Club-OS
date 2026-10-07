@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { errorsByRow, phaseOptions, sameRows, toItem, toRow, type Row } from "./practice-rows";
+import { errorsByRow, phaseOptions, sameRows, toItem, toRow, withSavedIds, type Row } from "./practice-rows";
 
 const SAVED = {
   id: "00000000-0000-4000-8000-000000000001",
@@ -96,5 +96,37 @@ describe("phaseOptions", () => {
     const options = phaseOptions([A, { ...B, phase: "Juego reducido" }, { ...B, phase: "Juego reducido" }]);
 
     expect(options.slice(9)).toEqual([{ value: "Juego reducido", label: "Juego reducido" }]);
+  });
+});
+
+describe("withSavedIds", () => {
+  const NEW_A: Row = { key: "new-1", drillId: null, title: "A", phase: null, minutes: 10, notes: null };
+  const NEW_B: Row = { key: "new-2", drillId: null, title: "B", phase: null, minutes: 15, notes: null };
+  const ID_A = "00000000-0000-4000-8000-000000000aa1";
+  const ID_B = "00000000-0000-4000-8000-000000000bb2";
+
+  it("pone el id devuelto a cada fila por posición", () => {
+    const result = withSavedIds([NEW_A, NEW_B], [ID_A, ID_B]);
+
+    expect(result[0]).toEqual({ ...NEW_A, id: ID_A });
+    expect(result[1]).toEqual({ ...NEW_B, id: ID_B });
+  });
+
+  it("las filas que ya tenían id lo conservan", () => {
+    const withId: Row = { ...NEW_A, id: ID_A };
+    const result = withSavedIds([withId, NEW_B], [ID_A, ID_B]);
+
+    expect(result[0].id).toBe(ID_A);
+    expect(result[1].id).toBe(ID_B);
+  });
+
+  it("si las longitudes no coinciden, devuelve la lista sin tocar", () => {
+    const result = withSavedIds([NEW_A, NEW_B], [ID_A]);
+
+    expect(result).toEqual([NEW_A, NEW_B]);
+  });
+
+  it("lista vacía devuelve lista vacía", () => {
+    expect(withSavedIds([], [])).toEqual([]);
   });
 });

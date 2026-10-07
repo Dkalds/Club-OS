@@ -42,6 +42,8 @@ const ITEM = "00000000-0000-4000-8000-0000000000b1";
 /** Un `updated_at` como lo devuelve PostgREST: con microsegundos y desfase. */
 const STAMP = "2026-11-17T10:00:00.123456+00:00";
 const NEXT_STAMP = "2026-11-17T10:05:00.654321+00:00";
+/** El jsonb que devuelve `save_practice_items` a partir de la Task 1 de la Fase 5. */
+const SAVE_RESULT = { updated_at: NEXT_STAMP, item_ids: [ITEM, "00000000-0000-4000-8000-0000000000b2"] };
 
 /** Lo que lanza `notFound()` de verdad: corta la ejecución, no devuelve. */
 const NOT_FOUND = new Error("NEXT_HTTP_ERROR_FALLBACK;404");
@@ -329,7 +331,7 @@ describe("tras escribir", () => {
   const WRITES: Array<[string, Reply[], () => Promise<ActionResult<unknown>>]> = [
     ["createPractice", [ownTeam, reply(NEW_EVENT)], ACTIONS[0][1]],
     ["updatePracticeMeta", [ownEvent, reply(NEXT_STAMP)], ACTIONS[1][1]],
-    ["savePracticeItems", [ownEvent, reply(NEXT_STAMP)], ACTIONS[2][1]],
+    ["savePracticeItems", [ownEvent, reply(SAVE_RESULT)], ACTIONS[2][1]],
     ["duplicatePractice", [ownEvent, reply(NEW_EVENT)], ACTIONS[3][1]],
     ["cancelPractice", [reply([{ id: EVENT }])], ACTIONS[4][1]],
     ["addDrillToPractice", [planWith([]), publishedDrill, reply(NEXT_STAMP)], ACTIONS[5][1]],
@@ -1021,7 +1023,7 @@ describe("savePracticeItems", () => {
   };
 
   it("guardar ítems", async () => {
-    const db = useDb(ownEvent, reply(NEXT_STAMP));
+    const db = useDb(ownEvent, reply(SAVE_RESULT));
 
     const result = await savePracticeItems("club-a", {
       eventId: EVENT,
@@ -1055,11 +1057,14 @@ describe("savePracticeItems", () => {
         },
       },
     ]);
-    expect(result).toEqual({ ok: true, data: { updatedAt: NEXT_STAMP } });
+    expect(result).toEqual({
+      ok: true,
+      data: { updatedAt: NEXT_STAMP, itemIds: SAVE_RESULT.item_ids },
+    });
   });
 
   it("un ítem nuevo no lleva la clave id, ni siquiera con valor vacío", async () => {
-    const db = useDb(ownEvent, reply(NEXT_STAMP));
+    const db = useDb(ownEvent, reply(SAVE_RESULT));
 
     await savePracticeItems("club-a", { ...save, items: [withoutId] });
 
@@ -1068,7 +1073,7 @@ describe("savePracticeItems", () => {
   });
 
   it("los ítems viajan en el orden en que llegan, sin reordenar por título ni por minutos", async () => {
-    const db = useDb(ownEvent, reply(NEXT_STAMP));
+    const db = useDb(ownEvent, reply(SAVE_RESULT));
     const titles = ["Zeta", "Alfa", "Mike", "Beta"];
 
     await savePracticeItems("club-a", {
@@ -1081,7 +1086,7 @@ describe("savePracticeItems", () => {
   });
 
   it("el plan es el que devuelve la lectura previa, venga como lista o como objeto", async () => {
-    const db = useDb(ownEvent, reply(NEXT_STAMP), ownEventObject, reply(NEXT_STAMP));
+    const db = useDb(ownEvent, reply(SAVE_RESULT), ownEventObject, reply(SAVE_RESULT));
 
     await savePracticeItems("club-a", save);
     await savePracticeItems("club-a", save);
@@ -1090,7 +1095,7 @@ describe("savePracticeItems", () => {
   });
 
   it("lee antes el entreno de este club con su plan", async () => {
-    const db = useDb(ownEvent, reply(NEXT_STAMP));
+    const db = useDb(ownEvent, reply(SAVE_RESULT));
 
     await savePracticeItems("club-a", save);
 
@@ -1105,7 +1110,7 @@ describe("savePracticeItems", () => {
   });
 
   it("recorta los textos y guarda como null la fase y las notas vacías", async () => {
-    const db = useDb(ownEvent, reply(NEXT_STAMP));
+    const db = useDb(ownEvent, reply(SAVE_RESULT));
 
     await savePracticeItems("club-a", {
       ...save,
@@ -1118,7 +1123,7 @@ describe("savePracticeItems", () => {
   });
 
   it("una lista vacía se guarda: deja la sesión sin ítems", async () => {
-    const db = useDb(ownEvent, reply(NEXT_STAMP));
+    const db = useDb(ownEvent, reply(SAVE_RESULT));
 
     const result = await savePracticeItems("club-a", { ...save, items: [] });
 
@@ -1127,7 +1132,7 @@ describe("savePracticeItems", () => {
   });
 
   it("30 ítems se guardan", async () => {
-    const db = useDb(ownEvent, reply(NEXT_STAMP));
+    const db = useDb(ownEvent, reply(SAVE_RESULT));
 
     const result = await savePracticeItems("club-a", {
       ...save,
@@ -1183,7 +1188,7 @@ describe("savePracticeItems", () => {
   });
 
   it.each([1, 120])("%s minutos valen", async (minutes) => {
-    const db = useDb(ownEvent, reply(NEXT_STAMP));
+    const db = useDb(ownEvent, reply(SAVE_RESULT));
 
     const result = await savePracticeItems("club-a", { ...save, items: [{ ...draft, minutes }] });
 
@@ -1252,7 +1257,7 @@ describe("savePracticeItems", () => {
   });
 
   it("expectedUpdatedAt viaja intacto, con sus microsegundos", async () => {
-    const db = useDb(ownEvent, reply(NEXT_STAMP));
+    const db = useDb(ownEvent, reply(SAVE_RESULT));
 
     await savePracticeItems("club-a", { ...save, expectedUpdatedAt: "2026-11-17T10:00:00.123456+00:00" });
 

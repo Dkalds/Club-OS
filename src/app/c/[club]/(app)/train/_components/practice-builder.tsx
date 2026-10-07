@@ -18,6 +18,7 @@ import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { ACTION_ERROR_COPY } from "@/lib/action-result";
 import { useAction } from "@/lib/use-action";
 import { savePracticeItems } from "@/modules/practice/actions";
+import { withSavedIds } from "./practice-rows";
 import { changeMinutes, moveItem, totalMinutes } from "@/modules/practice/items";
 import { DEFAULT_ITEM_MINUTES, MAX_ITEMS, MAX_ITEMS_MESSAGE } from "@/modules/practice/limits";
 import type { PracticeItemDraft, SavedPracticeItem } from "@/modules/practice/types";
@@ -306,9 +307,14 @@ export function PracticeBuilder({
         }
         return result;
       },
-      ({ updatedAt }) => {
-        const stillDirty = !sameRows(latest.current, sent);
-        setSavedRows(sent);
+      ({ updatedAt, itemIds }) => {
+        const sentWithIds = withSavedIds(sent, itemIds);
+        const stillDirty = !sameRows(latest.current, sentWithIds);
+        setSavedRows(sentWithIds);
+        setRows((prev) => prev.map((row) => {
+          const saved = sentWithIds.find((s) => s.key === row.key);
+          return saved?.id !== undefined ? { ...row, id: saved.id } : row;
+        }));
         setSaved(!stillDirty);
         onSaved(updatedAt);
         onDirtyChange(stillDirty);

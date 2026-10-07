@@ -55,6 +55,16 @@ export function sameRows(a: Row[], b: Row[]): boolean {
 }
 
 /**
+ * Pone a cada fila de `rows` el id que el servidor asignó, por posición: `rows[i].id = itemIds[i]`.
+ * Si las longitudes no coinciden (no puede ocurrir; indica un bug en el servidor o en la acción),
+ * devuelve `rows` sin modificar y registra el error para que no pase en silencio.
+ */
+export function withSavedIds(rows: Row[], itemIds: string[] | undefined): Row[] {
+  if (!itemIds || rows.length !== itemIds.length) return rows;
+  return rows.map((row, i) => ({ ...row, id: itemIds[i] }));
+}
+
+/**
  * Los errores de campo de un guardado (`items.1.title`), repartidos por fila: de la más alta de
  * la lista a la más baja. `keys` son las claves de las filas en el orden en que se enviaron: el
  * número del error es la posición de entonces, y la fila ha podido moverse después.
