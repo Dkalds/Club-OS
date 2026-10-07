@@ -21,6 +21,15 @@ check_absent_except() {
   local label="$1" allowed="$2"
   shift 2
   local found status
+  # En macOS, grep con --include sobre un directorio inexistente sale con 1 en vez de 2
+  # (trata "sin ficheros que coincidan con el filtro" igual que "sin coincidencias"). Se
+  # comprueba explícitamente para que todos los guards fallen con ruido, no en silencio.
+  if [ ! -d src/ ]; then
+    echo "FALLO: $label: grep no pudo comprobarlo (estado 2)"
+    echo
+    fail=1
+    return
+  fi
   found="$(grep "$@" src/)"
   status=$?
   if [ "$status" -eq 0 ] && [ -n "$allowed" ]; then
