@@ -8,7 +8,7 @@
 --   · los errores de la Fase 4 siguen funcionando con la firma nueva.
 begin;
 
-select plan(27);
+select plan(22);
 
 -- ── Ayudas ───────────────────────────────────────────────────────────────────────────
 
@@ -113,6 +113,7 @@ select ok(
 
 -- 2. Guardar de nuevo con los ids: reordenamos [B, A] y añadimos C.
 --    Antes ponemos completed/actual_minutes a mano como el rol de servicio haría en un Live.
+reset role;
 do $$
 declare
   ids jsonb := current_setting('fx.save1')::jsonb -> 'item_ids';
@@ -128,6 +129,8 @@ begin
   perform set_config('fx.id_b', id_b::text, true);
 end
 $$;
+
+select tests.authenticate_as(current_setting('fx.c1')::uuid);
 
 select lives_ok(
   $$select set_config('fx.save2',
@@ -208,7 +211,7 @@ select throws_ok(
 );
 
 -- 6. NOT_FOUND: alguien que no gestiona el equipo (anon).
-select tests.authenticate_as_anon();
+select tests.clear_authentication();
 
 select throws_ok(
   $$select public.save_practice_items(
@@ -221,8 +224,7 @@ select throws_ok(
 );
 
 -- 7. SESSION_CLOSED: sesión no scheduled.
-select tests.authenticate_as(current_setting('fx.c1')::uuid);
-
+reset role;
 do $$
 begin
   -- Cerramos la sesión directamente como postgres (sin RLS).
@@ -231,6 +233,8 @@ begin
   where id = current_setting('fx.e1')::uuid;
 end
 $$;
+
+select tests.authenticate_as(current_setting('fx.c1')::uuid);
 
 select throws_ok(
   $$select public.save_practice_items(
@@ -243,6 +247,7 @@ select throws_ok(
 );
 
 -- 8. INVALID: p_items no es una lista.
+reset role;
 do $$
 begin
   -- Reabrimos para poder llamar a la función.
@@ -251,6 +256,8 @@ begin
   where id = current_setting('fx.e1')::uuid;
 end
 $$;
+
+select tests.authenticate_as(current_setting('fx.c1')::uuid);
 
 select throws_ok(
   $$select public.save_practice_items(
@@ -267,6 +274,7 @@ select throws_ok(
 -- la función devuelve el estado actual sin escribir nada.
 
 -- Reabrimos la sesión (la cerramos en el test 7, la reabrimos en el 8).
+reset role;
 do $$
 begin
   update public.events set status = 'scheduled'
