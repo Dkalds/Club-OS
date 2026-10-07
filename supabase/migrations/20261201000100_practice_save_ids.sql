@@ -18,9 +18,14 @@
 -- uno que llegó con `id` conserva el suyo. Así el siguiente guardado los envía con `id` y
 -- la base no los borra y re-crea (C23).
 
--- Columna para el identicador del último guardado.
+-- Columna para el identificador del último guardado.
 alter table public.practice_plans
   add column if not exists last_save_id uuid;
+
+-- `save_practice_items` escribe `last_save_id` con UPDATE. El privilegio es de columna:
+-- `authenticated` no puede leerlo directamente (no está en el SELECT), pero la función sí
+-- puede actualizarlo al guardar (security invoker, la columna tiene privilegio de escritura).
+grant update (last_save_id) on table public.practice_plans to authenticated;
 
 drop function public.save_practice_items(uuid, timestamptz, jsonb);
 

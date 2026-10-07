@@ -183,12 +183,14 @@ select set_eq(
         array['organization_id', 'team_id', 'event_id', 'title', 'primary_focus_id',
               'secondary_focus_id', 'notes']),
       ('practice_plans', 'update',
-        array['title', 'primary_focus_id', 'secondary_focus_id', 'notes', 'status']),
+        array['title', 'primary_focus_id', 'secondary_focus_id', 'notes', 'status',
+              'last_save_id', 'actual_minutes']),
       ('practice_items', 'insert',
         array['organization_id', 'plan_id', 'sort', 'phase', 'drill_id', 'title_override',
               'minutes', 'notes']),
       ('practice_items', 'update',
-        array['sort', 'phase', 'drill_id', 'title_override', 'minutes', 'notes']),
+        array['sort', 'phase', 'drill_id', 'title_override', 'minutes', 'notes',
+              'completed', 'actual_minutes']),
       -- Metodología (20261021000100). `updated_at` y `updated_by` de las secciones los escribe
       -- `update_way_section`, que es `security invoker`.
       ('way_sections', 'update',
