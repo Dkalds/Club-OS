@@ -1,0 +1,90 @@
+import { render, screen } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
+import { LiveControls } from "./live-controls";
+
+const noop = () => {};
+
+describe("LiveControls", () => {
+  it("el botón Anterior está deshabilitado en el primero", () => {
+    render(
+      <LiveControls
+        onPrevious={noop}
+        onTogglePause={noop}
+        onNext={noop}
+        paused={false}
+        isFirst={true}
+        isLast={false}
+      />,
+    );
+    expect(screen.getByLabelText("Ejercicio anterior")).toBeDisabled();
+  });
+
+  it("el botón Siguiente está deshabilitado en el último", () => {
+    render(
+      <LiveControls
+        onPrevious={noop}
+        onTogglePause={noop}
+        onNext={noop}
+        paused={false}
+        isFirst={false}
+        isLast={true}
+      />,
+    );
+    expect(screen.getByLabelText("Siguiente ejercicio")).toBeDisabled();
+  });
+
+  it("muestra 'Pausa' cuando activo y 'Reanudar' cuando pausado", () => {
+    const { rerender } = render(
+      <LiveControls
+        onPrevious={noop}
+        onTogglePause={noop}
+        onNext={noop}
+        paused={false}
+        isFirst={false}
+        isLast={false}
+      />,
+    );
+    expect(screen.getByRole("button", { name: /pausa/i })).toBeInTheDocument();
+    rerender(
+      <LiveControls
+        onPrevious={noop}
+        onTogglePause={noop}
+        onNext={noop}
+        paused={true}
+        isFirst={false}
+        isLast={false}
+      />,
+    );
+    expect(screen.getByRole("button", { name: /reanudar/i })).toBeInTheDocument();
+  });
+
+  it("solo hay un botón con clase primary (el de pausa/reanudar)", () => {
+    render(
+      <LiveControls
+        onPrevious={noop}
+        onTogglePause={noop}
+        onNext={noop}
+        paused={false}
+        isFirst={false}
+        isLast={false}
+      />,
+    );
+    const buttons = screen.getAllByRole("button");
+    const primaryButtons = buttons.filter((b) => b.className.includes("primary"));
+    expect(primaryButtons).toHaveLength(1);
+  });
+
+  it("en el último muestra 'Terminar entrenamiento'", () => {
+    render(
+      <LiveControls
+        onPrevious={noop}
+        onTogglePause={noop}
+        onNext={noop}
+        paused={false}
+        isFirst={false}
+        isLast={true}
+      />,
+    );
+    expect(screen.getByText(/terminar entrenamiento/i)).toBeInTheDocument();
+  });
+});

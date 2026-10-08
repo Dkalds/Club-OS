@@ -90,6 +90,6 @@ describe("clearDiagrams", () => {
       keys: vi.fn().mockResolvedValue([]),
     });
     await clearDiagrams(EVENT);
-    expect((globalThis.caches as { delete: ReturnType<typeof vi.fn> }).delete).toHaveBeenCalled();
+    expect((globalThis.caches as unknown as { delete: ReturnType<typeof vi.fn> }).delete).toHaveBeenCalled();
   });
 });

@@ -56,8 +56,8 @@ describe("localStorage disponible", () => {
   });
 
   it("version distinta → null (descarta estado obsoleto)", () => {
-    const s = state() as unknown as LiveState & { version: 99 };
-    s.version = 99 as never;
+    const s = state() as unknown as { version: number } & Omit<LiveState, "version">;
+    s.version = 99;
     ls.setItem(LIVE_STATE_KEY(EVENT), JSON.stringify(s));
     expect(loadLiveState(EVENT)).toBeNull();
   });
