@@ -40,22 +40,18 @@ export function useLive(session: LiveSession) {
     return () => clearInterval(rafRef.current);
   }, []);
 
-  // Guardar en localStorage y sincronizar al cambiar el estado
-  const stateRef = useRef(state);
-  stateRef.current = state;
-
   useEffect(() => {
     saveLiveState(state);
-    setSyncStatus("saved-local");
     const payload = {
       ...toProgressPayload(state, session),
       clubSlug: session.clubSlug,
       eventId: session.eventId,
     };
-    syncLiveProgress(payload, {
-      fetch: globalThis.fetch,
-      now: Date.now,
-    })
+    Promise.resolve()
+      .then(() => {
+        setSyncStatus("saved-local");
+        return syncLiveProgress(payload, { fetch: globalThis.fetch, now: Date.now });
+      })
       .then(() => setSyncStatus("saved"))
       .catch(() => setSyncStatus("offline"));
   }, [state, session]);
