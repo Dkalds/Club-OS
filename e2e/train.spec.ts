@@ -172,9 +172,11 @@ test("el histórico: las hechas con «Hecho» y la cancelada con «Cancelada»",
   await expect(tab(page, "Histórico")).toHaveAttribute("aria-current", "page");
   await expect(tab(page, "Próximas")).not.toHaveAttribute("aria-current");
 
-  // Del más reciente al más antiguo: la cancelada es del día de la segunda próxima.
-  await expect(rows(page)).toHaveCount(5);
-  await expect(rows(page)).toContainText([cancelled, ...done]);
+  // Del más reciente al más antiguo: la cancelada es del día de la segunda próxima. La de
+  // hoy (todayLive) pasa al histórico en cuanto termina, sin «Hecho» ni «Cancelada».
+  const endedToday = todayLiveIsUpcoming() ? [] : ["Bloqueo directo y continuación"];
+  await expect(rows(page)).toHaveCount(5 + endedToday.length);
+  await expect(rows(page)).toContainText([cancelled, ...endedToday, ...done]);
   for (const sessionTitle of done) {
     await expect(row(page, sessionTitle)).toContainText("Hecho");
     await expect(row(page, sessionTitle)).not.toContainText("Cancelada");
