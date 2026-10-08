@@ -3,9 +3,15 @@
 import { useEffect, useRef, useState } from "react";
 
 export function useWakeLock(active: boolean): { supported: boolean; locked: boolean } {
-  const supported = typeof navigator !== "undefined" && "wakeLock" in navigator;
+  // `supported` empieza en `false` en el servidor y en el cliente (durante la hidratación).
+  // useEffect lo actualiza después, evitando el error de hidratación #418.
+  const [supported, setSupported] = useState(false);
   const [locked, setLocked] = useState(false);
   const lockRef = useRef<WakeLockSentinel | null>(null);
+
+  useEffect(() => {
+    setSupported("wakeLock" in navigator);
+  }, []);
 
   useEffect(() => {
     if (!supported || !active) return;
