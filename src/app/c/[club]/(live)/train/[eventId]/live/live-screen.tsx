@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import type { LiveSession } from "@/modules/live/types";
 import { useLive } from "@/modules/live/use-live";
@@ -17,7 +17,19 @@ const SYNC_LABELS: Record<string, string> = {
   idle: "",
 };
 
-export function LiveScreen({ session, clubSlug }: { session: LiveSession; clubSlug: string }) {
+type LiveScreenProps = { session: LiveSession; clubSlug: string };
+
+const noopSubscribe = () => () => {};
+
+// Live depende del dispositivo (localStorage, reloj, wake lock): solo se pinta en el cliente
+// para que el HTML del servidor nunca choque con el estado guardado al hidratar.
+export function LiveScreen(props: LiveScreenProps) {
+  const isClient = useSyncExternalStore(noopSubscribe, () => true, () => false);
+  if (!isClient) return null;
+  return <LiveScreenContent {...props} />;
+}
+
+function LiveScreenContent({ session, clubSlug }: LiveScreenProps) {
   const router = useRouter();
   const { state, now, syncStatus, dispatch } = useLive(session);
   const { supported: wakeLockSupported } = useWakeLock(state.startedAt !== null && state.finishedAt === null);
