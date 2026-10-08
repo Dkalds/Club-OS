@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ACTION_ERROR_COPY, fail, ok, type ActionResult } from "@/lib/action-result";
 
 const mocks = vi.hoisted(() => ({
@@ -379,87 +379,39 @@ describe("PracticeActions · cancelar", () => {
   });
 });
 
-// Hora fijada: jueves 8-oct-2026 10:00 UTC = 12:00 Europe/Madrid (CEST, UTC+2).
-const FAKE_NOW = new Date("2026-10-08T10:00:00Z");
-const TODAY_ISO = "2026-10-08T09:00:00Z"; // mismo día en Europe/Madrid
-const OTHER_DAY_ISO = "2026-10-09T09:00:00Z"; // día siguiente
-const TZ = "Europe/Madrid";
-
 describe("PracticeActions · iniciar entrenamiento", () => {
   beforeEach(() => {
-    // Solo falsifica Date para controlar «hoy»; deja setTimeout/Interval reales para que waitFor funcione.
-    vi.useFakeTimers({ toFake: ["Date"] });
-    vi.setSystemTime(FAKE_NOW);
     mocks.loadLiveState.mockReturnValue(null);
   });
-  afterEach(() => vi.useRealTimers());
 
   it("no aparece si la sesión no es scheduled", () => {
-    renderActions({ status: "done", hasItems: true, startsAt: TODAY_ISO, timezone: TZ });
-    expect(screen.queryByRole("button", { name: /iniciar|continuar/i })).not.toBeInTheDocument();
+    renderActions({ status: "done", hasItems: true });
+    expect(screen.queryByRole("link", { name: /iniciar|continuar/i })).not.toBeInTheDocument();
   });
 
   it("no aparece si la sesión no tiene ítems", () => {
-    renderActions({ status: "scheduled", hasItems: false, startsAt: TODAY_ISO, timezone: TZ });
-    expect(screen.queryByRole("button", { name: /iniciar|continuar/i })).not.toBeInTheDocument();
+    renderActions({ status: "scheduled", hasItems: false });
+    expect(screen.queryByRole("link", { name: /iniciar|continuar/i })).not.toBeInTheDocument();
   });
 
-  it("aparece «Iniciar entrenamiento» como primary, y «Editar sesión» pasa a secondary", () => {
-    renderActions({ status: "scheduled", hasItems: true, startsAt: TODAY_ISO, timezone: TZ });
+  it("aparece «Iniciar entrenamiento» como enlace primary, y «Editar sesión» pasa a secondary", () => {
+    renderActions({ status: "scheduled", hasItems: true });
 
-    const iniciar = screen.getByRole("button", { name: "Iniciar entrenamiento" });
+    const iniciar = screen.getByRole("link", { name: "Iniciar entrenamiento" });
     expect(iniciar).toHaveClass("bg-brand-accent", "w-full");
+    expect(iniciar).toHaveAttribute("href", `/c/club-a/train/${EVENT}/live`);
 
     const editLink = screen.getByRole("link", { name: "Editar sesión" });
     expect(editLink).toHaveClass("border-line-strong", "w-full");
     expect(editLink).not.toHaveClass("bg-brand-accent");
   });
 
-  it("si hay estado guardado, el botón dice «Continuar entrenamiento»", () => {
+  it("si hay estado guardado, el enlace dice «Continuar entrenamiento»", () => {
     mocks.loadLiveState.mockReturnValue({ version: 1 as const, eventId: EVENT, index: 0, startedAt: 1000, itemStartedAt: 1000, pausedAt: null, pausedMs: 0, progress: {}, finishedAt: null });
 
-    renderActions({ status: "scheduled", hasItems: true, startsAt: TODAY_ISO, timezone: TZ });
+    renderActions({ status: "scheduled", hasItems: true });
 
-    expect(screen.getByRole("button", { name: "Continuar entrenamiento" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Iniciar entrenamiento" })).not.toBeInTheDocument();
-  });
-
-  it("sesión de hoy: el botón navega al live sin confirmación", () => {
-    renderActions({ status: "scheduled", hasItems: true, startsAt: TODAY_ISO, timezone: TZ });
-
-    fireEvent.click(screen.getByRole("button", { name: "Iniciar entrenamiento" }));
-
-    expect(mocks.push).toHaveBeenCalledWith(`/c/club-a/train/${EVENT}/live`);
-    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
-  });
-
-  it("sesión de otro día: abre confirmación antes de navegar", () => {
-    renderActions({ status: "scheduled", hasItems: true, startsAt: OTHER_DAY_ISO, timezone: TZ });
-
-    fireEvent.click(screen.getByRole("button", { name: "Iniciar entrenamiento" }));
-
-    expect(screen.getByRole("alertdialog", { name: "¿Iniciar el entrenamiento?" })).toBeInTheDocument();
-    expect(mocks.push).not.toHaveBeenCalled();
-  });
-
-  it("confirmar el diálogo de otro día navega al live", async () => {
-    renderActions({ status: "scheduled", hasItems: true, startsAt: OTHER_DAY_ISO, timezone: TZ });
-    fireEvent.click(screen.getByRole("button", { name: "Iniciar entrenamiento" }));
-    const dlg = await screen.findByRole("alertdialog", { name: "¿Iniciar el entrenamiento?" });
-
-    fireEvent.click(within(dlg).getByRole("button", { name: "Iniciar de todas formas" }));
-
-    await waitFor(() => expect(mocks.push).toHaveBeenCalledWith(`/c/club-a/train/${EVENT}/live`));
-  });
-
-  it("cancelar el diálogo de otro día no navega", async () => {
-    renderActions({ status: "scheduled", hasItems: true, startsAt: OTHER_DAY_ISO, timezone: TZ });
-    fireEvent.click(screen.getByRole("button", { name: "Iniciar entrenamiento" }));
-    const dlg = await screen.findByRole("alertdialog", { name: "¿Iniciar el entrenamiento?" });
-
-    fireEvent.click(within(dlg).getByRole("button", { name: "Cancelar" }));
-
-    await waitFor(() => expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument());
-    expect(mocks.push).not.toHaveBeenCalled();
+    expect(screen.getByRole("link", { name: "Continuar entrenamiento" })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Iniciar entrenamiento" })).not.toBeInTheDocument();
   });
 });
