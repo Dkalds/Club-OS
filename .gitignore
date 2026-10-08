@@ -34,3 +34,7 @@ yarn-error.log*
 
 # sesiones guardadas de los e2e (una por usuario y por ejecución)
 e2e/.auth/
+
+# Serwist build output
+public/sw.js
+public/sw.js.map

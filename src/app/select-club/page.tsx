@@ -6,6 +6,7 @@ import { Avatar } from "@/ui/avatar";
 import { Card } from "@/ui/card";
 import { CTAButton } from "@/ui/cta-button";
 import { ListRow } from "@/ui/list-row";
+import { SignOutForm } from "@/ui/sign-out-button";
 import { EmptyState } from "@/ui/states";
 
 // Depende de la sesión: nunca se prerenderiza ni se comparte entre usuarios.
@@ -77,11 +78,11 @@ export default async function SelectClubPage() {
           body="Si crees que es un error, pide una nueva invitación a tu club."
         />
         {/* La salida no es un enlace: cerrar sesión es un POST. */}
-        <form action="/auth/sign-out" method="post">
+        <SignOutForm>
           <CTAButton variant="primary" block type="submit">
             Salir
           </CTAButton>
-        </form>
+        </SignOutForm>
       </main>
     );
   }

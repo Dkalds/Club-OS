@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useId, useRef, useState } from "react";
 import { Avatar } from "./avatar";
+import { SignOutForm } from "./sign-out-button";
 
 // Los elementos del menú son enlaces y un botón: llegan a `target-min` de alto y el foco
 // va por dentro del panel, que recorta sus esquinas.
@@ -84,11 +85,11 @@ export function AccountMenu({ name, adminHref }: { name: string; adminHref: stri
               Gestión
             </Link>
           ) : null}
-          <form action="/auth/sign-out" method="post">
+          <SignOutForm>
             <button type="submit" className={ITEM}>
               Salir
             </button>
-          </form>
+          </SignOutForm>
         </div>
       ) : null}
     </div>
