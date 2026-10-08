@@ -106,7 +106,7 @@ export function LiveScreen({ session, clubSlug }: { session: LiveSession; clubSl
           <ul className="cos-live__points mt-space-4 flex flex-col gap-space-2">
             {item.keyPoints.map((point, i) => (
               <li key={i} className="flex items-start gap-space-2">
-                <svg className="cos-ico mt-[2px] shrink-0" viewBox="0 0 24 24" aria-hidden="true">
+                <svg className="cos-ico mt-0.5 shrink-0" viewBox="0 0 24 24" aria-hidden="true">
                   <path d="m5 12.5 4.5 4.5L19 7.5" />
                 </svg>
                 <span>{point}</span>

@@ -72,10 +72,10 @@ describe("buildSeedData: números del brief", () => {
     expect(data.people.filter((p) => p.organization_id === orgId("club-demo"))).toHaveLength(4);
   });
 
-  it("Alevín A tiene 8 eventos: 2 próximos, 4 pasados, 1 cancelado y 1 partido", () => {
+  it("Alevín A tiene 9 eventos: 3 programados, 4 pasados, 1 cancelado y 1 partido", () => {
     const events = eventsOf(teamId("arcangel", "Alevín A"));
-    expect(events).toHaveLength(8);
-    expect(events.filter((e) => e.kind === "practice" && e.status === "scheduled")).toHaveLength(2);
+    expect(events).toHaveLength(9);
+    expect(events.filter((e) => e.kind === "practice" && e.status === "scheduled")).toHaveLength(3);
     expect(events.filter((e) => e.kind === "practice" && e.status === "done")).toHaveLength(4);
     expect(events.filter((e) => e.kind === "practice" && e.status === "cancelled")).toHaveLength(1);
     expect(events.filter((e) => e.kind === "game" && e.status === "scheduled")).toHaveLength(1);

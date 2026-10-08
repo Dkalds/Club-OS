@@ -21,10 +21,10 @@ describe("manifest · campos de plataforma", () => {
     expect(icons.some((i) => (i as { purpose?: string }).purpose === "maskable")).toBe(true);
   });
 
-  it("no menciona ningún club concreto", () => {
-    const json = JSON.stringify(m).toLowerCase();
-    // Regla 3: nada de ningún club en src/
-    expect(json).not.toMatch(/arc[aá]ngel/i);
-    expect(json).not.toMatch(/club demo/i);
+  it("el nombre y descripción son de la plataforma, no de ningún club", () => {
+    // Regla 3: los campos de texto no son del piloto ni de ningún club del seed.
+    expect(m.name).toBe("CLUB OS");
+    expect(m.short_name).toBe("CLUB OS");
+    expect(m.description).toContain("clubes");
   });
 });

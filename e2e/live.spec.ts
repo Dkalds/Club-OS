@@ -216,7 +216,7 @@ test("Nora no accede al Live de Alevín A (Review Focus 2)", async ({ page }) =>
 test("sin navigator.wakeLock Live funciona y avisa", async ({ page }) => {
   // Elimina la API de Wake Lock antes de que la página cargue.
   await page.addInitScript(() => {
-    delete (navigator as Record<string, unknown>)["wakeLock"];
+    delete (navigator as unknown as Record<string, unknown>)["wakeLock"];
   });
 
   await page.clock.install({ time: new Date("2026-10-08T16:00:00Z") });
