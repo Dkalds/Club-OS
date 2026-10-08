@@ -151,6 +151,10 @@ export default async function PracticePage({ params }: PageProps<"/c/[club]/trai
           clubSlug={ctx.org.slug}
           eventId={practice.eventId}
           canEdit={practice.canEdit}
+          status={practice.status}
+          hasItems={practice.items.length > 0}
+          startsAt={practice.startsAt}
+          timezone={ctx.org.timezone}
           duplicateDefaults={isoToLocalInputs(
             nextWeeklySlot(practice.startsAt, new Date().toISOString(), ctx.org.timezone),
             ctx.org.timezone,

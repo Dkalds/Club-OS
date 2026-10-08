@@ -1,4 +1,5 @@
 import { Card } from "@/ui/card";
+import { CTAButton } from "@/ui/cta-button";
 import { GameCard } from "@/ui/game-card";
 import { Hero } from "@/ui/hero";
 import { TeamIcon, TrainIcon } from "@/ui/icons";
@@ -61,9 +62,16 @@ export function HomeScreen({
 
       {home.hasTeams ? (
         <>
-          <div className={BLOCK}>
+          <div className={`flex flex-col gap-(--space-3) ${BLOCK}`}>
             {home.nextPractice ? (
-              <PracticeCard practice={home.nextPractice} href={practiceHref(home.nextPractice.eventId)} />
+              <>
+                <PracticeCard practice={home.nextPractice} href={practiceHref(home.nextPractice.eventId)} />
+                {home.nextPractice.drillCount > 0 ? (
+                  <CTAButton variant="primary" block href={`${practiceHref(home.nextPractice.eventId)}/live`}>
+                    Iniciar entrenamiento
+                  </CTAButton>
+                ) : null}
+              </>
             ) : (
               <EmptyState
                 icon={<TrainIcon size={28} />}
