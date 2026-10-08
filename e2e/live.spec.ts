@@ -88,13 +88,13 @@ test("Álex inicia Live, avanza y recarga con el estado correcto", async ({ page
   await expect(page.getByRole("heading", { level: 1, name: "Movilidad articular + pases en movimiento" })).toBeVisible();
 
   // Avanza al ejercicio 2.
-  await page.getByRole("button", { name: "Siguiente" }).click();
+  await page.getByRole("button", { name: "Siguiente ejercicio" }).click();
   await expect(page.getByText("2 / 4")).toBeVisible();
   await expect(page.getByText("Técnica")).toBeVisible();
   await expect(page.getByRole("heading", { level: 1, name: "Posición de tirador y salida del bloqueo" })).toBeVisible();
 
   // Avanza al ejercicio 3.
-  await page.getByRole("button", { name: "Siguiente" }).click();
+  await page.getByRole("button", { name: "Siguiente ejercicio" }).click();
   await expect(page.getByText("3 / 4")).toBeVisible();
   await expect(page.getByRole("heading", { level: 1, name: "Bloqueo directo 2x2 con continuación" })).toBeVisible();
 
@@ -120,7 +120,7 @@ test("sin conexión avanza, la BD lo recibe al volver la red", async ({ page }) 
   // Corta la conexión.
   await page.context().setOffline(true);
 
-  await page.getByRole("button", { name: "Siguiente" }).click();
+  await page.getByRole("button", { name: "Siguiente ejercicio" }).click();
   await expect(page.getByText("2 / 4")).toBeVisible();
 
   // El aviso de sin conexión aparece.
@@ -160,13 +160,13 @@ test("terminar → confirmación → sesión en Histórico como hecha", async ({
   await expect(page.getByText("1 / 4")).toBeVisible();
 
   // Avanza hasta el último ítem.
-  await page.getByRole("button", { name: "Siguiente" }).click();
-  await page.getByRole("button", { name: "Siguiente" }).click();
-  await page.getByRole("button", { name: "Siguiente" }).click();
+  await page.getByRole("button", { name: "Siguiente ejercicio" }).click();
+  await page.getByRole("button", { name: "Siguiente ejercicio" }).click();
+  await page.getByRole("button", { name: "Siguiente ejercicio" }).click();
   await expect(page.getByText("4 / 4")).toBeVisible();
 
-  // En el último «Siguiente» abre el diálogo de confirmación.
-  await page.getByRole("button", { name: "Siguiente" }).click();
+  // En el último «Siguiente ejercicio» abre el diálogo de confirmación.
+  await page.getByRole("button", { name: "Siguiente ejercicio" }).click();
   const dialog = page.getByRole("dialog", { name: "Terminar entrenamiento" });
   await expect(dialog).toBeVisible();
   await expect(dialog.getByRole("button", { name: "Cancelar" })).toBeVisible();

@@ -51,7 +51,6 @@ export function LiveControls({
         className="cos-live__ctl"
         aria-label="Siguiente ejercicio"
         onClick={onNext}
-        disabled={isLast}
       >
         {isLast ? (
           <span className="text-body-s">Terminar entrenamiento</span>

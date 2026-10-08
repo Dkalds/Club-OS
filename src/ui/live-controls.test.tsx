@@ -19,7 +19,7 @@ describe("LiveControls", () => {
     expect(screen.getByLabelText("Ejercicio anterior")).toBeDisabled();
   });
 
-  it("el botón Siguiente está deshabilitado en el último", () => {
+  it("el botón Siguiente está habilitado en el último para poder confirmar el fin", () => {
     render(
       <LiveControls
         onPrevious={noop}
@@ -30,7 +30,7 @@ describe("LiveControls", () => {
         isLast={true}
       />,
     );
-    expect(screen.getByLabelText("Siguiente ejercicio")).toBeDisabled();
+    expect(screen.getByLabelText("Siguiente ejercicio")).toBeEnabled();
   });
 
   it("muestra 'Pausa' cuando activo y 'Reanudar' cuando pausado", () => {
