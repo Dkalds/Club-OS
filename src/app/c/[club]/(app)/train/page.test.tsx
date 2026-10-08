@@ -22,6 +22,7 @@ const PRACTICE: PracticeListItem = {
   teamName: "Equipo A",
   dow: "Mar",
   day: "6",
+  month: "",
   time: "18:00",
   title: "Salida de presión",
   totalMinutes: 75,
