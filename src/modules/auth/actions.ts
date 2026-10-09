@@ -5,6 +5,7 @@ import { after } from "next/server";
 import { z } from "zod";
 import { logError } from "@/lib/log";
 import { createAnonClient, createClient } from "@/lib/supabase/server";
+import { DEMO_ROLES, demoCredentials } from "./demo-login";
 
 export type LoginState = {
   step: "email" | "code";
@@ -13,14 +14,18 @@ export type LoginState = {
   info?: string;
 };
 
+export type DemoLoginState = { error?: string };
+
 const CODE_SENT = "Si tu email tiene acceso, te hemos enviado un código de 6 dígitos.";
 const INVALID_EMAIL = "Escribe un email válido.";
 const INVALID_CODE = "El código no es válido o ha caducado. Pide uno nuevo.";
+const DEMO_FAILED = "No se ha podido entrar. Inténtalo de nuevo.";
 
 // 254 es la longitud máxima de una dirección (RFC 5321).
 const emailSchema = z.string().trim().toLowerCase().max(254).pipe(z.email());
 // Sin la bandera `u`, `\d` solo acepta los dígitos ASCII 0-9.
 const codeSchema = z.string().trim().regex(/^\d{6}$/);
+const demoRoleSchema = z.enum(DEMO_ROLES);
 
 /**
  * Paso 1: pide un código de un solo uso para un email ya invitado.
@@ -95,6 +100,37 @@ export async function verifyLoginCode(
     verified = false;
   }
   if (!verified) return rejected;
+
+  // Fuera del try/catch: `redirect()` funciona lanzando una excepción.
+  redirect("/select-club");
+}
+
+/**
+ * Acceso de demo (TEMPORAL, ver `demo-login.ts`): entra como el usuario de ejemplo de un rol,
+ * sin código.
+ *
+ * Del formulario solo se lee el rol. Con qué cuenta se entra lo deciden las variables del
+ * servidor: sin ellas, o con un rol que no tiene demo, no se llama a Auth. Nunca crea
+ * usuarios: `signInWithPassword` solo abre sesión con una cuenta que ya existe.
+ */
+export async function demoLogin(
+  _prev: DemoLoginState,
+  formData: FormData,
+): Promise<DemoLoginState> {
+  const role = demoRoleSchema.safeParse(formData.get("role"));
+  const credentials = role.success ? demoCredentials(role.data) : null;
+  if (!credentials) return { error: DEMO_FAILED };
+
+  let entered = false;
+  try {
+    const supabase = await createClient();
+    const { error } = await supabase.auth.signInWithPassword(credentials);
+    if (error) logError("auth.demo-login", error);
+    entered = !error;
+  } catch (error) {
+    logError("auth.demo-login", error);
+  }
+  if (!entered) return { error: DEMO_FAILED };
 
   // Fuera del try/catch: `redirect()` funciona lanzando una excepción.
   redirect("/select-club");

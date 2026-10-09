@@ -15,7 +15,7 @@ Plataforma SaaS multi-club para clubes de baloncesto de formación. CB Arcángel
 3. **Nada de un club escrito en el código.** Ni "Arcángel", ni "The Arcángel Way", ni sus colores, categorías o equipos en `src/`. Todo sale de la base de datos (`organization_branding`, terminología). `pnpm check:guards` lo comprueba.
 4. **Colores, espacios y radios solo con tokens.** Nada de hex en componentes; los tokens se generan desde `design/tokens.json` con `pnpm tokens`.
 5. **Menores.** Solo año de nacimiento, nunca fecha completa. Sin fotos sin consentimiento registrado. URLs con slug de club o uuid, nunca nombres de personas. Datos de ejemplo siempre ficticios.
-6. **Acceso solo por invitación.** `signInWithOtp` con `shouldCreateUser: false`; la respuesta es la misma exista o no el email.
+6. **Acceso solo por invitación.** `signInWithOtp` con `shouldCreateUser: false`; la respuesta es la misma exista o no el email. Excepción temporal: el acceso de demo (README, «Acceso de demo»), apagado salvo las variables `DEMO_LOGIN_*`, solo con usuarios `.test` y nunca junto a datos reales. No se amplía; se retira (backlog, Fase 7).
 7. **Horas.** `timestamptz` en BD; se muestran siempre en `organizations.timezone`, nunca en la zona del dispositivo.
 8. **Regla qué/por qué.** Todo lo que se muestra (sesión, ejercicio, objetivo) enseña el Standard o principio que trabaja, cuando existe.
 
@@ -33,6 +33,7 @@ Plataforma SaaS multi-club para clubes de baloncesto de formación. CB Arcángel
 - `pnpm test:int`: integración contra Supabase local (seed). Los tests que necesitan la clave de servicio viven en `scripts/`, nunca en `src/`
 - `pnpm test:e2e`: Playwright en viewport móvil
 - `pnpm seed`: datos de ejemplo (Arcángel + Club Demo); se niega a correr contra un Supabase remoto salvo `ALLOW_REMOTE_SEED=true`
+- `pnpm demo:password`: pone la contraseña a los usuarios del acceso de demo (temporal; README, «Acceso de demo»)
 - `pnpm tokens`: regenera `src/ui/tokens.css` desde `design/tokens.json`
 - `pnpm db:types`: regenera `src/lib/database.types.ts`
 - `pnpm check:guards`: reglas 2, 3 y 4 (ni colores hex ni medidas entre corchetes en componentes), páginas de Gestión exportadas con `adminPage` y tokens sincronizados

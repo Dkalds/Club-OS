@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { demoRoles } from "@/modules/auth/demo-login";
+import { DemoLogin } from "./demo-login";
 import { LoginForm } from "./login-form";
 
 export const metadata: Metadata = {
@@ -11,6 +13,8 @@ export default function LoginPage() {
       <p className="font-display text-title uppercase text-ink-2">CLUB OS</p>
       <h1 className="font-display text-display-l uppercase">Entra en tu club</h1>
       <LoginForm />
+      {/* TEMPORAL: solo pinta algo si el servidor tiene las variables de demo. */}
+      <DemoLogin roles={demoRoles()} />
     </main>
   );
 }
