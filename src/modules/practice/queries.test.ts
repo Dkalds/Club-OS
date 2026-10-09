@@ -236,9 +236,13 @@ function listStore(): Store {
       eventRow("up-late", TEAM_A, "2026-10-08T16:00:00+00:00", "2026-10-08T17:15:00+00:00"),
       eventRow("up-soon", TEAM_B, "2026-10-06T16:00:00+00:00", "2026-10-06T17:15:00+00:00"),
       eventRow("ongoing", TEAM_A, "2026-10-02T09:30:00+00:00", "2026-10-02T10:45:00+00:00"),
-      // Histórico: una programada que ya terminó, una hecha sin plan y una cancelada futura.
+      // Histórico: una programada que ya terminó, una hecha y una cancelada futura.
       eventRow("past-scheduled", TEAM_A, "2026-10-01T16:00:00+00:00", "2026-10-01T17:15:00+00:00"),
       eventRow("done", TEAM_B, "2026-09-29T16:00:00+00:00", "2026-09-29T17:15:00+00:00", {
+        status: "done",
+      }),
+      // Un entreno sin plan: no se lista (su detalle sería un 404).
+      eventRow("no-plan", TEAM_A, "2026-09-28T16:00:00+00:00", "2026-09-28T17:15:00+00:00", {
         status: "done",
         practice_plans: [],
       }),
@@ -421,17 +425,12 @@ describe("listPractices", () => {
     expect(teamCount).toBe(2);
   });
 
-  it("una sesión sin plan sale como «Entrenamiento sin plan», con los minutos de su franja y 0 ejercicios", async () => {
+  it("un entreno sin plan no sale en la lista: su detalle sería un 404", async () => {
     installDatabase(listStore());
 
     const { practices } = await listPractices(COACH, "history", NOW);
 
-    // De 16:00 a 17:15 UTC: 75 min, no 0.
-    expect(practices.find((practice) => practice.eventId === "done")).toMatchObject({
-      title: "Entrenamiento sin plan",
-      totalMinutes: 75,
-      itemCount: 0,
-    });
+    expect(practices.map((practice) => practice.eventId)).not.toContain("no-plan");
   });
 
   it("un plan sin ítems dura su franja y uno con ítems, lo que suman", async () => {

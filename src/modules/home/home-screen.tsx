@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Card } from "@/ui/card";
 import { CTAButton } from "@/ui/cta-button";
 import { GameCard } from "@/ui/game-card";
@@ -52,9 +53,20 @@ export function HomeScreen({
 }) {
   const base = `/c/${clubSlug}`;
   const practiceHref = (eventId: string) => `${base}/train/${eventId}`;
-  // Los partidos aún no tienen pantalla propia: llevan a la pestaña de Partidos.
-  const weekHref = (item: WeekItem) =>
-    item.kind === "practice" ? practiceHref(item.eventId) : `${base}/games`;
+  const gameHref = (eventId: string) => `${base}/games/${eventId}`;
+  // Cada tipo de evento a su pantalla. Con `never`, un tipo nuevo no compila hasta decidir adónde va.
+  const weekHref = (item: WeekItem): string => {
+    switch (item.kind) {
+      case "practice":
+        return practiceHref(item.eventId);
+      case "game":
+        return gameHref(item.eventId);
+      default: {
+        const unknown: never = item.kind;
+        return unknown;
+      }
+    }
+  };
 
   return (
     <>
@@ -84,7 +96,14 @@ export function HomeScreen({
 
           {home.nextGame ? (
             <div className={BLOCK}>
-              <GameCard game={home.nextGame} ownShortName={ownShortName} />
+              <Link
+                href={gameHref(home.nextGame.eventId)}
+                // Sin prefetch: el destino es una ruta dinámica detrás del proxy de sesión.
+                prefetch={false}
+                className="block rounded-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+              >
+                <GameCard game={home.nextGame} ownShortName={ownShortName} />
+              </Link>
             </div>
           ) : null}
 

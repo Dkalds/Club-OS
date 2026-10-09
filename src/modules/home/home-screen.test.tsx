@@ -147,15 +147,22 @@ describe("HomeScreen con equipos", () => {
     ]);
   });
 
-  it("los entrenamientos de la semana llevan a su sesión y los partidos a Partidos", () => {
+  it("cada fila de la semana lleva a su pantalla: el entrenamiento a su sesión, el partido al suyo", () => {
     renderHome(home(), { clubSlug: "club-b", ownShortName: "CLB" });
 
     const rows = within(weekSection()).getAllByRole("link");
     expect(rows.map((row) => row.getAttribute("href"))).toEqual([
       "/c/club-b/train/e-1",
       "/c/club-b/train/e-2",
-      "/c/club-b/games",
+      "/c/club-b/games/e-3",
     ]);
+  });
+
+  it("la tarjeta del próximo partido lleva a su detalle", () => {
+    renderHome(home(), { clubSlug: "club-b", ownShortName: "CLB" });
+
+    const card = screen.getByText("Próximo partido").closest("a");
+    expect(card).toHaveAttribute("href", "/c/club-b/games/e-3");
   });
 
   it("las filas son hijas directas de una misma lista, la card que pinta sus separadores", () => {

@@ -352,6 +352,28 @@ describe("getHomeData", () => {
     expect(home.hasTeams).toBe(true);
   });
 
+  it("el próximo partido no lo esconde un mes con muchos entrenamientos (más allá del límite de 30)", async () => {
+    const store = fullStore();
+    const practices = Array.from({ length: 30 }, (_, i) =>
+      eventRow(`p-${String(i).padStart(2, "0")}`, "team-a", `2026-10-${String(3 + (i % 20)).padStart(2, "0")}T16:00:00+00:00`, `2026-10-${String(3 + (i % 20)).padStart(2, "0")}T17:15:00+00:00`),
+    );
+    store.events = [
+      ...practices,
+      eventRow("late-game", "team-a", "2026-10-31T08:30:00+00:00", "2026-10-31T10:00:00+00:00", {
+        kind: "game",
+        practice_plans: [],
+        games: [{ opponent_name: "Rival lejano", competition_name: null, home_away: "home" }],
+      }),
+    ];
+    const calls = installDatabase(store);
+
+    const home = await getHomeData(CTX, NOW);
+
+    expect(home.nextGame?.eventId).toBe("late-game");
+    const gameCall = calls.find((entry) => entry.table === "events" && entry.eq.kind === "game");
+    expect(gameCall).toMatchObject({ eq: { organization_id: ORG, kind: "game", status: "scheduled" }, limit: 1 });
+  });
+
   it("lee un partido con su rival, su competición y dónde se juega", async () => {
     const store = fullStore();
     store.events = [

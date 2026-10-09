@@ -6,8 +6,17 @@ import { buildHome } from "./build-home";
 import { toHomeEvents } from "./map-rows";
 import type { HomeData } from "./types";
 
-/** Eventos que se leen para armar Inicio: de sobra para «Esta semana» y los dos próximos. */
+/** Eventos que se leen para armar Inicio: de sobra para «Esta semana» y el próximo entreno. */
 const EVENT_LIMIT = 30;
+
+const EVENT_COLUMNS = `id, team_id, kind, status, starts_at, ends_at, location,
+  practice_plans(
+    title,
+    primary_focus:focus_areas!practice_plans_organization_id_primary_focus_id_fkey(name),
+    secondary_focus:focus_areas!practice_plans_organization_id_secondary_focus_id_fkey(name),
+    practice_items(sort, minutes)
+  ),
+  games(opponent_name, competition_name, home_away)`;
 
 /**
  * Los datos de Inicio de quien tiene la sesión: su nombre, sus equipos y los eventos de
@@ -50,29 +59,30 @@ export async function getHomeData(ctx: ClubContext, nowIso: string): Promise<Hom
   // `practice_plans` y `games` cuelgan de `events` por claves compuestas: llegan como lista
   // de un elemento. Los dos focos del plan apuntan a la misma tabla, y cada uno lleva el
   // nombre de su clave foránea para que PostgREST sepa cuál es cuál.
-  const events = await supabase
-    .from("events")
-    .select(
-      `id, team_id, kind, status, starts_at, ends_at, location,
-      practice_plans(
-        title,
-        primary_focus:focus_areas!practice_plans_organization_id_primary_focus_id_fkey(name),
-        secondary_focus:focus_areas!practice_plans_organization_id_secondary_focus_id_fkey(name),
-        practice_items(sort, minutes)
-      ),
-      games(opponent_name, competition_name, home_away)`,
-    )
-    .eq("organization_id", orgId)
-    .in(
-      "team_id",
-      teams.map((team) => team.id),
-    )
-    .eq("status", "scheduled")
-    .gt("ends_at", nowIso)
-    .order("starts_at", { ascending: true })
-    .order("id", { ascending: true })
-    .limit(EVENT_LIMIT);
-  if (events.error) throwReadError("home.events", events.error);
+  //
+  // El próximo partido se pide aparte: con `EVENT_LIMIT` un mes con muchos entrenamientos
+  // dejaría fuera un partido que aún está lejos, y la tarjeta de Inicio no saldría.
+  const upcoming = () =>
+    supabase
+      .from("events")
+      .select(EVENT_COLUMNS)
+      .eq("organization_id", orgId)
+      .in(
+        "team_id",
+        teams.map((team) => team.id),
+      )
+      .eq("status", "scheduled")
+      .gt("ends_at", nowIso);
 
-  return buildHome({ firstName, teams, events: toHomeEvents(events.data) }, nowIso, tz);
+  const [events, nextGame] = await Promise.all([
+    upcoming().order("starts_at", { ascending: true }).order("id", { ascending: true }).limit(EVENT_LIMIT),
+    upcoming().eq("kind", "game").order("starts_at", { ascending: true }).order("id", { ascending: true }).limit(1),
+  ]);
+  if (events.error) throwReadError("home.events", events.error);
+  if (nextGame.error) throwReadError("home.next-game", nextGame.error);
+
+  const seen = new Set(events.data.map((event) => event.id));
+  const rows = [...events.data, ...nextGame.data.filter((event) => !seen.has(event.id))];
+
+  return buildHome({ firstName, teams, events: toHomeEvents(rows) }, nowIso, tz);
 }

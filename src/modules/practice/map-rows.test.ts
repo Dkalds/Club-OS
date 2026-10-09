@@ -355,17 +355,14 @@ describe("toPracticeListItems", () => {
     expect(item).toMatchObject({ dow: "Mié", day: "18", time: "00:30" });
   });
 
-  it("sin plan (null o lista vacía) es «Entrenamiento sin plan», con los minutos de su franja y 0 ejercicios", () => {
+  it("un entreno sin plan (null o lista vacía) no se lista: su detalle sería un 404", () => {
     const items = toPracticeListItems(
-      [listRow({ id: "a", practice_plans: null }), listRow({ id: "b", practice_plans: [] })],
+      [listRow({ id: "a", practice_plans: null }), listRow({ id: "b", practice_plans: [] }), listRow({ id: "c" })],
       TEAMS,
       "Europe/Madrid",
     );
 
-    expect(items.map((item) => [item.title, item.totalMinutes, item.itemCount])).toEqual([
-      ["Entrenamiento sin plan", 75, 0],
-      ["Entrenamiento sin plan", 75, 0],
-    ]);
+    expect(items.map((item) => item.eventId)).toEqual(["c"]);
   });
 
   it("un plan sin ítems (null o lista vacía) conserva su título y dura su franja, no 0 min", () => {
