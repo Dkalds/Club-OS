@@ -72,13 +72,14 @@ describe("buildSeedData: números del brief", () => {
     expect(data.people.filter((p) => p.organization_id === orgId("club-demo"))).toHaveLength(4);
   });
 
-  it("Alevín A tiene 9 eventos: 3 programados, 4 pasados, 1 cancelado y 1 partido", () => {
+  it("Alevín A tiene 10 eventos: 3 programados, 4 pasados, 1 cancelado, 1 partido próximo y 1 jugado", () => {
     const events = eventsOf(teamId("arcangel", "Alevín A"));
-    expect(events).toHaveLength(9);
+    expect(events).toHaveLength(10);
     expect(events.filter((e) => e.kind === "practice" && e.status === "scheduled")).toHaveLength(3);
     expect(events.filter((e) => e.kind === "practice" && e.status === "done")).toHaveLength(4);
     expect(events.filter((e) => e.kind === "practice" && e.status === "cancelled")).toHaveLength(1);
     expect(events.filter((e) => e.kind === "game" && e.status === "scheduled")).toHaveLength(1);
+    expect(events.filter((e) => e.kind === "game" && e.status === "done")).toHaveLength(1);
   });
 
   it("hay 6 usuarios .test: 5 con membresía y persona, y sin.club@clubos.test sin ninguna", () => {
@@ -460,8 +461,8 @@ describe("buildSeedData: contenido", () => {
     const team = teamId("arcangel", "Alevín A");
     const event = eventAt(team, schedule.game.startsAt);
     expect(event).toMatchObject({ kind: "game", status: "scheduled", ends_at: schedule.game.endsAt });
-    expect(data.games).toHaveLength(1);
-    expect(data.games[0]).toMatchObject({
+    expect(data.games).toHaveLength(2);
+    expect(data.games.find((game) => game.event_id === event.id)).toMatchObject({
       event_id: event.id,
       organization_id: orgId("arcangel"),
       opponent_name: "CB Ribera",
@@ -470,6 +471,38 @@ describe("buildSeedData: contenido", () => {
     });
     // Un partido no tiene plan de sesión.
     expect(data.practice_plans.some((p) => p.event_id === event.id)).toBe(false);
+  });
+
+  it("partido jugado de Alevín A: en el slot pastGame, hecho y con su marcador (el propio primero)", () => {
+    const event = eventAt(teamId("arcangel", "Alevín A"), schedule.pastGame.startsAt);
+    expect(event).toMatchObject({ kind: "game", status: "done", ends_at: schedule.pastGame.endsAt });
+    expect(data.games.find((game) => game.event_id === event.id)).toMatchObject({
+      opponent_name: "CD Almendros",
+      home_away: "away",
+      score_for: 54,
+      score_against: 49,
+    });
+  });
+
+  it("objetivos: dos activos y uno logrado en Hugo, tres activos en Leo; nadie pasa de tres", () => {
+    const of = (name: string) =>
+      data.player_goals.filter((goal) => goal.person_id === seedId("arcangel", `person:alevin-a:${name}`));
+    expect(of("hugo-serrano").map((goal) => goal.status).sort()).toEqual(["achieved", "active", "active"]);
+    expect(of("leo-ortega").map((goal) => goal.status)).toEqual(["active", "active", "active"]);
+    expect(of("pablo-rey")).toEqual([]);
+    const achieved = data.player_goals.find((goal) => goal.status === "achieved");
+    expect(achieved?.achieved_at).toEqual(expect.any(String));
+    // Cada uno lo escribe alguien del cuerpo técnico de Alevín A.
+    for (const goal of data.player_goals) {
+      expect(["alex@arcangel.test", "irene@arcangel.test"]).toContain(goal.author_email);
+    }
+  });
+
+  it("notas sobre Hugo: una privada de Álex y una del cuerpo técnico de Irene", () => {
+    expect(data.coach_notes.map((note) => [note.visibility, note.author_email])).toEqual([
+      ["private", "alex@arcangel.test"],
+      ["staff", "irene@arcangel.test"],
+    ]);
   });
 
   it("Club Demo: sesión «Defensa individual» en upcoming[0]", () => {

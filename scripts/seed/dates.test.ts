@@ -23,6 +23,24 @@ describe("seedSchedule", () => {
     });
   });
 
+  it("pastGame: el sábado más reciente cuyo partido ya terminó", () => {
+    expect(seedSchedule(friday, MADRID).pastGame).toEqual({
+      startsAt: "2026-09-26T08:30:00.000Z",
+      endsAt: "2026-09-26T10:00:00.000Z",
+    });
+  });
+
+  it("pastGame: un sábado a mitad de partido no cuenta; terminado, sí", () => {
+    // Sábado 3 oct, 11:00 en Madrid: el de hoy aún se juega.
+    expect(seedSchedule(new Date("2026-10-03T09:00:00Z"), MADRID).pastGame.startsAt).toBe(
+      "2026-09-26T08:30:00.000Z",
+    );
+    // A las 12:30 ya ha terminado.
+    expect(seedSchedule(new Date("2026-10-03T10:30:00Z"), MADRID).pastGame.startsAt).toBe(
+      "2026-10-03T08:30:00.000Z",
+    );
+  });
+
   it("past: los cuatro martes/jueves más recientes, del más reciente al más antiguo", () => {
     const { past } = seedSchedule(friday, MADRID);
     // 1 oct (jue), 29 sep (mar), 24 sep (jue), 22 sep (mar).

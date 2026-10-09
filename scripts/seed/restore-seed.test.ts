@@ -129,6 +129,10 @@ const SEED_IDS = {
   practice_items: data.practice_items.map((row) => row.id),
   practice_plans: data.practice_plans.map((row) => row.id),
   events: data.events.map((row) => row.id),
+  // `games` no tiene `id`: se compara por su evento.
+  games: data.games.map((row) => row.event_id),
+  player_goals: data.player_goals.map((row) => row.id),
+  coach_notes: data.coach_notes.map((row) => row.id),
 };
 const SWEPT_TABLES = Object.keys(SEED_IDS).sort();
 const SEED_ORGS = data.organizations.map((organization) => organization.id);
@@ -169,7 +173,7 @@ describe("restoreSeed", () => {
         expect(keep, call.table).toBeUndefined();
         continue;
       }
-      expect(keep?.[1], call.table).toBe("id");
+      expect(keep?.[1], call.table).toBe(call.table === "games" ? "event_id" : "id");
       expect(idsOf(keep?.[2]), call.table).toEqual(
         [...SEED_IDS[call.table as keyof typeof SEED_IDS]].sort(),
       );
@@ -188,20 +192,14 @@ describe("restoreSeed", () => {
     }
   });
 
-  it("de los eventos solo borra los entrenos: un partido ajeno al seed no se toca", async () => {
+  it("borra los partidos ajenos al seed antes que sus eventos (desde la Fase 6 los e2e crean partidos)", async () => {
     const fake = fakeClient();
 
     await restoreSeed(NOW, fake.client);
 
-    const events = fake.deletes.filter((call) => call.table === "events");
-    expect(events).toHaveLength(1);
-    expect(events[0].filters).toContainEqual(["eq", "kind", "practice"]);
-    for (const call of fake.deletes.filter((other) => other.table !== "events")) {
-      expect(
-        call.filters.some(([, column]) => column === "kind"),
-        call.table,
-      ).toBe(false);
-    }
+    const tables = fake.deletes.map((call) => call.table);
+    expect(tables.indexOf("games")).toBeLessThan(tables.indexOf("events"));
+    expect(fake.deletes.some((call) => call.filters.some(([, column]) => column === "kind"))).toBe(false);
   });
 
   it("borra primero los ítems, luego los planes y al final los eventos", async () => {
@@ -271,6 +269,7 @@ describe("restoreSeed", () => {
     };
 
     const seedRows = () => ({
+      games: data.games.map((row) => ({ ...row })),
       events: data.events.map((row) => ({ ...row })),
       practice_plans: data.practice_plans.map((row) => ({ ...row })),
       practice_items: data.practice_items.map((row) => ({ ...row })),
@@ -282,6 +281,7 @@ describe("restoreSeed", () => {
       return fakeClient({
         rows: {
           ...seeded,
+          games: [...seeded.games, { event_id: byHand.game, organization_id: org }],
           events: [
             ...seeded.events,
             // La sesión que un e2e dejó a medias: evento, plan e ítem de Alevín A.
@@ -320,26 +320,25 @@ describe("restoreSeed", () => {
       expect(idsIn(fake.rows.practice_items)).not.toContain(byHand.templateItem);
     });
 
-    it("no toca un partido ajeno al seed ni nada de un club que no es del seed", async () => {
+    it("borra también un partido ajeno al seed, con su fila de games; nada de otro club", async () => {
       const fake = withStrays();
 
       await restoreSeed(NOW, fake.client);
 
-      expect(idsIn(fake.rows.events)).toContain(byHand.game);
+      expect(idsIn(fake.rows.events)).not.toContain(byHand.game);
+      expect((fake.rows.games ?? []).map((row) => row.event_id)).not.toContain(byHand.game);
       expect(idsIn(fake.rows.events)).toContain(otherClub.event);
       expect(idsIn(fake.rows.practice_plans)).toContain(otherClub.plan);
       expect(idsIn(fake.rows.practice_items)).toContain(otherClub.item);
     });
 
-    it("deja las del seed y nada más que el partido ajeno y lo del otro club", async () => {
+    it("deja las del seed y nada más que lo del otro club", async () => {
       const fake = withStrays();
 
       await restoreSeed(NOW, fake.client);
 
       // Los eventos del seed son entrenos y partidos: ninguno se pierde.
-      expect(idsIn(fake.rows.events)).toEqual(
-        [...SEED_IDS.events, byHand.game, otherClub.event].sort(),
-      );
+      expect(idsIn(fake.rows.events)).toEqual([...SEED_IDS.events, otherClub.event].sort());
       expect(idsIn(fake.rows.practice_plans)).toEqual([...SEED_IDS.practice_plans, otherClub.plan].sort());
       expect(idsIn(fake.rows.practice_items)).toEqual([...SEED_IDS.practice_items, otherClub.item].sort());
     });

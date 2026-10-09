@@ -118,8 +118,10 @@ begin
     new.updated_at := now();
   end if;
 
+  -- `achieved_at` no lo escribe ningún usuario (no tiene privilegio sobre la columna): al lograr
+  -- llega a null y se pone ahora. El seed, que escribe con la clave de servicio, trae su fecha.
   if new.status = 'achieved' and (tg_op = 'INSERT' or old.status <> 'achieved') then
-    new.achieved_at := now();
+    new.achieved_at := coalesce(new.achieved_at, now());
   elsif new.status <> 'achieved' then
     new.achieved_at := null;
   end if;

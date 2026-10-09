@@ -171,6 +171,9 @@ const TABLES_IN_ORDER = [
   "drill_focus_areas",
   "drill_principles",
   "drill_standards",
+  // Al final de todo: cuelgan de jugadores, focos y Standards ya sembrados.
+  "player_goals",
+  "coach_notes",
 ];
 
 describe("runSeed", () => {
@@ -291,6 +294,8 @@ describe("runSeed", () => {
       drill_focus_areas: "drill_id,focus_area_id",
       drill_principles: "drill_id,principle_id",
       drill_standards: "drill_id,standard_id",
+      player_goals: "id",
+      coach_notes: "id",
     });
   });
 

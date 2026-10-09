@@ -131,7 +131,7 @@ test("ve el próximo partido y su semana", async ({ page }) => {
   // El próximo entrenamiento es dentro de cinco días como mucho: siempre cae en la semana.
   const firstPractice = week.getByRole("link").filter({ hasText: "Entrenamiento" }).first();
   await expect(firstPractice).toBeVisible();
-  // La fila de un entrenamiento lleva a su sesión; la del partido, a Partidos.
+  // La fila de un entrenamiento lleva a su sesión; la del partido, a su detalle.
   // todayLive (18:00 del día de siembra) aparece antes que upcoming-0 mientras no haya terminado.
   const { todayLive: todayLiveSlot } = seedSchedule(seedNow(), TZ);
   const firstPracticeKey = Date.now() < Date.parse(todayLiveSlot.endsAt)
@@ -152,7 +152,7 @@ test("ve el próximo partido y su semana", async ({ page }) => {
     const gameRow = week.getByRole("link").filter({ hasText: "Partido" }).first();
     await expect(gameRow).toBeVisible();
     await expect(gameRow).toContainText("Ribera");
-    await expect(gameRow).toHaveAttribute("href", `${CLUB}/games`);
+    await expect(gameRow).toHaveAttribute("href", `${CLUB}/games/${seedId(ARCANGEL.slug, "event:alevin-a:game")}`);
   }
 });
 
@@ -285,8 +285,9 @@ test("sin errores de consola", async ({ page, browserErrors }) => {
   for (const [label, path, heading] of [
     ["Nuestra forma", "/way", "The Demo Way"],
     ["Entrenar", "/train", "Entrenar"],
-    ["Partidos", "/games", "Partidos llega en una próxima fase"],
-    ["Equipo", "/team", "Equipo llega en una próxima fase"],
+    ["Partidos", "/games", "Partidos"],
+    // Con un solo equipo, Equipo abre su plantilla: el título es el equipo.
+    ["Equipo", "/team", "Infantil A"],
   ]) {
     await tabs.filter({ hasText: label }).click();
     await expect(page).toHaveURL(new RegExp(`${DEMO}${path}$`));

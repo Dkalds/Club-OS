@@ -7,6 +7,8 @@ export type SeedSchedule = {
   past: SlotIso[];
   upcoming: SlotIso[];
   game: SlotIso;
+  /** El sábado más reciente cuyo partido (10:30–12:00) ya terminó: el partido jugado del seed. */
+  pastGame: SlotIso;
   /** Franja de hoy en la zona del club, para la sesión de Live de seed. */
   todayLive: SlotIso;
 };
@@ -102,9 +104,23 @@ export function seedSchedule(now: Date, tz: string): SeedSchedule {
     }
   }
 
-  if (upcoming.length < UPCOMING_COUNT || game === undefined || past.length < PAST_COUNT) {
+  let pastGame: SlotIso | undefined;
+  for (let offset = 0; offset >= -SEARCH_DAYS && pastGame === undefined; offset -= 1) {
+    const day = addDays(today, offset);
+    if (day.getDay() === SATURDAY) {
+      const slot = slotOnLocalDay(day, tz, GAME.start, GAME.end);
+      if (Date.parse(slot.endsAt) <= nowMs) pastGame = slot;
+    }
+  }
+
+  if (
+    upcoming.length < UPCOMING_COUNT ||
+    game === undefined ||
+    pastGame === undefined ||
+    past.length < PAST_COUNT
+  ) {
     throw new Error(`seedSchedule: no se pudo calcular el calendario para ${now.toISOString()} en ${tz}`);
   }
   const todayLive = slotOnLocalDay(today, tz, PRACTICE.start, PRACTICE.end);
-  return { past, upcoming, game, todayLive };
+  return { past, upcoming, game, pastGame, todayLive };
 }
