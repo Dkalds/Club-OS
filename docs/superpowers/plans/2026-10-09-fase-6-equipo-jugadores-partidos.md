@@ -1,8 +1,8 @@
 # CLUB OS · Fase 6 (Equipo, jugadores, objetivos, notas y partidos) — Plan de implementación
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
-> **Estado: APROBADO por el propietario el 9 oct 2026**, con [D1]–[D10] tal como están. Las entrevistas con otros clubes no se han hecho: se asume el riesgo. Partido cancelado: código propio `GAME_CLOSED` (ver «Cambios propuestos al contrato»).
+> **Estado: EJECUTADO** (rama `claude/fase-6`; ver «Fase 6» en `docs/superpowers/backlog.md`). **Aprobado por el propietario el 9 oct 2026**, con [D1]–[D10] tal como están. Las entrevistas con otros clubes no se han hecho: se asume el riesgo. Partido cancelado: código propio `GAME_CLOSED` (ver «Cambios propuestos al contrato»).
 
 **Goal:** Un entrenador abre la pestaña Equipo y ve la plantilla de sus equipos de esta temporada. Entra en un jugador y le pone hasta tres objetivos activos, cada uno ligado si quiere a un foco o a un Standard del club; después de entrenar escribe una nota, privada o para el cuerpo técnico, y marca un objetivo como logrado cuando toca. En la pestaña Partidos ve los próximos y los jugados de sus equipos, crea un partido, lo edita y apunta el resultado. Nada de esto sale de su equipo ni de su club, y una nota privada no la lee nadie más que quien la escribió.
 
@@ -91,11 +91,11 @@ e2e/{team,games}.spec.ts
 - Produces (contrato F6): `listMyTeams(ctx): Promise<TeamSummary[]>` (dirección: todos los equipos de la temporada actual; entrenador: los suyos de la temporada actual; orden por `categories.sort`, después nombre) y `getTeam(ctx, teamId): Promise<TeamDetail | null>` (plantilla ordenada por dorsal, sin dorsal al final; cuerpo técnico con su rol). `null` si no existe, no es del club o no se ve: la página responde 404 opaco.
 - Una sola definición de «equipo de esta temporada» que usan también Entrenar e Inicio ([D7]): `practice/map-rows.ts` deja `TEAM_COLUMNS` y `STAFF_TEAM_COLUMNS` y llama a la de `team`.
 
-- [ ] **Step 1: Test que falla.** Seed: una temporada pasada (no actual) con un equipo «Alevín A» de la temporada anterior, Álex en su cuerpo técnico, dos jugadores ficticios y un entrenamiento hecho. `seed.int.test.ts` cuenta lo que dice C7 más esto. Unidad de `listMyTeams` con filas falsas; integración con `signInAs("alex@…")`: el equipo pasado no sale ni en `listMyTeams` ni en los equipos gestionables de Entrenar (backlog F6, «Los equipos gestionables se filtran por temporada…»).
-- [ ] **Step 2: Implementar** `team/` y pasar Entrenar a usarlo.
-- [ ] **Step 3: «Aún no estás en ningún equipo» según quién lo lee** (backlog F6). Dirección sin equipos: «Aún no hay equipos esta temporada.» + enlace a Gestión. Entrenador sin equipos: el texto actual. Jugador o familia: no se les ofrece crear sesiones (ya lo esconde `practice.manage`); el texto no sale.
-- [ ] **Step 4:** `pnpm test`, `pnpm test:int` PASS.
-- [ ] **Step 5: Commit** `feat(team): mis equipos son los de esta temporada`
+- [x] **Step 1: Test que falla.** Seed: una temporada pasada (no actual) con un equipo «Alevín A» de la temporada anterior, Álex en su cuerpo técnico, dos jugadores ficticios y un entrenamiento hecho. `seed.int.test.ts` cuenta lo que dice C7 más esto. Unidad de `listMyTeams` con filas falsas; integración con `signInAs("alex@…")`: el equipo pasado no sale ni en `listMyTeams` ni en los equipos gestionables de Entrenar (backlog F6, «Los equipos gestionables se filtran por temporada…»).
+- [x] **Step 2: Implementar** `team/` y pasar Entrenar a usarlo.
+- [x] **Step 3: «Aún no estás en ningún equipo» según quién lo lee** (backlog F6). Dirección sin equipos: «Aún no hay equipos esta temporada.» + enlace a Gestión. Entrenador sin equipos: el texto actual. Jugador o familia: no se les ofrece crear sesiones (ya lo esconde `practice.manage`); el texto no sale.
+- [x] **Step 4:** `pnpm test`, `pnpm test:int` PASS.
+- [x] **Step 5: Commit** `feat(team): mis equipos son los de esta temporada`
 
 ---
 
@@ -117,7 +117,7 @@ Políticas (una por tabla y operación):
 - `coach_notes`: `select` si `author_id = auth.uid()` o (`visibility = 'staff'` y (`private.is_team_staff(team_id)` o admin del club)) ([D1]); `insert` si `author_id = auth.uid()` y `private.is_team_staff(team_id)` o admin; `update`/`delete` solo si `author_id = auth.uid()`.
 - Grants por columna para `authenticated` (C27): `player_goals` `insert (organization_id, person_id, team_id, title, description, focus_area_id, standard_id)`, `update (title, description, focus_area_id, standard_id, status)`; `coach_notes` `insert (organization_id, person_id, team_id, body, visibility)`, `update (body, visibility)`, `delete`.
 
-- [ ] **Step 1: Test que falla** `development.test.sql` (Review Focus 1 y 2):
+- [x] **Step 1: Test que falla** `development.test.sql` (Review Focus 1 y 2):
   - Álex crea objetivo y nota en un jugador de Alevín A; Nora no puede (0 filas / `42501`); Marta no ve nada de Arcángel; `anon` → `42501`.
   - nota `private` de Álex: Irene, Raúl, Nora, Marta → 0 filas; la de `staff`: Irene y Raúl la ven, Nora y Marta no.
   - Irene no edita ni borra la nota `staff` de Álex.
@@ -125,8 +125,8 @@ Políticas (una por tabla y operación):
   - tres activos y un cuarto → `GOAL_LIMIT`; lograr uno → el cuarto entra; un logrado no vuelve a `active`; `achieved_at` se fija solo.
   - dos transacciones que añaden el tercer y cuarto objetivo a la vez: una falla (con `dblink` o dos sesiones, como los tests de bloqueo de la Fase 4; si no se puede en pgTAP, test de integración en Task 5).
   - `posture.test.sql`: columnas y privilegios nuevos.
-- [ ] **Step 2–4:** FAIL → migración → `pnpm supabase db reset && pnpm test:db` PASS; `pnpm db:types`; `supabase db lint` sin errores.
-- [ ] **Step 5: Commit** `feat(db): objetivos y notas de jugador, con notas privadas de verdad`
+- [x] **Step 2–4:** FAIL → migración → `pnpm supabase db reset && pnpm test:db` PASS; `pnpm db:types`; `supabase db lint` sin errores.
+- [x] **Step 5: Commit** `feat(db): objetivos y notas de jugador, con notas privadas de verdad`
 
 ---
 
@@ -142,9 +142,9 @@ Políticas (una por tabla y operación):
 - Regla de `kind` (backlog F6, «Partido colgado de un evento de entrenamiento»): un trigger impide una fila de `games` cuyo evento no sea `kind = 'game'`, y que un evento con fila en `games` cambie de `kind`.
 - Resultado ([D9]): `score_for`/`score_against` ambos o ninguno, entre 0 y 300; solo si `starts_at <= now()`; escribirlos deja el evento `done`. Un partido `cancelled` no admite cambios ni resultado (`GAME_CLOSED`).
 
-- [ ] **Step 1: Test que falla** `games_write.test.sql` (Review Focus 3): Álex crea y edita un partido de Alevín A; Irene también; Raúl en cualquier equipo; Nora y Marta → `NOT_FOUND`/0 filas; `create_game` con un equipo de Club Demo desde Arcángel → `NOT_FOUND`; fila de `games` sobre un entrenamiento → error; resultado antes de empezar → `INVALID`; resultado a medias → `INVALID`; resultado o edición de un cancelado → `GAME_CLOSED`; `posture.test.sql` al día.
-- [ ] **Step 2–4:** FAIL → migración → PASS; `pnpm db:types`; `supabase db lint`.
-- [ ] **Step 5: Commit** `feat(db): los partidos se crean y se editan desde el equipo`
+- [x] **Step 1: Test que falla** `games_write.test.sql` (Review Focus 3): Álex crea y edita un partido de Alevín A; Irene también; Raúl en cualquier equipo; Nora y Marta → `NOT_FOUND`/0 filas; `create_game` con un equipo de Club Demo desde Arcángel → `NOT_FOUND`; fila de `games` sobre un entrenamiento → error; resultado antes de empezar → `INVALID`; resultado a medias → `INVALID`; resultado o edición de un cancelado → `GAME_CLOSED`; `posture.test.sql` al día.
+- [x] **Step 2–4:** FAIL → migración → PASS; `pnpm db:types`; `supabase db lint`.
+- [x] **Step 5: Commit** `feat(db): los partidos se crean y se editan desde el equipo`
 
 ---
 
@@ -154,7 +154,7 @@ Políticas (una por tabla y operación):
 
 - `ActionError` añade `GAME_CLOSED` (copy «Este partido está cancelado y no se puede cambiar.») y `GOAL_LIMIT` con el copy «Este jugador ya tiene 3 objetivos activos. Marca uno como logrado o archívalo para añadir otro.».
 - `Action` añade `'goal.manage' | 'note.manage' | 'game.manage'`: `admin` y `coach` las tres (la base decide el equipo).
-- [ ] TDD de `fromDbError` (`P0001` + `GOAL_LIMIT`) y de `can`. Commit `feat(lib): GOAL_LIMIT y permisos de objetivos, notas y partidos`.
+- [x] TDD de `fromDbError` (`P0001` + `GOAL_LIMIT`) y de `can`. Commit `feat(lib): GOAL_LIMIT y permisos de objetivos, notas y partidos`.
 
 ---
 
@@ -167,9 +167,9 @@ Políticas (una por tabla y operación):
 - Server Actions (C2, primer parámetro `clubSlug`): `createGoal`, `updateGoal`, `achieveGoal`, `archiveGoal`, `createNote`, `updateNote`, `deleteNote`. Cada una lee antes la fila (o el equipo y el jugador) con la sesión del usuario filtrando por `organization_id = ctx.org.id` y responde `NOT_FOUND` sin escribir si no está (C25). Zod: título 1–120, descripción ≤ 1000, nota 1–2000.
 - Revalidan la ficha del jugador. Nunca registran el texto (Global Constraints).
 
-- [ ] **Step 1: Tests que fallan.** Unidad con cliente falso (como `practice/actions.test.ts`): validación, `NOT_FOUND` de otro club, `GOAL_LIMIT` traducido, `logError` sin contenido. Integración con `signInAs`: Review Focus 1 entero a través de `getPlayerProfile` (Irene no recibe la nota privada de Álex) y el cuarto objetivo en paralelo con `Promise.all` (Review Focus 2).
-- [ ] **Step 2–3:** implementar; `pnpm test`, `pnpm test:int` PASS.
-- [ ] **Step 4: Commit** `feat(development): ficha del jugador, objetivos y notas`
+- [x] **Step 1: Tests que fallan.** Unidad con cliente falso (como `practice/actions.test.ts`): validación, `NOT_FOUND` de otro club, `GOAL_LIMIT` traducido, `logError` sin contenido. Integración con `signInAs`: Review Focus 1 entero a través de `getPlayerProfile` (Irene no recibe la nota privada de Álex) y el cuarto objetivo en paralelo con `Promise.all` (Review Focus 2).
+- [x] **Step 2–3:** implementar; `pnpm test`, `pnpm test:int` PASS.
+- [x] **Step 4: Commit** `feat(development): ficha del jugador, objetivos y notas`
 
 ---
 
@@ -183,7 +183,7 @@ Políticas (una por tabla y operación):
 - Server Actions: `createGame` (llama a `create_game` tras comprobar el equipo en el club, C25), `updateGame`, `recordResult`, `cancelGame`. Errores: `NOT_FOUND`, `INVALID`, `GAME_CLOSED`.
 - `format.ts`: «Sábado 10 oct», «10:30–12:00», «Local»/«Visitante», marcador desde el punto de vista del club (propio primero).
 
-- [ ] TDD como Task 5 (unidad + integración con Álex, Nora y Marta). Commit `feat(games): lista, detalle y escritura de partidos`.
+- [x] TDD como Task 5 (unidad + integración con Álex, Nora y Marta). Commit `feat(games): lista, detalle y escritura de partidos`.
 
 ---
 
@@ -195,7 +195,7 @@ Políticas (una por tabla y operación):
 - `GoalItem`: título, descripción corta, `StandardBadge` o foco si los tiene (regla 8), estado («Activo», «Logrado el martes 6 oct», «Archivado») y acciones si se pueden.
 - `NoteItem`: cuerpo, autor, fecha relativa en la zona del club y «Solo yo» o «Cuerpo técnico»; editar y borrar solo para el autor.
 - `GameCard` (backlog F6): cada equipo se anuncia una sola vez a lectores de pantalla (un `aria-label` con «{propio} contra {rival}, {fecha}» y lo visual `aria-hidden`); el tono del avatar rival por prop, no por selector descendiente.
-- [ ] TDD de cada uno (roles, nombres accesibles, sin hex ni corchetes, `check:guards`). Commit `feat(ui): PlayerCard, GoalItem y NoteItem`.
+- [x] TDD de cada uno (roles, nombres accesibles, sin hex ni corchetes, `check:guards`). Commit `feat(ui): PlayerCard, GoalItem y NoteItem`.
 
 ---
 
@@ -206,7 +206,7 @@ Políticas (una por tabla y operación):
 - `/team`: con un equipo, redirige a su plantilla; con varios (dirección, o un entrenador con dos equipos), lista de equipos con categoría y número de jugadores; sin equipos, el estado vacío de Task 1.
 - `/team/[teamId]`: cabecera con equipo y categoría, cuerpo técnico, plantilla con `PlayerCard`. Estado vacío «Este equipo aún no tiene jugadores.».
 - `<title>` con el nombre del equipo, nunca de un jugador (Review Focus 4).
-- [ ] TDD de las páginas (404 opaco con un equipo de otro club o de otra temporada). Commit `feat(team): plantilla de mis equipos`.
+- [x] TDD de las páginas (404 opaco con un equipo de otro club o de otra temporada). Commit `feat(team): plantilla de mis equipos`.
 
 ---
 
@@ -217,7 +217,7 @@ Políticas (una por tabla y operación):
 - Ficha ([D5]): nombre, dorsal, posición, equipo y categoría. `<title>`: «Jugador · {equipo}», sin el nombre.
 - «Objetivos» (máximo 3 activos, [D3]): «Añadir objetivo» abre un `BottomSheet` con título, descripción, foco y Standard (selectores con lo publicado del club). Con tres activos el botón se desactiva con su explicación. En cada objetivo activo: «Editar», «Marcar como logrado», «Archivar» (este con `ConfirmDialog`). «Historial» plegado con los logrados y archivados.
 - «Notas»: «Añadir nota» con cuerpo y visibilidad («Solo yo» por defecto, [D1]); editar y borrar solo las propias (borrar con `ConfirmDialog`, [D4]: «Se borrará para siempre.»). `useLeaveGuard` en los formularios con cambios (C4).
-- [ ] TDD (componentes y página). Commit `feat(team): objetivos y notas en la ficha del jugador`.
+- [x] TDD (componentes y página). Commit `feat(team): objetivos y notas en la ficha del jugador`.
 
 ---
 
@@ -228,7 +228,7 @@ Políticas (una por tabla y operación):
 - `/games`: pestañas «Próximos» y «Jugados» (`?scope=played`, como Entrenar), filas con `GameCard`; «Nuevo partido» si `game.manage`.
 - `/games/new`: equipo (si gestiona varios), rival, fecha, hora de inicio y fin (fin por defecto a 90 min, [D9]), local o visitante, competición y lugar; `useLeaveGuard`.
 - `/games/[eventId]`: datos del partido, «Editar», «Apuntar resultado» (desde la hora de inicio) o el marcador con «Corregir resultado», «Cancelar partido» (`ConfirmDialog`), notas del rival si `game.manage`.
-- [ ] TDD. Commit `feat(games): pestaña Partidos`.
+- [x] TDD. Commit `feat(games): pestaña Partidos`.
 
 ---
 
@@ -239,7 +239,7 @@ Políticas (una por tabla y operación):
 - El próximo partido se pide aparte del límite de 30 eventos de «Esta semana» (backlog F6): nunca lo esconde un mes con muchos entrenamientos.
 - El enlace de cada fila de Inicio con `switch` sobre `kind` y `never`: entreno → su sesión; partido → `/games/[eventId]`.
 - Un entreno sin plan (backlog F6): no sale en las listas de Entrenar ni en Inicio, en vez de llevar a un 404. Test con un evento sin plan creado en el test.
-- [ ] TDD. Commit `fix(home): el próximo partido no se pierde y enlaza a su pantalla`.
+- [x] TDD. Commit `fix(home): el próximo partido no se pierde y enlaza a su pantalla`.
 
 ---
 
@@ -250,17 +250,17 @@ Políticas (una por tabla y operación):
 - Seed (C7): Alevín A pasa de 8 a 9 eventos con un partido jugado (resultado ficticio). Objetivos ficticios (dos activos y uno logrado en un jugador, tres activos en otro para probar el límite) y notas (una privada de Álex, una de `staff` de Irene). Nombres y textos inventados, sin parecido con personas reales.
 - `team.spec.ts` (proyecto `mobile`, solo lectura): Álex ve su plantilla y la ficha; Irene no ve la nota privada de Álex y sí la de `staff`; Nora recibe 404 en la ficha de un jugador de Alevín A; Marta no ve Arcángel; la temporada pasada no sale; ninguna URL ni `<title>` lleva un nombre de jugador (Review Focus 1, 4 y 5).
 - `games.spec.ts` y la parte de escritura de `team` (proyecto `admin`, en serie, con `restoreSeed` antes y después): crear un partido, apuntar el resultado, cancelarlo; añadir objetivo hasta el límite y ver el aviso; lograr uno; añadir, editar y borrar una nota.
-- [ ] Commit `test(e2e): equipo, jugadores y partidos`.
+- [x] Commit `test(e2e): equipo, jugadores y partidos`.
 
 ---
 
 ### Task 13: Cierre de la fase
 
-- [ ] Desde una base vacía (`supabase db reset`, `pnpm seed` dos veces, `pnpm db:types` sin deriva): `supabase db lint`, `lint`, `typecheck`, `check:guards`, unidad (también con `TZ=UTC`), `test:db`, `test:int`, `test:e2e`.
-- [ ] Arrancar la app, revisar la consola, repasar a 375×812 con Álex, Irene, Nora, Raúl y Marta todas las pantallas nuevas (sin scroll horizontal, áreas de 44 px, una sola cabecera, marca del club).
-- [ ] Actualizar `docs/superpowers/backlog.md`: cerrar el bloque «Fase 6» y pasar lo que quede a la Fase 7.
-- [ ] README: «Despliegue de Equipo y Partidos (Fase 6)» con las migraciones a aplicar en el remoto.
-- [ ] Abrir el PR.
+- [x] Desde una base vacía (`supabase db reset`, `pnpm seed` dos veces, `pnpm db:types` sin deriva): `supabase db lint`, `lint`, `typecheck`, `check:guards`, unidad (también con `TZ=UTC`), `test:db`, `test:int`, `test:e2e`.
+- [x] Arrancar la app, revisar la consola, repasar a 375×812 con Álex, Irene, Nora, Raúl y Marta todas las pantallas nuevas (sin scroll horizontal, áreas de 44 px, una sola cabecera, marca del club).
+- [x] Actualizar `docs/superpowers/backlog.md`: cerrar el bloque «Fase 6» y pasar lo que quede a la Fase 7.
+- [x] README: «Despliegue de Equipo y Partidos (Fase 6)» con las migraciones a aplicar en el remoto.
+- [x] Abrir el PR.
 
 ---
 
@@ -269,3 +269,5 @@ Políticas (una por tabla y operación):
 - **`GAME_CLOSED` para partidos cancelados** (decidido): `P0001`, copy «Este partido está cancelado y no se puede cambiar.». `SESSION_CLOSED` sigue siendo solo de sesiones.
 - **`getPlayerProfile(ctx, personId)` pasa a `getPlayerProfile(ctx, teamId, personId)`.** Los objetivos y las notas son de un jugador en un equipo ([D2]); la ruta ya lleva los dos ids.
 - **`player_goals` lleva `updated_at`** (el contrato no lo nombra) para que una edición desde dos móviles se detecte como en las sesiones, si el propietario lo quiere; si no, se quita.
+- **Hecho al ejecutar, fuera de lo previsto:** `coach_notes.author_person_id` (la persona autora, la pone un trigger: el resto del cuerpo técnico no lee `memberships` ajenas y sin ella no se podría enseñar quién escribió una nota); `games.event_kind` con la clave compuesta `games_event_fkey` (como `practice_plans` en la Fase 4); y, además de `create_game`, `update_game`, `record_game_result` y `cancel_game` (`security invoker`), que dan `GAME_CLOSED` y `INVALID` con nombre en vez de un `update` que no toca filas.
+

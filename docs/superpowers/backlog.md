@@ -1,4 +1,4 @@
-# CLUB OS · Pendientes que dejan las Fases 1 a 4
+# CLUB OS · Pendientes que dejan las Fases 1 a 6
 
 Lo que las revisiones de las Fases 1, 2, 3 y 4 dejaron para más adelante, ordenado por la fase que debe recogerlo; lo que dejó la Fase 2 tiene además su parte más abajo («Pendientes que deja la Fase 2»). Nada de esto bloquea el cierre de las fases ya hechas. Cada plan de fase debería incorporar su bloque antes de empezar. Si una fase se cierra sin recoger el suyo, lo que quede se pasa a otra en este fichero: aquí no hay pendientes sin dueño.
 
@@ -84,19 +84,27 @@ Pendientes conocidos que deja esta fase:
 - Borrar una cuenta mueve el `updated_at` de los planes que creó o guardó (el `on delete set null` es un `update` y pasa por el trigger): quien esté editando una de esas sesiones recibe «Alguien ha cambiado esto…» sin que nadie haya cambiado nada.
 - **Una respuesta perdida parece la edición de otra persona.** Si el guardado llega a la base pero su respuesta se pierde (mala cobertura en el pabellón), `useAction` dice «No se pudo guardar»; al reintentar, la copia ya es otra y sale `STALE_COPY`, y «Recargar» tira lo que se cambió desde entonces. Pasa hoy en el constructor, y la sincronización de Live trabaja justo en esas condiciones.
 
-## Fase 6 · Equipo, jugadores y partidos
+## Fase 6 · Equipo, jugadores y partidos (cerrada)
 
-- El límite de 30 eventos de Inicio mezcla entrenamientos y partidos y puede esconder el próximo partido.
-- «Mis equipos» = temporada actual. Hoy `team_staff` no filtra por temporada ni se usa `archived_at`.
-- `GameCard`: cada equipo se anuncia dos veces a lectores de pantalla; tono del avatar rival por selector descendiente.
-- Partido colgado de un evento de entrenamiento (lado de partidos de la regla de `kind`). El lado de los planes lo cerró la Fase 4.
+Estado: tareas 1–13 del plan (`docs/superpowers/plans/2026-10-09-fase-6-equipo-jugadores-partidos.md`) hechas. Hecho y verificado: «mis equipos» de esta temporada como única definición (Equipo, Entrenar, Partidos e Inicio; Inicio no filtraba por temporada); la pestaña Equipo (plantilla y ficha del jugador, sin año de nacimiento); objetivos (como mucho tres activos, también con altas en paralelo) y notas (una privada solo la lee su autor, también frente a dirección); la pestaña Partidos (lista, alta, detalle, resultado y cancelación); el aislamiento entre clubes, entre equipos y entre autores, con pgTAP, integración con sesiones reales y e2e. Verificado desde una base vacía (`supabase db reset`, `pnpm seed` dos veces, tipos sin deriva): `supabase db lint` sin errores, `lint`, `typecheck` y `check:guards` limpios, unidad 3868/3868 (también con `TZ=UTC`), `test:db` 1388/1388, `test:int` 67/67 y `test:e2e` 126/126. Repaso en el navegador a 375×812 con Álex y Raúl (Equipo, ficha con objetivos y notas, Partidos con alta, detalle y cancelación); Irene, Nora y Marta, por e2e.
 
-**Lo que deja la Fase 4:**
+Lo de este bloque que venía de antes, resuelto:
 
-- **Un entreno sin plan sale en las listas y su detalle es un 404.** `listPractices` e Inicio lo pintan como «Entrenamiento sin plan» y lo enlazan a `/train/{id}`, pero `getPractice` devuelve `null` si el evento no tiene plan (`toPracticeDetail`, en `src/modules/practice/map-rows.ts`). Desde la app no se llega a ese estado, porque `create_practice_session` crea el evento y el plan a la vez; la primera fase que cree o importe eventos por otra vía se lo encuentra. O no se listan, o el detalle pinta lo mínimo.
-- `home-screen.tsx` decide el enlace de cada fila de «Esta semana» con un ternario: un entreno va a su sesión y todo lo demás, a `/games`. Cuando los partidos tengan su pantalla, un `switch` con `never`: hoy un tercer tipo de evento enlazaría a Partidos sin que nadie lo decidiera.
-- «Aún no estás en ningún equipo» (`src/modules/practice/practice-list.tsx` y `train/new/page.tsx`) sale a cualquiera que no tenga equipos gestionables, también a quien no le corresponde: al admin de un club recién creado, todavía sin equipos, se le dice «Cuando dirección te asigne un equipo…», y en la lista de Entrenar lo lee también un jugador o un tutor que sí tiene equipo. Va con «Mis equipos», de arriba.
-- Los equipos gestionables se filtran por temporada actual con embeds `!inner` (`TEAM_COLUMNS` y `STAFF_TEAM_COLUMNS`, en `map-rows.ts`), y ningún test lo prueba con datos de verdad: el seed solo tiene la temporada actual. Un equipo de una temporada pasada en el seed lo cubriría. Va con «Mis equipos», de arriba.
+- El próximo partido se pide aparte del límite de 30 eventos de Inicio.
+- «Mis equipos» = temporada actual, con una temporada pasada en el seed que lo prueba con datos reales.
+- `GameCard`: cada equipo se anuncia una sola vez y el tono del rival va por prop (`Avatar tone`).
+- Un partido no cuelga de un entreno ni un evento cambia de tipo (clave compuesta con `event_kind`). De paso se cerró un hueco de la capa de políticas: el `using` de entrenos y el `with check` de partidos dejaban convertir un evento de tipo (lo paraba el privilegio por columnas).
+- Un entreno sin plan ya no se lista (ni en Entrenar ni en Inicio): su detalle era un 404.
+- Las filas de «Esta semana» van a su pantalla con un `switch` exhaustivo.
+- «Aún no estás en ningún equipo» ya no se lo dice a dirección en Entrenar.
+
+Lo que deja la Fase 6:
+
+- **Inicio de dirección.** Sigue contando solo los equipos que la persona entrena: a dirección sin equipos le dice «Aún no estás en ningún equipo». Va con la Inicio de dirección de la Fase 7.
+- **Familias y jugadores.** Las políticas de objetivos y notas no dan lectura a cuentas de jugador ni de familia ([D6]); se añadirá con `guardianships` (Fase 7) y la decisión 13 de la spec.
+- La lista de equipos de dirección no enseña cuántos jugadores tiene cada uno (el plan lo decía); haría falta contar la plantilla en la consulta.
+- `pnpm dev` no arrancaba desde la Fase 5 (Serwist y Turbopack): arreglado (`next dev --webpack`).
+- El nombre del autor de una nota sale de `coach_notes.author_person_id`, que pone un trigger desde la membresía. Si una persona cambia de ficha, sus notas viejas siguen con la anterior.
 
 ## Fase 7 · Gestión y cierre
 
@@ -219,6 +227,15 @@ Pendiente (paneles y primera ejecución):
 - **Otras ayudas de hora con la hora que se repite.** `addLocalDays`, `nextWeeklySlot` y `startOfLocalDay` (`src/lib/time.ts`) mueven la fecha con los métodos de `TZDate`, que resuelven una hora repetida pasando por la zona del servidor: en UTC dan la segunda ocurrencia y en Madrid la primera. Solo afecta a algo programado entre las 02:00 y las 02:59 del día en que se atrasa el reloj (duplicar a la semana siguiente una sesión a esa hora). Mismo arreglo que `zonedDateTimeToIso`: calcular con `tzOffset`.
 
 ## Decisiones de producto a confirmar
+
+- **Lo que deja la Fase 6.** El plan se aprobó con [D1]–[D10]; esto es lo que se decidió al ejecutarlo y no estaba escrito:
+  - **Las entrevistas con otros clubes** (spec, riesgos de producto) no se hicieron antes de la fase: se asumió el riesgo.
+  - **Lograr un objetivo también pide confirmación**, no solo archivarlo: los dos son irreversibles y un toque accidental en el móvil es fácil.
+  - **Con un solo equipo, Equipo enseña la plantilla en `/team`** en vez de redirigir a `/team/[id]`: así «volver» no lleva a la misma pantalla.
+  - **Al borrar la cuenta de un entrenador se borran sus notas** (`on delete cascade`), también las del cuerpo técnico; sus objetivos se quedan sin autor.
+  - **Las notas del rival las ve el cuerpo técnico y dirección**, como el resto del partido; no hay notas de partido privadas.
+  - **La hora propuesta para un partido nuevo es las 10:00** del día siguiente, y dura 90 minutos ([D9]).
+  - **El copy nuevo no lo ha validado producto.** Entre otros: «Este jugador ya tiene 3 objetivos activos. Marca uno como logrado o archívalo para añadir otro.», «Este partido está cancelado y no se puede cambiar.», «¿Marcar como logrado?» / «Pasará al historial con la fecha de hoy. No se puede deshacer.», «¿Borrar esta nota?» / «Se borrará para siempre.» y «Aún no hay equipos esta temporada».
 
 - Una cuenta de jugador con ficha en la plantilla no puede leer su propio equipo ni su plantilla (políticas del plan). Sin interfaz en el MVP.
 - Dirección sin equipo ve en Inicio «Cuando dirección te asigne un equipo…». Hasta la Fase 7 no hay otra Inicio para dirección.
