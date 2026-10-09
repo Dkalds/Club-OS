@@ -32,6 +32,8 @@ describe("toGameListItems", () => {
         started: false,
         slotLabel: "Sábado 10 oct · 10:30 · Local",
         dateChip: { dow: "Sáb", day: "10" },
+        monthChip: { month: "oct", day: "10" },
+        time: "10:30",
         location: "Pabellón",
         score: null,
       },

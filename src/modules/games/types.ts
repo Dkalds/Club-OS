@@ -16,6 +16,10 @@ export type GameListItem = {
   /** «Sábado 10 oct · 10:30 · Local». */
   slotLabel: string;
   dateChip: { dow: string; day: string };
+  /** Para la lista de jugados, como el histórico de Entrenar: mes y día. */
+  monthChip: { month: string; day: string };
+  /** «10:30». */
+  time: string;
   location: string | null;
   /** Desde el punto de vista del club: el propio primero. */
   score: { for: number; against: number } | null;

@@ -1,4 +1,4 @@
-import { dayChip, formatGameSlot, isoToLocalInputs } from "@/lib/time";
+import { dayChip, formatGameSlot, isoToLocalInputs, localTime, monthChip } from "@/lib/time";
 import type { GameDetail, GameListItem, GameStatus, HomeAway } from "./types";
 
 // De las filas de PostgREST a los partidos de la pantalla. Funciones puras, aparte para probarlas
@@ -69,6 +69,8 @@ function toItem(row: GameEventRow, teamName: string, game: GameRow, timezone: st
     started: Date.parse(row.starts_at) <= Date.parse(nowIso),
     slotLabel: formatGameSlot(row.starts_at, timezone, homeAway),
     dateChip: dayChip(row.starts_at, timezone),
+    monthChip: monthChip(row.starts_at, timezone),
+    time: localTime(row.starts_at, timezone),
     location: row.location,
     score:
       game.score_for !== null && game.score_against !== null
