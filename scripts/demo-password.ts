@@ -32,6 +32,8 @@ if (
 ) {
   main().catch((error: unknown) => {
     console.error(error instanceof Error ? error.message : error);
-    process.exit(1);
+    // `exitCode` y no `process.exit(1)`: salir de golpe con las conexiones de Auth aún
+    // cerrándose aborta Node en Windows (aserción de libuv) y tapa el mensaje de arriba.
+    process.exitCode = 1;
   });
 }
