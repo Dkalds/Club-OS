@@ -61,6 +61,37 @@ isOneToOne: false
       referencedColumns: ["id"]
     }
                   ]
+                },"coach_notes": {
+                  Row: {
+                    "author_id": string,"body": string,"created_at": string,"id": string,"organization_id": string,"person_id": string,"team_id": string,"updated_at": string,"visibility": Database["public"]['Enums']["note_visibility"]
+                  }
+                  Insert: {
+                    "author_id"?: string,"body": string,"created_at"?: string,"id"?: string,"organization_id": string,"person_id": string,"team_id": string,"updated_at"?: string,"visibility"?: Database["public"]['Enums']["note_visibility"]
+                  }
+                  Update: {
+                    "author_id"?: string,"body"?: string,"created_at"?: string,"id"?: string,"organization_id"?: string,"person_id"?: string,"team_id"?: string,"updated_at"?: string,"visibility"?: Database["public"]['Enums']["note_visibility"]
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "coach_notes_organization_id_fkey"
+      columns: ["organization_id"]
+isOneToOne: false
+      referencedRelation: "organizations"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "coach_notes_organization_id_person_id_fkey"
+      columns: ["organization_id","person_id"]
+isOneToOne: false
+      referencedRelation: "people"
+      referencedColumns: ["organization_id","id"]
+    },{
+      foreignKeyName: "coach_notes_organization_id_team_id_fkey"
+      columns: ["organization_id","team_id"]
+isOneToOne: false
+      referencedRelation: "teams"
+      referencedColumns: ["organization_id","id"]
+    }
+                  ]
                 },"drill_coaching_points": {
                   Row: {
                     "drill_id": string,"id": string,"is_key": boolean,"organization_id": string,"sort": number,"text": string
@@ -412,6 +443,49 @@ isOneToOne: false
       referencedColumns: ["id"]
     }
                   ]
+                },"player_goals": {
+                  Row: {
+                    "achieved_at": string | null,"created_at": string,"created_by": string | null,"description": string | null,"focus_area_id": string | null,"id": string,"organization_id": string,"person_id": string,"standard_id": string | null,"status": Database["public"]['Enums']["goal_status"],"team_id": string,"title": string,"updated_at": string
+                  }
+                  Insert: {
+                    "achieved_at"?: string | null,"created_at"?: string,"created_by"?: string | null,"description"?: string | null,"focus_area_id"?: string | null,"id"?: string,"organization_id": string,"person_id": string,"standard_id"?: string | null,"status"?: Database["public"]['Enums']["goal_status"],"team_id": string,"title": string,"updated_at"?: string
+                  }
+                  Update: {
+                    "achieved_at"?: string | null,"created_at"?: string,"created_by"?: string | null,"description"?: string | null,"focus_area_id"?: string | null,"id"?: string,"organization_id"?: string,"person_id"?: string,"standard_id"?: string | null,"status"?: Database["public"]['Enums']["goal_status"],"team_id"?: string,"title"?: string,"updated_at"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "player_goals_organization_id_fkey"
+      columns: ["organization_id"]
+isOneToOne: false
+      referencedRelation: "organizations"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "player_goals_organization_id_focus_area_id_fkey"
+      columns: ["organization_id","focus_area_id"]
+isOneToOne: false
+      referencedRelation: "focus_areas"
+      referencedColumns: ["organization_id","id"]
+    },{
+      foreignKeyName: "player_goals_organization_id_person_id_fkey"
+      columns: ["organization_id","person_id"]
+isOneToOne: false
+      referencedRelation: "people"
+      referencedColumns: ["organization_id","id"]
+    },{
+      foreignKeyName: "player_goals_organization_id_standard_id_fkey"
+      columns: ["organization_id","standard_id"]
+isOneToOne: false
+      referencedRelation: "standards"
+      referencedColumns: ["organization_id","id"]
+    },{
+      foreignKeyName: "player_goals_organization_id_team_id_fkey"
+      columns: ["organization_id","team_id"]
+isOneToOne: false
+      referencedRelation: "teams"
+      referencedColumns: ["organization_id","id"]
+    }
+                  ]
                 },"practice_items": {
                   Row: {
                     "actual_minutes": number | null,"completed": boolean | null,"drill_id": string | null,"id": string,"minutes": number,"notes": string | null,"organization_id": string,"phase": string | null,"plan_id": string,"sort": number,"title_override": string | null
@@ -740,7 +814,7 @@ isOneToOne: false
                            }
           }
           Enums: {
-            "content_status": "draft"|"published","drill_status": "draft"|"published"|"archived","event_kind": "practice"|"game","event_status": "scheduled"|"done"|"cancelled","org_role": "admin"|"coach"|"player"|"guardian","staff_role": "head_coach"|"assistant"
+            "content_status": "draft"|"published","drill_status": "draft"|"published"|"archived","event_kind": "practice"|"game","event_status": "scheduled"|"done"|"cancelled","goal_status": "active"|"achieved"|"archived","note_visibility": "private"|"staff","org_role": "admin"|"coach"|"player"|"guardian","staff_role": "head_coach"|"assistant"
           }
           CompositeTypes: {
             [_ in never]: never
@@ -860,7 +934,7 @@ export const Constants = {
           }
         },"public": {
           Enums: {
-            "content_status": ["draft", "published"],"drill_status": ["draft", "published", "archived"],"event_kind": ["practice", "game"],"event_status": ["scheduled", "done", "cancelled"],"org_role": ["admin", "coach", "player", "guardian"],"staff_role": ["head_coach", "assistant"]
+            "content_status": ["draft", "published"],"drill_status": ["draft", "published", "archived"],"event_kind": ["practice", "game"],"event_status": ["scheduled", "done", "cancelled"],"goal_status": ["active", "achieved", "archived"],"note_visibility": ["private", "staff"],"org_role": ["admin", "coach", "player", "guardian"],"staff_role": ["head_coach", "assistant"]
           }
         }
 } as const
