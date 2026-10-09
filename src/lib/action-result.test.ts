@@ -52,6 +52,9 @@ describe("ACTION_ERROR_COPY", () => {
       NOT_FOUND: "No encontramos este contenido.",
       SECTION_LIMIT: "Ya hay 99 secciones, el máximo. Reutiliza una que tengas en borrador.",
       SESSION_CLOSED: "Esta sesión ya está cerrada y no se puede cambiar. Duplícala para reutilizarla.",
+      GOAL_LIMIT:
+        "Este jugador ya tiene 3 objetivos activos. Marca uno como logrado o archívalo para añadir otro.",
+      GAME_CLOSED: "Este partido está cancelado y no se puede cambiar.",
     });
   });
 
@@ -76,6 +79,10 @@ describe("fromDbError", () => {
       ok: false,
       error: "SESSION_CLOSED",
     });
+  });
+
+  it.each(["GOAL_LIMIT", "GAME_CLOSED"] as const)("P0001 con %s devuelve ese código", (error) => {
+    expect(fromDbError({ code: "P0001", message: error })).toStrictEqual({ ok: false, error });
   });
 
   // Las fases siguientes amplían `ActionError`: el traductor tiene que seguir a la copia

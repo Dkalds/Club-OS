@@ -36,6 +36,10 @@ const EXPECTED: Record<Action, Record<Role, boolean>> = {
   "drill.create": { admin: true, coach: true, player: false, guardian: false },
   "drill.publish": { admin: true, coach: false, player: false, guardian: false },
   "practice.manage": { admin: true, coach: true, player: false, guardian: false },
+  // Objetivos, notas y partidos: quien entrena y dirección; la base decide de qué equipo.
+  "goal.manage": { admin: true, coach: true, player: false, guardian: false },
+  "note.manage": { admin: true, coach: true, player: false, guardian: false },
+  "game.manage": { admin: true, coach: true, player: false, guardian: false },
 };
 
 /** Todas las acciones: quien administra las puede todas. */

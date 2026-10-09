@@ -9,7 +9,10 @@ export type Action =
   | "drill.view"
   | "drill.create"
   | "drill.publish"
-  | "practice.manage";
+  | "practice.manage"
+  | "goal.manage"
+  | "note.manage"
+  | "game.manage";
 
 /** Los roles que pueden cada acción. El compilador obliga a decidir las acciones nuevas. */
 const ALLOWED_ROLES: Record<Action, readonly Role[]> = {
@@ -23,6 +26,11 @@ const ALLOWED_ROLES: Record<Action, readonly Role[]> = {
   "drill.publish": ["admin"],
   // Planificar y editar sesiones de entrenamiento: quien entrena, no solo administración.
   "practice.manage": ["admin", "coach"],
+  // Objetivos y notas de jugador, y partidos: quien entrena y dirección. Qué equipo y qué
+  // nota en concreto lo decide RLS (una nota privada es solo de su autor).
+  "goal.manage": ["admin", "coach"],
+  "note.manage": ["admin", "coach"],
+  "game.manage": ["admin", "coach"],
 };
 
 /**
