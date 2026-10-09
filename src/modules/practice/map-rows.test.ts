@@ -2,12 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   toPracticeDetail,
   toPracticeListItems,
-  toStaffTeamOptions,
-  toTeamOptions,
   type PracticeDetailRow,
   type PracticeListRow,
   type PracticePlanRow,
-  type StaffTeamRow,
 } from "./map-rows";
 
 // Datos neutros: los tests de `src/` no pueden nombrar a ningún club (pnpm check:guards).
@@ -429,42 +426,3 @@ describe("toPracticeListItems", () => {
   });
 });
 
-describe("toTeamOptions", () => {
-  it("deja solo id y nombre, por nombre y, a igual nombre, por id", () => {
-    const rows = [
-      { id: "team-3", name: "Equipo B", seasons: { is_current: true } },
-      { id: "team-2", name: "Equipo B", seasons: { is_current: true } },
-      { id: "team-1", name: "Equipo A", seasons: { is_current: true } },
-    ];
-
-    expect(toTeamOptions(rows)).toEqual([
-      { id: "team-1", name: "Equipo A" },
-      { id: "team-2", name: "Equipo B" },
-      { id: "team-3", name: "Equipo B" },
-    ]);
-  });
-
-  it("sin filas no hay equipos", () => {
-    expect(toTeamOptions([])).toEqual([]);
-  });
-});
-
-describe("toStaffTeamOptions", () => {
-  it("lee el equipo igual como objeto que como lista de uno, y ordena por nombre", () => {
-    const rows: StaffTeamRow[] = [
-      { teams: { id: "team-b", name: "Equipo B" } },
-      { teams: [{ id: "team-a", name: "Equipo A" }] },
-    ];
-
-    expect(toStaffTeamOptions(rows)).toEqual([
-      { id: "team-a", name: "Equipo A" },
-      { id: "team-b", name: "Equipo B" },
-    ]);
-  });
-
-  it("salta las filas sin equipo", () => {
-    const rows: StaffTeamRow[] = [{ teams: null }, { teams: [] }, { teams: { id: "team-a", name: "Equipo A" } }];
-
-    expect(toStaffTeamOptions(rows)).toEqual([{ id: "team-a", name: "Equipo A" }]);
-  });
-});

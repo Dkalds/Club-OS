@@ -45,6 +45,7 @@ function renderList(overrides: Partial<Props> = {}) {
       practices={[FIRST, SECOND]}
       teamCount={1}
       canCreate
+      role="coach"
       {...overrides}
     />,
   );
@@ -237,6 +238,14 @@ describe("PracticeList vacía", () => {
     expect(screen.getByRole("link", { name: "Volver a Inicio" })).toHaveAttribute("href", "/c/club-a");
     expect(screen.queryByRole("navigation", { name: "Sesiones" })).not.toBeInTheDocument();
     expect(screen.queryByRole("list")).not.toBeInTheDocument();
+  });
+
+  it("sin equipos, a la dirección le dice que faltan por dar de alta y la lleva a Gestión", () => {
+    renderList({ teamCount: 0, practices: [], canCreate: true, role: "admin" });
+
+    expect(screen.getByRole("heading", { level: 2, name: "Aún no hay equipos esta temporada" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Ir a Gestión" })).toHaveAttribute("href", "/c/club-a/admin");
+    expect(screen.queryByText("Aún no estás en ningún equipo")).not.toBeInTheDocument();
   });
 
   it("sin próximas, quien puede crear recibe la invitación a crear la siguiente, una sola vez", () => {

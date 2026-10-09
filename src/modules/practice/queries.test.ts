@@ -659,8 +659,8 @@ describe("si falla una lectura", () => {
     tag: string;
     run: () => Promise<unknown>;
   }> = [
-    { name: "los equipos de la dirección", table: "teams", tag: "practice.teams", run: () => listManageableTeams(ADMIN) },
-    { name: "los equipos de quien entrena", table: "team_staff", tag: "practice.teams", run: () => listManageableTeams(COACH) },
+    { name: "los equipos de la dirección", table: "teams", tag: "team.club-teams", run: () => listManageableTeams(ADMIN) },
+    { name: "los equipos de quien entrena", table: "team_staff", tag: "team.staff-teams", run: () => listManageableTeams(COACH) },
     { name: "los objetivos", table: "focus_areas", tag: "practice.focus-areas", run: () => getPracticeFormOptions(COACH) },
     { name: "la lista de entrenamientos", table: "events", tag: "practice.list", run: () => listPractices(COACH, "upcoming", NOW) },
     { name: "el detalle", table: "events", tag: "practice.detail", run: () => getPractice(COACH, EVENT) },
@@ -686,7 +686,7 @@ describe("si falla una lectura", () => {
   it("si fallan los equipos, `listPractices` no sigue con los eventos", async () => {
     const calls = installDatabase(listStore(), { team_staff: FAILURE });
 
-    await expect(listPractices(COACH, "upcoming", NOW)).rejects.toThrow("practice.teams");
+    await expect(listPractices(COACH, "upcoming", NOW)).rejects.toThrow("team.staff-teams");
     expect(calls.map((entry) => entry.table)).not.toContain("events");
   });
 });

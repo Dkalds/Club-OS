@@ -120,6 +120,21 @@ export type TeamDef = {
   game: GameDef | null;
 };
 
+/**
+ * Un equipo de una temporada pasada. Sus jugadores son personas que hoy están en otro equipo
+ * (`fromTeam`): no se crean personas nuevas, y el seed se parece a un club real, donde los
+ * jugadores suben de categoría. Sin eventos.
+ */
+export type PastTeamDef = {
+  key: string;
+  name: string;
+  categoryKey: string;
+  staff: { personKey: string; role: "head_coach" | "assistant" }[];
+  players: { fromTeam: string; firstName: string; lastName: string; number: number; position: string }[];
+};
+
+export type SeasonDef = { key: string; name: string; startsOn: string; endsOn: string };
+
 export type SectionKind = "text" | "values" | "principles" | "standards";
 
 // Metodología de un club (The Way). Aquí solo va el contenido: el número de sección y de
@@ -150,11 +165,13 @@ export type ClubDef = {
   members: { email: string; personKey: string; role: "admin" | "coach" }[];
   categories: { key: string; name: string; ageBand: string; sort: number }[];
   teams: TeamDef[];
+  /** Una temporada que ya terminó y sus equipos: lo que no tiene que salir en «mis equipos». */
+  pastSeason?: SeasonDef & { teams: PastTeamDef[] };
   methodology: MethodologyDef;
   drills: SeedDrill[];
 };
 
-const SEASON = { key: "2026-27", name: "2026/27", startsOn: "2026-09-01", endsOn: "2027-06-30" };
+const SEASON: SeasonDef = { key: "2026-27", name: "2026/27", startsOn: "2026-09-01", endsOn: "2027-06-30" };
 
 const upcomingSlot =
   (index: number): SlotOf =>
@@ -530,6 +547,24 @@ export const ARCANGEL: ClubDef = {
     { key: "alevin", name: "Alevín", ageBand: "U12", sort: 20 },
   ],
   teams: [ALEVIN_A, BENJAMIN_A],
+  pastSeason: {
+    key: "2025-26",
+    name: "2025/26",
+    startsOn: "2025-09-01",
+    endsOn: "2026-06-30",
+    teams: [
+      {
+        key: "benjamin-b",
+        name: "Benjamín B",
+        categoryKey: "benjamin",
+        staff: [{ personKey: "alex", role: "head_coach" }],
+        players: [
+          { fromTeam: "alevin-a", firstName: "Hugo", lastName: "Serrano", number: 4, position: "Base" },
+          { fromTeam: "alevin-a", firstName: "Leo", lastName: "Ortega", number: 7, position: "Base" },
+        ],
+      },
+    ],
+  },
   methodology: ARCANGEL_METHODOLOGY,
   drills: ARCANGEL_DRILLS,
 };
@@ -696,6 +731,53 @@ function addDrills(data: SeedData, club: ClubDef, organizationId: string): void 
   data.drill_standards.push(...rows.drill_standards);
 }
 
+function addPastSeason(
+  data: SeedData,
+  club: ClubDef,
+  season: SeasonDef & { teams: PastTeamDef[] },
+): void {
+  const id = (key: string) => seedId(club.slug, key);
+  const organizationId = id("organization");
+  const seasonId = id(`season:${season.key}`);
+
+  data.seasons.push({
+    id: seasonId,
+    organization_id: organizationId,
+    name: season.name,
+    starts_on: season.startsOn,
+    ends_on: season.endsOn,
+    is_current: false,
+  });
+
+  for (const team of season.teams) {
+    const teamId = id(`team:${season.key}:${team.key}`);
+    data.teams.push({
+      id: teamId,
+      organization_id: organizationId,
+      season_id: seasonId,
+      category_id: id(`category:${team.categoryKey}`),
+      name: team.name,
+    });
+    for (const staff of team.staff) {
+      data.team_staff.push({
+        organization_id: organizationId,
+        team_id: teamId,
+        person_id: id(`person:${staff.personKey}`),
+        staff_role: staff.role,
+      });
+    }
+    for (const player of team.players) {
+      data.team_players.push({
+        organization_id: organizationId,
+        team_id: teamId,
+        person_id: id(`person:${player.fromTeam}:${slugify(`${player.firstName} ${player.lastName}`)}`),
+        jersey_number: player.number,
+        position: player.position,
+      });
+    }
+  }
+}
+
 function addClub(data: SeedData, club: ClubDef, now: Date): void {
   const id = (key: string) => seedId(club.slug, key);
   const organizationId = id("organization");
@@ -732,6 +814,8 @@ function addClub(data: SeedData, club: ClubDef, now: Date): void {
       sort: category.sort,
     });
   }
+
+  if (club.pastSeason) addPastSeason(data, club, club.pastSeason);
 
   const focusId = (slug: FocusSlug) => id(`focus:${slug}`);
   FOCUS_AREAS.forEach((focus, index) => {

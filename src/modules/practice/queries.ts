@@ -2,16 +2,13 @@ import { can } from "@/lib/permissions";
 import { throwReadError } from "@/lib/read-error";
 import { createClient } from "@/lib/supabase/server";
 import { UUID_RE } from "@/lib/uuid";
+import { listMyTeams } from "@/modules/team/queries";
 import type { ClubContext } from "@/modules/tenancy/queries";
 import {
   DETAIL_COLUMNS,
   LIST_COLUMNS,
-  STAFF_TEAM_COLUMNS,
-  TEAM_COLUMNS,
   toPracticeDetail,
   toPracticeListItems,
-  toStaffTeamOptions,
-  toTeamOptions,
 } from "./map-rows";
 import type { FocusOption, PracticeDetail, PracticeListItem, TeamOption } from "./types";
 
@@ -27,44 +24,15 @@ import type { FocusOption, PracticeDetail, PracticeListItem, TeamOption } from "
 /** Las sesiones que como mucho enseña cada pestaña de la lista. */
 const LIST_LIMIT = 50;
 
-async function adminTeams(orgId: string): Promise<TeamOption[]> {
-  const supabase = await createClient();
-
-  const { data, error } = await supabase
-    .from("teams")
-    .select(TEAM_COLUMNS)
-    .eq("organization_id", orgId)
-    .eq("seasons.is_current", true);
-  if (error) throwReadError("practice.teams", error);
-
-  return toTeamOptions(data);
-}
-
-async function staffTeams(orgId: string, personId: string): Promise<TeamOption[]> {
-  const supabase = await createClient();
-
-  const { data, error } = await supabase
-    .from("team_staff")
-    .select(STAFF_TEAM_COLUMNS)
-    .eq("organization_id", orgId)
-    .eq("person_id", personId)
-    .eq("teams.seasons.is_current", true);
-  if (error) throwReadError("practice.teams", error);
-
-  return toStaffTeamOptions(data);
-}
-
 /**
- * Los equipos de la temporada actual donde la sesión puede planificar, por nombre: todos los
- * del club para la dirección y, para el resto, los de cuyo cuerpo técnico es su persona. Sin
- * persona asociada (y sin ser dirección) no hay ninguno, y ni se consulta.
+ * Los equipos donde la sesión puede planificar, por nombre: «mis equipos» (`team`), es decir,
+ * los de la temporada actual, todos para la dirección y los de su cuerpo técnico para el resto.
  */
 export async function listManageableTeams(ctx: ClubContext): Promise<TeamOption[]> {
-  const { role, personId } = ctx.membership;
-
-  if (role === "admin") return adminTeams(ctx.org.id);
-  if (!personId) return [];
-  return staffTeams(ctx.org.id, personId);
+  const teams = await listMyTeams(ctx);
+  return teams
+    .map(({ id, name }) => ({ id, name }))
+    .sort((a, b) => a.name.localeCompare(b.name, "es") || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
 }
 
 /** Los objetivos de trabajo del club, en su orden. */

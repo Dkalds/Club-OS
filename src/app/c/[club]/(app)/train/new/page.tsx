@@ -4,6 +4,7 @@ import { can } from "@/lib/permissions";
 import { defaultSessionDate } from "@/lib/time";
 import { DEFAULT_SESSION_MINUTES, DEFAULT_SESSION_TIME } from "@/modules/practice/limits";
 import { getPracticeFormOptions } from "@/modules/practice/queries";
+import { noTeamsState } from "@/modules/team/no-teams";
 import { BackLink } from "@/ui/back-link";
 import { TeamIcon } from "@/ui/icons";
 import { EmptyState } from "@/ui/states";
@@ -59,9 +60,7 @@ export default async function NewPracticePage({ params }: PageProps<"/c/[club]/t
       ) : (
         <EmptyState
           icon={<TeamIcon size={28} />}
-          title="Aún no estás en ningún equipo"
-          body="Cuando dirección te asigne un equipo, podrás crear sus sesiones."
-          action={{ label: "Volver a Entrenar", href: trainHref }}
+          {...noTeamsState(ctx.membership.role, ctx.org.slug, "new-session")}
         />
       )}
     </div>

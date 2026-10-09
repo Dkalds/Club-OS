@@ -30,6 +30,17 @@ type Call = {
   limit: number | null;
 };
 
+/** El valor de `row` en una ruta como `teams.seasons.is_current`; una lista cuenta por su primer elemento. */
+function valueAt(row: Row, path: string): unknown {
+  let current: unknown = row;
+  for (const key of path.split(".")) {
+    if (Array.isArray(current)) current = current[0];
+    if (typeof current !== "object" || current === null) return undefined;
+    current = (current as Row)[key];
+  }
+  return current;
+}
+
 class FakeQuery implements PromiseLike<Result> {
   private readonly call: Call;
   private readonly filters: Array<(row: Row) => boolean> = [];
@@ -51,7 +62,7 @@ class FakeQuery implements PromiseLike<Result> {
 
   eq(column: string, value: unknown) {
     this.call.eq[column] = value;
-    this.filters.push((row) => row[column] === value);
+    this.filters.push((row) => valueAt(row, column) === value);
     return this;
   }
 
@@ -144,8 +155,13 @@ const CTX: ClubContext = {
 
 const FAILURE: Failure = { name: "PostgrestError", code: "42501", message: "fila de ana@club-a.test" };
 
-function staffRow(organization_id: string, person_id: string, team: { id: string; name: string }): Row {
-  return { organization_id, person_id, teams: { ...team, seasons: { name: "2026-27" } } };
+function staffRow(
+  organization_id: string,
+  person_id: string,
+  team: { id: string; name: string },
+  season = { name: "2026-27", is_current: true },
+): Row {
+  return { organization_id, person_id, teams: { ...team, seasons: season } };
 }
 
 function eventRow(id: string, team_id: string, startsAt: string, endsAt: string, overrides: Row = {}): Row {
@@ -245,7 +261,11 @@ describe("getHomeData", () => {
 
     const call = (table: string) => calls.find((entry) => entry.table === table);
     expect(call("people")?.eq).toEqual({ organization_id: ORG, id: ME });
-    expect(call("team_staff")?.eq).toEqual({ organization_id: ORG, person_id: ME });
+    expect(call("team_staff")?.eq).toEqual({
+      organization_id: ORG,
+      person_id: ME,
+      "teams.seasons.is_current": true,
+    });
     expect(call("events")?.eq).toMatchObject({ organization_id: ORG, status: "scheduled" });
     expect(call("events")?.in).toEqual({ team_id: ["team-a"] });
   });
@@ -278,6 +298,20 @@ describe("getHomeData", () => {
       "Equipo B · Transición + rebote defensivo",
       "Equipo A · Transición + rebote defensivo",
     ]);
+  });
+
+  it("un equipo de una temporada pasada no es de «mis equipos»: ni sale ni se piden sus eventos", async () => {
+    const store = fullStore();
+    store.team_staff = [
+      staffRow(ORG, ME, { id: "team-a", name: "Equipo A" }),
+      staffRow(ORG, ME, { id: "team-old", name: "Equipo viejo" }, { name: "2025-26", is_current: false }),
+    ];
+    const calls = installDatabase(store);
+
+    const home = await getHomeData(CTX, NOW);
+
+    expect(calls.find((entry) => entry.table === "events")?.in).toEqual({ team_id: ["team-a"] });
+    expect(home.kicker).toBe("Equipo A · Temporada 2026-27");
   });
 
   it("sin equipos no consulta los eventos y devuelve el estado vacío", async () => {
@@ -365,7 +399,8 @@ describe("getHomeData", () => {
       expect(String((error as Error).message)).not.toContain("ana@club-a.test");
       expect(mocks.logError).toHaveBeenCalledTimes(1);
       const [tag, logged] = mocks.logError.mock.calls[0] as [string, unknown];
-      expect(tag).toMatch(/^home\./);
+      // Los equipos los lee «mis equipos» (`team`), que registra con su propia etiqueta.
+      expect(tag).toMatch(table === "team_staff" ? /^team\./ : /^home\./);
       expect(logged).toBe(FAILURE);
     });
   });

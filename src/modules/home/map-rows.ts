@@ -1,4 +1,4 @@
-import type { HomeEvent, HomeInput } from "./types";
+import type { HomeEvent } from "./types";
 
 // De las filas que devuelve PostgREST a la entrada de `buildHome`. Es una función pura
 // aparte para poder probarla sin base de datos.
@@ -8,11 +8,6 @@ import type { HomeEvent, HomeInput } from "./types";
 // de `practice_plans` y `games` hacia `events` no cubren una columna única por sí solas, así
 // que lo normal es una lista de un elemento. Aquí se lee igual en los dos casos.
 type Embedded<T> = T | T[] | null;
-
-/** Una fila de `team_staff` con su equipo y la temporada de ese equipo. */
-export type StaffTeamRow = {
-  teams: Embedded<{ id: string; name: string; seasons: Embedded<{ name: string }> }>;
-};
 
 /** Una fila de `events` con su plan (y los focos e ítems de ese plan) y los datos del partido. */
 export type EventRow = {
@@ -39,24 +34,6 @@ export type EventRow = {
 function one<T>(value: Embedded<T> | undefined): T | null {
   if (Array.isArray(value)) return value[0] ?? null;
   return value ?? null;
-}
-
-/**
- * Los equipos de la persona, en un orden fijo (por nombre y, a igual nombre, por id): el
- * primero pone la temporada del encabezado de Inicio. Una fila sin equipo no se cuenta.
- */
-export function toTeams(rows: StaffTeamRow[]): HomeInput["teams"] {
-  const teams: HomeInput["teams"] = [];
-
-  for (const row of rows) {
-    const team = one(row.teams);
-    if (!team) continue;
-    teams.push({ id: team.id, name: team.name, seasonName: one(team.seasons)?.name ?? "" });
-  }
-
-  return teams.sort(
-    (a, b) => a.name.localeCompare(b.name, "es") || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0),
-  );
 }
 
 function homeAway(value: string | null): "home" | "away" | null {

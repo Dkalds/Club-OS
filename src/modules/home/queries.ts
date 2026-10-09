@@ -1,8 +1,9 @@
 import { throwReadError } from "@/lib/read-error";
 import { createClient } from "@/lib/supabase/server";
+import { listStaffTeams } from "@/modules/team/queries";
 import type { ClubContext } from "@/modules/tenancy/queries";
 import { buildHome } from "./build-home";
-import { toHomeEvents, toTeams } from "./map-rows";
+import { toHomeEvents } from "./map-rows";
 import type { HomeData } from "./types";
 
 /** Eventos que se leen para armar Inicio: de sobra para «Esta semana» y los dos próximos. */
@@ -28,25 +29,22 @@ export async function getHomeData(ctx: ClubContext, nowIso: string): Promise<Hom
   const supabase = await createClient();
   const orgId = ctx.org.id;
 
-  const [person, staff] = await Promise.all([
+  const [person, myTeams] = await Promise.all([
     supabase
       .from("people")
       .select("first_name")
       .eq("organization_id", orgId)
       .eq("id", personId)
       .maybeSingle(),
-    // Los equipos donde la persona está en el cuerpo técnico, con la temporada de cada uno.
-    supabase
-      .from("team_staff")
-      .select("teams(id, name, seasons(name))")
-      .eq("organization_id", orgId)
-      .eq("person_id", personId),
+    // Los equipos de su cuerpo técnico de esta temporada («mis equipos»).
+    listStaffTeams(orgId, personId),
   ]);
   if (person.error) throwReadError("home.person", person.error);
-  if (staff.error) throwReadError("home.teams", staff.error);
 
   const firstName = person.data?.first_name ?? "";
-  const teams = toTeams(staff.data);
+  const teams = myTeams
+    .map(({ id, name, seasonName }) => ({ id, name, seasonName }))
+    .sort((a, b) => a.name.localeCompare(b.name, "es") || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
   if (teams.length === 0) return buildHome({ firstName, teams, events: [] }, nowIso, tz);
 
   // `practice_plans` y `games` cuelgan de `events` por claves compuestas: llegan como lista

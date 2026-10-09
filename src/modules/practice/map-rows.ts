@@ -42,14 +42,6 @@ const FALLBACK_ITEM_TITLE = "Ejercicio";
 // ── Columnas ─────────────────────────────────────────────────────────────────────────
 
 /**
- * Los equipos de la dirección: todos los del club. El `!inner` con el filtro sobre
- * `seasons.is_current` deja solo los de la temporada actual.
- */
-export const TEAM_COLUMNS = "id, name, seasons!inner(is_current)";
-/** Los equipos de quien entrena: los de su cuerpo técnico, con el mismo filtro de temporada. */
-export const STAFF_TEAM_COLUMNS = "teams!inner(id, name, seasons!inner(is_current))";
-
-/**
  * La lista: el evento con su franja y su lugar, el título del plan y los minutos de sus ítems.
  * El fin de la franja se pide para decir cuánto dura una sesión que aún no tiene ejercicios. El
  * nombre del equipo no se pide: sale de los equipos gestionables, que ya se han leído.
@@ -76,9 +68,6 @@ export const DETAIL_COLUMNS = `id, team_id, status, starts_at, ends_at, location
   )`;
 
 // ── Filas ────────────────────────────────────────────────────────────────────────────
-
-export type TeamRow = { id: string; name: string };
-export type StaffTeamRow = { teams: Embedded<TeamRow> };
 
 type StandardEmbed = Pick<Tables["standards"]["Row"], "id" | "number" | "title" | "description" | "status">;
 
@@ -116,20 +105,6 @@ export type PracticeListRow = Pick<
   status: PracticeStatus;
   practice_plans: Embedded<{ title: string; practice_items: Array<{ minutes: number }> | null }>;
 };
-
-// ── Equipos ──────────────────────────────────────────────────────────────────────────
-
-/** Por nombre y, a igual nombre, por id: un orden fijo, que no depende del de la base de datos. */
-export function toTeamOptions(rows: TeamRow[]): TeamOption[] {
-  return rows
-    .map((row) => ({ id: row.id, name: row.name }))
-    .sort((a, b) => a.name.localeCompare(b.name, "es") || compareText(a.id, b.id));
-}
-
-/** Los equipos de las filas de `team_staff`; una fila sin equipo no se cuenta. */
-export function toStaffTeamOptions(rows: StaffTeamRow[]): TeamOption[] {
-  return toTeamOptions(rows.flatMap((row) => one(row.teams) ?? []));
-}
 
 // ── Lista ────────────────────────────────────────────────────────────────────────────
 

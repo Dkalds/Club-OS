@@ -250,18 +250,46 @@ describe("buildSeedData: contenido", () => {
     }
   });
 
-  it("cada club tiene su temporada actual 2026/27", () => {
-    for (const slug of ["arcangel", "club-demo"]) {
-      const seasons = data.seasons.filter((s) => s.organization_id === orgId(slug));
-      expect(seasons).toEqual([
-        expect.objectContaining({
-          name: "2026/27",
-          starts_on: "2026-09-01",
-          ends_on: "2027-06-30",
-          is_current: true,
-        }),
-      ]);
-    }
+  it("cada club tiene su temporada actual 2026/27, y Arcángel también la pasada", () => {
+    const current = expect.objectContaining({
+      name: "2026/27",
+      starts_on: "2026-09-01",
+      ends_on: "2027-06-30",
+      is_current: true,
+    });
+    const seasons = (slug: string) => data.seasons.filter((s) => s.organization_id === orgId(slug));
+    expect(seasons("arcangel")).toEqual([
+      current,
+      expect.objectContaining({
+        name: "2025/26",
+        starts_on: "2025-09-01",
+        ends_on: "2026-06-30",
+        is_current: false,
+      }),
+    ]);
+    expect(seasons("club-demo")).toEqual([current]);
+  });
+
+  it("el equipo de la temporada pasada: Álex lo entrenaba y sus jugadores son hoy de Alevín A", () => {
+    const past = one(data.seasons, (s) => s.name === "2025/26", "temporada 2025/26");
+    const team = one(data.teams, (t) => t.season_id === past.id, "equipo de 2025/26");
+    expect(team).toMatchObject({ organization_id: orgId("arcangel"), name: "Benjamín B" });
+
+    const staff = data.team_staff.filter((s) => s.team_id === team.id);
+    expect(staff).toEqual([
+      expect.objectContaining({ person_id: personId("arcangel", "Álex", "Prieto"), staff_role: "head_coach" }),
+    ]);
+
+    const alevin = one(data.teams, (t) => t.name === "Alevín A", "Alevín A");
+    const nowInAlevin = new Set(
+      data.team_players.filter((p) => p.team_id === alevin.id).map((p) => p.person_id),
+    );
+    const players = data.team_players.filter((p) => p.team_id === team.id);
+    expect(players).toHaveLength(2);
+    for (const player of players) expect(nowInAlevin.has(player.person_id)).toBe(true);
+
+    // Sin eventos: lo que se prueba es qué equipos se ven, no su calendario.
+    expect(data.events.filter((e) => e.team_id === team.id)).toEqual([]);
   });
 
   it("categorías y equipos", () => {
@@ -281,7 +309,7 @@ describe("buildSeedData: contenido", () => {
         .filter((t) => t.organization_id === orgId(slug))
         .map((t) => t.name)
         .sort();
-    expect(teams("arcangel")).toEqual(["Alevín A", "Benjamín A"]);
+    expect(teams("arcangel")).toEqual(["Alevín A", "Benjamín A", "Benjamín B"]);
     expect(teams("club-demo")).toEqual(["Infantil A"]);
   });
 
@@ -1148,7 +1176,7 @@ describe("fixtures exportados (contrato entre fases)", () => {
         .filter((t) => t.organization_id === id)
         .map((t) => t.name)
         .sort(),
-    ).toEqual(club.teams.map((t) => t.name).sort());
+    ).toEqual([...club.teams, ...(club.pastSeason?.teams ?? [])].map((t) => t.name).sort());
     expect(
       data.categories
         .filter((c) => c.organization_id === id)
