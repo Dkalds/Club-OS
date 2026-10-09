@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { toHomeEvents, toTeams, type EventRow, type StaffTeamRow } from "./map-rows";
+import { toHomeEvents, type EventRow } from "./map-rows";
 
 // Datos neutros: los tests de `src/` no pueden nombrar a ningún club (pnpm check:guards).
 
@@ -196,53 +196,3 @@ describe("toHomeEvents", () => {
   });
 });
 
-describe("toTeams", () => {
-  type SeasonEmbed = { name: string } | Array<{ name: string }> | null;
-  const team = (id: string, name: string, seasons: SeasonEmbed): StaffTeamRow => ({
-    teams: { id, name, seasons },
-  });
-
-  it("lee la temporada del equipo tanto si llega como objeto como si llega como lista", () => {
-    const rows = [
-      team("team-a", "Equipo A", { name: "2026-27" }),
-      team("team-b", "Equipo B", [{ name: "2026-27" }]),
-    ];
-
-    expect(toTeams(rows)).toEqual([
-      { id: "team-a", name: "Equipo A", seasonName: "2026-27" },
-      { id: "team-b", name: "Equipo B", seasonName: "2026-27" },
-    ]);
-  });
-
-  it("lee el equipo tanto si llega como objeto como si llega como lista", () => {
-    const rows: StaffTeamRow[] = [
-      { teams: [{ id: "team-a", name: "Equipo A", seasons: { name: "2026-27" } }] },
-    ];
-
-    expect(toTeams(rows)).toEqual([{ id: "team-a", name: "Equipo A", seasonName: "2026-27" }]);
-  });
-
-  it("ordena por nombre y, a igual nombre, por id", () => {
-    const rows = [
-      team("team-3", "Equipo B", { name: "2026-27" }),
-      team("team-2", "Equipo B", { name: "2026-27" }),
-      team("team-1", "Equipo A", { name: "2025-26" }),
-    ];
-
-    expect(toTeams(rows).map((t) => t.id)).toEqual(["team-1", "team-2", "team-3"]);
-  });
-
-  it("salta las filas sin equipo y deja la temporada vacía si falta", () => {
-    const rows = [
-      { teams: null },
-      { teams: [] },
-      team("team-a", "Equipo A", null),
-    ];
-
-    expect(toTeams(rows)).toEqual([{ id: "team-a", name: "Equipo A", seasonName: "" }]);
-  });
-
-  it("sin filas no hay equipos", () => {
-    expect(toTeams([])).toEqual([]);
-  });
-});

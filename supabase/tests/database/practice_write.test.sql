@@ -19,7 +19,7 @@
 -- final. Los datos son ficticios y solo de este test.
 begin;
 
-select plan(118);
+select plan(113);
 
 -- ── Fixtures (como postgres) ─────────────────────────────────────────────────────────
 -- Como en practice_integrity.test.sql, más un ayudante en T1 y sesiones cerradas:
@@ -158,6 +158,10 @@ begin
     (e_tb, club_b, tb, 'practice', '2026-10-07T16:00:00Z', '2026-10-07T17:15:00Z', 'TB entreno', 'scheduled'),
     (e_t1_libre, club_a, t1, 'practice', '2026-10-08T16:00:00Z', '2026-10-08T17:15:00Z', 'T1 sin plan', 'scheduled'),
     (e_t1_game, club_a, t1, 'game', '2026-10-10T08:30:00Z', '2026-10-10T10:00:00Z', 'T1 partido', 'scheduled');
+
+  -- Un evento de partido siempre tiene su fila en `games` (`create_game` crea las dos).
+  insert into games (event_id, organization_id, opponent_name) values
+    (e_t1_game, club_a, 'Rival de T1');
 
   -- Los fixtures se insertan sin sesión (`auth.uid()` es null): el autor va explícito.
   insert into practice_plans (
@@ -738,53 +742,10 @@ select results_eq(
   'una cuenta de jugador no cambia ni borra nada'
 );
 
--- ── Nadie toca partidos (C11) ────────────────────────────────────────────────────────
--- Ni quien gestiona el equipo: los partidos llegan en su fase.
-select tests.authenticate_as(current_setting('fx.c1')::uuid);
-
-select throws_ok(
-  $$insert into events (organization_id, team_id, kind, starts_at, ends_at, location)
-    values (current_setting('fx.club_a')::uuid, current_setting('fx.t1')::uuid, 'game',
-            '2026-10-17T08:30:00Z', '2026-10-17T10:00:00Z', 'c1 partido')$$,
-  '42501', 'new row violates row-level security policy for table "events"',
-  'c1 no crea un partido en su equipo'
-);
-
--- c1 ve el partido de T1 (segunda columna): quien le impide cambiarlo es la política.
-select results_eq(
-  $$with u as (update events set location = 'T1 partido movido', status = 'cancelled'
-               where id = current_setting('fx.e_t1_game')::uuid returning 1)
-    select (select count(*) from u)::int,
-           (select count(*) from events
-            where id = current_setting('fx.e_t1_game')::uuid)::int$$,
-  $$values (0, 1)$$,
-  'c1 ve el partido de su equipo pero no lo cambia'
-);
-
-select throws_ok(
-  $$insert into games (event_id, organization_id, opponent_name)
-    values (current_setting('fx.e_t1_game')::uuid, current_setting('fx.club_a')::uuid, 'Rival')$$,
-  '42501', 'permission denied for table games',
-  'c1 no escribe los datos de un partido'
-);
-
-select tests.authenticate_as(current_setting('fx.admin_a')::uuid);
-
-select throws_ok(
-  $$insert into events (organization_id, team_id, kind, starts_at, ends_at, location)
-    values (current_setting('fx.club_a')::uuid, current_setting('fx.t1')::uuid, 'game',
-            '2026-10-17T08:30:00Z', '2026-10-17T10:00:00Z', 'adminA partido')$$,
-  '42501', 'new row violates row-level security policy for table "events"',
-  'adminA tampoco crea un partido'
-);
-
-select results_eq(
-  $$with u as (update events set location = 'T1 partido movido', status = 'cancelled'
-               where id = current_setting('fx.e_t1_game')::uuid returning 1)
-    select count(*)::int from u$$,
-  array[0],
-  'adminA tampoco cambia un partido'
-);
+-- ── Partidos ─────────────────────────────────────────────────────────────────────────
+-- Desde la Fase 6 los partidos se escriben con sus propias políticas y funciones (C11):
+-- `games_write.test.sql`. Las de entrenos siguen sin abrir nada de un partido: lo comprueba
+-- «una cuenta de jugador…» de arriba y las aserciones de `kind` de este fichero.
 
 -- ── Sesión cerrada (Review Focus 5) ──────────────────────────────────────────────────
 -- Un entreno hecho o cancelado es histórico: se lee, no se escribe.
@@ -1058,7 +1019,10 @@ as $$
     e as (
       select
         position($1 in coalesce(ev.location, '')) > 0 as marcado,
-        (ev.team_id = any ($2) and ev.kind = 'practice' and ev.status = 'scheduled') as suyo
+        -- Los partidos no cancelados de sus equipos también, desde la Fase 6 (games_write).
+        (ev.team_id = any ($2)
+         and ((ev.kind = 'practice' and ev.status = 'scheduled')
+              or (ev.kind = 'game' and ev.status <> 'cancelled'))) as suyo
       from public.events as ev
     ),
     p as (
@@ -1104,7 +1068,7 @@ reset role;
 select results_eq(
   $$select * from pg_temp.alcance(' ·c1', array[current_setting('fx.t1')::uuid])$$,
   $$values (0, 0, 0, true)$$,
-  'sin where, c1 cambia todo lo abierto de T1 y nada más: ni T2, ni B, ni el partido, ni lo cerrado, ni su plantilla'
+  'sin where, c1 cambia todo lo abierto de T1 (también su partido) y nada más: ni T2, ni B, ni lo cerrado, ni su plantilla'
 );
 
 select tests.authenticate_as(current_setting('fx.coach_b')::uuid);
@@ -1130,7 +1094,7 @@ select results_eq(
       ' ·adminA', array[current_setting('fx.t1')::uuid, current_setting('fx.t2')::uuid]
     )$$,
   $$values (0, 0, 0, true)$$,
-  'sin where, adminA cambia todo lo abierto de T1 y T2 y nada más: ni B, ni el partido, ni lo cerrado, ni las plantillas'
+  'sin where, adminA cambia todo lo abierto de T1 y T2 (también el partido) y nada más: ni B, ni lo cerrado, ni las plantillas'
 );
 
 select tests.authenticate_as(current_setting('fx.c2')::uuid);

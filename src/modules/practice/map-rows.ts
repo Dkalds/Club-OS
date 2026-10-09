@@ -34,20 +34,10 @@ function compareText(a: string, b: string): number {
   return a < b ? -1 : a > b ? 1 : 0;
 }
 
-/** El título de un entrenamiento sin plan en la lista. */
-const NO_PLAN_TITLE = "Entrenamiento sin plan";
 /** El título de un ítem cuyo ejercicio no se ve y que no guarda título propio. */
 const FALLBACK_ITEM_TITLE = "Ejercicio";
 
 // ── Columnas ─────────────────────────────────────────────────────────────────────────
-
-/**
- * Los equipos de la dirección: todos los del club. El `!inner` con el filtro sobre
- * `seasons.is_current` deja solo los de la temporada actual.
- */
-export const TEAM_COLUMNS = "id, name, seasons!inner(is_current)";
-/** Los equipos de quien entrena: los de su cuerpo técnico, con el mismo filtro de temporada. */
-export const STAFF_TEAM_COLUMNS = "teams!inner(id, name, seasons!inner(is_current))";
 
 /**
  * La lista: el evento con su franja y su lugar, el título del plan y los minutos de sus ítems.
@@ -55,7 +45,7 @@ export const STAFF_TEAM_COLUMNS = "teams!inner(id, name, seasons!inner(is_curren
  * nombre del equipo no se pide: sale de los equipos gestionables, que ya se han leído.
  */
 export const LIST_COLUMNS =
-  "id, team_id, status, starts_at, ends_at, location, practice_plans(title, practice_items(minutes))";
+  "id, team_id, status, starts_at, ends_at, location, practice_plans!inner(title, practice_items(minutes))";
 
 /**
  * El detalle. Los dos focos del plan apuntan a la misma tabla, y cada uno lleva el nombre de
@@ -76,9 +66,6 @@ export const DETAIL_COLUMNS = `id, team_id, status, starts_at, ends_at, location
   )`;
 
 // ── Filas ────────────────────────────────────────────────────────────────────────────
-
-export type TeamRow = { id: string; name: string };
-export type StaffTeamRow = { teams: Embedded<TeamRow> };
 
 type StandardEmbed = Pick<Tables["standards"]["Row"], "id" | "number" | "title" | "description" | "status">;
 
@@ -117,28 +104,17 @@ export type PracticeListRow = Pick<
   practice_plans: Embedded<{ title: string; practice_items: Array<{ minutes: number }> | null }>;
 };
 
-// ── Equipos ──────────────────────────────────────────────────────────────────────────
-
-/** Por nombre y, a igual nombre, por id: un orden fijo, que no depende del de la base de datos. */
-export function toTeamOptions(rows: TeamRow[]): TeamOption[] {
-  return rows
-    .map((row) => ({ id: row.id, name: row.name }))
-    .sort((a, b) => a.name.localeCompare(b.name, "es") || compareText(a.id, b.id));
-}
-
-/** Los equipos de las filas de `team_staff`; una fila sin equipo no se cuenta. */
-export function toStaffTeamOptions(rows: StaffTeamRow[]): TeamOption[] {
-  return toTeamOptions(rows.flatMap((row) => one(row.teams) ?? []));
-}
-
 // ── Lista ────────────────────────────────────────────────────────────────────────────
 
 /**
  * Las filas de la lista, en el orden en que llegan. El día y la hora salen en `timezone` (la
  * del club) y el nombre del equipo, de `teams`. El lugar pasa tal cual: quien pinta decide qué
- * hacer con uno en blanco. Los minutos son los de los ítems y, sin ítems (con plan vacío o sin
- * plan), los de la franja del evento: una sesión recién creada dura lo que se programó. Sin plan
- * ni ítems son 0 ejercicios.
+ * hacer con uno en blanco. Los minutos son los de los ítems y, sin ítems, los de la franja del
+ * evento: una sesión recién creada dura lo que se programó.
+ *
+ * Un entreno sin plan no se lista: su detalle (`getPractice`) es un 404, y una fila que lleva a
+ * un 404 es peor que no tenerla. Desde la app no se llega a ese estado (`create_practice_session`
+ * crea los dos); la consulta ya los deja fuera con `!inner`, y esto lo asegura.
  */
 export function toPracticeListItems(
   rows: PracticeListRow[],
@@ -147,9 +123,10 @@ export function toPracticeListItems(
 ): PracticeListItem[] {
   const teamNames = new Map(teams.map((team) => [team.id, team.name]));
 
-  return rows.map((row) => {
+  return rows.flatMap((row) => {
     const plan = one(row.practice_plans);
-    const items = plan?.practice_items ?? [];
+    if (!plan) return [];
+    const items = plan.practice_items ?? [];
     const { dow, day } = dayChip(row.starts_at, timezone);
     const { month } = monthChip(row.starts_at, timezone);
 
@@ -160,7 +137,7 @@ export function toPracticeListItems(
       day,
       month,
       time: localTime(row.starts_at, timezone),
-      title: plan?.title ?? NO_PLAN_TITLE,
+      title: plan.title,
       totalMinutes: sessionMinutes(items, row.starts_at, row.ends_at),
       itemCount: items.length,
       status: row.status,

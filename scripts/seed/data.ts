@@ -58,6 +58,10 @@ export type SeedData = {
   // La biblioteca. El autor de un ejercicio es un email, como el de las membresías: el
   // `created_by` solo existe cuando `run.ts` ha creado o encontrado el usuario de Auth.
   drills: SeedDrillRow[];
+  // Objetivos y notas de jugador (Fase 6). Su autor es un email, como el de los ejercicios:
+  // `created_by` y `author_id` solo existen cuando `run.ts` ha creado o encontrado el usuario.
+  player_goals: (WithId<Omit<TablesInsert<"player_goals">, "created_by">> & { author_email: string })[];
+  coach_notes: (WithId<Omit<TablesInsert<"coach_notes">, "author_id">> & { author_email: string })[];
   drill_coaching_points: DrillRows["drill_coaching_points"];
   drill_variants: DrillRows["drill_variants"];
   drill_focus_areas: DrillRows["drill_focus_areas"];
@@ -109,6 +113,29 @@ export type GameDef = {
   homeAway: "home" | "away";
 };
 
+/** Un partido ya jugado, con su marcador desde el punto de vista del club. */
+export type PlayedGameDef = GameDef & { score: { for: number; against: number } };
+
+/** Un objetivo de un jugador del equipo (por su nombre completo). Datos ficticios. */
+export type GoalDef = {
+  player: string;
+  title: string;
+  description: string | null;
+  status: "active" | "achieved" | "archived";
+  focus: FocusSlug | null;
+  /** El número de un Standard publicado del club. */
+  standard: number | null;
+  authorEmail: string;
+};
+
+/** Una nota del cuerpo técnico sobre un jugador del equipo. Datos ficticios. */
+export type NoteDef = {
+  player: string;
+  body: string;
+  visibility: "private" | "staff";
+  authorEmail: string;
+};
+
 export type TeamDef = {
   key: string;
   name: string;
@@ -118,7 +145,25 @@ export type TeamDef = {
   players: PlayerDef[];
   sessions: SessionDef[];
   game: GameDef | null;
+  playedGame: PlayedGameDef | null;
+  goals: GoalDef[];
+  notes: NoteDef[];
 };
+
+/**
+ * Un equipo de una temporada pasada. Sus jugadores son personas que hoy están en otro equipo
+ * (`fromTeam`): no se crean personas nuevas, y el seed se parece a un club real, donde los
+ * jugadores suben de categoría. Sin eventos.
+ */
+export type PastTeamDef = {
+  key: string;
+  name: string;
+  categoryKey: string;
+  staff: { personKey: string; role: "head_coach" | "assistant" }[];
+  players: { fromTeam: string; firstName: string; lastName: string; number: number; position: string }[];
+};
+
+export type SeasonDef = { key: string; name: string; startsOn: string; endsOn: string };
 
 export type SectionKind = "text" | "values" | "principles" | "standards";
 
@@ -150,11 +195,13 @@ export type ClubDef = {
   members: { email: string; personKey: string; role: "admin" | "coach" }[];
   categories: { key: string; name: string; ageBand: string; sort: number }[];
   teams: TeamDef[];
+  /** Una temporada que ya terminó y sus equipos: lo que no tiene que salir en «mis equipos». */
+  pastSeason?: SeasonDef & { teams: PastTeamDef[] };
   methodology: MethodologyDef;
   drills: SeedDrill[];
 };
 
-const SEASON = { key: "2026-27", name: "2026/27", startsOn: "2026-09-01", endsOn: "2027-06-30" };
+const SEASON: SeasonDef = { key: "2026-27", name: "2026/27", startsOn: "2026-09-01", endsOn: "2027-06-30" };
 
 const upcomingSlot =
   (index: number): SlotOf =>
@@ -165,6 +212,7 @@ const pastSlot =
   (schedule) =>
     schedule.past[index];
 const gameSlot: SlotOf = (schedule) => schedule.game;
+const pastGameSlot: SlotOf = (schedule) => schedule.pastGame;
 const todayLiveSlot: SlotOf = (schedule) => schedule.todayLive;
 // El mismo día que `upcoming[index]`, a otra hora local.
 const sameDayAsUpcoming =
@@ -314,6 +362,87 @@ const ALEVIN_A: TeamDef = {
     competition: "Liga Alevín",
     homeAway: "home",
   },
+  playedGame: {
+    slotKey: "past-game",
+    slot: pastGameSlot,
+    location: "Pabellón Los Almendros",
+    opponent: "CD Almendros",
+    competition: "Liga Alevín",
+    homeAway: "away",
+    score: { for: 54, against: 49 },
+  },
+  // Dos activos y uno logrado en Hugo; tres activos en Leo, para ver el límite. Pablo Rey se
+  // queda sin objetivos ni notas: lo usan los tests de integración.
+  goals: [
+    {
+      player: "Hugo Serrano",
+      title: "Mirar adelante antes de botar",
+      description: "Al recibir, levantar la cabeza y buscar el pase largo.",
+      status: "active",
+      focus: "transicion",
+      standard: 4,
+      authorEmail: "alex@arcangel.test",
+    },
+    {
+      player: "Hugo Serrano",
+      title: "Bote con la mano débil",
+      description: null,
+      status: "active",
+      focus: "tecnica",
+      standard: null,
+      authorEmail: "irene@arcangel.test",
+    },
+    {
+      player: "Hugo Serrano",
+      title: "Cerrar el rebote defensivo",
+      description: "Contacto antes de saltar.",
+      status: "achieved",
+      focus: "rebote",
+      standard: 3,
+      authorEmail: "alex@arcangel.test",
+    },
+    {
+      player: "Leo Ortega",
+      title: "Pase picado tras bote",
+      description: null,
+      status: "active",
+      focus: "tecnica",
+      standard: null,
+      authorEmail: "alex@arcangel.test",
+    },
+    {
+      player: "Leo Ortega",
+      title: "Defensa del lado débil",
+      description: null,
+      status: "active",
+      focus: "defensa",
+      standard: 2,
+      authorEmail: "alex@arcangel.test",
+    },
+    {
+      player: "Leo Ortega",
+      title: "Tiro tras parada en un tiempo",
+      description: null,
+      status: "active",
+      focus: "tiro",
+      standard: null,
+      authorEmail: "irene@arcangel.test",
+    },
+  ],
+  notes: [
+    {
+      player: "Hugo Serrano",
+      body: "Muy atento en las ayudas.\nSeguir con el rebote ofensivo.",
+      visibility: "private",
+      authorEmail: "alex@arcangel.test",
+    },
+    {
+      player: "Hugo Serrano",
+      body: "Mejora clara en el pase con la izquierda.",
+      visibility: "staff",
+      authorEmail: "irene@arcangel.test",
+    },
+  ],
 };
 
 const BENJAMIN_A: TeamDef = {
@@ -345,6 +474,9 @@ const BENJAMIN_A: TeamDef = {
     },
   ],
   game: null,
+  playedGame: null,
+  goals: [],
+  notes: [],
 };
 
 const INFANTIL_A: TeamDef = {
@@ -377,6 +509,9 @@ const INFANTIL_A: TeamDef = {
     },
   ],
   game: null,
+  playedGame: null,
+  goals: [],
+  notes: [],
 };
 
 const markdown = (...lines: string[]): string => lines.join("\n");
@@ -530,6 +665,24 @@ export const ARCANGEL: ClubDef = {
     { key: "alevin", name: "Alevín", ageBand: "U12", sort: 20 },
   ],
   teams: [ALEVIN_A, BENJAMIN_A],
+  pastSeason: {
+    key: "2025-26",
+    name: "2025/26",
+    startsOn: "2025-09-01",
+    endsOn: "2026-06-30",
+    teams: [
+      {
+        key: "benjamin-b",
+        name: "Benjamín B",
+        categoryKey: "benjamin",
+        staff: [{ personKey: "alex", role: "head_coach" }],
+        players: [
+          { fromTeam: "alevin-a", firstName: "Hugo", lastName: "Serrano", number: 4, position: "Base" },
+          { fromTeam: "alevin-a", firstName: "Leo", lastName: "Ortega", number: 7, position: "Base" },
+        ],
+      },
+    ],
+  },
   methodology: ARCANGEL_METHODOLOGY,
   drills: ARCANGEL_DRILLS,
 };
@@ -580,6 +733,8 @@ function emptySeedData(): SeedData {
     focus_areas: [],
     events: [],
     games: [],
+    player_goals: [],
+    coach_notes: [],
     practice_plans: [],
     practice_items: [],
     way_sections: [],
@@ -696,6 +851,53 @@ function addDrills(data: SeedData, club: ClubDef, organizationId: string): void 
   data.drill_standards.push(...rows.drill_standards);
 }
 
+function addPastSeason(
+  data: SeedData,
+  club: ClubDef,
+  season: SeasonDef & { teams: PastTeamDef[] },
+): void {
+  const id = (key: string) => seedId(club.slug, key);
+  const organizationId = id("organization");
+  const seasonId = id(`season:${season.key}`);
+
+  data.seasons.push({
+    id: seasonId,
+    organization_id: organizationId,
+    name: season.name,
+    starts_on: season.startsOn,
+    ends_on: season.endsOn,
+    is_current: false,
+  });
+
+  for (const team of season.teams) {
+    const teamId = id(`team:${season.key}:${team.key}`);
+    data.teams.push({
+      id: teamId,
+      organization_id: organizationId,
+      season_id: seasonId,
+      category_id: id(`category:${team.categoryKey}`),
+      name: team.name,
+    });
+    for (const staff of team.staff) {
+      data.team_staff.push({
+        organization_id: organizationId,
+        team_id: teamId,
+        person_id: id(`person:${staff.personKey}`),
+        staff_role: staff.role,
+      });
+    }
+    for (const player of team.players) {
+      data.team_players.push({
+        organization_id: organizationId,
+        team_id: teamId,
+        person_id: id(`person:${player.fromTeam}:${slugify(`${player.firstName} ${player.lastName}`)}`),
+        jersey_number: player.number,
+        position: player.position,
+      });
+    }
+  }
+}
+
 function addClub(data: SeedData, club: ClubDef, now: Date): void {
   const id = (key: string) => seedId(club.slug, key);
   const organizationId = id("organization");
@@ -732,6 +934,8 @@ function addClub(data: SeedData, club: ClubDef, now: Date): void {
       sort: category.sort,
     });
   }
+
+  if (club.pastSeason) addPastSeason(data, club, club.pastSeason);
 
   const focusId = (slug: FocusSlug) => id(`focus:${slug}`);
   FOCUS_AREAS.forEach((focus, index) => {
@@ -874,8 +1078,72 @@ function addClub(data: SeedData, club: ClubDef, now: Date): void {
         opponent_name: team.game.opponent,
         competition_name: team.game.competition,
         home_away: team.game.homeAway,
+        score_for: null,
+        score_against: null,
       });
     }
+
+    if (team.playedGame !== null) {
+      const played = team.playedGame;
+      const slot = played.slot(schedule, club.timezone);
+      const eventId = id(`event:${team.key}:${played.slotKey}`);
+      data.events.push({
+        id: eventId,
+        organization_id: organizationId,
+        team_id: teamId,
+        kind: "game",
+        starts_at: slot.startsAt,
+        ends_at: slot.endsAt,
+        location: played.location,
+        status: "done",
+      });
+      data.games.push({
+        event_id: eventId,
+        organization_id: organizationId,
+        opponent_name: played.opponent,
+        competition_name: played.competition,
+        home_away: played.homeAway,
+        score_for: played.score.for,
+        score_against: played.score.against,
+      });
+    }
+
+    const playerId = (name: string) => {
+      if (!team.players.some((player) => `${player.firstName} ${player.lastName}` === name)) {
+        throw new Error(`Seed: ${name} no está en la plantilla de ${team.name}`);
+      }
+      return id(`person:${team.key}:${slugify(name)}`);
+    };
+    // Un logro de hace unos días, estable entre siembras del mismo día.
+    const achievedAt = schedule.past[1]?.startsAt ?? null;
+
+    team.goals.forEach((goal, index) => {
+      data.player_goals.push({
+        id: id(`goal:${team.key}:${index + 1}`),
+        organization_id: organizationId,
+        team_id: teamId,
+        person_id: playerId(goal.player),
+        title: goal.title,
+        description: goal.description,
+        status: goal.status,
+        focus_area_id: goal.focus ? id(`focus:${goal.focus}`) : null,
+        standard_id: goal.standard ? id(`standard:${goal.standard}`) : null,
+        achieved_at: goal.status === "achieved" ? achievedAt : null,
+        author_email: goal.authorEmail,
+      });
+    });
+
+    team.notes.forEach((note, index) => {
+      data.coach_notes.push({
+        id: id(`note:${team.key}:${index + 1}`),
+        organization_id: organizationId,
+        team_id: teamId,
+        person_id: playerId(note.player),
+        body: note.body,
+        visibility: note.visibility,
+        author_email: note.authorEmail,
+      });
+    });
   }
 
   addMethodology(data, organizationId, id, club.methodology);

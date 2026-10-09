@@ -3,6 +3,7 @@ import {
   addLocalDays,
   dayChip,
   defaultSessionDate,
+  formatDate,
   formatEventSlot,
   formatGameSlot,
   greeting,
@@ -553,3 +554,15 @@ describe("independencia de la zona del dispositivo (regla 7)", () => {
     },
   );
 });
+
+describe("formatDate", () => {
+  it("el día en la zona del club: «Martes 6 oct»", () => {
+    expect(formatDate("2026-10-06T16:00:00Z", "Europe/Madrid")).toBe("Martes 6 oct");
+  });
+
+  it("un instante de madrugada en UTC cae en el día del club, no en el del servidor", () => {
+    expect(formatDate("2026-10-06T22:30:00Z", "Europe/Madrid")).toBe("Miércoles 7 oct");
+    expect(formatDate("2026-10-06T22:30:00Z", "America/Mexico_City")).toBe("Martes 6 oct");
+  });
+});
+

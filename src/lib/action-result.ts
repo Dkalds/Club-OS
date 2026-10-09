@@ -11,7 +11,9 @@ export type ActionError =
   | "INVALID"
   | "NOT_FOUND"
   | "SECTION_LIMIT"
-  | "SESSION_CLOSED";
+  | "SESSION_CLOSED"
+  | "GOAL_LIMIT"
+  | "GAME_CLOSED";
 
 export type ActionResult<T> =
   | { ok: true; data: T }
@@ -25,6 +27,9 @@ export const ACTION_ERROR_COPY: Record<ActionError, string> = {
   NOT_FOUND: "No encontramos este contenido.",
   SECTION_LIMIT: "Ya hay 99 secciones, el máximo. Reutiliza una que tengas en borrador.",
   SESSION_CLOSED: "Esta sesión ya está cerrada y no se puede cambiar. Duplícala para reutilizarla.",
+  GOAL_LIMIT:
+    "Este jugador ya tiene 3 objetivos activos. Marca uno como logrado o archívalo para añadir otro.",
+  GAME_CLOSED: "Este partido está cancelado y no se puede cambiar.",
 };
 
 export function ok<T>(data: T): ActionResult<T> {

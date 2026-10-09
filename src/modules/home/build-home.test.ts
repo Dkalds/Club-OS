@@ -25,7 +25,8 @@ function practice(id: string, startsAt: string, endsAt: string, overrides: Parti
     startsAt,
     endsAt,
     location: null,
-    plan: null,
+    // Un plan mínimo: un entreno sin plan no sale en Inicio (ver «un entreno sin plan…»).
+    plan: { title: "Sesión", focus: [], itemMinutes: [] },
     game: null,
     ...overrides,
   };
@@ -119,24 +120,15 @@ describe("buildHome · próximo entrenamiento", () => {
     expect(home.week.map((item) => item.eventId)).toEqual(["valid"]);
   });
 
-  it("sin plan: título por defecto y minutos del evento", () => {
+  it("un entreno sin plan no sale ni como próximo ni en la semana: su detalle sería un 404", () => {
     const home = buildHome(
-      input([practice("bare", "2026-10-06T16:00:00Z", "2026-10-06T17:30:00Z")]),
+      input([practice("bare", "2026-10-06T16:00:00Z", "2026-10-06T17:30:00Z", { plan: null })]),
       NOW,
       TZ,
     );
 
-    expect(home.nextPractice).toEqual({
-      eventId: "bare",
-      teamName: "Equipo A",
-      slotLabel: "Martes 6 oct · 18:00–19:30",
-      title: "Entrenamiento sin plan",
-      totalMinutes: 90,
-      drillCount: 0,
-      focus: [],
-      location: null,
-    });
-    expect(home.week[0]?.subtitle).toBe("Sin plan");
+    expect(home.nextPractice).toBeNull();
+    expect(home.week).toEqual([]);
   });
 
   it("un plan sin ítems dura su franja y tiene 0 ejercicios, con su título", () => {
@@ -309,7 +301,7 @@ describe("buildHome · esta semana", () => {
         dow: "Sáb",
         day: "3",
         title: "Entrenamiento",
-        subtitle: "Sin plan",
+        subtitle: "Sesión",
         time: "10:00",
       },
       {
@@ -487,7 +479,7 @@ describe("buildHome · equipos, saludo y estado vacío", () => {
 
     expect(home.week.map((item) => item.subtitle)).toEqual([
       "Equipo A · Transición + rebote defensivo",
-      "Equipo B · Sin plan",
+      "Equipo B · Sesión",
       "Equipo B · vs Rival C · Local",
     ]);
     expect(home.kicker).toBe("2 equipos · Temporada 2026-27");

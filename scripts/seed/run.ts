@@ -138,6 +138,20 @@ export async function runSeed(now: Date, client?: Client): Promise<SeedReport> {
     if (!userId) throw new Error(`Seed: no hay usuario de Auth para ${author_email}`);
     return { ...drill, created_by: userId };
   });
+  // Y con el autor de cada objetivo y de cada nota de jugador (Fase 6).
+  const authorId = (email: string) => {
+    const userId = userIds.get(email.toLowerCase());
+    if (!userId) throw new Error(`Seed: no hay usuario de Auth para ${email}`);
+    return userId;
+  };
+  const playerGoals = data.player_goals.map(({ author_email, ...goal }) => ({
+    ...goal,
+    created_by: authorId(author_email),
+  }));
+  const coachNotes = data.coach_notes.map(({ author_email, ...note }) => ({
+    ...note,
+    author_id: authorId(author_email),
+  }));
 
   check("organizations", await db.from("organizations").upsert(data.organizations, { onConflict: "id" }));
   check(
@@ -308,6 +322,10 @@ export async function runSeed(now: Date, client?: Client): Promise<SeedReport> {
       .from("drill_standards")
       .upsert(data.drill_standards, { onConflict: "drill_id,standard_id" }),
   );
+
+  // Al final: cuelgan de los jugadores, de los focos y de los Standards ya sembrados.
+  check("player_goals", await db.from("player_goals").upsert(playerGoals, { onConflict: "id" }));
+  check("coach_notes", await db.from("coach_notes").upsert(coachNotes, { onConflict: "id" }));
 
   return { movedStandards: renumbered.moved };
 }

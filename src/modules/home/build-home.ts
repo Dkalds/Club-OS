@@ -10,8 +10,6 @@ import {
 import { sessionMinutes } from "@/modules/practice/items";
 import type { HomeData, HomeEvent, HomeGame, HomeInput, HomePractice, WeekItem } from "./types";
 
-const PRACTICE_WITHOUT_PLAN = "Entrenamiento sin plan";
-const WEEK_PRACTICE_WITHOUT_PLAN = "Sin plan";
 /** Un partido sin sus datos (no debería pasar) sigue siendo un partido del calendario. */
 const UNKNOWN_OPPONENT = "Rival por confirmar";
 const WEEK_DAYS = 7;
@@ -40,7 +38,7 @@ function toPractice(item: Upcoming, teamName: string, tz: string): HomePractice 
     eventId: event.id,
     teamName,
     slotLabel: formatEventSlot(event.startsAt, event.endsAt, tz),
-    title: plan ? plan.title : PRACTICE_WITHOUT_PLAN,
+    title: plan?.title ?? "",
     totalMinutes: sessionMinutes(items, event.startsAt, event.endsAt),
     drillCount: plan ? plan.itemMinutes.length : 0,
     focus: plan ? [...plan.focus] : [],
@@ -60,7 +58,7 @@ function toGame(item: Upcoming, teamName: string, tz: string): HomeGame {
 }
 
 function weekSubtitle(event: HomeEvent): string {
-  if (event.kind === "practice") return event.plan?.title ?? WEEK_PRACTICE_WITHOUT_PLAN;
+  if (event.kind === "practice") return event.plan?.title ?? "";
   if (!event.game) return UNKNOWN_OPPONENT;
 
   const versus = `vs ${event.game.opponent}`;
@@ -97,7 +95,9 @@ export function buildHome(input: HomeInput, nowIso: string, tz: string): HomeDat
       startMs: new Date(event.startsAt).getTime(),
       endMs: new Date(event.endsAt).getTime(),
     }))
+    // Un entreno sin plan no sale: su detalle sería un 404 (backlog, Fase 6).
     .filter(({ event, endMs }) => event.status === "scheduled" && endMs > nowMs)
+    .filter(({ event }) => event.kind === "game" || event.plan !== null)
     .sort(byStart);
 
   const nextPractice = upcoming.find(({ event }) => event.kind === "practice");

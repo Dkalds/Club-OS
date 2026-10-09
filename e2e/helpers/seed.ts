@@ -56,14 +56,19 @@ export function seedNow(): Date {
  *    `drill_standards`) apuntan a `game_principles` y `standards` sin cascada, y sus puntos,
  *    variantes y vínculos se van con él (`on delete cascade`): así un principio o un Standard
  *    sobrante al que apunta un ejercicio sobrante se puede borrar después.
+ *  - Los objetivos y las notas de jugador (Fase 6) no cuelgan de nada que se borre aquí: van
+ *    primero. `games` va antes que `events`: un partido cuelga de su evento.
  *  - `media_assets` va justo después de `drills`: `drills.diagram_media_id` apunta a ella con
  *    `on delete set null`, de modo que cualquier orden valdría para la base de datos, pero así un
  *    ejercicio sobrante ya no existe cuando su diagrama se desliga. Un ejercicio del seed no se
  *    toca, y con él se quedan sus vínculos.
  */
 const WRITABLE_TABLES = [
+  "player_goals",
+  "coach_notes",
   "practice_items",
   "practice_plans",
+  "games",
   "events",
   "drills",
   "media_assets",
@@ -137,8 +142,8 @@ async function clearMediaObjects(db: SupabaseClient<Database>, organizationIds: 
  * listas de slugs ni de números escritas a mano: lo que no es del seed no sobrevive, se llame
  * como se llame.
  *
- * De `events` solo se borran los entrenos (`kind = 'practice'`): un partido que no es del seed
- * no se toca. Los planes sin equipo (las plantillas privadas) que no son del seed se borran como
+ * Desde la Fase 6 los e2e también crean partidos, objetivos y notas: lo que no es del seed se
+ * borra igual, partidos incluidos. Los planes sin equipo (las plantillas privadas) que no son del seed se borran como
  * los demás: son del club por `organization_id`.
  *
  * Borra contenido, así que:
@@ -162,8 +167,12 @@ export async function restoreSeed(now: Date, client?: SupabaseClient<Database>):
   const data = buildSeedData(now);
   const organizationIds = data.organizations.map((organization) => organization.id);
   const seedIds = {
+    player_goals: data.player_goals.map((row) => row.id),
+    coach_notes: data.coach_notes.map((row) => row.id),
     practice_items: data.practice_items.map((row) => row.id),
     practice_plans: data.practice_plans.map((row) => row.id),
+    // `games` no tiene `id`: su clave es la de su evento.
+    games: data.games.map((row) => row.event_id),
     events: data.events.map((row) => row.id),
     drills: data.drills.map((row) => row.id),
     // El seed no posee ninguna ficha de medios (sus ejercicios no llevan diagrama): todas las de
@@ -179,10 +188,8 @@ export async function restoreSeed(now: Date, client?: SupabaseClient<Database>):
   for (const table of WRITABLE_TABLES) {
     const keep = seedIds[table];
     let strays = db.from(table).delete().in("organization_id", organizationIds);
-    // `filter` y no `eq`: `kind` no está en todas las tablas del bucle y `eq` solo acepta
-    // columnas de la unión de sus filas. Es el mismo `kind=eq.practice` de PostgREST.
-    if (table === "events") strays = strays.filter("kind", "eq", "practice");
-    if (keep.length > 0) strays = strays.not("id", "in", `(${keep.join(",")})`);
+    const key = table === "games" ? "event_id" : "id";
+    if (keep.length > 0) strays = strays.not(key, "in", `(${keep.join(",")})`);
     const { error } = await strays;
     if (error) {
       throw new Error(`No se pudieron borrar las filas de ${table} que no son del seed: ${error.message}`);

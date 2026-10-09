@@ -51,6 +51,11 @@ function dateLabel(date: TZDate): string {
   return `${WEEKDAYS[date.getDay()]} ${date.getDate()} ${MONTHS[date.getMonth()]}`;
 }
 
+/** «Martes 6 oct» */
+export function formatDate(iso: string, tz: string): string {
+  return dateLabel(inZone(iso, tz));
+}
+
 /** «Martes 6 oct · 18:00–19:15» */
 export function formatEventSlot(startIso: string, endIso: string, tz: string): string {
   const start = inZone(startIso, tz);

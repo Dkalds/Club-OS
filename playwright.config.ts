@@ -27,6 +27,7 @@ const ADMIN_SPECS = [
   /practice-builder\.spec\.ts/,
   /practice-drills\.spec\.ts/,
   /live\.spec\.ts/,
+  /games\.spec\.ts/,
 ];
 
 // La pantalla de referencia del móvil.

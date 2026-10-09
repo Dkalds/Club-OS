@@ -65,13 +65,13 @@ describe("seed contra Supabase local", () => {
     expect(count).toBe(19);
   });
 
-  it("Alevín A tiene 9 eventos, uno de ellos cancelado", async () => {
+  it("Alevín A tiene 10 eventos, uno de ellos cancelado", async () => {
     const { data: events, error } = await admin
       .from("events")
       .select("id, kind, status")
       .eq("team_id", teamId("arcangel", "Alevín A"));
     expect(error).toBeNull();
-    expect(events).toHaveLength(9);
+    expect(events).toHaveLength(10);
     const cancelled = (events ?? []).filter((event) => event.status === "cancelled");
     expect(cancelled).toEqual([
       { id: seedId("arcangel", "event:alevin-a:cancelled-0"), kind: "practice", status: "cancelled" },
@@ -186,6 +186,8 @@ describe("seed contra Supabase local", () => {
       ["drill_focus_areas", table("drill_focus_areas"), data.drill_focus_areas.length],
       ["drill_principles", table("drill_principles"), data.drill_principles.length],
       ["drill_standards", table("drill_standards"), data.drill_standards.length],
+      ["player_goals", table("player_goals"), data.player_goals.length],
+      ["coach_notes", table("coach_notes"), data.coach_notes.length],
     ];
     for (const [name, query, rows] of expected) {
       const { count, error } = await query;

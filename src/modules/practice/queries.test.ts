@@ -236,9 +236,13 @@ function listStore(): Store {
       eventRow("up-late", TEAM_A, "2026-10-08T16:00:00+00:00", "2026-10-08T17:15:00+00:00"),
       eventRow("up-soon", TEAM_B, "2026-10-06T16:00:00+00:00", "2026-10-06T17:15:00+00:00"),
       eventRow("ongoing", TEAM_A, "2026-10-02T09:30:00+00:00", "2026-10-02T10:45:00+00:00"),
-      // Histórico: una programada que ya terminó, una hecha sin plan y una cancelada futura.
+      // Histórico: una programada que ya terminó, una hecha y una cancelada futura.
       eventRow("past-scheduled", TEAM_A, "2026-10-01T16:00:00+00:00", "2026-10-01T17:15:00+00:00"),
       eventRow("done", TEAM_B, "2026-09-29T16:00:00+00:00", "2026-09-29T17:15:00+00:00", {
+        status: "done",
+      }),
+      // Un entreno sin plan: no se lista (su detalle sería un 404).
+      eventRow("no-plan", TEAM_A, "2026-09-28T16:00:00+00:00", "2026-09-28T17:15:00+00:00", {
         status: "done",
         practice_plans: [],
       }),
@@ -421,17 +425,12 @@ describe("listPractices", () => {
     expect(teamCount).toBe(2);
   });
 
-  it("una sesión sin plan sale como «Entrenamiento sin plan», con los minutos de su franja y 0 ejercicios", async () => {
+  it("un entreno sin plan no sale en la lista: su detalle sería un 404", async () => {
     installDatabase(listStore());
 
     const { practices } = await listPractices(COACH, "history", NOW);
 
-    // De 16:00 a 17:15 UTC: 75 min, no 0.
-    expect(practices.find((practice) => practice.eventId === "done")).toMatchObject({
-      title: "Entrenamiento sin plan",
-      totalMinutes: 75,
-      itemCount: 0,
-    });
+    expect(practices.map((practice) => practice.eventId)).not.toContain("no-plan");
   });
 
   it("un plan sin ítems dura su franja y uno con ítems, lo que suman", async () => {
@@ -659,8 +658,8 @@ describe("si falla una lectura", () => {
     tag: string;
     run: () => Promise<unknown>;
   }> = [
-    { name: "los equipos de la dirección", table: "teams", tag: "practice.teams", run: () => listManageableTeams(ADMIN) },
-    { name: "los equipos de quien entrena", table: "team_staff", tag: "practice.teams", run: () => listManageableTeams(COACH) },
+    { name: "los equipos de la dirección", table: "teams", tag: "team.club-teams", run: () => listManageableTeams(ADMIN) },
+    { name: "los equipos de quien entrena", table: "team_staff", tag: "team.staff-teams", run: () => listManageableTeams(COACH) },
     { name: "los objetivos", table: "focus_areas", tag: "practice.focus-areas", run: () => getPracticeFormOptions(COACH) },
     { name: "la lista de entrenamientos", table: "events", tag: "practice.list", run: () => listPractices(COACH, "upcoming", NOW) },
     { name: "el detalle", table: "events", tag: "practice.detail", run: () => getPractice(COACH, EVENT) },
@@ -686,7 +685,7 @@ describe("si falla una lectura", () => {
   it("si fallan los equipos, `listPractices` no sigue con los eventos", async () => {
     const calls = installDatabase(listStore(), { team_staff: FAILURE });
 
-    await expect(listPractices(COACH, "upcoming", NOW)).rejects.toThrow("practice.teams");
+    await expect(listPractices(COACH, "upcoming", NOW)).rejects.toThrow("team.staff-teams");
     expect(calls.map((entry) => entry.table)).not.toContain("events");
   });
 });

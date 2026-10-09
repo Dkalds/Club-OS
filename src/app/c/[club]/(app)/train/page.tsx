@@ -39,6 +39,7 @@ export default async function TrainPage({ params, searchParams }: PageProps<"/c/
         practices={practices}
         teamCount={teamCount}
         canCreate={can(ctx, "practice.manage")}
+        role={ctx.membership.role}
         truncated={truncated}
       />
 

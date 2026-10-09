@@ -51,11 +51,27 @@ describe("GameCard", () => {
   it("el lado propio lleva su sigla y el nombre del equipo; el rival, su abreviatura y su nombre", () => {
     render(<GameCard game={GAME} ownShortName="CLB" />);
 
-    expect(screen.getByRole("img", { name: "Equipo A" })).toHaveTextContent("CLB");
-    expect(screen.getByRole("img", { name: "CB Rival" })).toHaveTextContent("RIV");
-    // El nombre de cada lado se ve también bajo su avatar.
+    expect(screen.getByText("CLB")).toHaveClass("text-brand-accent");
+    expect(screen.getByText("RIV")).toHaveClass("text-ink");
     expect(screen.getAllByText("Equipo A")).toHaveLength(1);
     expect(screen.getAllByText("CB Rival")).toHaveLength(1);
+  });
+
+  it("cada equipo se anuncia una sola vez: los avatares son decorativos", () => {
+    render(<GameCard game={GAME} ownShortName="CLB" />);
+
+    expect(screen.queryAllByRole("img")).toEqual([]);
+    expect(screen.getByText("CLB").closest("[aria-hidden='true']")).not.toBeNull();
+  });
+
+  it("con otra etiqueta y con marcador: el resultado en lugar de «vs», legible también al oído", () => {
+    render(<GameCard game={GAME} ownShortName="CLB" label="Partido" score={{ for: 61, against: 58 }} />);
+
+    expect(screen.getByText("Partido")).toBeInTheDocument();
+    expect(screen.queryByText("Próximo partido")).not.toBeInTheDocument();
+    expect(screen.queryByText("vs")).not.toBeInTheDocument();
+    expect(screen.getByText("61–58")).toHaveAttribute("aria-hidden", "true");
+    expect(screen.getByText("61 a 58")).toHaveClass("sr-only");
   });
 
   it("muestra la competición cuando existe", () => {

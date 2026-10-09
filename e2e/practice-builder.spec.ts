@@ -427,7 +427,7 @@ test("salir por la navegación inferior también pregunta", async ({ page }) => 
   const arrived = async () => {
     await expect(page).toHaveURL(new RegExp(`${CLUB}/games$`));
     await expect(tab).toHaveAttribute("aria-current", "page");
-    await expect(title(page)).toHaveText("Partidos llega en una próxima fase");
+    await expect(title(page)).toHaveText("Partidos");
   };
 
   await page.getByRole("button", { name: `Más minutos, ${A}` }).click();

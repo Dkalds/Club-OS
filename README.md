@@ -158,6 +158,24 @@ Lista, en este orden:
 
 Las tres migraciones no rompen la app que haya desplegada antes de fusionar: la única pantalla que leía planes era Inicio, que embebe el plan en su evento sin nombrar la clave foránea que la primera migración sustituye.
 
+### Despliegue de Equipo y Partidos (Fase 6)
+
+La Fase 6 trae dos migraciones: `20261215000100_development` (objetivos y notas de jugador) y `…000200_games_write` (escritura de partidos). Van detrás de las de las Fases 4 y 5 y, como aquellas, tienen que estar aplicadas **antes de usar la preview del PR** y **antes de fusionar**: sin ellas, la ficha de un jugador falla (lee `player_goals` y `coach_notes`, que aún no existen) y no se puede crear ningún partido.
+
+No hay nada nuevo en Storage, ni en Auth, ni en las variables de entorno.
+
+Lista, en este orden:
+
+- [ ] **Ver qué falta por aplicar**: `pnpm supabase migration list` contra el proyecto enlazado. Tienen que faltar, como mucho, las de las Fases 2 a 6.
+- [ ] **Saber qué hace la segunda migración con lo que ya hay.** Ata cada partido a un evento `game` con una clave foránea nueva y añade topes (rival de 1 a 80 caracteres, marcador entero o vacío). Falla, nombrando la restricción, si alguna fila no los cumple: no corrige nada en silencio. Hasta esta fase ningún usuario podía escribir partidos, así que en el remoto solo está el del seed, que los cumple.
+- [ ] **Aplicar las migraciones** con `pnpm supabase db push`, comprobando que la lista que enseña es la de `migration list`.
+- [ ] **Volver a sembrar el demo** («Sembrar el demo», más abajo). El seed de la Fase 6 añade a Arcángel la temporada 2025/26 con un equipo (Benjamín B, que entrenaba Álex: no sale en «mis equipos»), un partido ya jugado de Alevín A (CD Almendros, 54–49), objetivos de Hugo Serrano y Leo Ortega y dos notas sobre Hugo (una privada de Álex y una del cuerpo técnico de Irene). Todos son datos ficticios.
+- [ ] **Comprobar a mano**, en un móvil y con la app desplegada:
+  - Como entrenador (`alex@arcangel.test`): Equipo → Hugo Serrano. Tiene que ver dos objetivos activos, el historial con uno logrado y las dos notas. Añadir un objetivo, marcarlo como logrado y escribir una nota.
+  - Como su ayudante (`irene@arcangel.test`): la misma ficha. Tiene que ver la nota del cuerpo técnico y **no** la privada de Álex. Lo mismo como dirección (`raul@arcangel.test`).
+  - Como la entrenadora de otro equipo (`nora@arcangel.test`) y como `marta@demo.test`: la URL de esa ficha da «No encontramos esta página».
+  - Partidos: crear uno, cancelarlo, y corregir el resultado del jugado.
+
 ### Variables en Vercel
 
 Solo dos, las dos públicas. Van en Production y en Preview.

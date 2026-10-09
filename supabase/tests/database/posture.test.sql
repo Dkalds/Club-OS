@@ -149,7 +149,11 @@ select set_eq(
       ('drill_principles', array['select', 'insert', 'update', 'delete']),
       ('drill_standards', array['select', 'insert', 'update', 'delete']),
       -- Medios (20261103000200): una ficha se crea al subir y ya.
-      ('media_assets', array['select', 'insert'])
+      ('media_assets', array['select', 'insert']),
+      -- Desarrollo (20261215000100): el alta y el cambio van por columnas, abajo. Los
+      -- objetivos no se borran (se archivan); las notas sí, de verdad.
+      ('player_goals', array['select']),
+      ('coach_notes', array['select', 'delete'])
     ) as t (tabla, privilegios)
     cross join unnest(t.privilegios) as p (privilegio)$$,
   'los privilegios de tabla de authenticated en public son exactamente los de la lista'
@@ -204,7 +208,24 @@ select set_eq(
       ('drills', 'update',
         array['title', 'summary', 'objective', 'setup_md', 'min_players', 'max_players',
               'min_minutes', 'max_minutes', 'min_age', 'max_age', 'equipment', 'video_url',
-              'diagram_media_id', 'status'])
+              'diagram_media_id', 'status']),
+      -- Desarrollo (20261215000100). Ni el id, ni el autor, ni las fechas: los pone la base.
+      -- Un objetivo nace activo; al cambiar no cambia de club, de jugador ni de equipo.
+      -- Partidos (20261215000200): el alta y los cambios van por `create_game`,
+      -- `update_game`, `record_game_result` y `cancel_game`, que son `security invoker`.
+      ('games', 'insert',
+        array['event_id', 'organization_id', 'opponent_name', 'competition_name', 'home_away']),
+      ('games', 'update',
+        array['opponent_name', 'competition_name', 'home_away', 'score_for', 'score_against',
+              'opponent_notes']),
+      ('player_goals', 'insert',
+        array['organization_id', 'person_id', 'team_id', 'title', 'description', 'focus_area_id',
+              'standard_id']),
+      ('player_goals', 'update',
+        array['title', 'description', 'focus_area_id', 'standard_id', 'status']),
+      ('coach_notes', 'insert',
+        array['organization_id', 'person_id', 'team_id', 'body', 'visibility']),
+      ('coach_notes', 'update', array['body', 'visibility'])
     ) as t (tabla, privilegio, columnas)
     cross join unnest(t.columnas) as c (columna)$$,
   'los privilegios de columna de authenticated en public son exactamente los de la lista'

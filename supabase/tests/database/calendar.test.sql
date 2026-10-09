@@ -359,10 +359,14 @@ select results_eq(
   'admin ve los focos de su club y ninguno de B'
 );
 
-select throws_ok(
-  $$update games set score_for = 60$$,
-  '42501', null,
-  'ni el admin cambia un partido'
+-- Desde la Fase 6 el admin escribe los partidos de su club (games_write.test.sql); los de
+-- otro club, ni los ve ni los cambia.
+select results_eq(
+  $$with u as (update games set opponent_name = 'adminA estuvo aquí'
+               where organization_id = current_setting('fx.club_b')::uuid returning 1)
+    select count(*)::int from u$$,
+  array[0],
+  'el admin no cambia un partido de otro club'
 );
 
 -- ── coachB: el aislamiento entre clubes vale en los dos sentidos ─────────────────────
@@ -862,10 +866,11 @@ select results_eq(
   'service_role puede leer y escribir las cinco tablas'
 );
 
--- Sin política no hay acceso. Los focos y los partidos solo se leen: una política, `for
--- select`. Los eventos, los planes y los ítems tienen además las de escritura de
--- `20261117000200_practice_write.sql`: alta y cambio, y borrado solo en los ítems. Todas son
--- solo para `authenticated`. Las columnas de tipo `name` del catálogo llevan la collation "C";
+-- Sin política no hay acceso. Los focos solo se leen: una política, `for select`. Los eventos,
+-- los planes y los ítems tienen además las de escritura de `20261117000200_practice_write.sql`
+-- (alta y cambio, y borrado solo en los ítems), y los eventos y los partidos, las de
+-- `20261215000200_games_write.sql` (alta y cambio de partidos). Todas son solo para
+-- `authenticated`. Las columnas de tipo `name` del catálogo llevan la collation "C";
 -- se pasan a la de por defecto para compararlas con `values`.
 select results_eq(
   $$select tablename::text collate "default", policyname::text collate "default",
@@ -875,11 +880,15 @@ select results_eq(
       and tablename in ('focus_areas', 'events', 'games', 'practice_plans', 'practice_items')
     order by 1, 2$$,
   $$values
+    ('events', 'events_insert_game_managed', 'INSERT', array['authenticated'], 'PERMISSIVE'),
     ('events', 'events_insert_practice_managed', 'INSERT', array['authenticated'], 'PERMISSIVE'),
     ('events', 'events_select_admin_or_staff', 'SELECT', array['authenticated'], 'PERMISSIVE'),
+    ('events', 'events_update_game_managed', 'UPDATE', array['authenticated'], 'PERMISSIVE'),
     ('events', 'events_update_practice_managed', 'UPDATE', array['authenticated'], 'PERMISSIVE'),
     ('focus_areas', 'focus_areas_select_member', 'SELECT', array['authenticated'], 'PERMISSIVE'),
+    ('games', 'games_insert_managed', 'INSERT', array['authenticated'], 'PERMISSIVE'),
     ('games', 'games_select_admin_or_staff', 'SELECT', array['authenticated'], 'PERMISSIVE'),
+    ('games', 'games_update_managed', 'UPDATE', array['authenticated'], 'PERMISSIVE'),
     ('practice_items', 'practice_items_delete_editable', 'DELETE', array['authenticated'], 'PERMISSIVE'),
     ('practice_items', 'practice_items_insert_editable', 'INSERT', array['authenticated'], 'PERMISSIVE'),
     ('practice_items', 'practice_items_select_visible', 'SELECT', array['authenticated'], 'PERMISSIVE'),
@@ -887,7 +896,7 @@ select results_eq(
     ('practice_plans', 'practice_plans_insert_managed', 'INSERT', array['authenticated'], 'PERMISSIVE'),
     ('practice_plans', 'practice_plans_select_visible', 'SELECT', array['authenticated'], 'PERMISSIVE'),
     ('practice_plans', 'practice_plans_update_editable', 'UPDATE', array['authenticated'], 'PERMISSIVE')$$,
-  'las políticas de las cinco tablas: lectura en todas, escritura solo en eventos, planes e ítems, y solo para authenticated'
+  'las políticas de las cinco tablas: lectura en todas, escritura en eventos, partidos, planes e ítems, y solo para authenticated'
 );
 
 -- La función de RLS: `stable security definer` con `search_path` vacío, y fuera del

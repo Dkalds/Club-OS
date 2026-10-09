@@ -4,6 +4,8 @@ import { Card } from "@/ui/card";
 import { CTAButton } from "@/ui/cta-button";
 import { CheckIcon, PlusIcon, TeamIcon, TrainIcon } from "@/ui/icons";
 import { DateChip, ListRow } from "@/ui/list-row";
+import { noTeamsState } from "@/modules/team/no-teams";
+import type { ClubContext } from "@/modules/tenancy/queries";
 import { EmptyState } from "@/ui/states";
 import { practiceRowSubtitle, statusLabel } from "./format";
 import type { PracticeListItem } from "./types";
@@ -60,6 +62,7 @@ export function PracticeList({
   practices,
   teamCount,
   canCreate,
+  role,
   truncated = false,
 }: {
   clubSlug: string;
@@ -67,6 +70,7 @@ export function PracticeList({
   practices: PracticeListItem[];
   teamCount: number;
   canCreate: boolean;
+  role: ClubContext["membership"]["role"];
   truncated?: boolean;
 }) {
   const base = `/c/${clubSlug}`;
@@ -75,14 +79,7 @@ export function PracticeList({
   const newHref = `${trainHref}/new`;
 
   if (teamCount === 0) {
-    return (
-      <EmptyState
-        icon={<TeamIcon size={28} />}
-        title="Aún no estás en ningún equipo"
-        body="Cuando dirección te asigne un equipo, aquí verás sus sesiones."
-        action={{ label: "Volver a Inicio", href: base }}
-      />
-    );
+    return <EmptyState icon={<TeamIcon size={28} />} {...noTeamsState(role, clubSlug, "sessions")} />;
   }
 
   const empty = practices.length === 0;
