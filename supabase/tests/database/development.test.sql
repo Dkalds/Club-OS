@@ -17,7 +17,7 @@
 -- datos son ficticios y solo de este test.
 begin;
 
-select plan(59);
+select plan(60);
 
 -- ── Fixtures (como postgres) ─────────────────────────────────────────────────────────
 -- Club A
@@ -127,6 +127,7 @@ begin
   perform set_config('fx.c2', u_c2::text, true);
   perform set_config('fx.jugador', u_jugador::text, true);
   perform set_config('fx.coach_b', u_coach_b::text, true);
+  perform set_config('fx.p_c1', p_c1::text, true);
   perform set_config('fx.p_c1b', p_c1b::text, true);
   perform set_config('fx.p1', p1::text, true);
   perform set_config('fx.p2', p2::text, true);
@@ -346,13 +347,17 @@ select throws_ok(
 
 reset role;
 select results_eq(
-  $$select author_id, visibility::text from coach_notes where body = 'Privada de c1'$$,
-  $$values (current_setting('fx.c1')::uuid, 'private')$$,
-  'la nota es de c1 y nace privada'
+  $$select author_id, author_person_id, visibility::text from coach_notes where body = 'Privada de c1'$$,
+  $$values (current_setting('fx.c1')::uuid, current_setting('fx.p_c1')::uuid, 'private')$$,
+  'la nota es de c1, lleva su persona (para enseñar quién la escribió) y nace privada'
 );
 
 select tests.authenticate_as(current_setting('fx.c1')::uuid);
 select is((select count(*)::int from coach_notes), 2, 'c1 lee sus dos notas');
+select throws_ok(
+  $$update coach_notes set author_person_id = null$$,
+  '42501', null, 'la persona autora no la cambia nadie'
+);
 
 select tests.authenticate_as(current_setting('fx.c1b')::uuid);
 select results_eq(

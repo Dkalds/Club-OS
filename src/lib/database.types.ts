@@ -63,16 +63,22 @@ isOneToOne: false
                   ]
                 },"coach_notes": {
                   Row: {
-                    "author_id": string,"body": string,"created_at": string,"id": string,"organization_id": string,"person_id": string,"team_id": string,"updated_at": string,"visibility": Database["public"]['Enums']["note_visibility"]
+                    "author_id": string,"author_person_id": string | null,"body": string,"created_at": string,"id": string,"organization_id": string,"person_id": string,"team_id": string,"updated_at": string,"visibility": Database["public"]['Enums']["note_visibility"]
                   }
                   Insert: {
-                    "author_id"?: string,"body": string,"created_at"?: string,"id"?: string,"organization_id": string,"person_id": string,"team_id": string,"updated_at"?: string,"visibility"?: Database["public"]['Enums']["note_visibility"]
+                    "author_id"?: string,"author_person_id"?: string | null,"body": string,"created_at"?: string,"id"?: string,"organization_id": string,"person_id": string,"team_id": string,"updated_at"?: string,"visibility"?: Database["public"]['Enums']["note_visibility"]
                   }
                   Update: {
-                    "author_id"?: string,"body"?: string,"created_at"?: string,"id"?: string,"organization_id"?: string,"person_id"?: string,"team_id"?: string,"updated_at"?: string,"visibility"?: Database["public"]['Enums']["note_visibility"]
+                    "author_id"?: string,"author_person_id"?: string | null,"body"?: string,"created_at"?: string,"id"?: string,"organization_id"?: string,"person_id"?: string,"team_id"?: string,"updated_at"?: string,"visibility"?: Database["public"]['Enums']["note_visibility"]
                   }
                   Relationships: [
                     {
+      foreignKeyName: "coach_notes_organization_id_author_person_id_fkey"
+      columns: ["organization_id","author_person_id"]
+isOneToOne: false
+      referencedRelation: "people"
+      referencedColumns: ["organization_id","id"]
+    },{
       foreignKeyName: "coach_notes_organization_id_fkey"
       columns: ["organization_id"]
 isOneToOne: false

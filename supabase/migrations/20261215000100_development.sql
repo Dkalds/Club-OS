@@ -51,13 +51,18 @@ create table public.coach_notes (
   person_id uuid not null,
   team_id uuid not null,
   author_id uuid not null default auth.uid() references auth.users (id) on delete cascade,
+  -- La persona del autor en este club, para enseñar quién la escribió: el resto del cuerpo
+  -- técnico no lee `memberships` ajenas, pero sí las personas de sus equipos. La pone el
+  -- trigger al crear la nota; a null si quien escribe no tiene persona (dirección sin ficha).
+  author_person_id uuid,
   body text not null check (char_length(btrim(body)) between 1 and 2000),
   visibility public.note_visibility not null default 'private',
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   unique (organization_id, id),
   foreign key (organization_id, person_id) references public.people (organization_id, id),
-  foreign key (organization_id, team_id) references public.teams (organization_id, id)
+  foreign key (organization_id, team_id) references public.teams (organization_id, id),
+  foreign key (organization_id, author_person_id) references public.people (organization_id, id)
 );
 
 create index coach_notes_team_id_person_id_idx on public.coach_notes (team_id, person_id);
@@ -68,6 +73,33 @@ create index coach_notes_author_id_idx on public.coach_notes (author_id);
 create trigger coach_notes_set_updated_at
   before update on public.coach_notes
   for each row execute function private.set_updated_at();
+
+-- Al crear una nota, su `author_person_id` sale de la membresía activa del autor en el club de
+-- la nota. `security definer`: quien escribe solo lee su propia membresía, que es justo la que
+-- se busca, pero el seed escribe sin sesión.
+create function private.coach_notes_set_author_person()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  new.author_person_id := (
+    select m.person_id
+    from public.memberships as m
+    where m.organization_id = new.organization_id
+      and m.user_id = new.author_id
+      and m.status = 'active'
+  );
+  return new;
+end;
+$$;
+
+revoke all on function private.coach_notes_set_author_person() from public, anon, authenticated;
+
+create trigger coach_notes_set_author_person
+  before insert on public.coach_notes
+  for each row execute function private.coach_notes_set_author_person();
 
 -- Antes de escribir un objetivo: pone `updated_at` y `achieved_at`, y hace cumplir el límite
 -- de tres activos por jugador. Para que dos altas a la vez no pasen las dos con dos activos,

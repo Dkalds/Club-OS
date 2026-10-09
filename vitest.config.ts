@@ -49,6 +49,9 @@ export default defineConfig({
           name: "int",
           environment: "node",
           include: ["**/*.int.test.ts"],
+          // Todos escriben y leen la misma base local, y `seed.int.test.ts` la vuelve a sembrar
+          // entera: en paralelo, un fichero leería a mitad de la siembra de otro.
+          fileParallelism: false,
           exclude: [...configDefaults.exclude, ...AGENT_DIRS],
         },
       },
