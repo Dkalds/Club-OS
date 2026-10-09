@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   createAnonClient: vi.fn(),
   signInWithOtp: vi.fn(),
   verifyOtp: vi.fn(),
+  signInWithPassword: vi.fn(),
   redirect: vi.fn(),
   after: vi.fn(),
 }));
@@ -22,7 +23,7 @@ vi.mock("@/lib/supabase/server", () => ({
 vi.mock("next/navigation", () => ({ redirect: mocks.redirect }));
 vi.mock("next/server", () => ({ after: mocks.after }));
 
-import { requestLoginCode, verifyLoginCode, type LoginState } from "./actions";
+import { demoLogin, requestLoginCode, verifyLoginCode, type LoginState } from "./actions";
 
 /** Como el `redirect()` real: corta la ejecución lanzando. */
 class RedirectSignal extends Error {
@@ -348,6 +349,126 @@ describe("verifyLoginCode", () => {
   it("un código mal formado o un email inválido no llegan al log", async () => {
     await verifyLoginCode(codeStep, form({ email: EMAIL, code: "12" }));
     await verifyLoginCode(codeStep, form({ email: "no-es-email", code: "123456" }));
+
+    expect(logged).toEqual([]);
+  });
+});
+
+describe("demoLogin", () => {
+  const COACH = "coach@club-a.test";
+  const ADMIN = "admin@club-a.test";
+  const PASSWORD = "una-clave-larga-de-demo";
+  const DEMO_FAILED = "No se ha podido entrar. Inténtalo de nuevo.";
+
+  beforeEach(() => {
+    vi.stubEnv("DEMO_LOGIN_COACH_EMAIL", COACH);
+    vi.stubEnv("DEMO_LOGIN_ADMIN_EMAIL", ADMIN);
+    vi.stubEnv("DEMO_LOGIN_PASSWORD", PASSWORD);
+    // La sesión viaja en cookies: entra con el cliente que las escribe.
+    mocks.createClient.mockResolvedValue({
+      auth: { signInWithPassword: mocks.signInWithPassword },
+    });
+    mocks.signInWithPassword.mockResolvedValue({ data: { user: {}, session: {} }, error: null });
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it.each([
+    ["coach", COACH],
+    ["admin", ADMIN],
+  ])("entra como el usuario de demo de ese rol: %s", async (role, email) => {
+    await expect(demoLogin({}, form({ role }))).rejects.toBeInstanceOf(RedirectSignal);
+
+    expect(mocks.signInWithPassword).toHaveBeenCalledTimes(1);
+    expect(mocks.signInWithPassword).toHaveBeenCalledWith({ email, password: PASSWORD });
+    expect(mocks.createAnonClient).not.toHaveBeenCalled();
+    expect(mocks.redirect).toHaveBeenCalledWith("/select-club");
+  });
+
+  it("sin las variables de demo no llama a Auth", async () => {
+    vi.unstubAllEnvs();
+    vi.stubEnv("DEMO_LOGIN_COACH_EMAIL", undefined);
+    vi.stubEnv("DEMO_LOGIN_ADMIN_EMAIL", undefined);
+    vi.stubEnv("DEMO_LOGIN_PASSWORD", undefined);
+
+    const result = await demoLogin({}, form({ role: "coach" }));
+
+    expect(result).toEqual({ error: DEMO_FAILED });
+    expect(mocks.createClient).not.toHaveBeenCalled();
+    expect(mocks.signInWithPassword).not.toHaveBeenCalled();
+    expect(mocks.redirect).not.toHaveBeenCalled();
+  });
+
+  it("un rol sin su email no entra, aunque el otro sí tenga demo", async () => {
+    vi.stubEnv("DEMO_LOGIN_ADMIN_EMAIL", undefined);
+
+    const result = await demoLogin({}, form({ role: "admin" }));
+
+    expect(result).toEqual({ error: DEMO_FAILED });
+    expect(mocks.signInWithPassword).not.toHaveBeenCalled();
+  });
+
+  it("un email de demo que no es .test no entra", async () => {
+    vi.stubEnv("DEMO_LOGIN_COACH_EMAIL", "persona@example.com");
+
+    const result = await demoLogin({}, form({ role: "coach" }));
+
+    expect(result).toEqual({ error: DEMO_FAILED });
+    expect(mocks.signInWithPassword).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["que no existe", { role: "player" }],
+    ["vacío", { role: "" }],
+    ["ausente", {}],
+  ])("un rol %s no llama a Auth", async (_name, fields: Record<string, string>) => {
+    const result = await demoLogin({}, form(fields));
+
+    expect(result).toEqual({ error: DEMO_FAILED });
+    expect(mocks.createClient).not.toHaveBeenCalled();
+    expect(mocks.redirect).not.toHaveBeenCalled();
+  });
+
+  it("del formulario solo lee el rol: nadie elige con qué cuenta entra", async () => {
+    await expect(
+      demoLogin({}, form({ role: "coach", email: "otra@club-b.test", password: "otra-clave" })),
+    ).rejects.toBeInstanceOf(RedirectSignal);
+
+    expect(mocks.signInWithPassword).toHaveBeenCalledWith({ email: COACH, password: PASSWORD });
+  });
+
+  it("si Auth rechaza la contraseña, avisa y no redirige", async () => {
+    mocks.signInWithPassword.mockResolvedValue({
+      data: { user: null, session: null },
+      error: Object.assign(new Error(`Invalid login credentials for ${COACH}`), {
+        name: "AuthApiError",
+        status: 400,
+        code: "invalid_credentials",
+      }),
+    });
+
+    const result = await demoLogin({}, form({ role: "coach" }));
+
+    expect(result).toEqual({ error: DEMO_FAILED });
+    expect(mocks.redirect).not.toHaveBeenCalled();
+    expect(logged).toEqual(["[auth.demo-login] AuthApiError status=400 code=invalid_credentials"]);
+    expect(logged.join("\n")).not.toContain(COACH);
+  });
+
+  it("si la llamada a Auth lanza una excepción, queda contenida", async () => {
+    mocks.signInWithPassword.mockRejectedValue(new Error("fetch failed"));
+
+    const result = await demoLogin({}, form({ role: "coach" }));
+
+    expect(result).toEqual({ error: DEMO_FAILED });
+    expect(mocks.redirect).not.toHaveBeenCalled();
+    expect(logged).toEqual(["[auth.demo-login] Error"]);
+  });
+
+  it("si todo va bien no escribe nada en el log", async () => {
+    await expect(demoLogin({}, form({ role: "admin" }))).rejects.toBeInstanceOf(RedirectSignal);
 
     expect(logged).toEqual([]);
   });
