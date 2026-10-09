@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-> **Estado: BORRADOR para revisión del propietario.** No se ejecuta hasta que el propietario confirme las decisiones de «Decisiones que este plan toma y hay que confirmar». Hasta entonces, la rama `claude/fase-6` solo lleva este fichero.
+> **Estado: APROBADO por el propietario el 9 oct 2026**, con [D1]–[D10] tal como están. Las entrevistas con otros clubes no se han hecho: se asume el riesgo. Partido cancelado: código propio `GAME_CLOSED` (ver «Cambios propuestos al contrato»).
 
 **Goal:** Un entrenador abre la pestaña Equipo y ve la plantilla de sus equipos de esta temporada. Entra en un jugador y le pone hasta tres objetivos activos, cada uno ligado si quiere a un foco o a un Standard del club; después de entrenar escribe una nota, privada o para el cuerpo técnico, y marca un objetivo como logrado cuando toca. En la pestaña Partidos ve los próximos y los jugados de sus equipos, crea un partido, lo edita y apunta el resultado. Nada de esto sale de su equipo ni de su club, y una nota privada no la lee nadie más que quien la escribió.
 
@@ -28,7 +28,7 @@ Las de las Fases 4 y 5 siguen valiendo todas (TypeScript estricto, regla de lite
 
 - Migraciones en el rango F6: `20261215000100_development.sql`, `…000200_games_write.sql`, `…000300_my_teams.sql` si hace falta.
 - Toda tabla nueva: `organization_id NOT NULL`, RLS activado, claves foráneas compuestas `(organization_id, x_id)` a `people`, `teams`, `focus_areas`, `standards` y `events`, y su `pgTAP` de aislamiento por club **y** por equipo en la misma tarea. Cada `grant` nuevo se apunta en `posture.test.sql` (C27).
-- Errores de dominio con `fromDbError` (C1). Esta fase añade `GOAL_LIMIT` a `ActionError` y a `ACTION_ERROR_COPY`.
+- Errores de dominio con `fromDbError` (C1). Esta fase añade `GOAL_LIMIT` y `GAME_CLOSED` a `ActionError` y a `ACTION_ERROR_COPY`.
 - Argumentos opcionales de las funciones SQL al final y con `default null` (backlog, «Antes de empezar la Fase 3»).
 - **Menores.** Ningún nombre de jugador en una URL (`/team/[teamId]/players/[personId]`, ids opacos). Nunca fecha de nacimiento; esta fase no muestra ni el año ([D5]). Sin fotos: iniciales en `Avatar`. Notas y objetivos no salen en ninguna lista, en Inicio ni en el `<title>` de la página. Los datos de ejemplo del seed, ficticios.
 - Las notas no se registran en logs: `logError` recibe el error, nunca el cuerpo de la nota ni el título de un objetivo.
@@ -140,9 +140,9 @@ Políticas (una por tabla y operación):
 - Políticas `events_insert_game_managed` y `events_update_game_managed` (`kind = 'game'` y `private.can_manage_team(team_id)`), y `games_insert_managed`/`games_update_managed` sobre el evento del partido (C11). Los privilegios por columna de `events` ya existen; `games`: `update (opponent_name, competition_name, home_away, score_for, score_against, opponent_notes)`.
 - Produces (contrato F6, argumentos opcionales al final): `public.create_game(p_team uuid, p_starts_at timestamptz, p_ends_at timestamptz, p_opponent text, p_competition text default null, p_home_away text default null, p_location text default null) returns uuid`: crea el evento `kind = 'game'` y su fila de `games` en una transacción. `NOT_FOUND` si el equipo no se gestiona; `INVALID` si el rival está vacío o `ends_at <= starts_at`.
 - Regla de `kind` (backlog F6, «Partido colgado de un evento de entrenamiento»): un trigger impide una fila de `games` cuyo evento no sea `kind = 'game'`, y que un evento con fila en `games` cambie de `kind`.
-- Resultado ([D9]): `score_for`/`score_against` ambos o ninguno, entre 0 y 300; solo si `starts_at <= now()`; escribirlos deja el evento `done`. Un partido `cancelled` no admite resultado (`SESSION_CLOSED`, reutilizado: el copy dice «ya está cerrada»; ver «Cambios propuestos al contrato»).
+- Resultado ([D9]): `score_for`/`score_against` ambos o ninguno, entre 0 y 300; solo si `starts_at <= now()`; escribirlos deja el evento `done`. Un partido `cancelled` no admite cambios ni resultado (`GAME_CLOSED`).
 
-- [ ] **Step 1: Test que falla** `games_write.test.sql` (Review Focus 3): Álex crea y edita un partido de Alevín A; Irene también; Raúl en cualquier equipo; Nora y Marta → `NOT_FOUND`/0 filas; `create_game` con un equipo de Club Demo desde Arcángel → `NOT_FOUND`; fila de `games` sobre un entrenamiento → error; resultado antes de empezar → `INVALID`; resultado a medias → `INVALID`; resultado de un cancelado → `SESSION_CLOSED`; `posture.test.sql` al día.
+- [ ] **Step 1: Test que falla** `games_write.test.sql` (Review Focus 3): Álex crea y edita un partido de Alevín A; Irene también; Raúl en cualquier equipo; Nora y Marta → `NOT_FOUND`/0 filas; `create_game` con un equipo de Club Demo desde Arcángel → `NOT_FOUND`; fila de `games` sobre un entrenamiento → error; resultado antes de empezar → `INVALID`; resultado a medias → `INVALID`; resultado o edición de un cancelado → `GAME_CLOSED`; `posture.test.sql` al día.
 - [ ] **Step 2–4:** FAIL → migración → PASS; `pnpm db:types`; `supabase db lint`.
 - [ ] **Step 5: Commit** `feat(db): los partidos se crean y se editan desde el equipo`
 
@@ -152,7 +152,7 @@ Políticas (una por tabla y operación):
 
 **Files:** Modify `src/lib/action-result.ts`, `src/lib/permissions.ts` (+ tests)
 
-- `ActionError` añade `GOAL_LIMIT` con el copy «Este jugador ya tiene 3 objetivos activos. Marca uno como logrado o archívalo para añadir otro.».
+- `ActionError` añade `GAME_CLOSED` (copy «Este partido está cancelado y no se puede cambiar.») y `GOAL_LIMIT` con el copy «Este jugador ya tiene 3 objetivos activos. Marca uno como logrado o archívalo para añadir otro.».
 - `Action` añade `'goal.manage' | 'note.manage' | 'game.manage'`: `admin` y `coach` las tres (la base decide el equipo).
 - [ ] TDD de `fromDbError` (`P0001` + `GOAL_LIMIT`) y de `can`. Commit `feat(lib): GOAL_LIMIT y permisos de objetivos, notas y partidos`.
 
@@ -180,7 +180,7 @@ Políticas (una por tabla y operación):
 **Interfaces (contrato F6):**
 - `listGames(ctx, scope: 'upcoming' | 'played')`: partidos de «mis equipos» ([D7]); próximos por fecha ascendente (`scheduled` que no han terminado), jugados descendente (hechos, cancelados y programados que ya terminaron, como el histórico de Entrenar). Sin corte silencioso: si hay más de 50, «Ver más» (lección de `LIST_LIMIT`, backlog F4).
 - `getGame(ctx, eventId)`: partido con equipo, rival, competición, local o visitante, lugar, horas, estado, resultado y notas del rival (estas solo si `game.manage`).
-- Server Actions: `createGame` (llama a `create_game` tras comprobar el equipo en el club, C25), `updateGame`, `recordResult`, `cancelGame`. Errores: `NOT_FOUND`, `INVALID`, `SESSION_CLOSED`.
+- Server Actions: `createGame` (llama a `create_game` tras comprobar el equipo en el club, C25), `updateGame`, `recordResult`, `cancelGame`. Errores: `NOT_FOUND`, `INVALID`, `GAME_CLOSED`.
 - `format.ts`: «Sábado 10 oct», «10:30–12:00», «Local»/«Visitante», marcador desde el punto de vista del club (propio primero).
 
 - [ ] TDD como Task 5 (unidad + integración con Álex, Nora y Marta). Commit `feat(games): lista, detalle y escritura de partidos`.
@@ -266,6 +266,6 @@ Políticas (una por tabla y operación):
 
 ## Cambios propuestos al contrato
 
-- **`SESSION_CLOSED` también para partidos cancelados.** El copy actual habla de «sesión» y de «duplicarla». Propuesta: copy genérico «Esto ya está cerrado y no se puede cambiar.», o un código `GAME_CLOSED` propio. Hay que elegir antes de la Task 3.
+- **`GAME_CLOSED` para partidos cancelados** (decidido): `P0001`, copy «Este partido está cancelado y no se puede cambiar.». `SESSION_CLOSED` sigue siendo solo de sesiones.
 - **`getPlayerProfile(ctx, personId)` pasa a `getPlayerProfile(ctx, teamId, personId)`.** Los objetivos y las notas son de un jugador en un equipo ([D2]); la ruta ya lleva los dos ids.
 - **`player_goals` lleva `updated_at`** (el contrato no lo nombra) para que una edición desde dos móviles se detecte como en las sesiones, si el propietario lo quiere; si no, se quita.
