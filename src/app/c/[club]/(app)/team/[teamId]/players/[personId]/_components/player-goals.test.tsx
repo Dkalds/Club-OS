@@ -83,7 +83,8 @@ describe("PlayerGoals", () => {
       focusAreaId: uuid(300),
       standardId: uuid(301),
     }));
-    expect(screen.queryByRole("dialog", { name: "Nuevo objetivo" })).not.toBeInTheDocument();
+    // La hoja se cierra al terminar la acción, en la transición siguiente: se espera.
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Nuevo objetivo" })).not.toBeInTheDocument());
   });
 
   it("si la base dice GOAL_LIMIT, la hoja lo explica y sigue abierta", async () => {
