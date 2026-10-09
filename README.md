@@ -53,7 +53,7 @@ Plataforma SaaS multi-club para clubes de baloncesto de formación. Este repo es
 
 ## Entrar en local
 
-El acceso es por invitación, con un código de 6 dígitos. No hay contraseñas ni registro.
+El acceso es por invitación, con un código de 6 dígitos. No hay contraseñas ni registro. La única excepción es el acceso de demo, temporal y apagado por defecto (ver «Acceso de demo»).
 
 1. En `/login`, escribe el email de un usuario del seed.
 2. Abre el buzón local en http://127.0.0.1:54324 y copia el código del último correo.
@@ -167,6 +167,8 @@ Solo dos, las dos públicas. Van en Production y en Preview.
 | `NEXT_PUBLIC_SUPABASE_URL` | La URL de la API del proyecto remoto |
 | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | La clave pública (publishable) del proyecto remoto |
 
+Las tres `DEMO_LOGIN_*` del acceso de demo son aparte y temporales: solo existen mientras esté encendido (ver «Acceso de demo»).
+
 La clave de servicio no se configura en Vercel: la app usa siempre la sesión del usuario. Las variables `NEXT_PUBLIC_` se leen al compilar, así que tras cambiarlas hace falta un despliegue nuevo.
 
 ### Auth en Supabase
@@ -195,6 +197,60 @@ Lo que no se copia del `config.toml` local, porque es de desarrollo:
 - El correo integrado de Supabase solo envía a miembros de la organización de Supabase y con un límite muy bajo. Sirve para probar con tu propio email.
 - Los usuarios reales necesitan un SMTP propio, configurado en el panel de Auth.
 - Los usuarios de demo del seed usan direcciones `.test`, que no pueden recibir correo. Para entrar como uno de ellos, genera su código desde el panel de Supabase, o deja que lo haga el helper de los e2e.
+
+### Acceso de demo (temporal)
+
+Mientras el remoto no tenga SMTP, el login puede enseñar dos botones, «Probar como entrenador» y «Probar como dirección», que entran como un usuario de ejemplo sin pedir código.
+
+Es una excepción a «acceso solo por invitación»: **cualquiera que abra la URL entra como ese usuario** y puede hacer todo lo que él pueda. Vale solo para un entorno con datos de demo, y hay que apagarlo antes de que entre un solo dato real.
+
+Está apagado salvo que el servidor de la app tenga estas tres variables. Son de servidor, sin `NEXT_PUBLIC_`: la contraseña no llega al navegador.
+
+| Variable | Valor |
+| --- | --- |
+| `DEMO_LOGIN_COACH_EMAIL` | El usuario de demo entrenador, por ejemplo `alex@arcangel.test` |
+| `DEMO_LOGIN_ADMIN_EMAIL` | El usuario de demo de dirección, por ejemplo `raul@arcangel.test` |
+| `DEMO_LOGIN_PASSWORD` | La contraseña de los dos. Al menos 16 caracteres, generada y guardada en un gestor |
+
+- Solo valen emails `.test`, los de los usuarios del seed. Con cualquier otro, ese botón no sale y la acción se niega: el botón no puede abrir la cuenta de una persona.
+- Con un solo email sale un solo botón.
+- Cada entrada gasta cupo de los límites de Auth, que comparte todo el despliegue (ver «Límites de Auth»).
+
+Encenderlo:
+
+1. Siembra el remoto si no lo está (ver «Sembrar el demo»).
+2. Pon la contraseña a los usuarios con `pnpm demo:password`. Nunca crea cuentas: si un usuario no existe, falla sin cambiar nada. La contraseña se pide sin eco, como la clave de servicio.
+
+   Git Bash:
+
+   ```bash
+   export NEXT_PUBLIC_SUPABASE_URL="https://…"
+   export DEMO_LOGIN_COACH_EMAIL="alex@arcangel.test" DEMO_LOGIN_ADMIN_EMAIL="raul@arcangel.test"
+   read -rs -p "Clave de servicio: " SUPABASE_SERVICE_ROLE_KEY && export SUPABASE_SERVICE_ROLE_KEY; echo
+   read -rs -p "Contraseña de demo: " DEMO_LOGIN_PASSWORD && export DEMO_LOGIN_PASSWORD; echo
+   pnpm demo:password
+   unset NEXT_PUBLIC_SUPABASE_URL SUPABASE_SERVICE_ROLE_KEY DEMO_LOGIN_COACH_EMAIL DEMO_LOGIN_ADMIN_EMAIL DEMO_LOGIN_PASSWORD
+   ```
+
+   PowerShell:
+
+   ```powershell
+   $env:NEXT_PUBLIC_SUPABASE_URL = "https://…"
+   $env:DEMO_LOGIN_COACH_EMAIL = "alex@arcangel.test"
+   $env:DEMO_LOGIN_ADMIN_EMAIL = "raul@arcangel.test"
+   $clave = Read-Host "Clave de servicio" -AsSecureString
+   $env:SUPABASE_SERVICE_ROLE_KEY = [System.Net.NetworkCredential]::new("", $clave).Password
+   $demo = Read-Host "Contraseña de demo" -AsSecureString
+   $env:DEMO_LOGIN_PASSWORD = [System.Net.NetworkCredential]::new("", $demo).Password
+   pnpm demo:password
+   Remove-Item Env:NEXT_PUBLIC_SUPABASE_URL, Env:SUPABASE_SERVICE_ROLE_KEY, Env:DEMO_LOGIN_COACH_EMAIL, Env:DEMO_LOGIN_ADMIN_EMAIL, Env:DEMO_LOGIN_PASSWORD, Variable:clave, Variable:demo
+   ```
+
+3. Crea las tres variables en Vercel (Production) con los mismos valores y despliega de nuevo. `/login` se genera al compilar: sin un despliegue nuevo los botones no aparecen.
+
+Apagarlo: borra las tres variables en Vercel y despliega de nuevo. Para que la contraseña deje de valer, repite el paso 2 con otra que no guardes.
+
+En local funciona igual: las tres variables en `.env.local` y `pnpm demo:password`.
 
 ### Claves en la shell
 
