@@ -408,7 +408,7 @@ select lives_ok($$delete from coach_notes$$, 'adminA lanza un borrado sobre las 
 
 reset role;
 select results_eq(
-  $$select body from coach_notes order by body$$,
+  $$select body from coach_notes where organization_id = current_setting('fx.club_a')::uuid order by body$$,
   $$values ('Compartida de c1'), ('Privada de c1')$$,
   'ni c1b ni dirección cambian ni borran notas de c1'
 );
@@ -422,7 +422,8 @@ select lives_ok($$delete from coach_notes where body = 'Privada de c1'$$, 'c1 bo
 
 reset role;
 select results_eq(
-  $$select body from coach_notes$$, $$values ('Compartida, corregida')$$,
+  $$select body from coach_notes where organization_id = current_setting('fx.club_a')::uuid$$,
+  $$values ('Compartida, corregida')$$,
   'el borrado es de verdad y la corrección se guarda'
 );
 
