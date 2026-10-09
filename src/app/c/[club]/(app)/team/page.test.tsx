@@ -36,7 +36,10 @@ const DETAIL: TeamDetail = {
   ],
 };
 
-const params = (extra: Record<string, string> = {}) => ({ params: Promise.resolve({ club: "club-a", ...extra }) });
+const params = <E extends Record<string, string>>(extra: E = {} as E) => ({
+  params: Promise.resolve({ club: "club-a", ...extra }),
+  searchParams: Promise.resolve({}),
+});
 
 beforeEach(() => {
   vi.resetAllMocks();
