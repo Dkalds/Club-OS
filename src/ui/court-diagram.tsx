@@ -20,8 +20,24 @@ import { COURT_BOX, CourtThumb } from "./court-thumb";
  * Es de cliente por ese estado (`onError`); `CourtThumb`, que es pura, vive en su archivo.
  * Se importa de `./court`, que re-exporta las dos.
  */
-export function CourtDiagram({ src, alt }: { src: string | null; alt: string }) {
+export function CourtDiagram({
+  src,
+  alt,
+  unavailable,
+}: {
+  src: string | null;
+  alt: string;
+  unavailable?: "offline";
+}) {
   const [failedSrc, setFailedSrc] = useState<string | null>(null);
+
+  if (unavailable === "offline") {
+    return (
+      <div className={`${COURT_BOX.full} flex items-center justify-center`}>
+        <p className="text-body-s text-ink-3">Diagrama no disponible sin conexión</p>
+      </div>
+    );
+  }
 
   if (!src || failedSrc === src) return <CourtThumb size="full" />;
 

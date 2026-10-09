@@ -9,6 +9,7 @@ const FIRST: PracticeListItem = {
   teamName: "Equipo A",
   dow: "Mar",
   day: "6",
+  month: "oct",
   time: "18:00",
   title: "Salida de presión",
   totalMinutes: 75,
@@ -22,6 +23,7 @@ const SECOND: PracticeListItem = {
   teamName: "Equipo B",
   dow: "Jue",
   day: "8",
+  month: "oct",
   time: "18:30",
   title: "Defensa en zona",
   totalMinutes: 60,
@@ -281,5 +283,46 @@ describe("PracticeList vacía", () => {
     expect(screen.queryByText("No hay sesiones programadas")).not.toBeInTheDocument();
     expect(screen.queryByText("Aún no hay sesiones pasadas")).not.toBeInTheDocument();
     expect(screen.queryByText("Aún no estás en ningún equipo")).not.toBeInTheDocument();
+  });
+});
+
+describe("PracticeList, límite visible", () => {
+  it("con 50 filas no dice que se ha cortado", () => {
+    const many = Array.from({ length: 50 }, (_, i) => ({
+      ...FIRST,
+      eventId: `e-${i}`,
+      title: `Sesión ${i}`,
+    }));
+    renderList({ practices: many });
+    expect(screen.queryByText(/Mostrando/)).not.toBeInTheDocument();
+  });
+
+  it("con truncated=true muestra «Mostrando las 50 más recientes»", () => {
+    renderList({ truncated: true });
+    expect(screen.getByText("Mostrando las 50 más recientes")).toBeInTheDocument();
+  });
+
+  it("el aviso de truncado no sale sin sesiones", () => {
+    renderList({ truncated: true, practices: [] });
+    expect(screen.queryByText("Mostrando las 50 más recientes")).not.toBeInTheDocument();
+  });
+});
+
+describe("PracticeList, chip de fecha", () => {
+  it("en próximas, el chip muestra el día de la semana y el número del día", () => {
+    renderList({ scope: "upcoming" });
+    const rows = screen.getAllByRole("listitem");
+    expect(within(rows[0]).getByText("Mar")).toBeInTheDocument();
+    expect(within(rows[0]).queryByText("oct")).not.toBeInTheDocument();
+  });
+
+  it("en histórico, el chip muestra el mes en lugar del día de la semana", () => {
+    renderList({
+      scope: "history",
+      practices: [{ ...FIRST, status: "done" }, { ...SECOND, status: "done" }],
+    });
+    const rows = screen.getAllByRole("listitem");
+    expect(within(rows[0]).getByText("oct")).toBeInTheDocument();
+    expect(within(rows[0]).queryByText("Mar")).not.toBeInTheDocument();
   });
 });

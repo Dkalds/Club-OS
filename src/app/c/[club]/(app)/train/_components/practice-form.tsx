@@ -16,6 +16,7 @@ import type { FocusOption, TeamOption } from "@/modules/practice/types";
 import { CTAButton } from "@/ui/cta-button";
 import { FormAlert, SelectField, TextAreaField, TextField } from "@/ui/form-field";
 import { CheckIcon } from "@/ui/icons";
+import { LeaveGuardDialog, useLeaveGuard } from "@/ui/leave-guard";
 
 /**
  * Los datos de una sesión como los tiene el formulario: todo texto, que es lo que dan los
@@ -109,6 +110,10 @@ export function PracticeForm({
   const latest = useRef(initial);
   const [saved, setSaved] = useState(false);
   const [created, setCreated] = useState(false);
+
+  // En modo crear, avisa al salir si hay cambios sin guardar. En modo editar lo gestiona el padre.
+  const createDirty = !edit && !sameValues(values, initial);
+  const { dialog: leaveDialog } = useLeaveGuard(createDirty);
 
   useEffect(() => {
     latest.current = values;
@@ -305,6 +310,8 @@ export function PracticeForm({
       >
         {edit ? "Guardar datos" : "Crear sesión"}
       </CTAButton>
+
+      {!edit ? <LeaveGuardDialog {...leaveDialog} /> : null}
     </form>
   );
 }

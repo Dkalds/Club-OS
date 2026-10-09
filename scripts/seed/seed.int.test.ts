@@ -65,13 +65,13 @@ describe("seed contra Supabase local", () => {
     expect(count).toBe(19);
   });
 
-  it("Alevín A tiene 8 eventos, uno de ellos cancelado", async () => {
+  it("Alevín A tiene 9 eventos, uno de ellos cancelado", async () => {
     const { data: events, error } = await admin
       .from("events")
       .select("id, kind, status")
       .eq("team_id", teamId("arcangel", "Alevín A"));
     expect(error).toBeNull();
-    expect(events).toHaveLength(8);
+    expect(events).toHaveLength(9);
     const cancelled = (events ?? []).filter((event) => event.status === "cancelled");
     expect(cancelled).toEqual([
       { id: seedId("arcangel", "event:alevin-a:cancelled-0"), kind: "practice", status: "cancelled" },

@@ -398,6 +398,7 @@ describe("listPractices", () => {
       teamName: "Equipo B",
       dow: "Mar",
       day: "6",
+      month: "oct",
       time: "18:00",
       title: "Plan up-soon",
       totalMinutes: 45,
@@ -515,7 +516,7 @@ describe("listPractices", () => {
       { column: "starts_at", ascending: true },
       { column: "id", ascending: true },
     ]);
-    expect(events?.limit).toBe(50);
+    expect(events?.limit).toBe(51);
   });
 
   it("el histórico pide lo que no es programado o ya terminó, por inicio descendente, con límite", async () => {
@@ -531,13 +532,13 @@ describe("listPractices", () => {
       { column: "starts_at", ascending: false },
       { column: "id", ascending: true },
     ]);
-    expect(events?.limit).toBe(50);
+    expect(events?.limit).toBe(51);
   });
 
   it("sin equipos devuelve el estado vacío sin consultar los eventos", async () => {
     const calls = installDatabase({ ...listStore(), team_staff: [] });
 
-    expect(await listPractices(COACH, "upcoming", NOW)).toEqual({ practices: [], teamCount: 0 });
+    expect(await listPractices(COACH, "upcoming", NOW)).toEqual({ practices: [], teamCount: 0, truncated: false });
     expect(calls.map((entry) => entry.table)).not.toContain("events");
   });
 
@@ -550,7 +551,7 @@ describe("listPractices", () => {
       NOW,
     );
 
-    expect(result).toEqual({ practices: [], teamCount: 0 });
+    expect(result).toEqual({ practices: [], teamCount: 0, truncated: false });
     expect(calls).toEqual([]);
   });
 });

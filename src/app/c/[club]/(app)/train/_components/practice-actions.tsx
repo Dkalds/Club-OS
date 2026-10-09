@@ -5,6 +5,8 @@ import { useId, useState, type FormEvent } from "react";
 import { ACTION_ERROR_COPY } from "@/lib/action-result";
 import { useAction } from "@/lib/use-action";
 import { cancelPractice, duplicatePractice } from "@/modules/practice/actions";
+import type { PracticeStatus } from "@/modules/practice/types";
+import { loadLiveState } from "@/modules/live/storage";
 import { Card } from "@/ui/card";
 import { ConfirmDialog } from "@/ui/confirm-dialog";
 import { CTAButton } from "@/ui/cta-button";
@@ -36,11 +38,15 @@ export function PracticeActions({
   eventId,
   canEdit,
   duplicateDefaults,
+  status,
+  hasItems = false,
 }: {
   clubSlug: string;
   eventId: string;
   canEdit: boolean;
   duplicateDefaults: { date: string; time: string };
+  status?: PracticeStatus;
+  hasItems?: boolean;
 }) {
   const router = useRouter();
   const panelId = useId();
@@ -51,6 +57,11 @@ export function PracticeActions({
   const [time, setTime] = useState(duplicateDefaults.time);
   const [copied, setCopied] = useState(false);
   const [confirming, setConfirming] = useState(false);
+  const [resumed] = useState<boolean>(() => loadLiveState(eventId) !== null);
+
+  const showStart = status === "scheduled" && hasItems;
+  const startLabel = resumed ? "Continuar entrenamiento" : "Iniciar entrenamiento";
+  const liveUrl = `/c/${clubSlug}/train/${eventId}/live`;
 
   function submitCopy(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -82,8 +93,14 @@ export function PracticeActions({
 
   return (
     <div className="flex flex-col gap-(--space-3)">
+      {showStart ? (
+        <CTAButton variant="primary" block href={liveUrl}>
+          {startLabel}
+        </CTAButton>
+      ) : null}
+
       {canEdit ? (
-        <CTAButton variant="primary" block href={`/c/${clubSlug}/train/${eventId}/edit`}>
+        <CTAButton variant={showStart ? "secondary" : "primary"} block href={`/c/${clubSlug}/train/${eventId}/edit`}>
           Editar sesión
         </CTAButton>
       ) : null}
@@ -149,6 +166,7 @@ export function PracticeActions({
           />
         </>
       ) : null}
+
     </div>
   );
 }

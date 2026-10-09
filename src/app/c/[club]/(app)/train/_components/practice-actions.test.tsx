@@ -5,6 +5,7 @@ import { ACTION_ERROR_COPY, fail, ok, type ActionResult } from "@/lib/action-res
 const mocks = vi.hoisted(() => ({
   duplicatePractice: vi.fn(),
   cancelPractice: vi.fn(),
+  loadLiveState: vi.fn(() => null as import("@/modules/live/types").LiveState | null),
   push: vi.fn(),
   refresh: vi.fn(),
 }));
@@ -12,6 +13,9 @@ const mocks = vi.hoisted(() => ({
 vi.mock("@/modules/practice/actions", () => ({
   duplicatePractice: mocks.duplicatePractice,
   cancelPractice: mocks.cancelPractice,
+}));
+vi.mock("@/modules/live/storage", () => ({
+  loadLiveState: mocks.loadLiveState,
 }));
 // Solo el router es de pega: `useAction` usa el `unstable_rethrow` de verdad.
 vi.mock("next/navigation", async (importOriginal) => ({
@@ -372,5 +376,42 @@ describe("PracticeActions · cancelar", () => {
     expect(await screen.findByText(ACTION_ERROR_COPY.SAVE_FAILED)).toBeInTheDocument();
     expect(screen.queryByText(/fallo de red/)).not.toBeInTheDocument();
     await waitFor(() => expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument());
+  });
+});
+
+describe("PracticeActions · iniciar entrenamiento", () => {
+  beforeEach(() => {
+    mocks.loadLiveState.mockReturnValue(null);
+  });
+
+  it("no aparece si la sesión no es scheduled", () => {
+    renderActions({ status: "done", hasItems: true });
+    expect(screen.queryByRole("link", { name: /iniciar|continuar/i })).not.toBeInTheDocument();
+  });
+
+  it("no aparece si la sesión no tiene ítems", () => {
+    renderActions({ status: "scheduled", hasItems: false });
+    expect(screen.queryByRole("link", { name: /iniciar|continuar/i })).not.toBeInTheDocument();
+  });
+
+  it("aparece «Iniciar entrenamiento» como enlace primary, y «Editar sesión» pasa a secondary", () => {
+    renderActions({ status: "scheduled", hasItems: true });
+
+    const iniciar = screen.getByRole("link", { name: "Iniciar entrenamiento" });
+    expect(iniciar).toHaveClass("bg-brand-accent", "w-full");
+    expect(iniciar).toHaveAttribute("href", `/c/club-a/train/${EVENT}/live`);
+
+    const editLink = screen.getByRole("link", { name: "Editar sesión" });
+    expect(editLink).toHaveClass("border-line-strong", "w-full");
+    expect(editLink).not.toHaveClass("bg-brand-accent");
+  });
+
+  it("si hay estado guardado, el enlace dice «Continuar entrenamiento»", () => {
+    mocks.loadLiveState.mockReturnValue({ version: 1 as const, eventId: EVENT, index: 0, startedAt: 1000, itemStartedAt: 1000, pausedAt: null, pausedMs: 0, progress: {}, finishedAt: null });
+
+    renderActions({ status: "scheduled", hasItems: true });
+
+    expect(screen.getByRole("link", { name: "Continuar entrenamiento" })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Iniciar entrenamiento" })).not.toBeInTheDocument();
   });
 });

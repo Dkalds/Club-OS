@@ -60,12 +60,14 @@ export function PracticeList({
   practices,
   teamCount,
   canCreate,
+  truncated = false,
 }: {
   clubSlug: string;
   scope: "upcoming" | "history";
   practices: PracticeListItem[];
   teamCount: number;
   canCreate: boolean;
+  truncated?: boolean;
 }) {
   const base = `/c/${clubSlug}`;
   const trainHref = `${base}/train`;
@@ -115,19 +117,30 @@ export function PracticeList({
       </nav>
 
       {!empty ? (
-        <Card variant="flush" as="ul">
-          {/* Las filas (`<li>`) van directas dentro de la lista: pintan sus separadores. */}
-          {practices.map((practice) => (
-            <ListRow
-              key={practice.eventId}
-              href={`${trainHref}/${practice.eventId}`}
-              lead={<DateChip dow={practice.dow} day={practice.day} />}
-              title={practice.title}
-              subtitle={practiceRowSubtitle(practice, teamCount)}
-              trail={trailOf(practice)}
-            />
-          ))}
-        </Card>
+        <>
+          <Card variant="flush" as="ul">
+            {/* Las filas (`<li>`) van directas dentro de la lista: pintan sus separadores. */}
+            {practices.map((practice) => (
+              <ListRow
+                key={practice.eventId}
+                href={`${trainHref}/${practice.eventId}`}
+                lead={
+                  scope === "history" ? (
+                    <DateChip day={practice.day} month={practice.month} />
+                  ) : (
+                    <DateChip dow={practice.dow} day={practice.day} />
+                  )
+                }
+                title={practice.title}
+                subtitle={practiceRowSubtitle(practice, teamCount)}
+                trail={trailOf(practice)}
+              />
+            ))}
+          </Card>
+          {truncated ? (
+            <p className="text-body-s text-ink-2">Mostrando las 50 más recientes</p>
+          ) : null}
+        </>
       ) : scope === "history" ? (
         <EmptyState
           icon={<TrainIcon size={28} />}

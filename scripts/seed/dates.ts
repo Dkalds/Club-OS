@@ -7,6 +7,8 @@ export type SeedSchedule = {
   past: SlotIso[];
   upcoming: SlotIso[];
   game: SlotIso;
+  /** Franja de hoy en la zona del club, para la sesión de Live de seed. */
+  todayLive: SlotIso;
 };
 
 const TUESDAY = 2;
@@ -103,5 +105,6 @@ export function seedSchedule(now: Date, tz: string): SeedSchedule {
   if (upcoming.length < UPCOMING_COUNT || game === undefined || past.length < PAST_COUNT) {
     throw new Error(`seedSchedule: no se pudo calcular el calendario para ${now.toISOString()} en ${tz}`);
   }
-  return { past, upcoming, game };
+  const todayLive = slotOnLocalDay(today, tz, PRACTICE.start, PRACTICE.end);
+  return { past, upcoming, game, todayLive };
 }

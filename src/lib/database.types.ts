@@ -445,13 +445,13 @@ isOneToOne: false
                   ]
                 },"practice_plans": {
                   Row: {
-                    "actual_minutes": number | null,"created_at": string,"created_by": string | null,"event_id": string | null,"event_kind": Database["public"]['Enums']["event_kind"],"id": string,"is_template": boolean,"notes": string | null,"organization_id": string,"primary_focus_id": string | null,"secondary_focus_id": string | null,"status": string,"team_id": string | null,"title": string,"updated_at": string,"updated_by": string | null
+                    "actual_minutes": number | null,"created_at": string,"created_by": string | null,"event_id": string | null,"event_kind": Database["public"]['Enums']["event_kind"],"id": string,"is_template": boolean,"last_save_id": string | null,"notes": string | null,"organization_id": string,"primary_focus_id": string | null,"secondary_focus_id": string | null,"status": string,"team_id": string | null,"title": string,"updated_at": string,"updated_by": string | null
                   }
                   Insert: {
-                    "actual_minutes"?: number | null,"created_at"?: string,"created_by"?: string | null,"event_id"?: string | null,"event_kind"?: Database["public"]['Enums']["event_kind"],"id"?: string,"is_template"?: boolean,"notes"?: string | null,"organization_id": string,"primary_focus_id"?: string | null,"secondary_focus_id"?: string | null,"status"?: string,"team_id"?: string | null,"title": string,"updated_at"?: string,"updated_by"?: string | null
+                    "actual_minutes"?: number | null,"created_at"?: string,"created_by"?: string | null,"event_id"?: string | null,"event_kind"?: Database["public"]['Enums']["event_kind"],"id"?: string,"is_template"?: boolean,"last_save_id"?: string | null,"notes"?: string | null,"organization_id": string,"primary_focus_id"?: string | null,"secondary_focus_id"?: string | null,"status"?: string,"team_id"?: string | null,"title": string,"updated_at"?: string,"updated_by"?: string | null
                   }
                   Update: {
-                    "actual_minutes"?: number | null,"created_at"?: string,"created_by"?: string | null,"event_id"?: string | null,"event_kind"?: Database["public"]['Enums']["event_kind"],"id"?: string,"is_template"?: boolean,"notes"?: string | null,"organization_id"?: string,"primary_focus_id"?: string | null,"secondary_focus_id"?: string | null,"status"?: string,"team_id"?: string | null,"title"?: string,"updated_at"?: string,"updated_by"?: string | null
+                    "actual_minutes"?: number | null,"created_at"?: string,"created_by"?: string | null,"event_id"?: string | null,"event_kind"?: Database["public"]['Enums']["event_kind"],"id"?: string,"is_template"?: boolean,"last_save_id"?: string | null,"notes"?: string | null,"organization_id"?: string,"primary_focus_id"?: string | null,"secondary_focus_id"?: string | null,"status"?: string,"team_id"?: string | null,"title"?: string,"updated_at"?: string,"updated_by"?: string | null
                   }
                   Relationships: [
                     {
@@ -686,6 +686,9 @@ isOneToOne: false
 "duplicate_practice":
 { Args: { "p_event": string,"p_starts_at": string }; Returns: string
                            },
+"record_live_progress":
+{ Args: { "p_actual_minutes"?: number,"p_event": string,"p_finished": boolean,"p_items": Json }; Returns: Json
+                           },
 "reorder_methodology":
 { Args: { "p_ids": (string)[],"p_kind": string,"p_org": string }; Returns: undefined
                            },
@@ -698,7 +701,7 @@ isOneToOne: false
 { Args: { "p_id": string,"p_points": (string)[],"p_summary": string,"p_title": string }; Returns: undefined
                            },
 "save_practice_items":
-{ Args: { "p_expected_updated_at": string,"p_items": Json,"p_plan": string }; Returns: string
+{ Args: { "p_expected_updated_at": string,"p_items": Json,"p_plan": string,"p_save_id"?: string }; Returns: Json
                            },
 "search_drills":
 { Args: { "p_age"?: number,"p_focus"?: string,"p_minutes"?: number,"p_org": string,"p_players"?: number,"p_principle"?: string,"p_q"?: string }; Returns: {

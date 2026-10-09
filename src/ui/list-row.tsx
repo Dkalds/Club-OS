@@ -61,13 +61,14 @@ export function ListRow({
 
 /**
  * El día de la semana sobre el número del día, de cifras tabulares: el `lead` de una fila de
- * agenda. Las medidas del número (24px) y del interletrado salen de design/components/bundle.css.
+ * agenda. Con `month` en lugar de `dow`, muestra el mes abreviado (para el histórico).
+ * Las medidas del número (24px) y del interletrado salen de design/components/bundle.css.
  */
-export function DateChip({ dow, day }: { dow: string; day: string }) {
+export function DateChip({ dow, day, month }: { dow?: string; day: string; month?: string }) {
   return (
     <span className="block w-11 shrink-0 text-center">
       <span className="block text-caption font-semibold tracking-[0.08em] text-ink-3 uppercase group-active:text-ink-2">
-        {dow}
+        {month ?? dow}
       </span>
       <span className="block font-display text-[24px] leading-6 font-bold text-ink tabular-nums">
         {day}

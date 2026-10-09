@@ -535,7 +535,7 @@ select lives_ok(
           'drill_id', current_setting('fx.d_a'), 'phase', 'Activación', 'notes', 'Nota A')),
         tests.item('Bloque B', 15, null, '{"phase": "Técnica"}'),
         tests.item('Bloque C', 20)
-      ))::text, true)$$,
+      ))::jsonb ->> 'updated_at', true)$$,
   'c1 guarda tres ítems en su sesión'
 );
 
@@ -585,7 +585,7 @@ select lives_ok(
           'drill_id', current_setting('fx.d_a'), 'phase', 'Juego', 'notes', 'Nota B')),
         tests.item('Ejercicio de A', 10, current_setting('fx.i_a')::uuid, jsonb_build_object(
           'drill_id', current_setting('fx.d_a'), 'phase', 'Activación', 'notes', 'Nota A'))
-      ))::text, true)$$,
+      ))::jsonb ->> 'updated_at', true)$$,
   'c1 guarda los mismos tres ítems en orden inverso'
 );
 
@@ -617,7 +617,7 @@ select lives_ok(
       jsonb_build_array(
         tests.item('Bloque C', 20, current_setting('fx.i_c')::uuid),
         tests.item('Ejercicio de A', 10, current_setting('fx.i_a')::uuid)
-      ))::text, true)$$,
+      ))::jsonb ->> 'updated_at', true)$$,
   'c1 guarda sin el segundo'
 );
 
@@ -635,7 +635,7 @@ select lives_ok(
         tests.item('Bloque C', 20, current_setting('fx.i_c')::uuid),
         tests.item('Ejercicio de A', 10, current_setting('fx.i_a')::uuid),
         tests.item('Bloque D', 5)
-      ))::text, true)$$,
+      ))::jsonb ->> 'updated_at', true)$$,
   'c1 guarda con uno más, sin id'
 );
 
@@ -675,7 +675,7 @@ select lives_ok(
           'organization_id', current_setting('fx.club_b'))),
         tests.item('Ejercicio de A', 12, current_setting('fx.i_a')::uuid),
         tests.item('Bloque C', 20, current_setting('fx.i_c')::uuid)
-      ))::text, true)$$,
+      ))::jsonb ->> 'updated_at', true)$$,
   'c1 guarda con uno nuevo delante, el completado en medio y sin el último'
 );
 
@@ -706,7 +706,7 @@ select lives_ok(
       jsonb_build_array(
         tests.item('Ejercicio de A', 12, current_setting('fx.i_a')::uuid),
         tests.item('Bloque C', 20, current_setting('fx.i_c')::uuid)
-      ))::text, true)$$,
+      ))::jsonb ->> 'updated_at', true)$$,
   'c1b, ayudante de T1, guarda la sesión que creó c1'
 );
 
@@ -1612,7 +1612,7 @@ select lives_ok(
            'notes', 'Notas de ' || pi.title_override))
          order by pi.id desc)
        from practice_items as pi
-       where pi.plan_id = current_setting('fx.p_new')::uuid))::text, true)$$,
+       where pi.plan_id = current_setting('fx.p_new')::uuid))::jsonb ->> 'updated_at', true)$$,
   'c1 guarda los dos ítems en orden descendente de id, con fase, ejercicio y notas'
 );
 
@@ -1914,8 +1914,8 @@ select results_eq(
        'p_event uuid, p_starts_at timestamp with time zone',
        'uuid'),
       ('save_practice_items', 'v', false, 'plpgsql', true,
-       'p_plan uuid, p_expected_updated_at timestamp with time zone, p_items jsonb',
-       'timestamp with time zone'),
+       'p_plan uuid, p_expected_updated_at timestamp with time zone, p_items jsonb, p_save_id uuid DEFAULT NULL::uuid',
+       'jsonb'),
       ('update_practice_session', 'v', false, 'plpgsql', true,
        'p_event uuid, p_expected_updated_at timestamp with time zone, p_starts_at timestamp with time zone, p_ends_at timestamp with time zone, p_title text, p_primary_focus uuid DEFAULT NULL::uuid, p_secondary_focus uuid DEFAULT NULL::uuid, p_location text DEFAULT NULL::text, p_notes text DEFAULT NULL::text',
        'timestamp with time zone')$$,

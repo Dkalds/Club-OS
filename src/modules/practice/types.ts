@@ -14,8 +14,8 @@ export type FocusOption = { id: string; name: string };
 export type PracticeItemDraft = { id?: string; drillId: string | null; title: string; phase: string | null; minutes: number; notes: string | null };
 /** Un ítem ya guardado: lleva `id`. */
 export type SavedPracticeItem = PracticeItemDraft & { id: string };
-/** Una fila de la lista de entrenamientos. `dow`, `day` y `time` llegan ya en la zona del club; `location` es el lugar tal cual se guardó, para los metadatos de la fila. */
-export type PracticeListItem = { eventId: string; teamName: string; dow: string; day: string; time: string; title: string; totalMinutes: number; itemCount: number; status: PracticeStatus; location: string | null };
+/** Una fila de la lista de entrenamientos. `dow`, `day`, `month` y `time` llegan ya en la zona del club; `location` es el lugar tal cual se guardó, para los metadatos de la fila. */
+export type PracticeListItem = { eventId: string; teamName: string; dow: string; day: string; month: string; time: string; title: string; totalMinutes: number; itemCount: number; status: PracticeStatus; location: string | null };
 /** Un ítem del detalle: `drillVisible` dice si su ejercicio se pudo leer (RLS esconde el borrador de otro entrenador), y solo entonces la fila enlaza a su ficha. */
 export type PracticeDetailItem = SavedPracticeItem & { drillVisible: boolean };
 /** Un entrenamiento entero para el constructor. `updatedAt` es la versión con la que se guarda; `canEdit` lo decide la sesión del usuario. */

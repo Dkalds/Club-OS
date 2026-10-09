@@ -1,5 +1,5 @@
 import type { Database } from "@/lib/database.types";
-import { dayChip, formatEventSlot, localTime } from "@/lib/time";
+import { dayChip, formatEventSlot, localTime, monthChip } from "@/lib/time";
 import type { Standard } from "@/modules/methodology/types";
 import { sessionMinutes } from "./items";
 import type {
@@ -151,12 +151,14 @@ export function toPracticeListItems(
     const plan = one(row.practice_plans);
     const items = plan?.practice_items ?? [];
     const { dow, day } = dayChip(row.starts_at, timezone);
+    const { month } = monthChip(row.starts_at, timezone);
 
     return {
       eventId: row.id,
       teamName: teamNames.get(row.team_id) ?? "",
       dow,
       day,
+      month,
       time: localTime(row.starts_at, timezone),
       title: plan?.title ?? NO_PLAN_TITLE,
       totalMinutes: sessionMinutes(items, row.starts_at, row.ends_at),

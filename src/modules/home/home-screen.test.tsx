@@ -198,6 +198,19 @@ describe("HomeScreen con equipos", () => {
     expect(screen.queryByRole("link", { name: "Nueva sesión" })).not.toBeInTheDocument();
   });
 
+  it("con ejercicios, ofrece «Iniciar entrenamiento» que lleva al live de esa sesión", () => {
+    renderHome(home({ nextPractice: { ...PRACTICE, drillCount: 3 } }));
+
+    const link = screen.getByRole("link", { name: "Iniciar entrenamiento" });
+    expect(link).toHaveAttribute("href", "/c/club-a/train/e-1/live");
+  });
+
+  it("sin ejercicios, no ofrece «Iniciar entrenamiento»", () => {
+    renderHome(home({ nextPractice: { ...PRACTICE, drillCount: 0 } }));
+
+    expect(screen.queryByRole("link", { name: "Iniciar entrenamiento" })).not.toBeInTheDocument();
+  });
+
   it("sin partido no hay card de partido", () => {
     renderHome(home({ nextGame: null, week: WEEK.slice(0, 2) }));
 

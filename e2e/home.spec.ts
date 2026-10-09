@@ -86,7 +86,13 @@ async function openHome(page: Page, email: string, club: string, firstName: stri
 test("el entrenador ve su próximo entrenamiento", async ({ page }) => {
   // Reloj de la siembra. El primer entrenamiento sembrado empieza después de sembrar y
   // sigue siendo «el próximo» hasta que termina, aunque empiece durante la ejecución.
-  const [next] = seedSchedule(seedNow(), TZ).upcoming;
+  // todayLive (18:00 del día de siembra) sale antes que upcoming-0 mientras no haya terminado.
+  const { upcoming: [next], todayLive: todayLiveSlot } = seedSchedule(seedNow(), TZ);
+  const isTodayLive = Date.now() < Date.parse(todayLiveSlot.endsAt);
+  const sessionTitle = isTodayLive ? "Bloqueo directo y continuación" : "Transición + rebote defensivo";
+  const sessionMeta = isTodayLive ? "70 min · 4 ejercicios · Pabellón 2" : "75 min · 5 ejercicios · Pabellón 2";
+  const sessionSlot = isTodayLive ? todayLiveSlot : next;
+  const sessionKey = isTodayLive ? "event:alevin-a:today-live" : "event:alevin-a:upcoming-0";
 
   await openHome(page, ALEX, CLUB, "Álex");
 
@@ -97,16 +103,14 @@ test("el entrenador ve su próximo entrenamiento", async ({ page }) => {
   await expect(card).toHaveCount(1);
   // El kicker dice también a qué equipo toca.
   await expect(card.getByText("Próximo entrenamiento · Alevín A")).toBeVisible();
-  await expect(
-    card.getByRole("heading", { level: 2, name: "Transición + rebote defensivo" }),
-  ).toBeVisible();
-  await expect(card.getByText("75 min · 5 ejercicios · Pabellón 2")).toBeVisible();
+  await expect(card.getByRole("heading", { level: 2, name: sessionTitle })).toBeVisible();
+  await expect(card.getByText(sessionMeta)).toBeVisible();
   // La hora, en la zona del club (regla 7), no en la del navegador ni en la del servidor.
-  await expect(card.getByText(formatEventSlot(next.startsAt, next.endsAt, TZ))).toBeVisible();
+  await expect(card.getByText(formatEventSlot(sessionSlot.startsAt, sessionSlot.endsAt, TZ))).toBeVisible();
   // El entrenamiento se abre en su sesión, no en la pestaña Entrenar.
   await expect(card.getByRole("link", { name: "Abrir entrenamiento" })).toHaveAttribute(
     "href",
-    `${CLUB}/train/${seedId(ARCANGEL.slug, "event:alevin-a:upcoming-0")}`,
+    `${CLUB}/train/${seedId(ARCANGEL.slug, sessionKey)}`,
   );
 });
 
@@ -128,9 +132,14 @@ test("ve el próximo partido y su semana", async ({ page }) => {
   const firstPractice = week.getByRole("link").filter({ hasText: "Entrenamiento" }).first();
   await expect(firstPractice).toBeVisible();
   // La fila de un entrenamiento lleva a su sesión; la del partido, a Partidos.
+  // todayLive (18:00 del día de siembra) aparece antes que upcoming-0 mientras no haya terminado.
+  const { todayLive: todayLiveSlot } = seedSchedule(seedNow(), TZ);
+  const firstPracticeKey = Date.now() < Date.parse(todayLiveSlot.endsAt)
+    ? "event:alevin-a:today-live"
+    : "event:alevin-a:upcoming-0";
   await expect(firstPractice).toHaveAttribute(
     "href",
-    `${CLUB}/train/${seedId(ARCANGEL.slug, "event:alevin-a:upcoming-0")}`,
+    `${CLUB}/train/${seedId(ARCANGEL.slug, firstPracticeKey)}`,
   );
   const after = new Date();
 

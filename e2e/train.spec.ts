@@ -37,6 +37,7 @@ const TZ = ARCANGEL.timezone;
 const ALEVIN_META = "75 min · 5 ejercicios · Pabellón 2";
 const PRESSING_META = "75 min · 6 ejercicios · Pabellón 2";
 const BENJAMIN_META = "60 min · 4 ejercicios · Pabellón 1";
+const TODAY_LIVE_META = "70 min · 4 ejercicios · Pabellón 2";
 
 /** El equipo del seed con esa clave, o un error claro si el seed ya no lo tiene. */
 function teamOf(key: string) {
@@ -87,12 +88,17 @@ function ownSessionIsUpcoming(): boolean {
   return Date.now() < Date.parse(session.slot(seedSchedule(seedNow(), TZ), TZ).endsAt);
 }
 
+function todayLiveIsUpcoming(): boolean {
+  return Date.now() < Date.parse(seedSchedule(seedNow(), TZ).todayLive.endsAt);
+}
+
 test("el seed tiene lo que estos tests suponen", () => {
   // Sin esto, una prueba de «no ve lo de otro equipo» pasaría aunque no hubiera nada que ver.
   const alevin = teamOf("alevin-a");
   expect(alevin.sessions.filter((session) => session.status === "scheduled").map((session) => session.title)).toEqual([
     "Transición + rebote defensivo",
     "Defensa presionante",
+    "Bloqueo directo y continuación",
   ]);
   expect(alevin.sessions.filter((session) => session.status === "done")).toHaveLength(4);
   expect(alevin.sessions.filter((session) => session.status === "cancelled").map((session) => session.title)).toEqual([
@@ -103,14 +109,16 @@ test("el seed tiene lo que estos tests suponen", () => {
 
 test("Álex ve sus próximas sesiones", async ({ page }) => {
   // Reloj de la siembra: los dos primeros martes/jueves tras sembrar, que siguen siendo
-  // «próximos» hasta que terminan.
-  const [first, second] = seedSchedule(seedNow(), TZ).upcoming;
+  // «próximos» hasta que terminan. todayLive (18:00 del día de siembra) también aparece
+  // mientras no haya terminado (`ends_at > now`).
+  const { upcoming: [first, second], todayLive: todayLiveSlot } = seedSchedule(seedNow(), TZ);
+  const hasTodayLive = todayLiveIsUpcoming();
 
   await openTrain(page, ALEX);
 
   await expect(tab(page, "Próximas")).toHaveAttribute("aria-current", "page");
   await expect(tab(page, "Histórico")).not.toHaveAttribute("aria-current");
-  await expect(rows(page)).toHaveCount(2);
+  await expect(rows(page)).toHaveCount(hasTodayLive ? 3 : 2);
 
   const transition = row(page, "Transición + rebote defensivo");
   await expect(transition).toHaveCount(1);
@@ -126,6 +134,14 @@ test("Álex ve sus próximas sesiones", async ({ page }) => {
   await expect(pressing).toHaveAttribute("href", `${CLUB}/train/${seedId(ARCANGEL.slug, "event:alevin-a:upcoming-1")}`);
   await expect(pressing).toContainText(PRESSING_META);
   await expect(pressing).toContainText(localTime(second.startsAt, TZ));
+
+  if (hasTodayLive) {
+    const todayLiveRow = row(page, "Bloqueo directo y continuación");
+    await expect(todayLiveRow).toHaveCount(1);
+    await expect(todayLiveRow).toHaveAttribute("href", `${CLUB}/train/${seedId(ARCANGEL.slug, "event:alevin-a:today-live")}`);
+    await expect(todayLiveRow).toContainText(TODAY_LIVE_META);
+    await expect(todayLiveRow).toContainText(localTime(todayLiveSlot.startsAt, TZ));
+  }
 
   // Lo que no es suyo, o no es de las próximas.
   const main = page.locator("main");
@@ -156,9 +172,11 @@ test("el histórico: las hechas con «Hecho» y la cancelada con «Cancelada»",
   await expect(tab(page, "Histórico")).toHaveAttribute("aria-current", "page");
   await expect(tab(page, "Próximas")).not.toHaveAttribute("aria-current");
 
-  // Del más reciente al más antiguo: la cancelada es del día de la segunda próxima.
-  await expect(rows(page)).toHaveCount(5);
-  await expect(rows(page)).toContainText([cancelled, ...done]);
+  // Del más reciente al más antiguo: la cancelada es del día de la segunda próxima. La de
+  // hoy (todayLive) pasa al histórico en cuanto termina, sin «Hecho» ni «Cancelada».
+  const endedToday = todayLiveIsUpcoming() ? [] : ["Bloqueo directo y continuación"];
+  await expect(rows(page)).toHaveCount(5 + endedToday.length);
+  await expect(rows(page)).toContainText([cancelled, ...endedToday, ...done]);
   for (const sessionTitle of done) {
     await expect(row(page, sessionTitle)).toContainText("Hecho");
     await expect(row(page, sessionTitle)).not.toContainText("Cancelada");
@@ -223,8 +241,11 @@ test.describe("cada uno lo suyo", () => {
 
     await expect(row(page, "Transición + rebote defensivo")).toContainText(`Alevín A · ${ALEVIN_META}`);
     await expect(row(page, "Defensa presionante")).toContainText("Alevín A · ");
+    if (todayLiveIsUpcoming()) {
+      await expect(row(page, "Bloqueo directo y continuación")).toContainText("Alevín A · ");
+    }
     if (ownSessionIsUpcoming()) {
-      await expect(rows(page)).toHaveCount(3);
+      await expect(rows(page)).toHaveCount(todayLiveIsUpcoming() ? 4 : 3);
       await expect(row(page, "Bote y control")).toContainText(`Benjamín A · ${BENJAMIN_META}`);
     }
     // Quien dirige puede crear, aunque no tenga equipo propio.
@@ -283,9 +304,15 @@ function sessionOf(teamKey: string, title: string) {
 
 test.describe("el detalle de una sesión", () => {
   test("Álex abre su próximo entrenamiento desde Inicio y ve qué se trabaja, por fases", async ({ page }) => {
-    const [first] = seedSchedule(seedNow(), TZ).upcoming;
-    const { items } = sessionOf("alevin-a", "Transición + rebote defensivo");
-    const eventId = seedId(ARCANGEL.slug, "event:alevin-a:upcoming-0");
+    const { upcoming: [first], todayLive: todayLiveSlot } = seedSchedule(seedNow(), TZ);
+    const isTodayLive = todayLiveIsUpcoming();
+    const sessionTitle = isTodayLive ? "Bloqueo directo y continuación" : "Transición + rebote defensivo";
+    const eventId = seedId(ARCANGEL.slug, isTodayLive ? "event:alevin-a:today-live" : "event:alevin-a:upcoming-0");
+    const slot = isTodayLive ? todayLiveSlot : first;
+    const meta = isTodayLive ? TODAY_LIVE_META : ALEVIN_META;
+    const total = isTodayLive ? "70'" : "75'";
+    const objectives = isTodayLive ? ["Ataque", "Técnica"] : ["Transición", "Rebote"];
+    const { items } = sessionOf("alevin-a", sessionTitle);
 
     await openAs(page, ALEX);
     await expect(page).toHaveURL(new RegExp(`${CLUB}$`));
@@ -298,17 +325,14 @@ test.describe("el detalle de una sesión", () => {
 
     // El título es el único `<h1>`; debajo, la franja en la zona del club y sus metadatos.
     await expect(title(page)).toHaveCount(1);
-    await expect(title(page)).toHaveText("Transición + rebote defensivo");
+    await expect(title(page)).toHaveText(sessionTitle);
     const main = page.getByRole("main");
-    await expect(main).toContainText(formatEventSlot(first.startsAt, first.endsAt, TZ));
-    await expect(main).toContainText(ALEVIN_META);
-    await expect(main.getByRole("list", { name: "Objetivos" }).getByRole("listitem")).toHaveText([
-      "Transición",
-      "Rebote",
-    ]);
+    await expect(main).toContainText(formatEventSlot(slot.startsAt, slot.endsAt, TZ));
+    await expect(main).toContainText(meta);
+    await expect(main.getByRole("list", { name: "Objetivos" }).getByRole("listitem")).toHaveText(objectives);
     await expect(main.getByRole("link", { name: "Entrenar", exact: true })).toHaveAttribute("href", `${CLUB}/train`);
 
-    // Los ejercicios, en bloques de fase, numerados de 01 a 05 a lo largo de toda la sesión.
+    // Los ejercicios, en bloques de fase, numerados de 01 a n a lo largo de toda la sesión.
     for (const { phase } of items) {
       await expect(main.getByRole("heading", { level: 2, name: phase, exact: true }).first()).toBeVisible();
     }
@@ -316,15 +340,15 @@ test.describe("el detalle de una sesión", () => {
     // llevan el texto solo para lectores de pantalla de sus minutos («15 minutos»): la lista de
     // Standards también tiene el rol pero sus filas no lo llevan, y la de objetivos de la cabecera no
     // tiene el rol. No por no llevar enlaces: un ejercicio de la biblioteca enlaza a su ficha.
-    const rows = main.locator('ul[role="list"] > li:has(.sr-only)');
-    await expect(rows).toHaveCount(items.length);
+    const listRows = main.locator('ul[role="list"] > li:has(.sr-only)');
+    await expect(listRows).toHaveCount(items.length);
     for (const [index, item] of items.entries()) {
       const number = String(index + 1).padStart(2, "0");
-      await expect(rows.nth(index)).toContainText(number);
-      await expect(rows.nth(index)).toContainText(item.title);
-      await expect(rows.nth(index)).toContainText(`${item.minutes}'`);
+      await expect(listRows.nth(index)).toContainText(number);
+      await expect(listRows.nth(index)).toContainText(item.title);
+      await expect(listRows.nth(index)).toContainText(`${item.minutes}'`);
     }
-    await expect(main.getByText("Total", { exact: true }).locator("..")).toContainText("75'");
+    await expect(main.getByText("Total", { exact: true }).locator("..")).toContainText(total);
 
     // Quien entrena puede editarla (el constructor escribe: lo abre `practice-builder.spec.ts`).
     await expect(page.getByRole("link", { name: "Editar sesión" })).toHaveAttribute("href", `${CLUB}/train/${eventId}/edit`);

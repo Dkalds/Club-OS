@@ -165,6 +165,7 @@ const pastSlot =
   (schedule) =>
     schedule.past[index];
 const gameSlot: SlotOf = (schedule) => schedule.game;
+const todayLiveSlot: SlotOf = (schedule) => schedule.todayLive;
 // El mismo día que `upcoming[index]`, a otra hora local.
 const sameDayAsUpcoming =
   (index: number, start: string, end: string): SlotOf =>
@@ -268,6 +269,21 @@ const ALEVIN_A: TeamDef = {
       { phase: "Transición", title: "Contraataque 2x1 y 3x2", minutes: 35 },
       "5x5 con puntos por contraataque",
     ]),
+    {
+      slotKey: "today-live",
+      slot: todayLiveSlot,
+      status: "scheduled",
+      title: "Bloqueo directo y continuación",
+      focus: "ataque",
+      secondaryFocus: "tecnica",
+      location: "Pabellón 2",
+      items: [
+        { phase: "Activación", title: "Movilidad articular + pases en movimiento", minutes: 10 },
+        { phase: "Técnica", title: "Posición de tirador y salida del bloqueo", minutes: 20 },
+        { phase: "Ataque", title: "Bloqueo directo 2x2 con continuación", minutes: 20 },
+        { phase: "Competición", title: "5x5 con puntos por bloqueo bien ejecutado", minutes: 20 },
+      ],
+    },
     pastSession(3, "Rebote ofensivo", "rebote", "tiro", [
       "Calentamiento con balón",
       { phase: "Rebote", title: "Bloqueo y rebote ofensivo 3x3", minutes: 35 },
@@ -818,6 +834,7 @@ function addClub(data: SeedData, club: ClubDef, now: Date): void {
         notes: null,
         is_template: false,
         status: session.status === "done" ? "done" : "ready",
+        actual_minutes: null,
       });
 
       session.items.forEach((item, index) => {
@@ -832,6 +849,8 @@ function addClub(data: SeedData, club: ClubDef, now: Date): void {
           title_override: item.title,
           minutes: item.minutes,
           notes: null,
+          completed: null,
+          actual_minutes: null,
         });
       });
     }

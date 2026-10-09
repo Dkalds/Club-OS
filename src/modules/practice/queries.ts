@@ -104,15 +104,15 @@ export async function listPractices(
   ctx: ClubContext,
   scope: "upcoming" | "history",
   nowIso: string,
-): Promise<{ practices: PracticeListItem[]; teamCount: number }> {
+): Promise<{ practices: PracticeListItem[]; teamCount: number; truncated: boolean }> {
   const teams = await listManageableTeams(ctx);
-  if (teams.length === 0) return { practices: [], teamCount: 0 };
+  if (teams.length === 0) return { practices: [], teamCount: 0, truncated: false };
 
   const supabase = await createClient();
 
   // `practice_plans` cuelga de `events` por una clave compuesta: llega como lista de un
   // elemento. El histórico es lo que no es «programado y sin terminar»: se pide con la
-  // negación de esa condición.
+  // negación de esa condición. Se pide un elemento extra para saber si hay más de LIST_LIMIT.
   const events = supabase
     .from("events")
     .select(LIST_COLUMNS)
@@ -130,10 +130,17 @@ export async function listPractices(
   const { data, error } = await scoped
     .order("starts_at", { ascending: scope === "upcoming" })
     .order("id", { ascending: true })
-    .limit(LIST_LIMIT);
+    .limit(LIST_LIMIT + 1);
   if (error) throwReadError("practice.list", error);
 
-  return { practices: toPracticeListItems(data, teams, ctx.org.timezone), teamCount: teams.length };
+  const truncated = data.length > LIST_LIMIT;
+  const rows = truncated ? data.slice(0, LIST_LIMIT) : data;
+
+  return {
+    practices: toPracticeListItems(rows, teams, ctx.org.timezone),
+    teamCount: teams.length,
+    truncated,
+  };
 }
 
 /**

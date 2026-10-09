@@ -65,7 +65,11 @@ Hecho, de lo que dejó la Fase 3 para el principio de esta fase:
 
 El resto de ese bloque son retoques de la biblioteca sin relación con las sesiones: pasa a la Fase 7, «Pulido de la biblioteca (lo dejó la Fase 3)».
 
-## Fase 5 · Live Practice
+## Fase 5 · Live Practice (cerrada)
+
+Estado: tareas 1–14 hechas. Hecho y verificado: el cronómetro y el reductor de estado live (`useLive`, `use-wake-lock`, `Timer`, `LiveControls`); la pantalla Live con precarga de diagramas, progreso por ítem, pausa y avance; «Iniciar entrenamiento» en el detalle y en Inicio; la PWA (manifiesto, service worker con Serwist, página sin conexión, `clearLiveData` al cerrar sesión); el seed con la sesión de hoy (`todayLive`); e2e de Live en el proyecto `admin` (inicia, avanza, recarga, sin conexión, termina con confirmación, aislamiento de equipo, sin Wake Lock API). `lint`, `typecheck` y `check:guards` limpios; unidad 3714/3714 (158 ficheros), `TZ=UTC` también. Pendiente de verificación con `supabase db reset`, `pnpm seed` y el resto de la suite desde una base vacía (Task 14, paso del propietario). Revisión en dispositivos físicos en la pista pendiente.
+
+Pendientes conocidos que deja esta fase:
 
 - La URL firmada del diagrama caduca a los 10 minutos (`signedUrl(path, expiresIn = 600)`): una pantalla de Live abierta mucho rato o sin conexión la pierde. Decidir cómo se piden o se cachean los diagramas de la sesión.
 - La ficha dice «Pista sin diagrama» cuando la URL firmada de un diagrama enlazado ha caducado y la imagen no carga (`CourtDiagram` cae a la pista vacía). En Live eso sería engañoso.
