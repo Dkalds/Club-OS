@@ -25,4 +25,13 @@ describe("noTeamsState", () => {
       action: { label: "Volver a Entrenar", href: "/c/club-a/train" },
     });
   });
+
+  it("en Equipo y en Partidos dice qué verá cuando tenga equipo", () => {
+    expect(noTeamsState("coach", "club-a", "roster").body).toBe(
+      "Cuando dirección te asigne un equipo, aquí verás su plantilla.",
+    );
+    expect(noTeamsState("admin", "club-a", "games").body).toBe(
+      "Cuando des de alta los equipos en Gestión, aquí verás sus partidos.",
+    );
+  });
 });

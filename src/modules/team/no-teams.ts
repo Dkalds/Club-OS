@@ -8,6 +8,13 @@ export type NoTeamsState = {
   action: { label: string; href: string };
 };
 
+const THEN = {
+  sessions: "aquí verás sus sesiones.",
+  "new-session": "podrás crear sus sesiones.",
+  roster: "aquí verás su plantilla.",
+  games: "aquí verás sus partidos.",
+} as const;
+
 /**
  * Qué decir cuando «mis equipos» está vacío, según quién lo lee. A la dirección sus equipos
  * son todos los del club: si no hay ninguno, es que faltan por dar de alta, no que nadie se
@@ -16,9 +23,9 @@ export type NoTeamsState = {
 export function noTeamsState(
   role: Role,
   clubSlug: string,
-  where: "sessions" | "new-session",
+  where: "sessions" | "new-session" | "roster" | "games",
 ): NoTeamsState {
-  const then = where === "sessions" ? "aquí verás sus sesiones." : "podrás crear sus sesiones.";
+  const then = THEN[where];
 
   if (role === "admin") {
     return {
