@@ -325,21 +325,21 @@ isOneToOne: false
                   ]
                 },"games": {
                   Row: {
-                    "competition_name": string | null,"event_id": string,"home_away": string | null,"opponent_name": string,"opponent_notes": string | null,"organization_id": string,"score_against": number | null,"score_for": number | null,"source": string
+                    "competition_name": string | null,"event_id": string,"event_kind": Database["public"]['Enums']["event_kind"],"home_away": string | null,"opponent_name": string,"opponent_notes": string | null,"organization_id": string,"score_against": number | null,"score_for": number | null,"source": string
                   }
                   Insert: {
-                    "competition_name"?: string | null,"event_id": string,"home_away"?: string | null,"opponent_name": string,"opponent_notes"?: string | null,"organization_id": string,"score_against"?: number | null,"score_for"?: number | null,"source"?: string
+                    "competition_name"?: string | null,"event_id": string,"event_kind"?: Database["public"]['Enums']["event_kind"],"home_away"?: string | null,"opponent_name": string,"opponent_notes"?: string | null,"organization_id": string,"score_against"?: number | null,"score_for"?: number | null,"source"?: string
                   }
                   Update: {
-                    "competition_name"?: string | null,"event_id"?: string,"home_away"?: string | null,"opponent_name"?: string,"opponent_notes"?: string | null,"organization_id"?: string,"score_against"?: number | null,"score_for"?: number | null,"source"?: string
+                    "competition_name"?: string | null,"event_id"?: string,"event_kind"?: Database["public"]['Enums']["event_kind"],"home_away"?: string | null,"opponent_name"?: string,"opponent_notes"?: string | null,"organization_id"?: string,"score_against"?: number | null,"score_for"?: number | null,"source"?: string
                   }
                   Relationships: [
                     {
-      foreignKeyName: "games_organization_id_event_id_fkey"
-      columns: ["organization_id","event_id"]
+      foreignKeyName: "games_event_fkey"
+      columns: ["organization_id","event_kind","event_id"]
 isOneToOne: false
       referencedRelation: "events"
-      referencedColumns: ["organization_id","id"]
+      referencedColumns: ["organization_id","kind","id"]
     },{
       foreignKeyName: "games_organization_id_fkey"
       columns: ["organization_id"]
@@ -754,11 +754,20 @@ isOneToOne: false
             [_ in never]: never
           }
           Functions: {
-            "create_practice_session":
+            "cancel_game":
+{ Args: { "p_event": string }; Returns: undefined
+                           },
+"create_game":
+{ Args: { "p_competition"?: string,"p_ends_at": string,"p_home_away"?: string,"p_location"?: string,"p_opponent": string,"p_starts_at": string,"p_team": string }; Returns: string
+                           },
+"create_practice_session":
 { Args: { "p_ends_at": string,"p_location"?: string,"p_primary_focus"?: string,"p_secondary_focus"?: string,"p_starts_at": string,"p_team": string,"p_title": string }; Returns: string
                            },
 "duplicate_practice":
 { Args: { "p_event": string,"p_starts_at": string }; Returns: string
+                           },
+"record_game_result":
+{ Args: { "p_event": string,"p_score_against": number,"p_score_for": number }; Returns: undefined
                            },
 "record_live_progress":
 { Args: { "p_actual_minutes"?: number,"p_event": string,"p_finished": boolean,"p_items": Json }; Returns: Json
@@ -806,6 +815,9 @@ isOneToOne: false
         isOneToOne: false
         isSetofReturn: true
       } },
+"update_game":
+{ Args: { "p_competition"?: string,"p_ends_at": string,"p_event": string,"p_home_away"?: string,"p_location"?: string,"p_opponent": string,"p_opponent_notes"?: string,"p_starts_at": string }; Returns: undefined
+                           },
 "update_practice_session":
 { Args: { "p_ends_at": string,"p_event": string,"p_expected_updated_at": string,"p_location"?: string,"p_notes"?: string,"p_primary_focus"?: string,"p_secondary_focus"?: string,"p_starts_at": string,"p_title": string }; Returns: string
                            },

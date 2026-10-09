@@ -211,6 +211,13 @@ select set_eq(
               'diagram_media_id', 'status']),
       -- Desarrollo (20261215000100). Ni el id, ni el autor, ni las fechas: los pone la base.
       -- Un objetivo nace activo; al cambiar no cambia de club, de jugador ni de equipo.
+      -- Partidos (20261215000200): el alta y los cambios van por `create_game`,
+      -- `update_game`, `record_game_result` y `cancel_game`, que son `security invoker`.
+      ('games', 'insert',
+        array['event_id', 'organization_id', 'opponent_name', 'competition_name', 'home_away']),
+      ('games', 'update',
+        array['opponent_name', 'competition_name', 'home_away', 'score_for', 'score_against',
+              'opponent_notes']),
       ('player_goals', 'insert',
         array['organization_id', 'person_id', 'team_id', 'title', 'description', 'focus_area_id',
               'standard_id']),
