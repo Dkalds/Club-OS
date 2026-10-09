@@ -107,8 +107,9 @@ test("Álex inicia Live, avanza y recarga con el estado correcto", async ({ page
   await resetTodayLive();
 });
 
-test("sin conexión avanza, la BD lo recibe al volver la red", async ({ page }) => {
+test("sin conexión avanza, la BD lo recibe al volver la red", async ({ page, browserErrors }) => {
   test.skip(!canWrite(), NEEDS_LOCAL_DB);
+  browserErrors.allowOffline();
 
   await page.clock.install({ time: new Date("2026-10-08T16:00:00Z") });
 
@@ -120,22 +121,24 @@ test("sin conexión avanza, la BD lo recibe al volver la red", async ({ page }) 
   // Corta la conexión.
   await page.context().setOffline(true);
 
+  // Un ejercicio de 0 min no cuenta como hecho (D5): pasan 2 min antes de avanzar.
+  await page.clock.fastForward("02:00");
   await page.getByRole("button", { name: "Siguiente ejercicio" }).click();
   await expect(page.getByText("2 / 4")).toBeVisible();
 
   // El aviso de sin conexión aparece.
   await expect(page.getByText("Sin conexión: se enviará al volver")).toBeVisible();
 
-  // Recarga en offline: el diagrama sigue visible (precachado por el SW) o la pantalla
-  // sigue activa (el SW no está activo en test, así que basta con que la app no rompa).
-  await page.reload();
-  // Sigue dentro de Live, no en 404 ni en error.
+  // Sin red la pantalla sigue en Live. Recargar sin red no se prueba: la caché offline de
+  // la página llega en una fase posterior (spec, «la caché offline, después»).
   await expect(page).toHaveURL(new RegExp(`${LIVE_URL}$`));
+  await expect(page.getByRole("timer")).toBeVisible();
 
-  // Vuelve la conexión.
+  // Vuelve la conexión: el envío pendiente se reintenta solo, sin recargar.
   await page.context().setOffline(false);
-  // Tras enviar, aparece «Guardado» o desaparece el aviso.
-  await expect(page.getByText("Sin conexión: se enviará al volver")).toHaveCount(0, { timeout: 10000 });
+  // «Guardado» solo aparece cuando el servidor ha respondido: hasta entonces la BD no lo tiene.
+  await expect(page.getByText("Guardado", { exact: true })).toBeVisible({ timeout: 15000 });
+  await expect(page.getByText("Sin conexión: se enviará al volver")).toHaveCount(0);
 
   // Review Focus 1: la BD registra el ítem completado.
   const db = createAdminClient();
@@ -186,7 +189,7 @@ test("terminar → confirmación → sesión en Histórico como hecha", async ({
   await page.goto(`${CLUB}/train?scope=history`);
   const row = page.getByRole("link").filter({ hasText: "Bloqueo directo y continuación" }).first();
   await expect(row).toBeVisible();
-  await expect(row).toContainText("Hecha");
+  await expect(row).toContainText("Hecho");
 
   await resetTodayLive();
 });
@@ -214,9 +217,10 @@ test("Nora no accede al Live de Alevín A (Review Focus 2)", async ({ page }) =>
 });
 
 test("sin navigator.wakeLock Live funciona y avisa", async ({ page }) => {
-  // Elimina la API de Wake Lock antes de que la página cargue.
+  // Elimina la API de Wake Lock antes de que la página cargue. Es un getter del prototipo:
+  // borrarla de `navigator` no hace nada.
   await page.addInitScript(() => {
-    delete (navigator as unknown as Record<string, unknown>)["wakeLock"];
+    delete (Navigator.prototype as unknown as Record<string, unknown>)["wakeLock"];
   });
 
   await page.clock.install({ time: new Date("2026-10-08T16:00:00Z") });

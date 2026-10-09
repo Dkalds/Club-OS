@@ -10,10 +10,18 @@ export type BrowserErrors = {
    * llamarla antes de abrirlas. El porqué, en el fixture.
    */
   allowNotFound(...paths: string[]): void;
+  /**
+   * Declara que el test corta la red a propósito (`context.setOffline(true)`): se permite el
+   * aviso de Chromium por cada petición que no sale. Cualquier otro error sigue contando.
+   */
+  allowOffline(): void;
 };
 
 /** El aviso que Chromium escribe en la consola por cada recurso que responde 404. */
 const NOT_FOUND_NOTICE = /^Failed to load resource: the server responded with a status of 404/;
+
+/** El aviso que Chromium escribe por cada petición que no sale por estar sin conexión. */
+const OFFLINE_NOTICE = /^Failed to load resource: net::ERR_INTERNET_DISCONNECTED$/;
 
 /**
  * El `test` de todos los specs: el de Playwright más un vigilante de la consola.
@@ -60,6 +68,7 @@ export const test = base.extend<{ browserErrors: BrowserErrors; protectionBypass
     async ({ context }, use) => {
       const seen: string[] = [];
       const expectedNotFound = new Set<string>();
+      let offlineExpected = false;
 
       // Única excepción, y solo para quien la pide: al abrir una página que responde 404,
       // Chromium escribe por su cuenta un error en la consola («Failed to load resource…»).
@@ -74,6 +83,7 @@ export const test = base.extend<{ browserErrors: BrowserErrors; protectionBypass
 
       context.on("console", (message) => {
         if (message.type() !== "error" || isExpectedNotFound(message)) return;
+        if (offlineExpected && OFFLINE_NOTICE.test(message.text())) return;
         // El aviso de un recurso que no carga no dice cuál: lo dice su `location`.
         const { url } = message.location();
         const page = message.page()?.url() ?? "(sin página)";
@@ -90,6 +100,9 @@ export const test = base.extend<{ browserErrors: BrowserErrors; protectionBypass
         seen,
         allowNotFound: (...paths) => {
           for (const path of paths) expectedNotFound.add(path);
+        },
+        allowOffline: () => {
+          offlineExpected = true;
         },
       });
 
