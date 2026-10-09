@@ -41,18 +41,27 @@ export function Avatar({
   name,
   size = "md",
   number,
+  tone,
+  decorative = false,
 }: {
   name: string;
   size?: AvatarSize;
   number?: string;
+  /** El color del texto. Por defecto, el acento si lleva `number` (el club) e `ink` si no. */
+  tone?: "accent" | "ink";
+  /**
+   * Cuando el nombre ya se lee al lado (una fila, una tarjeta): el avatar no se anuncia, para
+   * que cada persona o equipo se lea una sola vez.
+   */
+  decorative?: boolean;
 }) {
   const short = number?.trim();
+  const color = (tone ?? (short ? "accent" : "ink")) === "accent" ? "text-brand-accent" : "text-ink";
 
   return (
     <span
-      role="img"
-      aria-label={name}
-      className={`inline-flex shrink-0 items-center justify-center overflow-hidden rounded-pill border border-line bg-surface-2 font-display leading-none font-bold tracking-[0.02em] tabular-nums ${SIZE_CLASS[size]} ${short ? "text-brand-accent" : "text-ink"}`}
+      {...(decorative ? { "aria-hidden": true } : { role: "img", "aria-label": name })}
+      className={`inline-flex shrink-0 items-center justify-center overflow-hidden rounded-pill border border-line bg-surface-2 font-display leading-none font-bold tracking-[0.02em] tabular-nums ${SIZE_CLASS[size]} ${color}`}
     >
       {short || initials(name)}
     </span>

@@ -130,7 +130,8 @@ describe("HomeScreen con equipos", () => {
 
     const card = screen.getByText("Próximo partido").closest("article");
     expect(card).not.toBeNull();
-    expect(within(card!).getByRole("img", { name: "Equipo A" })).toHaveTextContent("CLB");
+    expect(within(card!).getByText("CLB")).toHaveClass("text-brand-accent");
+    expect(within(card!).getByText("Equipo A")).toBeInTheDocument();
     expect(within(card!).getByText("Rival C")).toBeInTheDocument();
     expect(within(card!).getByText("Sábado 10 oct · 10:30 · Local")).toBeInTheDocument();
   });

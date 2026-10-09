@@ -61,4 +61,20 @@ describe("Avatar", () => {
 
     expect(container.querySelector("img")).toBeNull();
   });
+
+  it("con `tone=\"ink\"` el texto que sustituye a las iniciales no va en el acento del club", () => {
+    render(<Avatar name="CB Rival" number="RIV" tone="ink" />);
+
+    const avatar = screen.getByRole("img", { name: "CB Rival" });
+    expect(avatar).toHaveClass("text-ink");
+    expect(avatar).not.toHaveClass("text-brand-accent");
+  });
+
+  it("decorativo: no es una imagen para los lectores de pantalla (el nombre ya se lee al lado)", () => {
+    const { container } = render(<Avatar name="Ana Pino" decorative />);
+
+    expect(screen.queryByRole("img")).not.toBeInTheDocument();
+    expect(container.firstChild).toHaveAttribute("aria-hidden", "true");
+    expect(container.firstChild).toHaveTextContent("AP");
+  });
 });
