@@ -100,3 +100,53 @@ describe("sin reintento en errores permanentes", () => {
     expect(fetch).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("sin conexión", () => {
+  it("avisa con onRetry en cada fallo de red, antes de esperar", async () => {
+    const fetch = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("network"))
+      .mockRejectedValueOnce(new Error("network"))
+      .mockResolvedValueOnce({ ok: true, status: 200 });
+    const onRetry = vi.fn();
+
+    await syncLiveProgress(payload, { fetch, now, onRetry, wait: () => Promise.resolve() });
+    expect(onRetry).toHaveBeenCalledTimes(2);
+  });
+
+  it("un 5xx no es estar sin conexión: no llama a onRetry", async () => {
+    const fetch = vi
+      .fn()
+      .mockResolvedValueOnce({ ok: false, status: 503 })
+      .mockResolvedValueOnce({ ok: true, status: 200 });
+    const onRetry = vi.fn();
+
+    await syncLiveProgress(payload, { fetch, now, onRetry, wait: () => Promise.resolve() });
+    expect(onRetry).not.toHaveBeenCalled();
+  });
+
+  it("si otro envío lo reemplaza (signal abortado), deja de reintentar", async () => {
+    const controller = new AbortController();
+    const fetch = vi.fn().mockRejectedValue(new Error("network"));
+
+    await syncLiveProgress(payload, {
+      fetch,
+      now,
+      signal: controller.signal,
+      wait: () => {
+        controller.abort();
+        return Promise.resolve();
+      },
+    });
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("con el signal ya abortado no envía nada", async () => {
+    const controller = new AbortController();
+    controller.abort();
+    const fetch = vi.fn();
+
+    await syncLiveProgress(payload, { fetch, now, signal: controller.signal });
+    expect(fetch).not.toHaveBeenCalled();
+  });
+});

@@ -31,7 +31,7 @@ export function LiveScreen(props: LiveScreenProps) {
 
 function LiveScreenContent({ session, clubSlug }: LiveScreenProps) {
   const router = useRouter();
-  const { state, now, syncStatus, dispatch } = useLive(session);
+  const { state, now, syncStatus, dispatch, finish } = useLive(session);
   const { supported: wakeLockSupported } = useWakeLock(state.startedAt !== null && state.finishedAt === null);
   const [showFinishConfirm, setShowFinishConfirm] = useState(false);
 
@@ -51,9 +51,10 @@ function LiveScreenContent({ session, clubSlug }: LiveScreenProps) {
     }
   }
 
-  function handleFinish() {
-    dispatch({ type: "finish" });
+  async function handleFinish() {
     setShowFinishConfirm(false);
+    // Al detalle solo cuando el fin está registrado: si no, aún ofrecería «Continuar».
+    await finish();
     router.push(`/c/${clubSlug}/train/${session.eventId}`);
   }
 
