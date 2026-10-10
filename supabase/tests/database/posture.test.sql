@@ -330,7 +330,9 @@ select set_eq(
     ('public', 'accept_pending_invitations', ''),
     ('public', 'grant_terms_consent', 'p_org uuid'),
     ('public', 'grant_image_consent', 'p_person uuid'),
-    ('public', 'revoke_image_consent', 'p_consent uuid')
+    ('public', 'revoke_image_consent', 'p_consent uuid'),
+    -- Cobertura de The Way (Fase 7, Task 13): security invoker, no eleva nada.
+    ('public', 'coverage_by_team', 'p_org uuid, p_from date, p_to date')
   $$,
   'authenticated ejecuta exactamente estas funciones de public y de private'
 );

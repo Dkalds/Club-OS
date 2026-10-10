@@ -1839,6 +1839,13 @@ export type Database = {
     Functions: {
       accept_pending_invitations: { Args: Record<PropertyKey, never>; Returns: string[] };
       cancel_game: { Args: { p_event: string }; Returns: undefined };
+      coverage_by_team: {
+        Args: { p_from: string; p_org: string; p_to: string };
+        Returns: {
+          standard_id: string;
+          team_id: string;
+        }[];
+      };
       create_game: {
         Args: {
           p_competition?: string;
