@@ -1,6 +1,6 @@
 # Importador de contenido y paquete «Biblioteca del entrenador» · Diseño
 
-Fecha: 10 oct 2026. Estado: pendiente de revisión del propietario.
+Fecha: 10 oct 2026. Estado: aprobada por el propietario el 10 oct 2026 e implementada (ver «Lo que deja el importador de contenido» en `docs/superpowers/backlog.md`).
 
 ## Propósito
 
@@ -209,12 +209,14 @@ De la misma raíz salen el id de cada punto y de cada variante (por su posición
 ### Crear y actualizar
 
 - **Por defecto solo crea.** Un ejercicio que ya existe (por id) no se toca: ni su ficha, ni sus puntos, ni su diagrama. Lo editado en la app manda.
-- **Con `--update`** cada ejercicio del paquete vuelve a lo que dice el paquete: ficha, estado, puntos, variantes, objetivos de trabajo, principios y diagrama. Los puntos y variantes que sobran se borran. Los Standards enlazados no se tocan: el paquete no opina sobre ellos.
+- **Con `--update`** cada ejercicio del paquete vuelve a lo que dice el paquete: ficha, estado, puntos, variantes, objetivos de trabajo, principios y diagrama. Los puntos y variantes que sobran se borran. Lo que el formato no lleva no se toca, porque el paquete no opina sobre ello: los Standards enlazados, el resumen y el vídeo.
 - Ninguno de los dos modos borra un ejercicio que el paquete ya no trae.
 
 ### Fallos a mitad
 
 Las escrituras van por la API y no comparten transacción. Si una falla, el importador deshace lo que **creó** en esa ejecución (ejercicios, que arrastran a sus hijos; fichas de medios; objetos de Storage) y termina con error. Lo que `--update` ya había sobrescrito no se puede deshacer: se repara volviendo a ejecutar con `--update`.
+
+Si el proceso muere a mitad (se cierra la terminal), nadie deshace nada. Puede quedar un ejercicio con su ficha y sin hijos. La siguiente ejecución lo reconoce porque no tiene ningún objetivo de trabajo, cosa que ni el paquete ni el formulario de la app permiten, y lo completa también sin `--update`; en el informe cuenta como creado.
 
 ### Estructura
 

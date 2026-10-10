@@ -1,6 +1,6 @@
 # CLUB OS · Importador de contenido y paquete «Biblioteca del entrenador» — Plan de implementación
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Un comando repetible, `pnpm content:import <carpeta> --club <slug>`, carga en la biblioteca de un club un paquete de contenido (un `pack.json` y sus pizarras), y el repositorio trae el primer paquete real: los 44 ejercicios comunes del manual de pista del club piloto.
 
@@ -77,7 +77,7 @@ export function parsePack(raw: unknown): Pack; // lanza PackError
 export function loadPack(dir: string): Promise<LoadedPack>; // lanza PackError
 ```
 
-- [ ] **Step 1: Crear el paquete de ejemplo**
+- [x] **Step 1: Crear el paquete de ejemplo**
 
 `scripts/content/fixtures/pack-ejemplo/pack.json`:
 
@@ -125,7 +125,7 @@ La pizarra es un PNG de 1×1. Créala desde la raíz del repo:
 node -e "const fs=require('fs');fs.mkdirSync('scripts/content/fixtures/pack-ejemplo/diagrams',{recursive:true});fs.writeFileSync('scripts/content/fixtures/pack-ejemplo/diagrams/rueda-de-pases-en-estrella.png', Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64'))"
 ```
 
-- [ ] **Step 2: Escribir los tests que fallan** (`scripts/content/pack.test.ts`)
+- [x] **Step 2: Escribir los tests que fallan** (`scripts/content/pack.test.ts`)
 
 Andamiaje: `FIXTURE = path.resolve(import.meta.dirname, "fixtures/pack-ejemplo")`, `KEY = "rueda-de-pases-en-estrella"`, `raw()` lee y parsea el JSON de ejemplo y lo devuelve como un objeto suelto que los tests mutan (con un tipo propio, sin `any`), `issuesOf(fn)` devuelve `PackError.issues` de lo que `fn` lanza (o de la promesa que rechaza), y `copyOfFixture()` copia el paquete a `mkdtemp(path.join(tmpdir(), "pack con espacio-"))` y devuelve la ruta (se borra en `afterEach`).
 
@@ -244,12 +244,12 @@ Y cinco casos más de `loadPack`, cada uno sobre una copia del paquete, con este
 | Pizarra vacía | Dejar el `.png` con 0 bytes | `diagram: diagrams/${KEY}.png está vacío.` |
 | Pizarra grande | `.png` de 2.097.153 bytes que empieza por la firma PNG | `diagram: diagrams/${KEY}.png pesa más de 2 MB.` |
 
-- [ ] **Step 3: Verificar que fallan**
+- [x] **Step 3: Verificar que fallan**
 
 Run: `pnpm test scripts/content/pack.test.ts`
 Expected: FAIL, no existe `./pack`.
 
-- [ ] **Step 4: Implementar `scripts/content/pack.ts`**
+- [x] **Step 4: Implementar `scripts/content/pack.ts`**
 
 Decisiones que el test no determina:
 
@@ -259,12 +259,12 @@ Decisiones que el test no determina:
 - **Prefijo de cada error de ejercicio:** `drills[<i>] «<key>» · <campo>: `. Si `key` no es un texto, `drills[<i>] · `. Una clave repetida se señala en la segunda aparición y en las siguientes, no en la primera.
 - **`loadPack`** quita el BOM, valida el contenido y, para cada pizarra con ruta correcta, comprueba que existe, su tamaño (1 a `MAX_DIAGRAM_BYTES`) y que `sniffImageType` de sus primeros bytes coincide con la extensión. Lanza una sola `PackError` con todo. `PackError.message` es `El paquete no es válido:` y, debajo, una línea `- …` por error.
 
-- [ ] **Step 5: Verificar que pasan**
+- [x] **Step 5: Verificar que pasan**
 
 Run: `pnpm test scripts/content/pack.test.ts`
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add scripts/content/pack.ts scripts/content/pack.test.ts scripts/content/fixtures
@@ -308,7 +308,7 @@ export function buildPackRows(loaded: LoadedPack, refs: ClubRefs): PackDrillRows
 
 Claves de `contentId` por fila: ejercicio `drill:<key>`; punto `drill:<key>:point:<i>`; variante `drill:<key>:variant:<i>`; ficha del diagrama `drill:<key>:diagram`. `sort` empieza en 0.
 
-- [ ] **Step 1: Escribir los tests que fallan** (`scripts/content/rows.test.ts`)
+- [x] **Step 1: Escribir los tests que fallan** (`scripts/content/rows.test.ts`)
 
 Andamiaje: `ORG = "11111111-1111-4111-8111-111111111111"`, `refs` con `slug: "club-de-prueba"`, los focos `tecnica`, `transicion` y `ataque` y el principio `transicion` (ids fijos cualesquiera), `focusId(slug)` y `principleId(slug)` que devuelven esos ids, `FIXTURE` y `KEY` como en la Task 1, y `loaded = await loadPack(FIXTURE)` en `beforeAll`.
 
@@ -391,21 +391,21 @@ describe("buildPackRows", () => {
 });
 ```
 
-- [ ] **Step 2: Verificar que fallan**
+- [x] **Step 2: Verificar que fallan**
 
 Run: `pnpm test scripts/content/rows.test.ts`
 Expected: FAIL, no existe `./rows`.
 
-- [ ] **Step 3: Implementar `scripts/content/rows.ts`**
+- [x] **Step 3: Implementar `scripts/content/rows.ts`**
 
 Puro: sin disco, sin red, sin reloj. `contentId` usa `v5` de `uuid` con `CONTENT_NAMESPACE`. El objeto de Storage se llama `org/<organizationId>/drills/<id del ejercicio>/<id de la ficha>.<tipo>`, con el tipo de `PackDiagram.type`, y su MIME sale de `DIAGRAM_MIME`.
 
-- [ ] **Step 4: Verificar que pasan**
+- [x] **Step 4: Verificar que pasan**
 
 Run: `pnpm test scripts/content/rows.test.ts`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add scripts/content/rows.ts scripts/content/rows.test.ts
@@ -443,7 +443,7 @@ export class ImportError extends Error {}
 export function importPack(options: ImportOptions, client?: SupabaseClient<Database>): Promise<ImportReport>;
 ```
 
-- [ ] **Step 1: Tests de la barrera** (`scripts/content/guard.test.ts`)
+- [x] **Step 1: Tests de la barrera** (`scripts/content/guard.test.ts`)
 
 ```ts
 it("acepta un Supabase local", () => {
@@ -466,7 +466,7 @@ it("acepta un remoto con ALLOW_REMOTE_IMPORT=true", () => {
 
 Una URL que no se puede leer se nombra como `una URL que no se puede interpretar`, igual que en el seed.
 
-- [ ] **Step 2: Implementar `scripts/content/guard.ts`, test en verde y commit**
+- [x] **Step 2: Implementar `scripts/content/guard.ts`, test en verde y commit**
 
 Run: `pnpm test scripts/content/guard.test.ts` → PASS.
 
@@ -475,7 +475,7 @@ git add scripts/content/guard.ts scripts/content/guard.test.ts
 git commit -m "feat(content): barrera de destino del importador"
 ```
 
-- [ ] **Step 3: Escribir el test de integración que falla** (`scripts/content/import.int.test.ts`)
+- [x] **Step 3: Escribir el test de integración que falla** (`scripts/content/import.int.test.ts`)
 
 Sigue el patrón de `scripts/media/storage.int.test.ts`: `describe.skipIf(!isLocalSupabaseUrl(url))`, sesiones con `signInAs` en `beforeAll` (60 s) y limpieza con la clave de servicio.
 
@@ -499,12 +499,12 @@ Casos (cada uno importa en `arcangel` salvo que diga otra cosa, con `importPack(
 8. **Restos de una ejecución cortada.** Antes de importar, subir el PNG a `objectPath(ARCANGEL)` e insertar su ficha de medios con el id determinista. La importación informa `created: [K1, K2]` y `K1` queda enlazado a esa ficha.
 9. **`--update` con otra pizarra.** Importar; en una copia del paquete, cambiar la pizarra de `K1` por `diagrams/otra.jpg` (un fichero que empieza por `FF D8 FF`) e importar con `update: true`: la ficha de medios apunta a la ruta `.jpg` con `mime: "image/jpeg"` y el objeto `.png` ya no está. En otra copia, quitar `diagram` de `K1` e importar con `update: true`: `diagram_media_id` es null y no quedan ni la ficha ni el objeto.
 
-- [ ] **Step 4: Verificar que falla**
+- [x] **Step 4: Verificar que falla**
 
 Run: `pnpm test:int scripts/content`
 Expected: FAIL, no existe `./import`.
 
-- [ ] **Step 5: Implementar `scripts/content/import.ts`**
+- [x] **Step 5: Implementar `scripts/content/import.ts`**
 
 Orden y reglas:
 
@@ -525,7 +525,7 @@ Orden y reglas:
 
 No se reutiliza `deleteStaleDrillChildren` del seed: es privada de `scripts/seed/run.ts` y el seed no se toca.
 
-- [ ] **Step 6: Verificar que pasa**
+- [x] **Step 6: Verificar que pasa**
 
 Run: `pnpm test:int scripts/content`
 Expected: PASS, 9 casos.
@@ -533,7 +533,7 @@ Expected: PASS, 9 casos.
 Run: `pnpm test:int`
 Expected: PASS entera. El importador limpia lo suyo y el test del seed sigue contando sus 21 ejercicios.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add scripts/content/import.ts scripts/content/import.int.test.ts
@@ -565,7 +565,7 @@ export function parseCliArgs(argv: string[]): { dir: string; club: string; updat
 export function formatReport(report: ImportReport, host: string): string[];
 ```
 
-- [ ] **Step 1: Tests de los ayudantes** (`scripts/content/cli.test.ts`)
+- [x] **Step 1: Tests de los ayudantes** (`scripts/content/cli.test.ts`)
 
 ```ts
 it("lee la carpeta, el club y --update en cualquier orden", () => {
@@ -589,7 +589,7 @@ it("el informe", () => {
 });
 ```
 
-- [ ] **Step 2: Tests del CLI** (`scripts/content-import.test.ts`)
+- [x] **Step 2: Tests del CLI** (`scripts/content-import.test.ts`)
 
 Con el andamiaje de `scripts/seed.test.ts`: `vi.mock` de `./content/import` (solo `importPack`; `ImportError` real) y de `./lib/admin-client` (`readSupabaseEnv`), `vi.resetModules()`, `process.argv` puesto a mano e importación del CLI por su ruta. `process.exitCode` se restaura en `afterEach`.
 
@@ -601,18 +601,18 @@ Con el andamiaje de `scripts/seed.test.ts`: `vi.mock` de `./content/import` (sol
 | Paquete no válido | `importPack` rechaza con `new PackError(["uno", "dos"])` | `console.error` recibe el mensaje con `- uno` y `- dos`; `exitCode` 1 |
 | Importado, no ejecutado | importar el módulo sin que `process.argv[1]` sea su ruta | `importPack` sin llamar |
 
-- [ ] **Step 3: Verificar que fallan**
+- [x] **Step 3: Verificar que fallan**
 
 Run: `pnpm test scripts/content/cli.test.ts scripts/content-import.test.ts`
 Expected: FAIL, no existen los módulos.
 
-- [ ] **Step 4: Implementar**
+- [x] **Step 4: Implementar**
 
 - `scripts/content/cli.ts`: `parseCliArgs` con `parseArgs` de `node:util` (`allowPositionals`, `strict`); cualquier error de `parseArgs` se convierte en `UsageError`.
 - `scripts/content-import.ts`: como `scripts/demo-password.ts`. `main` lee los argumentos, llama a `readSupabaseEnv`, `assertImportTarget(url, process.env)`, `importPack` y escribe el informe con el host de la URL. Solo corre como CLI (la misma comprobación de `process.argv[1]`). En el `catch`: mensaje por `console.error` y `process.exitCode = 1`, nunca `process.exit`.
 - `package.json`: `"content:import": "tsx scripts/content-import.ts"`, después de `"seed"`.
 
-- [ ] **Step 5: Verificar que pasan y probar a mano**
+- [x] **Step 5: Verificar que pasan y probar a mano**
 
 Run: `pnpm test scripts/content`
 Expected: PASS.
@@ -622,13 +622,13 @@ Expected: `Creados: 2. Ya existían: 0. Actualizados: 0.` Repetido: `Creados: 0.
 
 Deja la base como estaba: `pnpm supabase db reset` y `pnpm seed`.
 
-- [ ] **Step 6: Documentar**
+- [x] **Step 6: Documentar**
 
 - `content/README.md`: qué es un paquete, el árbol de carpetas, cada campo de `pack.json` (tipo, obligatorio u opcional, valor por defecto y límite) y el comando. El contenido sale de «El paquete» y «El importador» de la especificación.
 - `README.md`, sección nueva `## Contenido de un club`, antes de `## Entorno remoto`: el comando; que solo crea lo que falta y `--update` sobrescribe; que solo escribe en local salvo `ALLOW_REMOTE_IMPORT=true`, puesta desde la shell y nunca en `.env.local`; y dos avisos: los e2e en local borran lo importado, y `pnpm test:int` cuenta los ejercicios del seed, así que con un paquete importado falla hasta volver a `pnpm supabase db reset` y `pnpm seed`.
 - `README.md`, tabla de «Tests», fila de `pnpm test:int`: añadir el importador de contenido (`scripts/content/import.int.test.ts`).
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add scripts/content/cli.ts scripts/content/cli.test.ts scripts/content-import.ts scripts/content-import.test.ts content/README.md package.json README.md
@@ -648,7 +648,7 @@ git commit -m "feat(content): comando content:import y su documentación"
 - Consumes: `loadPack` (Task 1); `slugify` (`@/modules/methodology/slug`).
 - Produces: el paquete que la Task 6 importa.
 
-- [ ] **Step 1: Escribir el test que falla** (`scripts/content/packs.test.ts`)
+- [x] **Step 1: Escribir el test que falla** (`scripts/content/packs.test.ts`)
 
 ```ts
 const CONTENT = path.resolve(import.meta.dirname, "../../content");
@@ -669,12 +669,12 @@ Y un `describe("biblioteca-entrenador-2026")` sobre `content/arcangel/biblioteca
 - **«44 pizarras distintas»:** `diagrams.size === 44` y los 44 SHA-256 de los ficheros son distintos.
 - **«el ejercicio 01, entero»:** `toEqual` con el ejemplo de `pack.json` de la especificación, más lo que `parsePack` rellena: `status: "published"` y `key: false` en el tercer punto.
 
-- [ ] **Step 2: Verificar que falla**
+- [x] **Step 2: Verificar que falla**
 
 Run: `pnpm test scripts/content/packs.test.ts`
 Expected: FAIL, no hay ningún paquete en `content/`.
 
-- [ ] **Step 3: Generar el paquete**
+- [x] **Step 3: Generar el paquete**
 
 La conversión es de usar y tirar: el script que la hace vive fuera del repositorio y no se confirma. Fuente: `word/document.xml` del `.docx` (es un ZIP).
 
@@ -684,12 +684,12 @@ La conversión es de usar y tirar: el script que la hace vive fuera del reposito
 - `pack.json`: `title` `Biblioteca del entrenador · Manual de pista 2026`; UTF-8 sin BOM, sangría de dos espacios y salto de línea final; los ejercicios en el orden del manual; todos los campos escritos salvo `status`, y `key` solo en los puntos clave.
 - Comprobación del script antes de escribir: 44 ejercicios, ningún campo vacío, 44 imágenes distintas.
 
-- [ ] **Step 4: Verificar que pasa**
+- [x] **Step 4: Verificar que pasa**
 
 Run: `pnpm test scripts/content`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add content/arcangel scripts/content/packs.test.ts
@@ -703,7 +703,7 @@ git commit -m "feat(content): paquete con los 44 ejercicios comunes del manual d
 **Files:**
 - Modify: `docs/superpowers/backlog.md` (bloque nuevo, ver Step 5)
 
-- [ ] **Step 1: Suite entera sobre una base recién sembrada**
+- [x] **Step 1: Suite entera sobre una base recién sembrada**
 
 Antes de importar el paquete real: el test de integración del seed cuenta los ejercicios del club.
 
@@ -716,7 +716,7 @@ pnpm test:db && pnpm test:int
 
 Expected: todo en verde. `git status` limpio: ninguna de las órdenes deja cambios.
 
-- [ ] **Step 2: Importar el paquete real, dos veces**
+- [x] **Step 2: Importar el paquete real, dos veces**
 
 ```bash
 pnpm content:import content/arcangel/biblioteca-entrenador-2026 --club arcangel
@@ -724,7 +724,7 @@ pnpm content:import content/arcangel/biblioteca-entrenador-2026 --club arcangel
 
 Expected, la primera: `Creados: 44. Ya existían: 0. Actualizados: 0.` La segunda: `Creados: 0. Ya existían: 44. Actualizados: 0.` y la línea de `--update`.
 
-- [ ] **Step 3: Revisar en el navegador a 375×812**
+- [x] **Step 3: Revisar en el navegador a 375×812**
 
 `pnpm dev` y, con usuarios del seed:
 
@@ -735,7 +735,7 @@ Expected, la primera: `Creados: 44. Ya existían: 0. Actualizados: 0.` La segund
 
 Lo que falle se arregla en la tarea a la que pertenece, con su test, y se repite el Step 1.
 
-- [ ] **Step 4: Los e2e, al final**
+- [x] **Step 4: Los e2e, al final**
 
 ```bash
 pnpm test:e2e
@@ -743,13 +743,13 @@ pnpm test:e2e
 
 Expected: en verde. Restauran el seed y borran lo importado: es lo esperado. Si después hace falta el paquete en local, se importa otra vez.
 
-- [ ] **Step 5: Apuntar lo que queda**
+- [x] **Step 5: Apuntar lo que queda**
 
 En `docs/superpowers/backlog.md`, dentro de «Fase 7 · Gestión y cierre», un bloque **«Lo que deja el importador de contenido»** con: cargar el paquete en el remoto (decisión del propietario; hoy producción es una demo con acceso público); los 24 ejercicios por categoría del manual, sin texto propio; error frecuente e indicador sin campo en la ficha; la pantalla de importación en Gestión; y que `pnpm test:int` falla con un paquete importado en local porque el test del seed cuenta los ejercicios del club.
 
 `CLAUDE.md` no se edita: la línea de `pnpm content:import` para su lista de comandos se propone al propietario en el resumen final.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add docs/superpowers/backlog.md
