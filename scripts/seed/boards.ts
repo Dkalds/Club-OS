@@ -51,13 +51,13 @@ export const SEED_BOARDS: Record<string, Record<string, Board>> = {
     "Rebote + outlet": half(
       [attacker("5", 50, 18), attacker("1", 15, 45), attacker("2", 85, 45), attacker("3", 90, 10), ball(52, 13)],
       step("El 5 asegura el rebote y saca el outlet al 1.", pass(18, 45), cut("a2", 86, 70)),
-      step("El 1 bota hacia delante. Los demás abren carriles.", dribble("a1", 25, 88), cut("a3", 92, 62), cut("a5", 50, 52)),
+      step("El 1 bota hacia delante. Los demás abren carriles.", dribble("a1", 25, 88), cut("a3", 92, 46), cut("a5", 50, 52)),
     ),
 
     // Con defensores: quién salta y quién presiona.
     "2x2 presión": half(
-      [attacker("1", 40, 74), attacker("2", 76, 54), defender("1", 42, 62), defender("2", 66, 45), ball(43, 74)],
-      step("El 1 pasa al 2. Su defensor salta a la línea de pase.", pass(79, 54), cut("d2", 74, 45), cut("d1", 54, 54)),
+      [attacker("1", 40, 74), attacker("2", 76, 54), defender("1", 42, 62), defender("2", 60, 42), ball(43, 74)],
+      step("El 1 pasa al 2. Los dos defensores saltan con el balón: uno presiona y el otro cierra el centro.", pass(79, 54), cut("d2", 71, 46), cut("d1", 54, 54)),
     ),
 
     // La secuencia de cuatro pasos.
@@ -79,7 +79,7 @@ export const SEED_BOARDS: Record<string, Record<string, Board>> = {
     // Con conos.
     "Tiro tras bote": half(
       [attacker("1", 50, 80), ball(53, 80), cone(1, 50, 62), cone(2, 35, 45)],
-      step("Un bote fuerte hasta el cono y tiro.", dribble("a1", 38, 48)),
+      step("Un bote fuerte hasta el cono y tiro.", dribble("a1", 42, 53)),
     ),
 
     // Una foto fija: el circuito, sin pasos.

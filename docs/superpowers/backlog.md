@@ -217,6 +217,10 @@ Lo que deja:
 - **Un movimiento muy corto no se dibuja** (menos de unas 7 unidades a lo ancho): la ficha se desplaza al reproducir, pero sin flecha. Un test vigila que las del seed se dibujan todas; el editor tendrá que avisar.
 - **La miniatura viaja con cada fila de la biblioteca** (hasta 100 pizarras de 32 kB como mucho por búsqueda; las del seed pesan menos de 1 kB). Si una biblioteca crece con pizarras grandes, pedir para la lista solo el primer fotograma.
 - **El directo no enseña vídeo dentro de la pantalla**, ni la pizarra a pantalla completa o en horizontal.
+- **En el directo conviven dos filas de controles con los mismos iconos**: los de la pizarra (anterior, reproducir, siguiente) y los de la sesión. Sus nombres los distinguen para quien escucha; a la vista, solo el tamaño y el sitio. A mirar con usuarios.
+- **Una ficha pegada al borde se recorta un poco**: el número de un defensor con `x` por encima de 93 en media pista, o el balón de un jugador en la línea de fondo contraria. Ninguna del seed llega; el editor tendrá que dejar margen.
+- **Las tarjetas de «ejercicios relacionados» de la metodología no llevan miniatura**: esa lectura recorre hasta mil filas. Si se quiere, pedir la pizarra solo de las que se pintan.
+- **Un ejercicio con pizarra no puede quitársela ni cambiarla** desde la app, y su formulario solo avisa de que la imagen subida no se verá. Llega con el editor.
 - **Sin notas de voz, recorrido de un jugador ni exportar a PDF o vídeo** (la propuesta los deja para una segunda fase).
 
 Decisiones tomadas sin preguntarlas una a una (están también en la especificación):

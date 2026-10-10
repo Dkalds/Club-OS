@@ -157,6 +157,27 @@ describe("parseBoard", () => {
     expect(parseBoard(board({ steps: [{ ...step, note: "x".repeat(NOTE_MAX) }] }))).not.toBeNull();
   });
 
+  it("una nota o una etiqueta a null es que no la hay: la pizarra sigue valiendo", () => {
+    const parsed = parseBoard({
+      ...board(),
+      tokens: [{ id: "a1", kind: "attacker", label: null, at: { x: 50, y: 80 } }],
+      steps: [{ note: null, moves: [{ token: "a1", kind: "cut", to: { x: 50, y: 30 } }] }],
+    });
+
+    expect(parsed).toEqual({
+      version: 1,
+      court: "half",
+      tokens: [{ id: "a1", kind: "attacker", at: { x: 50, y: 80 } }],
+      steps: [{ moves: [{ token: "a1", kind: "cut", to: { x: 50, y: 30 } }] }],
+    });
+  });
+
+  it("una etiqueta en blanco se queda sin etiqueta", () => {
+    const tokens = [{ id: "a1", kind: "attacker" as const, label: "  ", at: { x: 1, y: 1 } }];
+
+    expect(parseBoard(board({ tokens, steps: [] }))?.tokens[0]).toEqual({ id: "a1", kind: "attacker", at: { x: 1, y: 1 } });
+  });
+
   it("una nota en blanco se queda sin nota", () => {
     const step = { note: "   ", moves: [{ token: "a1", kind: "cut" as const, to: { x: 1, y: 1 } }] };
 

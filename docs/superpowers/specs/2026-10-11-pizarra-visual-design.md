@@ -39,12 +39,12 @@ type Board = { version: 1; court: "half" | "full"; tokens: BoardToken[]; steps: 
 
 - **Coordenadas.** De 0 a 100 en los dos ejes, enteras, en unidades de pista y no de pantalla: `x` a lo ancho y `y` a lo largo, con el aro de ataque en `y = 0`. En media pista, `y = 100` es el centro del campo; en pista completa, la otra línea de fondo.
 - **Fichas** (`tokens`). Dónde está cada una al empezar. Un atacante o un defensor llevan una etiqueta de uno o dos caracteres («1», «5», «A»); el balón y los conos, no.
-- **Pasos** (`steps`). Cada paso es lo que pasa a la vez: quién se mueve, cómo y hasta dónde, y una nota corta que lo cuenta («El 1 pasa al 2 y corta»). Una pizarra sin pasos es una foto fija.
+- **Pasos** (`steps`). Cada paso es lo que pasa a la vez: quién se mueve, cómo y hasta dónde, y una nota corta que lo cuenta («El 1 pasa al 2 y corta»). Un paso lleva al menos un movimiento. Una pizarra sin pasos es una foto fija.
 - **Movimientos.** `cut` (el jugador se desplaza sin balón), `dribble` (con balón), `pass` (se mueve el balón) y `screen` (el jugador va a bloquear). El balón acompaña a quien bota: si al empezar el paso está pegado a ese jugador, se mueve con él.
 - **Fotogramas.** Dónde está cada ficha tras cada paso no se guarda: se calcula (`boardFrames`), aplicando los movimientos de cada paso sobre el anterior.
 - **Límites.** 24 fichas, 12 pasos, 12 movimientos por paso, notas de 140 caracteres. Los ids de ficha no se repiten y todo movimiento es de una ficha que existe.
 
-Quién valida: la base solo comprueba que es un objeto, que dice `version: 1` y que no pasa de 32 kB. La forma entera la comprueba la app con Zod, **al leer**: una pizarra que no la cumple se trata como si no hubiera (`parseBoard` devuelve `null`), nunca rompe la pantalla.
+Quién valida: la base solo comprueba que es un objeto, que dice `version: 1` y que no pasa de 32 kB. La forma entera la comprueba la app con Zod, **al leer**: una pizarra que no la cumple se trata como si no hubiera (`parseBoard` devuelve `null`), nunca rompe la pantalla. Una nota o una etiqueta a `null` cuentan como ausentes.
 
 En esta pieza la app no escribe la columna: no se concede a `authenticated` (C27), `save_drill` no la toca y editar un ejercicio la conserva. La escribe el seed, con la clave de servicio. Escribirla llega con el editor.
 
@@ -60,7 +60,7 @@ Un componente, `Board`, que pinta la pizarra en SVG con el dibujo del producto:
 
 Con más de un fotograma lleva controles, de 44 px:
 
-- **Reproducir / Pausar.** Reproduce desde el paso en el que está: las fichas se desplazan a su sitio siguiente (unos 900 ms), hay una pausa corta y sigue. Al llegar al final se para; reproducir otra vez empieza desde el principio.
+- **Reproducir / Pausar.** Reproduce desde el paso en el que está: las fichas se desplazan a su sitio siguiente (unos 900 ms), hay una pausa corta y sigue. Al llegar al final se para; reproducir otra vez empieza desde el principio, con las fichas colocadas de golpe (solo se anima el desplazamiento de un paso al siguiente).
 - **Paso anterior** y **paso siguiente**, sin animación.
 - **Reiniciar.** Vuelve al primer paso y para.
 - «Paso 2 de 4» (o «Final») y, debajo, la nota del paso.
@@ -74,7 +74,8 @@ Con «reducir movimiento», reproducir avanza de paso en paso sin desplazamiento
 - **Ficha de un ejercicio.** Con pizarra, `Board`. Sin pizarra y con imagen subida, la imagen, como hoy. Sin ninguna de las dos, nada: se quita la pista vacía.
 - **Sesión.** En la ficha de una sesión, la fila de un ejercicio con pizarra lleva su miniatura.
 - **Directo.** Con pizarra, `Board`, que funciona sin conexión porque viaja con la sesión. Sin pizarra, la imagen o nada, como en la ficha. Además, bajo los puntos clave, **cómo se organiza** el ejercicio (`setup_md`), plegado por defecto.
-- **Biblioteca.** La tarjeta de un ejercicio con pizarra enseña su miniatura en vez de la pista vacía.
+- **Biblioteca.** La tarjeta de un ejercicio con pizarra enseña su miniatura en vez de la pista vacía. Las tarjetas de «ejercicios relacionados» de la metodología, no: esa lectura recorre hasta mil filas y no carga pizarras.
+- **Formulario de un ejercicio.** Si el ejercicio tiene pizarra, el campo «Diagrama» avisa de que la imagen que se suba no se verá.
 
 ## Seed
 

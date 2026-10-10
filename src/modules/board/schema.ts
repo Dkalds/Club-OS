@@ -12,7 +12,13 @@ const point = z.object({ x: coordinate, y: coordinate });
 const token = z.object({
   id: z.string().min(1).max(24),
   kind: z.enum(["attacker", "defender", "ball", "cone"]),
-  label: z.string().trim().min(1).max(LABEL_MAX).optional(),
+  // `null` es lo mismo que no traerla: quien la serialice así no pierde la pizarra entera.
+  label: z
+    .string()
+    .trim()
+    .max(LABEL_MAX)
+    .nullish()
+    .transform((text) => (text ? text : undefined)),
   at: point,
 });
 
@@ -23,12 +29,12 @@ const move = z.object({
 });
 
 const step = z.object({
-  // Una nota en blanco es «sin nota».
+  // Una nota en blanco, o `null`, es «sin nota».
   note: z
     .string()
     .trim()
     .max(NOTE_MAX)
-    .optional()
+    .nullish()
     .transform((text) => (text ? text : undefined)),
   moves: z.array(move).min(1).max(MAX_MOVES),
 });

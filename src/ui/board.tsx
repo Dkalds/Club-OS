@@ -24,9 +24,14 @@ function round(value: number): number {
 // Un botón de la pizarra: `target-min` de lado, con el icono dentro y el nombre para quien no lo ve.
 const CONTROL =
   "inline-flex size-(--target-min) shrink-0 cursor-pointer items-center justify-center rounded-pill " +
-  "text-ink active:bg-surface-3 disabled:cursor-default disabled:text-ink-3 " +
+  "text-ink not-aria-disabled:active:bg-surface-3 aria-disabled:cursor-default aria-disabled:text-ink-3 " +
   "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus-ring";
 
+/**
+ * Con `disabled` no lleva el atributo `disabled` sino `aria-disabled`, y su clic no hace nada:
+ * un botón que se desactiva al pulsarlo («Reiniciar», o «Paso siguiente» al llegar al final)
+ * soltaría el foco del teclado, y así se queda en él.
+ */
 function Control({
   label,
   disabled = false,
@@ -39,7 +44,13 @@ function Control({
   children: ReactNode;
 }) {
   return (
-    <button type="button" aria-label={label} disabled={disabled} onClick={onClick} className={CONTROL}>
+    <button
+      type="button"
+      aria-label={label}
+      aria-disabled={disabled ? true : undefined}
+      onClick={disabled ? undefined : onClick}
+      className={CONTROL}
+    >
       {children}
     </button>
   );
@@ -62,9 +73,11 @@ function Control({
  *   (`BOARD_MOVE_MS`) y sigue con el siguiente, hasta el final. Desde el final, empieza de
  *   nuevo. Mientras reproduce, el botón es «Pausar»: pausar deja el paso en el que estaba.
  *
- * El desplazamiento es una transición de CSS sobre la posición de cada ficha, solo mientras
- * reproduce. Con «reducir movimiento» no la hay (`motion-reduce`), y reproducir pasa de un paso
- * al siguiente sin esperar a un desplazamiento que no se ve.
+ * El desplazamiento es una transición de CSS sobre la posición de cada ficha, solo mientras van
+ * de un paso al siguiente: cambiar de paso a mano, pausar o volver a empezar desde el final las
+ * coloca de golpe. Con «reducir movimiento» no la hay (`motion-reduce`), y reproducir pasa de un
+ * paso al siguiente sin esperar a un desplazamiento que no se ve.
+
  *
  * El dibujo tiene nombre para quien no lo ve («Pizarra de 3 calles, paso 2 de 4»). «Paso 2 de
  * 4» y la nota del paso van en una región de estado: al cambiar de paso se anuncian. Mientras
@@ -174,7 +187,7 @@ export function Board({ board, title }: { board: BoardData; title: string }) {
               data-token={token.id}
               // En el estilo y no en el atributo: así la posición admite una transición de CSS.
               style={{ transform: `translate(${round(at.x)}px, ${round(at.y)}px)` }}
-              className={playing ? "transition-transform duration-900 ease-in-out motion-reduce:transition-none" : undefined}
+              className={moving ? "transition-transform duration-900 ease-in-out motion-reduce:transition-none" : undefined}
             >
               <TokenMark token={token} court={board.court} labels />
             </g>

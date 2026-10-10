@@ -968,6 +968,31 @@ describe("DrillForm · diagrama", () => {
     expect(screen.getByRole("button", { name: "Cambiar diagrama" })).toHaveAccessibleDescription(PHOTOS_HINT);
   });
 
+  it("si el ejercicio tiene pizarra, el campo avisa de que la imagen no se verá", () => {
+    renderEdit({
+      diagramMediaId: null,
+      diagramUrl: null,
+      board: {
+        version: 1,
+        court: "half",
+        tokens: [{ id: "a1", kind: "attacker", label: "1", at: { x: 50, y: 80 } }],
+        steps: [],
+      },
+    });
+
+    expect(screen.getByText(/Este ejercicio tiene pizarra/)).toHaveTextContent(
+      "Este ejercicio tiene pizarra, y es lo que se enseña en su ficha y en el directo. La imagen que subas aquí no se verá.",
+    );
+    // Subirla sigue pudiéndose: guardar no toca la pizarra.
+    expect(screen.getByRole("button", { name: "Subir diagrama" })).toBeInTheDocument();
+  });
+
+  it("sin pizarra no hay aviso", () => {
+    renderEdit();
+
+    expect(screen.queryByText(/Este ejercicio tiene pizarra/)).not.toBeInTheDocument();
+  });
+
   it("«Subir diagrama» abre el selector de ficheros", () => {
     renderEdit({ diagramMediaId: null, diagramUrl: null });
     const open = vi.spyOn(fileInput(), "click");

@@ -65,4 +65,4 @@
 
 - [x] E2E (`boards.spec.ts`, en `mobile`: solo lee): ficha con pasos, ficha sin pizarra, miniaturas, directo con pizarra y sin conexión.
 - [x] Contratos, backlog y README.
-- [ ] Suite entera desde base vacía, repaso visual a 375×812, revisión de la rama y una tanda de arreglos.
+- [x] Suite entera desde base vacía, repaso visual a 375×812, revisión de la rama y una tanda de arreglos.

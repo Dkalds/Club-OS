@@ -38,10 +38,12 @@ export const SUMMARY_COLUMNS = `id, title, status, created_by,
  * Las de los ejercicios relacionados con un principio: las de la lista y, con `!inner`, sus
  * vínculos con los principios que se piden. Con `!inner` solo salen los ejercicios que tienen
  * alguno de esos vínculos, y el vínculo anidado es solo uno de los pedidos (el filtro de
- * `getRelatedDrills` sobre `drill_principles.principle_id` actúa sobre las dos cosas).
+ * `getRelatedDrills` sobre `drill_principles.principle_id` actúa sobre las dos cosas). Sin la
+ * pizarra: se leen hasta `RELATED_SCAN_LIMIT` filas para enseñar tres por principio, y traer
+ * mil pizarras para pintar unas pocas miniaturas no compensa. Esas tarjetas llevan la pista vacía.
  */
 export const RELATED_COLUMNS = `id, title, status, created_by,
-  min_age, max_age, min_players, max_players, min_minutes, max_minutes, board,
+  min_age, max_age, min_players, max_players, min_minutes, max_minutes,
   drill_focus_areas(focus_areas(slug, name, sort)),
   drill_principles!inner(principle_id)`;
 

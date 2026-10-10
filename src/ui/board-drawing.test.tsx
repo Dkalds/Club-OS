@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import { describe, expect, it } from "vitest";
 import { BALL_REACH } from "@/modules/board/limits";
 import type { Board, BoardFrame, BoardMoveKind, BoardPoint, BoardToken } from "@/modules/board/types";
-import { BOARD_VIEW, CourtLines, MoveMark, TokenMark, movePaths, toBox, tokenBox } from "./board-drawing";
+import { BOARD_VIEW, CourtLines, MoveMark, TokenMark, boardScale, movePaths, toBox, tokenBox } from "./board-drawing";
 
 type Court = Board["court"];
 
@@ -168,8 +168,8 @@ describe("tokenBox", () => {
     const center = toBox("full", a1.at);
     const at = tokenBox("full", ball, frame(), all);
 
-    expect(at.x).toBeCloseTo(center.x + REACH * 0.62, 10);
-    expect(at.y).toBeCloseTo(center.y + REACH * 0.62, 10);
+    expect(at.x).toBeCloseTo(center.x + REACH * boardScale("full"), 10);
+    expect(at.y).toBeCloseTo(center.y + REACH * boardScale("full"), 10);
   });
 
   it.each(COURTS)("%s: pegado quiere decir tocando: a un radio del jugador más uno del balón", (court) => {
@@ -333,7 +333,7 @@ describe("movePaths", () => {
 
   it.each([
     ["media pista", 1, [6.5, 7, 7.5, 8, 8.5, 9, 10, 11, 12, 14]],
-    ["pista completa", 0.62, [4.4, 4.8, 5.2, 5.4, 6, 7, 8, 9]],
+    ["pista completa", 0.8, [5.4, 5.8, 6.2, 6.6, 7, 8, 9, 10]],
   ])("%s: el bote, corto o largo, avanza siempre hacia el destino y acaba en su remate", (_name, scale, lengths) => {
     for (const length of lengths) {
       const xs = points(paths("dribble", { x: 10, y: 10 }, { x: 10 + length, y: 10 }, scale).line).map(

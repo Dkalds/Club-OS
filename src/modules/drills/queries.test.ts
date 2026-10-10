@@ -189,10 +189,13 @@ function topLevelColumns(columns: string): string[] {
 describe("las columnas que se piden", () => {
   it.each([
     ["la lista (SUMMARY_COLUMNS)", SUMMARY_COLUMNS],
-    ["los relacionados (RELATED_COLUMNS)", RELATED_COLUMNS],
     ["la ficha (DETAIL_COLUMNS)", DETAIL_COLUMNS],
   ])("%s pide la pizarra del ejercicio, como columna suya", (_name, columns) => {
     expect(topLevelColumns(columns)).toContain("board");
+  });
+
+  it("los relacionados (RELATED_COLUMNS) no la piden: se leen hasta mil filas para enseñar unas pocas", () => {
+    expect(topLevelColumns(RELATED_COLUMNS)).not.toContain("board");
   });
 });
 

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { boardFrames } from "../../src/modules/board/frames";
 import { BALL_REACH } from "../../src/modules/board/limits";
 import { parseBoard } from "../../src/modules/board/schema";
-import { movePaths, toBox } from "../../src/ui/board-drawing";
+import { boardScale, movePaths, toBox, tokenBox } from "../../src/ui/board-drawing";
 import { SEED_BOARDS, seedBoard } from "./boards";
 import { ARCANGEL, CLUB_DEMO } from "./data";
 
@@ -51,13 +51,37 @@ describe("las pizarras del seed", () => {
 
   it.each(ALL)("en «$title», todo movimiento es lo bastante largo para dibujarse", ({ board }) => {
     const frames = boardFrames(board);
-    const scale = board.court === "half" ? 1 : 0.62;
+    const scale = boardScale(board.court);
 
     board.steps.forEach((step, index) => {
       for (const move of step.moves) {
-        const from = toBox(board.court, frames[index][move.token]);
-        const to = toBox(board.court, move.to);
+        // Como los dibuja `Board`: el pase va de donde se pinta el balón a donde se pintará.
+        const token = board.tokens.find((candidate) => candidate.id === move.token)!;
+        const pass = move.kind === "pass";
+        const from = pass
+          ? tokenBox(board.court, token, frames[index], board.tokens)
+          : toBox(board.court, frames[index][move.token]);
+        const to = pass ? tokenBox(board.court, token, frames[index + 1], board.tokens) : toBox(board.court, move.to);
         expect(movePaths(move.kind, from, to, scale), `paso ${index + 1}: ${move.token}`).not.toBeNull();
+      }
+    });
+  });
+
+  it.each(ALL)("en «$title», ninguna ficha acaba encima de otra", ({ board }) => {
+    const frames = boardFrames(board);
+    const scale = boardScale(board.court);
+    // Lo que ocupa cada marca, en unidades de la caja de media pista.
+    const radius = { attacker: 3.6, defender: 2.6, cone: 2.2, ball: 0 };
+
+    frames.forEach((frame, index) => {
+      const marks = board.tokens.filter((token) => token.kind !== "ball");
+      for (const [i, a] of marks.entries()) {
+        for (const b of marks.slice(i + 1)) {
+          const pa = toBox(board.court, frame[a.id]);
+          const pb = toBox(board.court, frame[b.id]);
+          const gap = Math.hypot(pa.x - pb.x, pa.y - pb.y) - (radius[a.kind] + radius[b.kind]) * scale;
+          expect(gap, `fotograma ${index}: ${a.id} y ${b.id}`).toBeGreaterThanOrEqual(0);
+        }
       }
     });
   });

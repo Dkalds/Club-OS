@@ -218,10 +218,10 @@ describe("Board, con pasos", () => {
   it("en el primer paso no se puede reiniciar ni ir atrás, y sí reproducir y avanzar", () => {
     setup();
 
-    expect(button("Reiniciar la pizarra")).toBeDisabled();
-    expect(button("Paso anterior")).toBeDisabled();
-    expect(button("Reproducir la pizarra")).toBeEnabled();
-    expect(button("Paso siguiente")).toBeEnabled();
+    expect(button("Reiniciar la pizarra")).toHaveAttribute("aria-disabled", "true");
+    expect(button("Paso anterior")).toHaveAttribute("aria-disabled", "true");
+    expect(button("Reproducir la pizarra")).not.toHaveAttribute("aria-disabled");
+    expect(button("Paso siguiente")).not.toHaveAttribute("aria-disabled");
   });
 
   it("«Paso siguiente» avanza sin animación: etiqueta, nota, movimientos y fichas", () => {
@@ -240,8 +240,8 @@ describe("Board, con pasos", () => {
     expect(animated(container)).toBe(false);
     // Ni espera ni desplazamiento: no queda nada programado.
     expect(vi.getTimerCount()).toBe(0);
-    expect(button("Reiniciar la pizarra")).toBeEnabled();
-    expect(button("Paso anterior")).toBeEnabled();
+    expect(button("Reiniciar la pizarra")).not.toHaveAttribute("aria-disabled");
+    expect(button("Paso anterior")).not.toHaveAttribute("aria-disabled");
   });
 
   it("un paso sin nota deja su región vacía, pero en el árbol", () => {
@@ -286,10 +286,10 @@ describe("Board, con pasos", () => {
     expect(note(container)).toBeEmptyDOMElement();
     expect(frames).toHaveLength(4);
     expect(positions(container)).toEqual(placed(data, frames[3]));
-    expect(button("Paso siguiente")).toBeDisabled();
-    expect(button("Paso anterior")).toBeEnabled();
-    expect(button("Reiniciar la pizarra")).toBeEnabled();
-    expect(button("Reproducir la pizarra")).toBeEnabled();
+    expect(button("Paso siguiente")).toHaveAttribute("aria-disabled", "true");
+    expect(button("Paso anterior")).not.toHaveAttribute("aria-disabled");
+    expect(button("Reiniciar la pizarra")).not.toHaveAttribute("aria-disabled");
+    expect(button("Reproducir la pizarra")).not.toHaveAttribute("aria-disabled");
   });
 
   it("«Paso anterior» vuelve atrás, también desde el final", () => {
@@ -303,7 +303,7 @@ describe("Board, con pasos", () => {
     expect(screen.getByText("Paso 3 de 3")).toBeInTheDocument();
     expect(moves(container)).toEqual(["screen"]);
     expect(positions(container)).toEqual(placed(data, frames[2]));
-    expect(button("Paso siguiente")).toBeEnabled();
+    expect(button("Paso siguiente")).not.toHaveAttribute("aria-disabled");
 
     press("Paso anterior");
     press("Paso anterior");
@@ -312,7 +312,7 @@ describe("Board, con pasos", () => {
     expect(note(container)).toHaveTextContent("El 1 pasa al 2 y corta");
     expect(moves(container)).toEqual(["pass", "cut"]);
     expect(positions(container)).toEqual(placed(data, frames[0]));
-    expect(button("Paso anterior")).toBeDisabled();
+    expect(button("Paso anterior")).toHaveAttribute("aria-disabled", "true");
   });
 
   it("«Reiniciar» vuelve al primer paso", () => {
@@ -327,7 +327,7 @@ describe("Board, con pasos", () => {
     expect(screen.getByRole("img", { name: `Pizarra de ${TITLE}, paso 1 de 3` })).toBeInTheDocument();
     expect(moves(container)).toEqual(["pass", "cut"]);
     expect(positions(container)).toEqual(placed(data, frames[0]));
-    expect(button("Reiniciar la pizarra")).toBeDisabled();
+    expect(button("Reiniciar la pizarra")).toHaveAttribute("aria-disabled", "true");
     expect(button("Reproducir la pizarra")).toBeInTheDocument();
   });
 
@@ -465,10 +465,42 @@ describe("Board, reproducir", () => {
     const { container } = setup();
 
     press("Reproducir la pizarra");
+    // Mientras se enseña el paso, quietas: la transición es solo del desplazamiento.
+    for (const token of tokens(container)) expect(token).not.toHaveClass(TRANSITION);
+    advance(BOARD_HOLD_MS);
 
     for (const token of tokens(container)) {
       expect(token).toHaveClass(TRANSITION, `duration-${BOARD_MOVE_MS}`, "motion-reduce:transition-none");
     }
+  });
+
+  it("volver a reproducir desde el final coloca las fichas al principio de golpe, sin deslizarlas", () => {
+    const { container, data, frames } = setup();
+    press("Reproducir la pizarra");
+    for (let step = 0; step < data.steps.length; step += 1) playStep();
+    expect(screen.getByText("Final")).toBeInTheDocument();
+
+    press("Reproducir la pizarra");
+
+    // En el primer paso, donde empiezan, y sin transición: no se ven «rebobinar».
+    expect(positions(container)).toEqual(placed(data, frames[0]));
+    for (const token of tokens(container)) expect(token).not.toHaveClass(TRANSITION);
+  });
+
+  it("un botón que se desactiva al pulsarlo conserva el foco del teclado", () => {
+    setup();
+    press("Paso siguiente");
+    const restart = button("Reiniciar la pizarra");
+    restart.focus();
+
+    fireEvent.click(restart);
+
+    // Desactivado para quien lo escucha, pero sigue siendo un botón enfocable: el foco no cae.
+    expect(restart).toHaveAttribute("aria-disabled", "true");
+    expect(restart).not.toBeDisabled();
+    expect(restart).toHaveFocus();
+    // Enfocar un elemento deja a React una tarea programada: se despacha antes de acabar.
+    advance(0);
   });
 
   it("reproduce hasta el final, y entonces el botón vuelve a ser «Reproducir»", () => {
@@ -488,7 +520,7 @@ describe("Board, reproducir", () => {
     expect(moves(container)).toEqual([]);
     expect(positions(container)).toEqual(placed(data, frames[3]));
     expect(animated(container)).toBe(false);
-    expect(button("Paso siguiente")).toBeDisabled();
+    expect(button("Paso siguiente")).toHaveAttribute("aria-disabled", "true");
     expect(vi.getTimerCount()).toBe(0);
   });
 
@@ -630,16 +662,16 @@ describe("Board, reproducir", () => {
     press("Reproducir la pizarra");
     advance(BOARD_HOLD_MS);
 
-    expect(button("Reiniciar la pizarra")).toBeEnabled();
+    expect(button("Reiniciar la pizarra")).not.toHaveAttribute("aria-disabled");
     // Atrás no hay nada: sigue en el primer paso.
-    expect(button("Paso anterior")).toBeDisabled();
+    expect(button("Paso anterior")).toHaveAttribute("aria-disabled", "true");
 
     press("Reiniciar la pizarra");
     advance((BOARD_HOLD_MS + BOARD_MOVE_MS) * 5);
 
     expect(screen.getByText("Paso 1 de 3")).toBeInTheDocument();
     expect(button("Reproducir la pizarra")).toBeInTheDocument();
-    expect(button("Reiniciar la pizarra")).toBeDisabled();
+    expect(button("Reiniciar la pizarra")).toHaveAttribute("aria-disabled", "true");
     expect(positions(container)).toEqual(placed(data, frames[0]));
     expect(animated(container)).toBe(false);
   });
@@ -821,8 +853,8 @@ describe("Board, la caja", () => {
     expect(positions(container)).toEqual(placed(data, frames[0]));
     // (50, 80) en pista completa: a lo largo, 3 + 80·0,94; a lo ancho, 3 + (100 − 50)·0,5.
     expect(positions(container).a1).toBe("translate(78.2px, 28px)");
-    // El balón, pegado al 1 a la escala de la pista completa: (3,6 + 1,7)·0,62·√½ en cada eje.
-    expect(positions(container).ball).toBe("translate(80.52px, 30.32px)");
+    // El balón, pegado al 1 a la escala de la pista completa: (3,6 + 1,7)·0,8·√½ en cada eje.
+    expect(positions(container).ball).toBe("translate(81.2px, 31px)");
   });
 
   it("el dibujo no recibe el foco", () => {

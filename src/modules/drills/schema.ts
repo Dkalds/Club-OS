@@ -19,8 +19,8 @@ export const VIDEO_URL_RE = /^https:\/\/((www|m)\.)?(youtube\.com|youtu\.be|vime
 
 /**
  * Lo que manda el formulario al crear o guardar un ejercicio: la ficha menos lo que no se
- * escribe (el id, el estado, el autor, las fechas, la URL firmada del diagrama y lo que se
- * calcula al leer). Los principios y Standards van como ids (`principleIds`, `standardIds`,
+ * escribe (el id, el estado, el autor, las fechas, la pizarra, la URL firmada del diagrama y lo
+ * que se calcula al leer). Los principios y Standards van como ids (`principleIds`, `standardIds`,
  * que la ficha ya trae con todos los vínculos), no como lo que se muestra.
  */
 export type DrillInput = Omit<
@@ -29,6 +29,7 @@ export type DrillInput = Omit<
   | "status"
   | "createdBy"
   | "focus"
+  | "board"
   | "diagramUrl"
   | "principles"
   | "principlesSectionSlug"

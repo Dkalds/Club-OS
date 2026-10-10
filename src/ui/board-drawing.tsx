@@ -103,10 +103,18 @@ export function CourtLines({ court }: { court: Court }) {
   );
 }
 
-/** Lo que mide cada marca, en unidades de la caja: la pista completa es más pequeña. */
-function scaleOf(court: Court): number {
-  return court === "half" ? 1 : 0.62;
+/**
+ * Lo que mide cada marca respecto a la media pista: en la completa caben el doble de metros en
+ * la misma caja, y las fichas se encogen. No a la mitad: a 375 px sus números dejarían de leerse.
+ */
+export function boardScale(court: Court): number {
+  return court === "half" ? 1 : 0.8;
 }
+
+const scaleOf = boardScale;
+
+/** El número de un defensor no baja de este tamaño, en unidades de la caja (unos 11 px a 375). */
+const MIN_SIDE_LABEL = 3.2;
 
 /**
  * La marca de una ficha, dibujada alrededor del origen: quien la monta la coloca con un
@@ -162,7 +170,12 @@ export function TokenMark({ token, court, labels }: { token: BoardToken; court: 
         {...STROKE}
       />
       {labels && token.label ? (
-        <text x={arm + 1.2 * s} y={-arm} fontSize={3.4 * s} className="fill-brand-accent font-text font-semibold">
+        <text
+          x={arm + 1.2 * s}
+          y={-arm}
+          fontSize={Math.max(MIN_SIDE_LABEL, 3.4 * s)}
+          className="fill-brand-accent font-text font-semibold"
+        >
           {token.label}
         </text>
       ) : null}

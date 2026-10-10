@@ -51,12 +51,15 @@ export function DiagramField({
   drillId,
   mediaId,
   initialPreviewUrl,
+  hasBoard = false,
   upload,
   disabled,
   onMediaChange,
 }: {
   clubSlug: string;
   drillId: string;
+  /** Si el ejercicio tiene pizarra: entonces es ella la que se enseña, y el campo lo avisa. */
+  hasBoard?: boolean;
   mediaId: string | null;
   initialPreviewUrl: string | null;
   upload: ReturnType<typeof useAction>;
@@ -122,6 +125,13 @@ export function DiagramField({
   return (
     <fieldset ref={root} data-field="diagram" className="flex min-w-0 flex-col gap-(--space-3)">
       <legend className={`${FIELD_LABEL_CLASS} mb-(--space-3)`}>Diagrama</legend>
+
+      {hasBoard ? (
+        <p className="rounded-md border border-line bg-surface-2 p-(--space-4) text-body text-ink-2">
+          Este ejercicio tiene pizarra, y es lo que se enseña en su ficha y en el directo. La imagen que subas
+          aquí no se verá.
+        </p>
+      ) : null}
 
       {mediaId !== null && previewUrl === null ? (
         <p className="flex items-center gap-(--space-2) rounded-md border border-line bg-surface-1 p-(--space-4) text-body">

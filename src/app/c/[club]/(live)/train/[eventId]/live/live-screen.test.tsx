@@ -230,7 +230,7 @@ describe("la pizarra del ejercicio en curso", () => {
     expect(screen.getAllByRole("img")).toHaveLength(1);
     expect(screen.getByText("El 2 corta al aro")).toBeInTheDocument();
     expect(screen.queryByText("El 2 bota hacia el aro")).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Paso anterior" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Paso anterior" })).toHaveAttribute("aria-disabled", "true");
   });
 
   it("y al volver al anterior, la suya otra vez desde el principio", () => {

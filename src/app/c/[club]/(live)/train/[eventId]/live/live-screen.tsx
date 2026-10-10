@@ -191,7 +191,10 @@ function LiveScreenContent({ session, clubSlug }: LiveScreenProps) {
           // Plegado: en pista se mira la pizarra y los puntos clave; cómo se monta, cuando hace falta.
           <details key={item.id} className="group w-full text-left">
             <summary className="flex min-h-(--target-min) cursor-pointer list-none items-center gap-(--space-2) text-body-strong text-ink-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring [&::-webkit-details-marker]:hidden">
-              <ChevronDownIcon size={16} className="-rotate-90 transition-transform group-open:rotate-0" />
+              <ChevronDownIcon
+                size={16}
+                className="-rotate-90 transition-transform group-open:rotate-0 motion-reduce:transition-none"
+              />
               Cómo se organiza
             </summary>
             <MarkdownBody markdown={item.setup} />
