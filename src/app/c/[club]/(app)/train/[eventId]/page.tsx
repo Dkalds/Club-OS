@@ -40,7 +40,8 @@ const STANDARDS_SHOWN = 3;
  * dura su franja (`sessionMinutes`), no 0 min.
  *
  * Una sesión ya hecha es su propio resumen: cada ejercicio dice si se hizo y cuánto duró de
- * verdad (lo que registró el directo), y bajo el total previsto va el real.
+ * verdad (lo que registró el directo), y bajo el total previsto va el real. De un ejercicio sin
+ * registro no dice nada.
  *
  * Las acciones (dirigir, editar, duplicar, cancelar) las ve quien gestiona sesiones; `can` solo muestra u
  * oculta: lo que protege es RLS y cada acción. La fecha que propone «Duplicar» se calcula aquí,
@@ -122,9 +123,11 @@ export default async function PracticePage({ params }: PageProps<"/c/[club]/trai
                     phase={null}
                     minutes={item.minutes}
                     href={item.drillVisible ? `/c/${ctx.org.slug}/drills/${item.drillId}` : undefined}
+                    // Solo si el directo dejó registro de ese ejercicio: una sesión que se dio por
+                    // hecha sin dirigirla desde la app no tiene ninguno, y «Sin hacer» sería mentira.
                     result={
-                      reviewed
-                        ? { completed: item.completed === true, actualMinutes: item.actualMinutes }
+                      reviewed && item.completed !== null
+                        ? { completed: item.completed, actualMinutes: item.actualMinutes }
                         : undefined
                     }
                   />

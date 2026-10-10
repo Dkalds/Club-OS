@@ -1225,3 +1225,42 @@ describe("fixtures exportados (contrato entre fases)", () => {
     ).toEqual(club.members.map((m) => m.email));
   });
 });
+
+describe("buildSeedData: el directo de las sesiones", () => {
+  const itemsOf = (planId: string) => data.practice_items.filter((item) => item.plan_id === planId);
+
+  it("ninguna sesión sembrada está empezada: sembrar deja el directo sin iniciar", () => {
+    for (const plan of data.practice_plans) {
+      expect(plan.live_started_at).toBeNull();
+      expect(plan.live_position).toBeNull();
+    }
+  });
+
+  it("una sesión hecha tiene el registro de cada ejercicio y dura lo que suman", () => {
+    const done = data.practice_plans.filter((plan) => plan.status === "done");
+    expect(done.length).toBeGreaterThan(0);
+
+    for (const plan of done) {
+      const items = itemsOf(plan.id);
+      expect(items.length).toBeGreaterThan(0);
+      for (const item of items) {
+        expect(item.completed).toBe(true);
+        expect(item.actual_minutes).toBe(item.minutes);
+      }
+      expect(plan.actual_minutes).toBe(items.reduce((sum, item) => sum + item.minutes, 0));
+    }
+  });
+
+  it("una sesión que no se ha hecho (programada o cancelada) no tiene registro", () => {
+    const pending = data.practice_plans.filter((plan) => plan.status !== "done");
+    expect(pending.length).toBeGreaterThan(0);
+
+    for (const plan of pending) {
+      expect(plan.actual_minutes).toBeNull();
+      for (const item of itemsOf(plan.id)) {
+        expect(item.completed).toBeNull();
+        expect(item.actual_minutes).toBeNull();
+      }
+    }
+  });
+});

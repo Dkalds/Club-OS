@@ -468,6 +468,14 @@ describe("/train/[eventId], revisar una sesión hecha", () => {
     expect(second).toHaveTextContent("Sin hacer");
   });
 
+  it("de un ejercicio sin registro no dice nada: ni «Hecho» ni «Sin hacer»", async () => {
+    // Una sesión que se dio por hecha sin dirigirla desde la app.
+    await renderPage({ status: "done", canEdit: false, items: ITEMS, actualMinutes: null });
+
+    expect(screen.queryByText(/Hecho ·|Sin hacer/)).not.toBeInTheDocument();
+    expect(itemRows()).toHaveLength(ITEMS.length);
+  });
+
   it("bajo el total previsto va el real", async () => {
     await renderPage({ status: "done", canEdit: false, items: DONE_ITEMS, actualMinutes: 12 });
 

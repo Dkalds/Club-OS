@@ -1038,7 +1038,8 @@ function addClub(data: SeedData, club: ClubDef, now: Date): void {
         notes: null,
         is_template: false,
         status: session.status === "done" ? "done" : "ready",
-        actual_minutes: null,
+        // Una sesión hecha se dirigió entera desde la app: duró lo que suman sus ejercicios.
+        actual_minutes: session.status === "done" ? session.items.reduce((sum, item) => sum + item.minutes, 0) : null,
         // Volver a sembrar deja el directo sin iniciar, lo dejara como lo dejara quien lo usó.
         live_started_at: null,
         live_position: null,
@@ -1056,8 +1057,9 @@ function addClub(data: SeedData, club: ClubDef, now: Date): void {
           title_override: item.title,
           minutes: item.minutes,
           notes: null,
-          completed: null,
-          actual_minutes: null,
+          // Lo que el directo registra de cada ejercicio; en una sesión que no se ha hecho, nada.
+          completed: session.status === "done" ? true : null,
+          actual_minutes: session.status === "done" ? item.minutes : null,
         });
       });
     }
