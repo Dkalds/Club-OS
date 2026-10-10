@@ -135,6 +135,8 @@ export async function createSession(
   await field(page, "Fecha").fill(session.date);
   await field(page, "Hora").fill(session.time);
   await field(page, "Duración (min)").fill(session.minutes);
+  // El formulario trae el lugar de la última sesión del equipo: aquí la sesión nace sin lugar.
+  await field(page, "Lugar").fill("");
   if (session.focus) await field(page, "Objetivo principal").selectOption({ label: session.focus });
   await page.getByRole("button", { name: "Empezar desde cero" }).click();
 
