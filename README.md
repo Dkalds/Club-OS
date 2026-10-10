@@ -197,6 +197,21 @@ Lista, en este orden:
   - Como la entrenadora de otro equipo (`nora@arcangel.test`) y como `marta@demo.test`: la URL de esa ficha da «No encontramos esta página».
   - Partidos (Agenda → «Añadir» → «Partido»): crear uno, cancelarlo, y corregir el resultado del jugado.
 
+### Despliegue de «Preparar sesión» (propuesta y plantillas)
+
+Va encima del uso diario: primero su migración (abajo) y después esta, `20270119000100_practice_templates`. No crea tablas: añade un `check` a `practice_plans` (una plantilla no tiene evento), concede `insert (is_template)` y `delete` sobre ella, cambia la política de alta de un plan de equipo (rechaza el que venga marcado como plantilla), crea tres políticas y dos funciones (`save_practice_as_template` y `create_practice_from_template`). Tiene que estar aplicada **antes de usar la preview del PR** y **antes de fusionar**: sin ella, «Guardar como plantilla» y crear una sesión con una plantilla fallan. La propuesta de entrenamiento no depende de ella.
+
+Nada en Storage, en Auth ni en las variables de entorno.
+
+- [ ] **Ver qué falta por aplicar**: `pnpm supabase migration list`.
+- [ ] **Comprobar que el `check` entra**: ninguna fila tiene `is_template` con `event_id` (`select count(*) from practice_plans where is_template and event_id is not null` da 0). Con el seed lo da: no hay plantillas.
+- [ ] **Entre aplicarla y desplegar**, la app antigua no nota nada: no escribe `is_template` ni borra planes.
+- [ ] **Aplicar la migración** con `pnpm supabase db push`.
+- [ ] **Comprobar a mano**, en un móvil y con la app desplegada, como entrenador:
+  - «Preparar sesión» acaba con «Proponer entrenamiento» y «Empezar desde cero». Proponer abre el constructor con ejercicios de la biblioteca y el aviso «Propuesta sin guardar…»; nada queda guardado hasta «Guardar sesión».
+  - En el constructor, el total dice «Te sobran…» o «Te pasas…» cuando lo montado no dura lo que la franja.
+  - En la ficha de una sesión con ejercicios, «Guardar como plantilla»; aparece en Sesiones → «Plantillas»; al usarla, la sesión nace con sus ejercicios; «Borrar plantilla» la quita. Otra persona del club no la ve.
+
 ### Despliegue del uso diario (navegación por rol, Agenda y directo)
 
 Trae una migración: `20270105000100_live_state`. Añade a `practice_plans` dos columnas (`live_started_at` y `live_position`), sustituye `record_live_progress` por una con dos parámetros opcionales más y crea `reset_live_progress`. Tiene que estar aplicada **antes de usar la preview del PR** y **antes de fusionar**: sin ella, Inicio y la ficha de una sesión fallan (piden esas columnas) y el directo no guarda.

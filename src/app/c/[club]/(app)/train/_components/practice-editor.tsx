@@ -1,16 +1,20 @@
 "use client";
 
-import { useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
+import { ACTION_ERROR_COPY } from "@/lib/action-result";
+import { useAction } from "@/lib/use-action";
 import type { FocusArea } from "@/modules/drills/types";
+import { proposePracticeItems } from "@/modules/practice/actions";
 import type { FocusOption, PracticeDetail, PracticeItemDraft, TeamOption } from "@/modules/practice/types";
 import { BackLink } from "@/ui/back-link";
 import { Card } from "@/ui/card";
 import { CTAButton } from "@/ui/cta-button";
+import { FormAlert } from "@/ui/form-field";
 import { ChevronDownIcon, PlusIcon } from "@/ui/icons";
 import { LeaveGuardDialog, useLeaveGuard } from "@/ui/leave-guard";
 import { PracticeSummary } from "@/ui/practice-summary";
 import { DrillPicker } from "./drill-picker";
-import { PracticeBuilder } from "./practice-builder";
+import { PracticeBuilder, type Add } from "./practice-builder";
 import { PracticeForm, type PracticeFormValues } from "./practice-form";
 
 /**
@@ -54,6 +58,89 @@ function AddDrill({
           add({ drillId: drill.id, title: drill.title, phase: null, minutes: drill.minMinutes, notes: null })
         }
       />
+    </>
+  );
+}
+
+/** Lo que dejó la última propuesta: nada pedido, ejercicios cargados o ninguno que proponer. */
+type Proposed = "none" | "loaded" | "empty";
+
+/**
+ * «Proponer entrenamiento»: pide un borrador de sesión (`proposePracticeItems`) y mete sus
+ * ejercicios en la lista del constructor con `add`, cada uno con su fase, sus minutos y la línea
+ * de por qué está. No guarda nada: entran como cambios sin guardar, y quien lo monta lo avisa
+ * (`onProposed`). Solo se ofrece con la lista vacía: proponer encima de lo montado lo mezclaría.
+ *
+ * Con `auto` lo pide solo al montarse, una vez: es quien llega de «Proponer entrenamiento» en el
+ * formulario de la sesión nueva (`?propose=1`). El parámetro se gasta ahí mismo (`onAutoUsed` y
+ * fuera de la URL): recargar, volver atrás o vaciar la lista no proponen otra vez.
+ *
+ * Solo está montado con la lista vacía, y de eso salen dos cosas. Al montarse avisa de que no
+ * hay propuesta a la vista (`onProposed("none")`): si la lista se vació, lo que se monte después
+ * ya no es «la propuesta». Y una respuesta que llega cuando ya no está montado se descarta: en
+ * la espera se ha añadido algo a mano, y la propuesta se mezclaría con ello.
+ */
+function Propose({
+  clubSlug,
+  eventId,
+  add,
+  auto,
+  onAutoUsed,
+  onProposed,
+}: {
+  clubSlug: string;
+  eventId: string;
+  add: Add;
+  auto: boolean;
+  onAutoUsed: () => void;
+  onProposed: (proposed: Proposed) => void;
+}) {
+  const { pending, failure, run } = useAction();
+  const started = useRef(false);
+  const mounted = useRef(false);
+
+  useEffect(() => {
+    mounted.current = true;
+    onProposed("none");
+    return () => {
+      mounted.current = false;
+    };
+    // Solo al montarse y al desmontarse.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  function propose() {
+    run(
+      () => proposePracticeItems(clubSlug, { eventId }),
+      ({ items }) => {
+        if (!mounted.current) return;
+        for (const item of items) {
+          add(
+            { drillId: item.drillId, title: item.title, phase: item.phase, minutes: item.minutes, notes: null },
+            { hint: item.hint },
+          );
+        }
+        onProposed(items.length > 0 ? "loaded" : "empty");
+      },
+    );
+  }
+
+  useEffect(() => {
+    if (!auto || started.current) return;
+    started.current = true;
+    onAutoUsed();
+    window.history.replaceState(window.history.state, "", window.location.pathname);
+    propose();
+    // Solo al montarse: `auto` se gasta aquí.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  return (
+    <>
+      {failure ? <FormAlert message={ACTION_ERROR_COPY[failure.error]} focus={false} /> : null}
+      <CTAButton variant="secondary" block disabled={pending} onClick={propose}>
+        Proponer entrenamiento
+      </CTAButton>
     </>
   );
 }
@@ -102,6 +189,12 @@ function AddDrill({
  * opciones del formulario, que no lo llevan. Lo que se elige entra en la lista del constructor
  * como un cambio más sin guardar: hasta «Guardar sesión» no se escribe nada, y mientras tanto el
  * aviso de salida cubre también los enlaces del selector.
+ *
+ * Con la lista vacía, encima de «Añadir ejercicio» está «Proponer entrenamiento» (`Propose`);
+ * con `autoPropose` la propuesta se pide sola al entrar. Lo propuesto entra también sin guardar,
+ * y mientras siga así lo dice un aviso sobre la lista; si no había nada que proponer, lo dice
+ * hasta que se añade algo. `slotMinutes` es lo que dura la franja, para que el constructor diga
+ * si lo montado encaja.
  */
 export function PracticeEditor({
   clubSlug,
@@ -109,12 +202,16 @@ export function PracticeEditor({
   options,
   drillFocusAreas,
   initialValues,
+  slotMinutes,
+  autoPropose = false,
 }: {
   clubSlug: string;
   practice: PracticeDetail;
   options: { teams: TeamOption[]; focusAreas: FocusOption[] };
   drillFocusAreas: FocusArea[];
   initialValues: PracticeFormValues;
+  slotMinutes?: number;
+  autoPropose?: boolean;
 }) {
   const [updatedAt, setUpdatedAt] = useState(practice.updatedAt);
   const [itemsDirty, setItemsDirty] = useState(false);
@@ -122,6 +219,9 @@ export function PracticeEditor({
   const [itemsSaving, setItemsSaving] = useState(false);
   const [dataSaving, setDataSaving] = useState(false);
   const [dataOpen, setDataOpen] = useState(false);
+  const [proposed, setProposed] = useState<Proposed>("none");
+  // Con ejercicios no hay nada que proponer al entrar, ni después si la lista se vacía.
+  const [autoPending, setAutoPending] = useState(autoPropose && practice.items.length === 0);
   const labelId = useId();
   const unsavedId = useId();
   const panelId = useId();
@@ -180,18 +280,49 @@ export function PracticeEditor({
         </div>
       </div>
 
+      {/* Siempre en el árbol: un lector de pantalla solo anuncia lo que cambia en una región que ya existía. */}
+      <div role="status" className="empty:hidden">
+        {proposed === "loaded" && itemsDirty ? (
+          <p className="rounded-md border border-line bg-surface-2 p-(--space-4) text-body text-ink-2">
+            Propuesta sin guardar. Revísala, cámbiala y guarda.
+          </p>
+        ) : null}
+        {proposed === "empty" && !itemsDirty ? (
+          <p className="rounded-md border border-line bg-surface-2 p-(--space-4) text-body text-ink-2">
+            No hay ejercicios en la biblioteca para esta sesión. Móntala tú.
+          </p>
+        ) : null}
+      </div>
+
       <PracticeBuilder
         clubSlug={clubSlug}
         eventId={practice.eventId}
         initialItems={practice.items}
         expectedUpdatedAt={updatedAt}
         locked={dataSaving}
-        onSaved={setUpdatedAt}
+        onSaved={(next) => {
+          setUpdatedAt(next);
+          // Guardada, ya no es una propuesta: lo que se cambie después es un cambio más.
+          setProposed("none");
+        }}
         onDirtyChange={setItemsDirty}
         onPendingChange={setItemsSaving}
         onReload={reload}
-        extraActions={(add, full) => (
-          <AddDrill clubSlug={clubSlug} focusAreas={drillFocusAreas} add={add} full={full} />
+        slotMinutes={slotMinutes}
+        extraActions={(add, full, empty) => (
+          <>
+            {empty ? (
+              <Propose
+                clubSlug={clubSlug}
+                eventId={practice.eventId}
+                add={add}
+                auto={autoPending}
+                onAutoUsed={() => setAutoPending(false)}
+                onProposed={setProposed}
+              />
+            ) : null}
+            <AddDrill clubSlug={clubSlug} focusAreas={drillFocusAreas} add={add} full={full} />
+          </>
         )}
       />
 

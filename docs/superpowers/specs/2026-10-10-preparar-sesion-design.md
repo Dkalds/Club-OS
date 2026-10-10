@@ -60,7 +60,8 @@ Con eso, `buildProposal` (pura) arma la lista:
 El motor no conoce los objetivos de ningún club (regla 3): recibe los de la sesión y los de cada ejercicio, y solo los compara.
 
 - **Si no hay candidato para un hueco**, se relaja por este orden: se admite lo usado hace poco, se deja de mirar el número de jugadores y, por último, vale cualquier objetivo. La edad no se relaja nunca. Si ni así hay ejercicio, ese hueco se queda sin cubrir.
-- **Minutos.** Cada bloque recibe su parte en pasos de 5 minutos, dentro del rango del ejercicio. Lo que falte o sobre para llegar a la duración de la sesión se reparte entre los bloques que aún admiten, del principal hacia fuera. Si ni con los mínimos caben todos (una sesión de 15 min), se quitan huecos: el secundario, la activación, la competición y el segundo del principal, por ese orden.
+- **Minutos.** Cada bloque recibe su parte en pasos de 5 minutos, dentro del rango del ejercicio. Lo que falte o sobre para llegar a la duración de la sesión se reparte entre los bloques que aún admiten, del principal hacia fuera. Si ni con los mínimos caben todos (una sesión de 15 min), se quitan huecos: el secundario, la competición, el segundo del principal y la activación, por ese orden.
+- **Si los huecos no llenan la franja.** Los ejercicios de una biblioteca tienen rangos estrechos (10–15 min), y cinco no siempre dan 75. Mientras quede tiempo para otro, se añade uno más del principal y uno del secundario, por turnos, hasta ocho ejercicios.
 - **Lo que devuelve.** Los ítems (ejercicio, título, fase, minutos) con, para cada uno, por qué está ahí: sus objetivos, cuántos puntos de corrección clave tiene y cuántas variantes. Y los minutos que no ha podido cubrir. Con la biblioteca vacía, una lista vacía.
 
 La propuesta no escribe nada. Sin objetivo principal en la sesión, las fases principales toman los objetivos con más ejercicios válidos.

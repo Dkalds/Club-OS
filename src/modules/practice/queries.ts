@@ -1,17 +1,30 @@
 import { can } from "@/lib/permissions";
 import { throwReadError } from "@/lib/read-error";
 import { createClient } from "@/lib/supabase/server";
+import { isoToLocalInputs } from "@/lib/time";
 import { UUID_RE } from "@/lib/uuid";
 import { getTeamScope } from "@/modules/team/scope";
 import type { TeamSummary } from "@/modules/team/types";
 import type { ClubContext } from "@/modules/tenancy/queries";
+import {
+  DEFAULT_SESSION_MINUTES,
+  DEFAULT_SESSION_TIME,
+  MAX_SESSION_MINUTES,
+  MIN_SESSION_MINUTES,
+} from "./limits";
 import {
   DETAIL_COLUMNS,
   LIST_COLUMNS,
   toPracticeDetail,
   toPracticeListItems,
 } from "./map-rows";
-import type { FocusOption, PracticeDetail, PracticeListItem, TeamOption } from "./types";
+import type {
+  FocusOption,
+  PracticeDetail,
+  PracticeListItem,
+  TeamDefaults,
+  TeamOption,
+} from "./types";
 
 // Lecturas de las sesiones de entrenamiento para quien entrena.
 //
@@ -65,6 +78,57 @@ export async function getPracticeFormOptions(
   const [scope, focusAreas] = await Promise.all([getTeamScope(ctx), getFocusAreas(ctx)]);
 
   return { teams: toOptions(scope.teams), focusAreas, defaultTeamId: scope.active?.id ?? null };
+}
+
+/** Las sesiones que como mucho se miran para saber cuál fue la última de cada equipo. */
+const DEFAULTS_SCAN_LIMIT = 200;
+
+/**
+ * Con qué hora, duración y lugar se propone una sesión nueva de cada equipo de `teams`: los de
+ * su última sesión que no se canceló (pasada o futura), con la hora en la zona del club. Un
+ * equipo sin sesiones, o cuya última no entra en las 200 más recientes del conjunto, lleva los
+ * de siempre: las 18:00, 75 minutos y sin lugar. Todos los equipos de `teams` tienen entrada.
+ */
+export async function getTeamDefaults(
+  ctx: ClubContext,
+  teams: readonly TeamOption[],
+): Promise<Record<string, TeamDefaults>> {
+  const defaults: Record<string, TeamDefaults> = {};
+  for (const team of teams) {
+    defaults[team.id] = { time: DEFAULT_SESSION_TIME, durationMinutes: DEFAULT_SESSION_MINUTES, location: null };
+  }
+  if (teams.length === 0) return defaults;
+
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from("events")
+    .select("team_id, starts_at, ends_at, location")
+    .eq("organization_id", ctx.org.id)
+    .eq("kind", "practice")
+    .neq("status", "cancelled")
+    .in(
+      "team_id",
+      teams.map((team) => team.id),
+    )
+    .order("starts_at", { ascending: false })
+    .order("id", { ascending: true })
+    .limit(DEFAULTS_SCAN_LIMIT);
+  if (error) throwReadError("practice.team-defaults", error);
+
+  const seen = new Set<string>();
+  for (const row of data) {
+    if (seen.has(row.team_id) || !Object.hasOwn(defaults, row.team_id)) continue;
+    seen.add(row.team_id);
+
+    const minutes = Math.round((Date.parse(row.ends_at) - Date.parse(row.starts_at)) / 60_000);
+    defaults[row.team_id] = {
+      time: isoToLocalInputs(row.starts_at, ctx.org.timezone).time,
+      durationMinutes: Math.min(MAX_SESSION_MINUTES, Math.max(MIN_SESSION_MINUTES, minutes)),
+      location: row.location,
+    };
+  }
+  return defaults;
 }
 
 /**

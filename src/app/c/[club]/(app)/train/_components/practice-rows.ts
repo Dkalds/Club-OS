@@ -6,9 +6,11 @@ import type { PracticeItemDraft, SavedPracticeItem } from "@/modules/practice/ty
 
 /**
  * Una fila del constructor: el ítem y la clave con la que React y dnd-kit la siguen mientras se
- * mueve. La clave es el `id` del ítem o, en uno nuevo, una local; nunca se envía.
+ * mueve. La clave es el `id` del ítem o, en uno nuevo, una local; nunca se envía. `hint` es por
+ * qué está ahí una fila que llega de una propuesta: solo se pinta, ni se envía ni cuenta como
+ * cambio.
  */
-export type Row = PracticeItemDraft & { key: string };
+export type Row = PracticeItemDraft & { key: string; hint?: string };
 
 /** Los errores de una fila: el mensaje de cada campo (`title`, `minutes`, `phase`, `notes`…). */
 export type RowErrors = Record<string, string>;

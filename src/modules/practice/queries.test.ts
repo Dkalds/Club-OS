@@ -12,7 +12,7 @@ vi.mock("next/headers", () => ({
 vi.mock("@/lib/supabase/server", () => ({ createClient: mocks.createClient }));
 vi.mock("@/lib/log", () => ({ logError: mocks.logError }));
 
-import { getPractice, getPracticeFormOptions, listManageableTeams, listPractices } from "./queries";
+import { getPractice, getPracticeFormOptions, getTeamDefaults, listManageableTeams, listPractices } from "./queries";
 
 // ── Un doble mínimo de la base de datos ──────────────────────────────────────────────
 // Como el de `home/queries.test.ts`: no ejecuta SQL ni mira la cadena del `select` (de eso se
@@ -33,6 +33,7 @@ type Call = {
   table: string;
   select: string | null;
   eq: Record<string, unknown>;
+  neq: Record<string, unknown>;
   in: Record<string, unknown[]>;
   gt: Record<string, string>;
   or: string | null;
@@ -75,7 +76,7 @@ class FakeQuery implements PromiseLike<Result> {
     private readonly failure: Failure | null,
     calls: Call[],
   ) {
-    this.call = { table, select: null, eq: {}, in: {}, gt: {}, or: null, order: [], limit: null };
+    this.call = { table, select: null, eq: {}, neq: {}, in: {}, gt: {}, or: null, order: [], limit: null };
     calls.push(this.call);
   }
 
@@ -87,6 +88,12 @@ class FakeQuery implements PromiseLike<Result> {
   eq(column: string, value: unknown) {
     this.call.eq[column] = value;
     this.filters.push((row) => valueAt(row, column) === value);
+    return this;
+  }
+
+  neq(column: string, value: unknown) {
+    this.call.neq[column] = value;
+    this.filters.push((row) => valueAt(row, column) !== value);
     return this;
   }
 
@@ -411,6 +418,184 @@ describe("getPracticeFormOptions", () => {
   });
 });
 
+describe("getTeamDefaults", () => {
+  const A = { id: TEAM_A, name: "Equipo A" };
+  const B = { id: TEAM_B, name: "Equipo B" };
+  const C = { id: TEAM_C, name: "Equipo C" };
+  /** Lo de siempre: lo que lleva un equipo del que no se sabe nada. */
+  const USUAL = { time: "18:00", durationMinutes: 75, location: null };
+  const MEXICO: ClubContext = { ...COACH, org: { ...COACH.org, timezone: "America/Mexico_City" } };
+
+  it("cada equipo lleva la hora, la duración y el lugar de su última sesión; el que no tiene ninguna, lo de siempre", async () => {
+    installDatabase({
+      events: [
+        // De A: la más reciente es la del jueves 8, de 19:30 a 20:30 en Madrid.
+        eventRow("a-old", TEAM_A, "2026-10-01T16:00:00+00:00", "2026-10-01T17:15:00+00:00", { location: "Pabellón 1" }),
+        eventRow("a-last", TEAM_A, "2026-10-08T17:30:00+00:00", "2026-10-08T18:30:00+00:00", { location: "Pabellón 3" }),
+        // De B: una sola, de hora y media.
+        eventRow("b-last", TEAM_B, "2026-10-06T15:00:00+00:00", "2026-10-06T16:30:00+00:00"),
+      ],
+    });
+
+    const defaults = await getTeamDefaults(COACH, [A, B, C]);
+
+    expect(defaults).toEqual({
+      [TEAM_A]: { time: "19:30", durationMinutes: 60, location: "Pabellón 3" },
+      [TEAM_B]: { time: "17:00", durationMinutes: 90, location: "Pabellón 2" },
+      [TEAM_C]: USUAL,
+    });
+  });
+
+  it("todos los equipos pedidos tienen entrada, aunque ninguno tenga sesiones", async () => {
+    installDatabase({ events: [] });
+
+    const defaults = await getTeamDefaults(COACH, [A, B, C]);
+
+    expect(Object.keys(defaults).sort()).toEqual([TEAM_A, TEAM_B, TEAM_C]);
+    expect(defaults).toEqual({ [TEAM_A]: USUAL, [TEAM_B]: USUAL, [TEAM_C]: USUAL });
+  });
+
+  it("la hora sale en la zona del club, no en UTC", async () => {
+    // Las 16:00 UTC: las 18:00 en Madrid (CEST) y las 10:00 en Ciudad de México.
+    const events = [eventRow("a-last", TEAM_A, "2026-10-06T16:00:00+00:00", "2026-10-06T17:15:00+00:00")];
+
+    installDatabase({ events });
+    expect((await getTeamDefaults(COACH, [A]))[TEAM_A].time).toBe("18:00");
+
+    installDatabase({ events });
+    expect((await getTeamDefaults(MEXICO, [A]))[TEAM_A].time).toBe("10:00");
+  });
+
+  it("una sesión que empieza de madrugada en UTC lleva la hora de la noche anterior del club", async () => {
+    // Las 02:30 UTC del día 7: en Ciudad de México siguen siendo las 20:30 del día 6.
+    installDatabase({
+      events: [eventRow("a-last", TEAM_A, "2026-10-07T02:30:00+00:00", "2026-10-07T03:45:00+00:00")],
+    });
+
+    expect((await getTeamDefaults(MEXICO, [A]))[TEAM_A]).toMatchObject({ time: "20:30", durationMinutes: 75 });
+  });
+
+  it("la duración se acota a lo que deja programar el formulario: de 15 a 240 minutos", async () => {
+    const duration = async (startsAt: string, endsAt: string) => {
+      installDatabase({ events: [eventRow("a-last", TEAM_A, startsAt, endsAt)] });
+      return (await getTeamDefaults(COACH, [A]))[TEAM_A].durationMinutes;
+    };
+
+    // Diez minutos suben a 15, cinco horas bajan a 240 y los extremos se quedan como están.
+    expect(await duration("2026-10-06T16:00:00+00:00", "2026-10-06T16:10:00+00:00")).toBe(15);
+    expect(await duration("2026-10-06T16:00:00+00:00", "2026-10-06T16:15:00+00:00")).toBe(15);
+    expect(await duration("2026-10-06T16:00:00+00:00", "2026-10-06T16:20:00+00:00")).toBe(20);
+    expect(await duration("2026-10-06T16:00:00+00:00", "2026-10-06T20:00:00+00:00")).toBe(240);
+    expect(await duration("2026-10-06T16:00:00+00:00", "2026-10-06T21:00:00+00:00")).toBe(240);
+    // Una franja al revés (el fin antes del inicio) tampoco deja una duración imposible.
+    expect(await duration("2026-10-06T16:00:00+00:00", "2026-10-06T15:00:00+00:00")).toBe(15);
+  });
+
+  it("la última es la de inicio más tardío, pasada o futura", async () => {
+    installDatabase({
+      events: [
+        eventRow("a-past", TEAM_A, "2026-09-29T16:00:00+00:00", "2026-09-29T17:15:00+00:00", { status: "done" }),
+        // Programada para dentro de un mes: es la última aunque no haya llegado.
+        eventRow("a-future", TEAM_A, "2026-11-03T18:00:00+00:00", "2026-11-03T19:00:00+00:00", {
+          location: "Pista exterior",
+        }),
+        eventRow("a-soon", TEAM_A, "2026-10-06T16:00:00+00:00", "2026-10-06T17:15:00+00:00"),
+      ],
+    });
+
+    // El 3 de noviembre Madrid ya está en horario de invierno: las 18:00 UTC son las 19:00.
+    expect((await getTeamDefaults(COACH, [A]))[TEAM_A]).toEqual({
+      time: "19:00",
+      durationMinutes: 60,
+      location: "Pista exterior",
+    });
+  });
+
+  it("una sesión cancelada no cuenta: se mira la anterior, y si no hay otra, lo de siempre", async () => {
+    installDatabase({
+      events: [
+        eventRow("a-done", TEAM_A, "2026-10-01T15:30:00+00:00", "2026-10-01T16:30:00+00:00", {
+          status: "done",
+          location: "Pabellón 1",
+        }),
+        eventRow("a-cancelled", TEAM_A, "2026-10-08T18:00:00+00:00", "2026-10-08T20:00:00+00:00", {
+          status: "cancelled",
+          location: "Pista exterior",
+        }),
+        eventRow("b-cancelled", TEAM_B, "2026-10-08T18:00:00+00:00", "2026-10-08T20:00:00+00:00", {
+          status: "cancelled",
+        }),
+      ],
+    });
+
+    expect(await getTeamDefaults(COACH, [A, B])).toEqual({
+      [TEAM_A]: { time: "17:30", durationMinutes: 60, location: "Pabellón 1" },
+      [TEAM_B]: USUAL,
+    });
+  });
+
+  it("una última sesión sin lugar deja el lugar vacío, no el de una anterior", async () => {
+    installDatabase({
+      events: [
+        eventRow("a-old", TEAM_A, "2026-10-01T16:00:00+00:00", "2026-10-01T17:15:00+00:00", { location: "Pabellón 1" }),
+        eventRow("a-last", TEAM_A, "2026-10-08T16:00:00+00:00", "2026-10-08T17:15:00+00:00", { location: null }),
+      ],
+    });
+
+    expect((await getTeamDefaults(COACH, [A]))[TEAM_A].location).toBeNull();
+  });
+
+  it("no mira partidos, sesiones de otro club ni de equipos que no se han pedido", async () => {
+    installDatabase({
+      events: [
+        eventRow("a-game", TEAM_A, "2026-10-09T10:00:00+00:00", "2026-10-09T12:00:00+00:00", { kind: "game" }),
+        eventRow("a-other-club", TEAM_A, "2026-10-09T08:00:00+00:00", "2026-10-09T09:00:00+00:00", {
+          organization_id: OTHER_ORG,
+        }),
+        eventRow("c-practice", TEAM_C, "2026-10-09T08:00:00+00:00", "2026-10-09T09:00:00+00:00"),
+      ],
+    });
+
+    const defaults = await getTeamDefaults(COACH, [A]);
+
+    expect(defaults).toEqual({ [TEAM_A]: USUAL });
+  });
+
+  it("filtra por club, por tipo, por no canceladas y por los equipos pedidos, de la más reciente a la más antigua y con tope", async () => {
+    const calls = installDatabase({ events: [] });
+
+    await getTeamDefaults(COACH, [A, B]);
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.table).toBe("events");
+    expect(calls[0]?.eq).toEqual({ organization_id: ORG, kind: "practice" });
+    expect(calls[0]?.neq).toEqual({ status: "cancelled" });
+    expect(calls[0]?.in).toEqual({ team_id: [TEAM_A, TEAM_B] });
+    expect(calls[0]?.order).toEqual([
+      { column: "starts_at", ascending: false },
+      { column: "id", ascending: true },
+    ]);
+    expect(calls[0]?.limit).toBe(200);
+  });
+
+  it("solo pide lo que usa: el equipo, la franja y el lugar", async () => {
+    const calls = installDatabase({ events: [] });
+
+    await getTeamDefaults(COACH, [A]);
+
+    expect(calls[0]?.select).toBe("team_id, starts_at, ends_at, location");
+  });
+
+  it("sin equipos no consulta nada, ni crea el cliente", async () => {
+    const calls = installDatabase(listStore());
+
+    expect(await getTeamDefaults(COACH, [])).toEqual({});
+
+    expect(calls).toEqual([]);
+    expect(mocks.createClient).not.toHaveBeenCalled();
+  });
+});
+
 describe("listPractices", () => {
   it("las próximas son las programadas que no han terminado, por inicio ascendente", async () => {
     installDatabase(listStore());
@@ -721,6 +906,12 @@ describe("si falla una lectura", () => {
     { name: "los objetivos", table: "focus_areas", tag: "practice.focus-areas", run: () => getPracticeFormOptions(COACH) },
     { name: "la lista de entrenamientos", table: "events", tag: "practice.list", run: () => listPractices(COACH, "upcoming", NOW) },
     { name: "el detalle", table: "events", tag: "practice.detail", run: () => getPractice(COACH, EVENT) },
+    {
+      name: "lo que se propone para cada equipo",
+      table: "events",
+      tag: "practice.team-defaults",
+      run: () => getTeamDefaults(COACH, [{ id: TEAM_A, name: "Equipo A" }]),
+    },
   ];
 
   describe.each(cases)("$name", ({ table, tag, run }) => {

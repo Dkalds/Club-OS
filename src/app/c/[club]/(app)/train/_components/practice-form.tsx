@@ -4,7 +4,11 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { ACTION_ERROR_COPY } from "@/lib/action-result";
 import { useAction } from "@/lib/use-action";
-import { createPractice, updatePracticeMeta } from "@/modules/practice/actions";
+import {
+  createPractice,
+  createPracticeFromTemplate,
+  updatePracticeMeta,
+} from "@/modules/practice/actions";
 import {
   LOCATION_MAX,
   MAX_SESSION_MINUTES,
@@ -12,7 +16,7 @@ import {
   NOTES_MAX,
   TITLE_MAX,
 } from "@/modules/practice/limits";
-import type { FocusOption, TeamOption } from "@/modules/practice/types";
+import type { FocusOption, TeamDefaults, TeamOption } from "@/modules/practice/types";
 import { CTAButton } from "@/ui/cta-button";
 import { FormAlert, SelectField, TextAreaField, TextField } from "@/ui/form-field";
 import { CheckIcon } from "@/ui/icons";
@@ -35,6 +39,9 @@ export type PracticeFormValues = {
   notes: string;
 };
 
+/** Los campos que salen de la última sesión del equipo, y cambian con él mientras no se toquen. */
+const TEAM_DEFAULT_FIELDS = ["time", "durationMinutes", "location"] as const;
+
 /** Lo que el selector de un objetivo ofrece primero: no elegir ninguno. */
 const NO_FOCUS = { value: "", label: "Sin objetivo" };
 
@@ -52,10 +59,19 @@ function sameValues(a: PracticeFormValues, b: PracticeFormValues): boolean {
  * Los datos de una sesión de entrenamiento, para crearla o, con `edit`, para cambiarlos.
  *
  * Sin `edit` es el alta (`/train/new`): pregunta por el equipo si hay más de uno (con uno solo
- * no hay nada que elegir y su id se envía igualmente), y «Crear sesión» es el `primary` de la
- * pantalla. Al crear, abre el constructor de la sesión nueva, que es lo siguiente: añadirle
- * los ejercicios. `created` mantiene el botón parado desde que sale bien hasta que la página
- * cambia: la navegación tarda, y un segundo toque en ese rato crearía otra sesión.
+ * no hay nada que elegir y su id se envía igualmente) y acaba con dos caminos. «Proponer
+ * entrenamiento» es el `primary` de la pantalla: crea la sesión y abre su constructor pidiendo
+ * una propuesta (`?propose=1`). «Empezar desde cero» la crea y abre el constructor vacío. Los
+ * dos guardan los datos de la sesión; los ejercicios se guardan después, en el constructor.
+ * `created` mantiene los botones parados desde que sale bien hasta que la página cambia: la
+ * navegación tarda, y un segundo toque en ese rato crearía otra sesión.
+ *
+ * Con `template` (una plantilla propia) el alta tiene un solo botón, «Crear sesión»: la crea con
+ * los ejercicios de la plantilla ya guardados (`createPracticeFromTemplate`) y abre su ficha.
+ *
+ * `teamDefaults` es, por equipo, la hora, la duración y el lugar de su última sesión. Al cambiar
+ * de equipo, los tres se ponen al día mientras no se hayan tocado; con una plantilla la duración
+ * no, que es la de la plantilla.
  *
  * Con `edit` son los datos de una sesión que ya existe (los del constructor): no pregunta por
  * el equipo, que no se cambia, y añade las notas. Su botón es `secondary`, porque lo principal
@@ -86,10 +102,14 @@ export function PracticeForm({
   options,
   initial,
   edit,
+  template,
+  teamDefaults,
 }: {
   clubSlug: string;
   options: { teams: TeamOption[]; focusAreas: FocusOption[] };
   initial: PracticeFormValues;
+  template?: { id: string };
+  teamDefaults?: Record<string, TeamDefaults>;
   edit?: {
     eventId: string;
     expectedUpdatedAt: string;
@@ -110,6 +130,11 @@ export function PracticeForm({
   const latest = useRef(initial);
   const [saved, setSaved] = useState(false);
   const [created, setCreated] = useState(false);
+  // Con qué botón se envía el alta: el clic lo apunta antes de que el formulario se envíe.
+  const proposing = useRef(true);
+  // Los campos que ya se han escrito a mano: cambiar de equipo no los pisa. Es estado y no un
+  // ref porque `touch` se llama al pintar (devuelve el manejador de cada campo).
+  const [touched, setTouched] = useState<ReadonlySet<keyof PracticeFormValues>>(() => new Set());
 
   // En modo crear, avisa al salir si hay cambios sin guardar. En modo editar lo gestiona el padre.
   const createDirty = !edit && !sameValues(values, initial);
@@ -135,7 +160,20 @@ export function PracticeForm({
   /** Tocar cualquier campo deja sin efecto el «Datos guardados.» del guardado anterior. */
   function touch(field: keyof PracticeFormValues) {
     return (value: string) => {
+      if (!touched.has(field)) setTouched(new Set(touched).add(field));
       const next = { ...values, [field]: value };
+      const defaults = field === "teamId" ? teamDefaults?.[value] : undefined;
+      if (defaults) {
+        const fromTeam: Pick<PracticeFormValues, (typeof TEAM_DEFAULT_FIELDS)[number]> = {
+          time: defaults.time,
+          durationMinutes: String(defaults.durationMinutes),
+          location: defaults.location ?? "",
+        };
+        for (const key of TEAM_DEFAULT_FIELDS) {
+          const keep = touched.has(key) || (template !== undefined && key === "durationMinutes");
+          if (!keep) next[key] = fromTeam[key];
+        }
+      }
       setValues(next);
       setSaved(false);
       edit?.onDirtyChange(!sameValues(next, lastSaved));
@@ -183,11 +221,24 @@ export function PracticeForm({
       return;
     }
 
+    if (template) {
+      run(
+        () =>
+          createPracticeFromTemplate(clubSlug, { templateId: template.id, teamId: sent.teamId, ...session }),
+        ({ eventId }) => {
+          setCreated(true);
+          router.push(`/c/${clubSlug}/train/${eventId}`);
+        },
+      );
+      return;
+    }
+
+    const propose = proposing.current;
     run(
       () => createPractice(clubSlug, { teamId: sent.teamId, ...session }),
       ({ eventId }) => {
         setCreated(true);
-        router.push(`/c/${clubSlug}/train/${eventId}/edit`);
+        router.push(`/c/${clubSlug}/train/${eventId}/edit${propose ? "?propose=1" : ""}`);
       },
     );
   }
@@ -302,14 +353,41 @@ export function PracticeForm({
         </div>
       ) : null}
 
-      <CTAButton
-        variant={edit ? "secondary" : "primary"}
-        type="submit"
-        block
-        disabled={pending || created || locked}
-      >
-        {edit ? "Guardar datos" : "Crear sesión"}
-      </CTAButton>
+      {edit || template ? (
+        <CTAButton
+          variant={edit ? "secondary" : "primary"}
+          type="submit"
+          block
+          disabled={pending || created || locked}
+        >
+          {edit ? "Guardar datos" : "Crear sesión"}
+        </CTAButton>
+      ) : (
+        <div className="flex flex-col gap-(--space-3)">
+          <CTAButton
+            variant="primary"
+            type="submit"
+            block
+            disabled={pending || created}
+            onClick={() => {
+              proposing.current = true;
+            }}
+          >
+            Proponer entrenamiento
+          </CTAButton>
+          <CTAButton
+            variant="secondary"
+            type="submit"
+            block
+            disabled={pending || created}
+            onClick={() => {
+              proposing.current = false;
+            }}
+          >
+            Empezar desde cero
+          </CTAButton>
+        </div>
+      )}
 
       {!edit ? <LeaveGuardDialog {...leaveDialog} /> : null}
     </form>

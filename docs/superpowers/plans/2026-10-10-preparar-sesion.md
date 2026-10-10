@@ -32,40 +32,40 @@
 
 ### 2. El motor de la propuesta
 
-- [ ] `src/modules/practice/proposal.ts` (+ test). `buildProposal(input: ProposalInput): Proposal`.
+- [x] `src/modules/practice/proposal.ts` (+ test). `buildProposal(input: ProposalInput): Proposal`.
   - `ProposalInput = { minutes; age: number | null; players: number | null; primaryFocus; secondaryFocus: { slug; name } | null; drills: ProposalDrill[]; recentDrillIds: string[] }`.
   - `ProposalDrill = { id; title; minAge; maxAge; minPlayers; maxPlayers; minMinutes; maxMinutes; focus: { slug; name }[]; keyPoints; variants }`.
   - `Proposal = { items: ProposedItem[]; uncoveredMinutes: number }`, `ProposedItem = { drillId; title; phase: string | null; minutes; hint: string }`.
   - Huecos, en el orden de la sesión: Activación 15 % (el más corto), principal 45 % (dos; uno si dura menos de 60 min), secundario 20 % (sin secundario, otro del principal), Competición 20 % (el que más jugadores admite). Se eligen primero los de objetivo.
   - Escalera por hueco: sin usar hace poco y con sitio para la plantilla → usado hace poco → sin mirar jugadores → cualquier objetivo. La edad, nunca. Empates por título.
-  - Minutos de 5 en 5 dentro del rango del ejercicio; lo que falta o sobra, por turnos del principal hacia fuera. Si los mínimos no caben, se quitan huecos (secundario, activación, competición, segundo principal).
+  - Minutos de 5 en 5 dentro del rango del ejercicio; lo que falta o sobra, por turnos del principal hacia fuera. Si los mínimos no caben, se quitan huecos (secundario, competición, segundo principal, activación). Si los huecos no llenan la franja, más ejercicios del principal y del secundario por turnos, hasta ocho.
   - `hint`: «Transición · 2 puntos clave · 1 variante», sin las partes a cero.
-- [ ] `fitNotice(totalMinutes, slotMinutes): string | null` en `items.ts`: «Te sobran 10 min», «Te pasas 10 min», `null` si coincide o no hay nada montado.
+- [x] `fitNotice(totalMinutes, slotMinutes): string | null` en `items.ts`: «Te sobran 10 min», «Te pasas 10 min», `null` si coincide o no hay nada montado.
 
 ### 3. Leer y proponer
 
-- [ ] `src/modules/practice/proposal-queries.ts`: `getProposalInput(ctx, eventId): Promise<ProposalInput | null>` (sesión, edad de la categoría, tamaño de la plantilla, ejercicios publicados válidos por edad con sus puntos clave y variantes, ejercicios de las tres últimas sesiones no canceladas del equipo anteriores a esta).
-- [ ] `proposePracticeItems(clubSlug, { eventId }): Promise<ActionResult<Proposal>>` en `actions.ts`: solo lectura, como `findDrills` (Zod, club, `practice.manage`, `SAVE_FAILED` si la lectura falla).
+- [x] `src/modules/practice/proposal-queries.ts`: `getProposalInput(ctx, eventId): Promise<ProposalInput | null>` (sesión, edad de la categoría, tamaño de la plantilla, ejercicios publicados válidos por edad con sus puntos clave y variantes, ejercicios de las tres últimas sesiones no canceladas del equipo anteriores a esta).
+- [x] `proposePracticeItems(clubSlug, { eventId }): Promise<ActionResult<Proposal>>` en `actions.ts`: solo lectura, como `findDrills` (Zod, club, `practice.manage`, `SAVE_FAILED` si la lectura falla).
 
 ### 4. Los dos caminos y el constructor
 
-- [ ] `PracticeForm` (alta): «Proponer entrenamiento» (principal) → `/train/{id}/edit?propose=1`; «Empezar desde cero» (secundario) → `/train/{id}/edit`.
-- [ ] `PracticeEditor`: `autoPropose` (de `?propose=1`, solo con la sesión sin ejercicios; quita el parámetro de la URL al usarlo), botón «Proponer entrenamiento» con la lista vacía, aviso «Propuesta sin guardar. Revísala, cámbiala y guarda.» y, sin candidatos, «No hay ejercicios en la biblioteca para esta sesión. Móntala tú.»
-- [ ] `PracticeBuilder`: `slotMinutes` (aviso de encaje junto al total), `extraActions(add, full, empty)`, `add(item, { hint })`; `PracticeItem` con `hint`.
+- [x] `PracticeForm` (alta): «Proponer entrenamiento» (principal) → `/train/{id}/edit?propose=1`; «Empezar desde cero» (secundario) → `/train/{id}/edit`.
+- [x] `PracticeEditor`: `autoPropose` (de `?propose=1`, solo con la sesión sin ejercicios; quita el parámetro de la URL al usarlo), botón «Proponer entrenamiento» con la lista vacía, aviso «Propuesta sin guardar. Revísala, cámbiala y guarda.» y, sin candidatos, «No hay ejercicios en la biblioteca para esta sesión. Móntala tú.»
+- [x] `PracticeBuilder`: `slotMinutes` (aviso de encaje junto al total), `extraActions(add, full, empty)`, `add(item, { hint })`; `PracticeItem` con `hint`.
 
 ### 5. Plantillas
 
-- [ ] `ActionError` `TEMPLATE_LIMIT`: «Ya tienes 50 plantillas, el máximo. Borra alguna para guardar otra.»
-- [ ] Acciones: `savePracticeAsTemplate(clubSlug, { eventId }) → { templateId }`, `createPracticeFromTemplate(clubSlug, { templateId, teamId, …datos }) → { eventId }`, `deletePracticeTemplate(clubSlug, { templateId }) → null`.
-- [ ] Lecturas (`template-queries.ts`): `listTemplates(ctx)`, `getTemplate(ctx, id)`; solo las propias. `PracticeTemplate = { id; title; totalMinutes; itemCount; primaryFocus; secondaryFocus }`.
-- [ ] Pantallas: pestaña «Plantillas» (`?scope=templates`), `/train/new?template={id}` (aviso, «Crear sesión», «Borrar plantilla» con confirmación), «Guardar como plantilla» en la ficha.
+- [x] `ActionError` `TEMPLATE_LIMIT`: «Ya tienes 50 plantillas, el máximo. Borra alguna para guardar otra.»
+- [x] Acciones: `savePracticeAsTemplate(clubSlug, { eventId }) → { templateId }`, `createPracticeFromTemplate(clubSlug, { templateId, teamId, …datos }) → { eventId }`, `deletePracticeTemplate(clubSlug, { templateId }) → null`.
+- [x] Lecturas (`template-queries.ts`): `listTemplates(ctx)`, `getTemplate(ctx, id)`; solo las propias. `PracticeTemplate = { id; title; totalMinutes; itemCount; primaryFocus; secondaryFocus }`.
+- [x] Pantallas: pestaña «Plantillas» (`?scope=templates`), `/train/new?template={id}` (aviso, «Crear sesión», «Borrar plantilla» con confirmación), «Guardar como plantilla» en la ficha.
 
 ### 6. Valores por defecto del equipo
 
-- [ ] `getPracticeFormOptions` devuelve `teamDefaults: Record<teamId, { time; durationMinutes; location }>` (última sesión no cancelada de cada equipo). El formulario los pone al cambiar de equipo mientras no se hayan tocado.
+- [x] `getPracticeFormOptions` devuelve `teamDefaults: Record<teamId, { time; durationMinutes; location }>` (última sesión no cancelada de cada equipo). El formulario los pone al cambiar de equipo mientras no se hayan tocado.
 
 ### 7. Cierre
 
-- [ ] E2E: proponer → cambiar → guardar; salir sin guardar deja la sesión vacía; desde cero con el aviso de encaje; plantilla: guardar → usar → borrar; otra entrenadora no la ve.
-- [ ] Contratos, backlog, README, `design/components/PracticeItem`.
+- [x] E2E: proponer → cambiar → guardar; salir sin guardar deja la sesión vacía; desde cero con el aviso de encaje; plantilla: guardar → usar → borrar; otra entrenadora no la ve.
+- [x] Contratos, backlog, README, `design/components/PracticeItem`.
 - [ ] Suite entera desde base vacía, repaso visual a 375×812, revisión de la rama y una tanda de arreglos.

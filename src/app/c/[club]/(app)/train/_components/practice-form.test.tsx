@@ -3,10 +3,16 @@ import Link from "next/link";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ACTION_ERROR_COPY, fail, ok, type ActionResult } from "@/lib/action-result";
 
-const mocks = vi.hoisted(() => ({ createPractice: vi.fn(), updatePracticeMeta: vi.fn(), push: vi.fn() }));
+const mocks = vi.hoisted(() => ({
+  createPractice: vi.fn(),
+  createPracticeFromTemplate: vi.fn(),
+  updatePracticeMeta: vi.fn(),
+  push: vi.fn(),
+}));
 
 vi.mock("@/modules/practice/actions", () => ({
   createPractice: mocks.createPractice,
+  createPracticeFromTemplate: mocks.createPracticeFromTemplate,
   updatePracticeMeta: mocks.updatePracticeMeta,
 }));
 // Solo el router es de pega: `useAction` usa el `unstable_rethrow` de verdad.
@@ -24,6 +30,7 @@ const FOCUS_REBOTE = "00000000-0000-4000-8000-0000000000f1";
 const FOCUS_TRANSICION = "00000000-0000-4000-8000-0000000000f2";
 const EVENT = "00000000-0000-4000-8000-0000000000e1";
 const NEW_EVENT = "00000000-0000-4000-8000-0000000000e2";
+const TEMPLATE = "00000000-0000-4000-8000-0000000000c1";
 const UPDATED_AT = "2026-10-04T10:00:00.123456+00:00";
 const NEXT_UPDATED_AT = "2026-10-04T10:05:00.654321+00:00";
 
@@ -99,7 +106,9 @@ function renderEdit(overrides: Partial<PracticeFormValues> = {}, props: Partial<
 
 const change = (label: string, value: string) =>
   fireEvent.change(screen.getByLabelText(label), { target: { value } });
-const create = () => fireEvent.click(screen.getByRole("button", { name: "Crear sesión" }));
+/** Crear por el camino de siempre: la sesión vacía, y a su constructor. */
+const create = () => fireEvent.click(screen.getByRole("button", { name: "Empezar desde cero" }));
+const propose = () => fireEvent.click(screen.getByRole("button", { name: "Proponer entrenamiento" }));
 const save = () => fireEvent.click(screen.getByRole("button", { name: "Guardar datos" }));
 
 /** Una acción que no termina hasta que el test lo diga. */
@@ -114,6 +123,7 @@ function deferred<T>() {
 beforeEach(() => {
   vi.resetAllMocks();
   mocks.createPractice.mockResolvedValue(ok({ eventId: NEW_EVENT }));
+  mocks.createPracticeFromTemplate.mockResolvedValue(ok({ eventId: NEW_EVENT }));
   mocks.updatePracticeMeta.mockResolvedValue(ok({ updatedAt: NEXT_UPDATED_AT }));
 });
 
@@ -179,13 +189,50 @@ describe("PracticeForm · nueva sesión", () => {
     expect(screen.queryByLabelText("Notas")).not.toBeInTheDocument();
   });
 
-  it("«Crear sesión» es el primary de la pantalla, a todo el ancho, y envía el formulario", () => {
+  it("acaba con dos caminos: «Proponer entrenamiento» es el primary y «Empezar desde cero», el secundario", () => {
     renderForm();
 
-    const button = screen.getByRole("button", { name: "Crear sesión" });
-    expect(button).toHaveAttribute("type", "submit");
-    expect(button).toHaveClass("bg-brand-accent", "w-full");
+    const proposeButton = screen.getByRole("button", { name: "Proponer entrenamiento" });
+    expect(proposeButton).toHaveAttribute("type", "submit");
+    expect(proposeButton).toHaveClass("bg-brand-accent", "w-full");
+
+    const blankButton = screen.getByRole("button", { name: "Empezar desde cero" });
+    expect(blankButton).toHaveAttribute("type", "submit");
+    expect(blankButton).toHaveClass("w-full");
+    expect(blankButton).not.toHaveClass("bg-brand-accent");
+
+    expect(screen.queryByRole("button", { name: "Crear sesión" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Guardar datos" })).not.toBeInTheDocument();
+  });
+
+  it("«Proponer entrenamiento» crea la sesión y abre su constructor pidiendo la propuesta", async () => {
+    renderForm();
+
+    change("Título", "Salida de presión");
+    propose();
+
+    await waitFor(() => expect(mocks.push).toHaveBeenCalledTimes(1));
+    expect(mocks.createPractice).toHaveBeenCalledTimes(1);
+    expect(mocks.createPractice).toHaveBeenCalledWith(
+      "club-a",
+      expect.objectContaining({ teamId: TEAM_A, title: "Salida de presión" }),
+    );
+    expect(mocks.push).toHaveBeenCalledWith(`/c/club-a/train/${NEW_EVENT}/edit?propose=1`);
+  });
+
+  it("mientras crea, los dos botones esperan", async () => {
+    const pending = deferred<{ eventId: string }>();
+    mocks.createPractice.mockReturnValue(pending.promise);
+    renderForm();
+
+    change("Título", "Una sesión");
+    propose();
+
+    await waitFor(() => expect(screen.getByRole("button", { name: "Proponer entrenamiento" })).toBeDisabled());
+    expect(screen.getByRole("button", { name: "Empezar desde cero" })).toBeDisabled();
+
+    pending.finish(ok({ eventId: NEW_EVENT }));
+    await waitFor(() => expect(mocks.push).toHaveBeenCalledTimes(1));
   });
 
   it("crea la sesión con lo escrito, la duración como número, y abre su constructor", async () => {
@@ -282,7 +329,7 @@ describe("PracticeForm · nueva sesión", () => {
     change("Título", "Una sesión");
     create();
 
-    await waitFor(() => expect(screen.getByRole("button", { name: "Crear sesión" })).toBeDisabled());
+    await waitFor(() => expect(screen.getByRole("button", { name: "Empezar desde cero" })).toBeDisabled());
     expect(mocks.push).not.toHaveBeenCalled();
 
     pending.finish(ok({ eventId: NEW_EVENT }));
@@ -296,9 +343,113 @@ describe("PracticeForm · nueva sesión", () => {
     create();
     await waitFor(() => expect(mocks.push).toHaveBeenCalledTimes(1));
 
-    expect(screen.getByRole("button", { name: "Crear sesión" })).toBeDisabled();
-    fireEvent.submit(screen.getByRole("button", { name: "Crear sesión" }).closest("form") as HTMLFormElement);
+    expect(screen.getByRole("button", { name: "Empezar desde cero" })).toBeDisabled();
+    fireEvent.submit(screen.getByRole("button", { name: "Empezar desde cero" }).closest("form") as HTMLFormElement);
     expect(mocks.createPractice).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("PracticeForm · con una plantilla", () => {
+  const template = { id: TEMPLATE };
+
+  it("tiene un solo botón, «Crear sesión», primary", () => {
+    renderForm({ template });
+
+    expect(screen.getByRole("button", { name: "Crear sesión" })).toHaveClass("bg-brand-accent", "w-full");
+    expect(screen.queryByRole("button", { name: "Proponer entrenamiento" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Empezar desde cero" })).not.toBeInTheDocument();
+  });
+
+  it("crea la sesión con la plantilla y abre su ficha, no el constructor", async () => {
+    renderForm({ template, initial: { ...INITIAL, title: "Salida de presión", primaryFocusId: FOCUS_REBOTE } });
+
+    change("Lugar", "Pabellón 2");
+    fireEvent.click(screen.getByRole("button", { name: "Crear sesión" }));
+
+    await waitFor(() => expect(mocks.push).toHaveBeenCalledTimes(1));
+    expect(mocks.createPractice).not.toHaveBeenCalled();
+    expect(mocks.createPracticeFromTemplate).toHaveBeenCalledWith("club-a", {
+      templateId: TEMPLATE,
+      teamId: TEAM_A,
+      title: "Salida de presión",
+      date: "2026-10-06",
+      time: "18:00",
+      durationMinutes: 75,
+      primaryFocusId: FOCUS_REBOTE,
+      secondaryFocusId: "",
+      location: "Pabellón 2",
+    });
+    expect(mocks.push).toHaveBeenCalledWith(`/c/club-a/train/${NEW_EVENT}`);
+  });
+
+  it("si falla, lo dice y deja volver a intentarlo", async () => {
+    mocks.createPracticeFromTemplate.mockResolvedValue(fail("NOT_FOUND"));
+    renderForm({ template, initial: { ...INITIAL, title: "Salida de presión" } });
+
+    fireEvent.click(screen.getByRole("button", { name: "Crear sesión" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(ACTION_ERROR_COPY.NOT_FOUND);
+    expect(mocks.push).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Crear sesión" })).toBeEnabled();
+  });
+});
+
+describe("PracticeForm · lo que trae cada equipo", () => {
+  const teamDefaults = {
+    [TEAM_A]: { time: "18:00", durationMinutes: 75, location: null },
+    [TEAM_B]: { time: "17:30", durationMinutes: 90, location: "Pabellón 2" },
+  };
+  const options = { teams: TWO_TEAMS, focusAreas: FOCUS_AREAS };
+
+  it("al cambiar de equipo pone la hora, la duración y el lugar de su última sesión", () => {
+    renderForm({ options, teamDefaults });
+
+    change("Equipo", TEAM_B);
+
+    expect(screen.getByLabelText("Hora")).toHaveValue("17:30");
+    expect(screen.getByLabelText("Duración (min)")).toHaveValue(90);
+    expect(screen.getByLabelText("Lugar")).toHaveValue("Pabellón 2");
+  });
+
+  it("y los quita al volver a un equipo que no tiene lugar", () => {
+    renderForm({ options, teamDefaults });
+
+    change("Equipo", TEAM_B);
+    change("Equipo", TEAM_A);
+
+    expect(screen.getByLabelText("Hora")).toHaveValue("18:00");
+    expect(screen.getByLabelText("Lugar")).toHaveValue("");
+  });
+
+  it("no pisa lo que ya se ha escrito a mano", () => {
+    renderForm({ options, teamDefaults });
+
+    change("Hora", "19:15");
+    change("Lugar", "Pista exterior");
+    change("Equipo", TEAM_B);
+
+    expect(screen.getByLabelText("Hora")).toHaveValue("19:15");
+    expect(screen.getByLabelText("Lugar")).toHaveValue("Pista exterior");
+    expect(screen.getByLabelText("Duración (min)")).toHaveValue(90);
+  });
+
+  it("con una plantilla, la duración es la de la plantilla y no cambia con el equipo", () => {
+    renderForm({ options, teamDefaults, template: { id: TEMPLATE }, initial: { ...INITIAL, durationMinutes: "45" } });
+
+    change("Equipo", TEAM_B);
+
+    expect(screen.getByLabelText("Duración (min)")).toHaveValue(45);
+    expect(screen.getByLabelText("Hora")).toHaveValue("17:30");
+  });
+
+  it("sin datos de ese equipo no toca nada", () => {
+    renderForm({ options, teamDefaults: { [TEAM_A]: teamDefaults[TEAM_A] } });
+
+    change("Hora", "19:15");
+    change("Equipo", TEAM_B);
+
+    expect(screen.getByLabelText("Hora")).toHaveValue("19:15");
+    expect(screen.getByLabelText("Duración (min)")).toHaveValue(75);
   });
 });
 
@@ -349,7 +500,7 @@ describe("PracticeForm · cuando falla", () => {
     expect(screen.getByLabelText("Objetivo principal")).toHaveValue(FOCUS_REBOTE);
     expect(screen.getByLabelText("Objetivo secundario")).toHaveValue(FOCUS_REBOTE);
     expect(screen.getByLabelText("Lugar")).toHaveValue("Pabellón 2");
-    expect(screen.getByRole("button", { name: "Crear sesión" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Empezar desde cero" })).toBeEnabled();
     expect(mocks.push).not.toHaveBeenCalled();
   });
 
@@ -378,7 +529,7 @@ describe("PracticeForm · cuando falla", () => {
     expect(await screen.findByText(ACTION_ERROR_COPY.SAVE_FAILED)).toBeInTheDocument();
     expect(screen.getByLabelText("Título")).toHaveValue("Salida de presión");
     expect(screen.getByLabelText("Lugar")).toHaveValue("Pabellón 2");
-    expect(screen.getByRole("button", { name: "Crear sesión" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Empezar desde cero" })).toBeEnabled();
     expect(screen.queryByText("Revisa los campos marcados.")).not.toBeInTheDocument();
     expect(mocks.push).not.toHaveBeenCalled();
   });
@@ -427,7 +578,7 @@ describe("PracticeForm · editar los datos", () => {
     expect(button).toHaveAttribute("type", "submit");
     expect(button).not.toHaveClass("bg-brand-accent");
     expect(button).toHaveClass("border-line-strong");
-    expect(screen.queryByRole("button", { name: "Crear sesión" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Empezar desde cero" })).not.toBeInTheDocument();
   });
 
   it("guarda con la copia esperada y avisa con la nueva, sin salir de la pantalla", async () => {

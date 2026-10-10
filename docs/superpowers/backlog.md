@@ -198,6 +198,39 @@ Lo que la Fase 3 dejó para el principio de la Fase 4 y la Fase 4 no recogió: r
 - **Las pizarras del manual traen su fondo claro y su título dentro de la imagen.** En la ficha, de tema oscuro, se ven con una banda clara arriba y abajo. Se quita regenerándolas sin fondo o recortándolas al campo.
 - **Edad, rango de jugadores y material de los 44** son una propuesta que el propietario aprobó con la especificación: los 4x4 quedan desde U16 y el único 5x5 desde U18. Se corrigen en `pack.json` y se vuelven a cargar con `--update`, o directamente en la app.
 
+## Preparar sesión (pieza 2 de la evolución)
+
+Especificación `docs/superpowers/specs/2026-10-10-preparar-sesion-design.md`, plan `docs/superpowers/plans/2026-10-10-preparar-sesion.md`. Va encima de la pieza 1.
+
+Lo que esta pieza resuelve de lo que había pendiente:
+
+- **«Preparar sesión» abría el formulario de siempre** (lo dejó la pieza 1): ahora acaba con dos caminos, y hay plantillas.
+- **El formulario proponía siempre las 18:00 y 75 minutos**: propone la hora, la duración y el lugar de la última sesión del equipo.
+- **`practice_plans.is_template` existía sin uso**: nadie podía crear ni borrar un plan sin equipo.
+
+Lo que deja:
+
+- **Migración al remoto.** `20270119000100_practice_templates` solo está aplicada en local. Va después de la de la pieza 1 y antes de fusionar (README, «Despliegue de «Preparar sesión»»).
+- **La propuesta no mira el material.** Los ejercicios dicen qué material piden, pero el club no tiene inventario: llega con la estructura del club (pieza 5).
+- **La propuesta no mira la fase de la temporada ni la carga de la semana.** Solo evita repetir lo de las tres últimas sesiones.
+- **Una biblioteca de más de 500 ejercicios publicados**: la propuesta mira los 500 primeros por título (`PROPOSAL_SCAN_LIMIT`). Hoy ninguna se acerca; si alguna llega, filtrar por edad en la consulta.
+- **Los valores por defecto del equipo miran las 200 sesiones más recientes del conjunto** (`getTeamDefaults`): dirección con muchos equipos puede ver las 18:00 y 75 minutos en uno que lleva tiempo sin entrenar.
+- **Plantillas compartidas con el club**, y por fase de temporada: pieza 5. Pedirán su política y decidir quién las edita.
+- **Una plantilla no se renombra ni se edita.** Se corrige la sesión y se guarda otra; la vieja se borra.
+- **Dirección lee en la base las plantillas de cualquiera de su club** (la política de lectura de un plan sin equipo ya era así). Ninguna pantalla las enseña. Si se quiere cerrar, es un cambio de `practice_plans_select_visible`.
+- **La línea de «por qué está» solo dura hasta recargar**: no se guarda. Un ejercicio añadido a mano no la lleva.
+- **«Proponer» solo con la lista vacía.** Completar una sesión a medias («propón lo que falta») no está.
+- **IA**: fuera, por decisión del propietario (10 oct 2026). La propuesta son reglas.
+
+Decisiones tomadas sin preguntarlas una a una (están también en la especificación):
+
+- Los dos caminos crean la sesión antes de montar los ejercicios; lo que no se guarda sola es la lista.
+- El reparto por fases (15 / 45 / 20 / 20), las relajaciones en su orden, y que se añadan ejercicios (hasta ocho) cuando los cinco huecos no llenan la franja.
+- «Reciente» son las tres últimas sesiones del equipo.
+- Tope de 50 plantillas por persona y club.
+- Una sesión creada con una plantilla abre su ficha, no el constructor: ya tiene sus ejercicios.
+- El copy nuevo no lo ha validado producto.
+
 ## Uso diario del entrenador (pieza 1 de la evolución)
 
 Especificación `docs/superpowers/specs/2026-10-10-uso-diario-design.md`, plan `docs/superpowers/plans/2026-10-10-uso-diario.md`. Es la primera de las diez piezas de la «Propuesta de evolución para CLUB OS» (10 oct 2026); las otras nueve están en la tabla de la especificación.

@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   duplicatePractice: vi.fn(),
   cancelPractice: vi.fn(),
   resetLiveProgress: vi.fn(),
+  savePracticeAsTemplate: vi.fn(),
   clearLiveState: vi.fn(),
   cancelLiveSync: vi.fn(),
   push: vi.fn(),
@@ -16,6 +17,7 @@ vi.mock("@/modules/practice/actions", () => ({
   duplicatePractice: mocks.duplicatePractice,
   cancelPractice: mocks.cancelPractice,
   resetLiveProgress: mocks.resetLiveProgress,
+  savePracticeAsTemplate: mocks.savePracticeAsTemplate,
 }));
 vi.mock("@/modules/live/storage", () => ({
   clearLiveState: mocks.clearLiveState,
@@ -32,6 +34,7 @@ import { PracticeActions } from "./practice-actions";
 // Datos neutros: los tests de `src/` no pueden nombrar a ningún club (pnpm check:guards).
 const EVENT = "00000000-0000-4000-8000-0000000000e1";
 const COPY_EVENT = "00000000-0000-4000-8000-0000000000e2";
+const TEMPLATE = "00000000-0000-4000-8000-0000000000c1";
 const DEFAULTS = { date: "2026-10-13", time: "18:00" };
 
 function renderActions(props: Partial<Parameters<typeof PracticeActions>[0]> = {}) {
@@ -70,6 +73,7 @@ beforeEach(() => {
   mocks.duplicatePractice.mockResolvedValue(ok({ eventId: COPY_EVENT }));
   mocks.cancelPractice.mockResolvedValue(ok(null));
   mocks.resetLiveProgress.mockResolvedValue(ok({ updatedAt: "2026-10-04T10:05:00.654321+00:00" }));
+  mocks.savePracticeAsTemplate.mockResolvedValue(ok({ templateId: TEMPLATE }));
 });
 
 describe("PracticeActions · qué ofrece", () => {
@@ -485,5 +489,244 @@ describe("PracticeActions · continuar entrenamiento", () => {
     renderActions({ status: "done", canEdit: false, itemCount: 5, live: { started: true, position: 4 } });
 
     expect(screen.queryByRole("button", { name: "Empezar de nuevo" })).not.toBeInTheDocument();
+  });
+});
+
+describe("PracticeActions · guardar como plantilla", () => {
+  const templateButton = () => screen.getByRole("button", { name: "Guardar como plantilla" });
+  const queryTemplateButton = () => screen.queryByRole("button", { name: "Guardar como plantilla" });
+  const saveTemplate = () => fireEvent.click(templateButton());
+  const savedNotice = () => screen.getByText("Plantilla guardada.");
+
+  describe("cuándo se ofrece", () => {
+    it.each([
+      ["programada, pudiendo editar", { status: "scheduled", canEdit: true }],
+      ["programada, sin poder editar", { status: "scheduled", canEdit: false }],
+      ["hecha", { status: "done", canEdit: false }],
+      ["cancelada", { status: "cancelled", canEdit: false }],
+      // `canEdit` es de la sesión y lo decide la página: aquí no lo condiciona en ningún estado.
+      ["hecha, con `canEdit`", { status: "done", canEdit: true }],
+      ["cancelada, con `canEdit`", { status: "cancelled", canEdit: true }],
+    ] as const)("una sesión %s con ejercicios la ofrece", (_what, props) => {
+      renderActions({ ...props, itemCount: 4 });
+
+      expect(templateButton()).toBeEnabled();
+    });
+
+    it("sin `status` (quien lo monta no lo dice) también, si tiene ejercicios", () => {
+      renderActions({ itemCount: 1 });
+
+      expect(templateButton()).toBeEnabled();
+    });
+
+    it.each([
+      ["programada", { status: "scheduled", canEdit: true }],
+      ["hecha", { status: "done", canEdit: false }],
+      ["cancelada", { status: "cancelled", canEdit: false }],
+    ] as const)("una sesión %s sin ejercicios no: no habría nada que copiar", (_what, props) => {
+      renderActions({ ...props, itemCount: 0 });
+
+      expect(queryTemplateButton()).not.toBeInTheDocument();
+      expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    });
+
+    it("sin `itemCount` no se ofrece: lo normal es no tener ejercicios", () => {
+      renderActions();
+
+      expect(queryTemplateButton()).not.toBeInTheDocument();
+    });
+
+    it("es secondary a todo el ancho, y va entre «Duplicar» y «Cancelar sesión»", () => {
+      renderActions({ status: "scheduled", itemCount: 4 });
+
+      expect(templateButton()).toHaveClass("border-line-strong", "w-full");
+      expect(templateButton()).not.toHaveClass("bg-brand-accent");
+      expect(templateButton()).toHaveAttribute("type", "button");
+      expect(duplicateToggle().compareDocumentPosition(templateButton())).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+      expect(templateButton().compareDocumentPosition(cancelTrigger())).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    });
+
+    it("en una sesión cerrada es lo último, tras «Duplicar»", () => {
+      renderActions({ status: "done", canEdit: false, itemCount: 4 });
+
+      expect(screen.getAllByRole("button").map((button) => button.textContent)).toEqual([
+        "Duplicar",
+        "Guardar como plantilla",
+      ]);
+    });
+
+    it("no guarda nada hasta que se pulsa, y su región de estado ya está en el árbol, vacía", () => {
+      renderActions({ status: "scheduled", itemCount: 4 });
+
+      // Un lector de pantalla solo anuncia lo que cambia dentro de una región que ya existía.
+      expect(screen.getByRole("status")).toBeEmptyDOMElement();
+      expect(screen.queryByRole("link", { name: "Ver plantillas" })).not.toBeInTheDocument();
+      expect(mocks.savePracticeAsTemplate).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("al guardar", () => {
+    it("guarda esa sesión de ese club como plantilla, y lo dice con el enlace a «Plantillas»", async () => {
+      renderActions({ status: "scheduled", itemCount: 4 });
+      const region = screen.getByRole("status");
+
+      saveTemplate();
+
+      const notice = await screen.findByText("Plantilla guardada.");
+      expect(mocks.savePracticeAsTemplate).toHaveBeenCalledTimes(1);
+      expect(mocks.savePracticeAsTemplate).toHaveBeenCalledWith("club-a", { eventId: EVENT });
+      // En la región que ya estaba, no en una nueva.
+      expect(region).toContainElement(notice);
+      const link = within(region).getByRole("link", { name: "Ver plantillas" });
+      expect(link).toHaveAttribute("href", "/c/club-a/train?scope=templates");
+      // El enlace mide lo que un área táctil.
+      expect(link).toHaveClass("min-h-(--target-min)");
+      // No sale de la pantalla ni la repinta: quien quiera ir a «Plantillas», pulsa el enlace.
+      expect(mocks.push).not.toHaveBeenCalled();
+      expect(mocks.refresh).not.toHaveBeenCalled();
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    });
+
+    it("guardada, el botón se queda parado: un segundo toque no guarda otra igual", async () => {
+      renderActions({ status: "done", canEdit: false, itemCount: 4 });
+
+      saveTemplate();
+      await screen.findByText("Plantilla guardada.");
+
+      expect(templateButton()).toBeDisabled();
+      saveTemplate();
+      saveTemplate();
+      expect(mocks.savePracticeAsTemplate).toHaveBeenCalledTimes(1);
+      expect(savedNotice()).toBeInTheDocument();
+    });
+
+    it("mientras guarda está parado, sin decir aún que se ha guardado", async () => {
+      const pending = deferred<{ templateId: string }>();
+      mocks.savePracticeAsTemplate.mockReturnValue(pending.promise);
+      renderActions({ status: "scheduled", itemCount: 4 });
+
+      saveTemplate();
+
+      await waitFor(() => expect(templateButton()).toBeDisabled());
+      expect(screen.queryByText("Plantilla guardada.")).not.toBeInTheDocument();
+      saveTemplate();
+      expect(mocks.savePracticeAsTemplate).toHaveBeenCalledTimes(1);
+
+      pending.finish(ok({ templateId: TEMPLATE }));
+      await screen.findByText("Plantilla guardada.");
+      expect(templateButton()).toBeDisabled();
+      expect(mocks.savePracticeAsTemplate).toHaveBeenCalledTimes(1);
+    });
+
+    it("las demás acciones siguen ahí mientras guarda y después", async () => {
+      renderActions({ status: "scheduled", itemCount: 4 });
+
+      saveTemplate();
+      await screen.findByText("Plantilla guardada.");
+
+      expect(duplicateToggle()).toBeEnabled();
+      expect(cancelTrigger()).toBeEnabled();
+      expect(screen.getByRole("link", { name: "Editar sesión" })).toBeInTheDocument();
+      expect(screen.getByRole("link", { name: "Iniciar entrenamiento" })).toBeInTheDocument();
+    });
+  });
+
+  describe("cuando falla", () => {
+    it("con 50 plantillas lo dice, no la da por guardada y el botón vuelve a estar disponible", async () => {
+      mocks.savePracticeAsTemplate.mockResolvedValue(fail("TEMPLATE_LIMIT"));
+      renderActions({ status: "scheduled", itemCount: 4 });
+
+      saveTemplate();
+
+      const alert = (await screen.findByText(ACTION_ERROR_COPY.TEMPLATE_LIMIT)).closest('[role="alert"]');
+      expect(ACTION_ERROR_COPY.TEMPLATE_LIMIT).toBe("Ya tienes 50 plantillas, el máximo. Borra alguna para guardar otra.");
+      // El aviso va justo debajo de su botón, y se lleva el foco.
+      expect(templateButton().nextElementSibling).toBe(alert);
+      await waitFor(() => expect(alert).toHaveFocus());
+      expect(templateButton()).toBeEnabled();
+      expect(screen.queryByText("Plantilla guardada.")).not.toBeInTheDocument();
+      expect(screen.queryByRole("link", { name: "Ver plantillas" })).not.toBeInTheDocument();
+      expect(screen.getByRole("status")).toBeEmptyDOMElement();
+    });
+
+    it("tras un fallo se puede volver a intentar: el aviso se quita y, si va bien, lo dice", async () => {
+      mocks.savePracticeAsTemplate.mockResolvedValueOnce(fail("TEMPLATE_LIMIT"));
+      renderActions({ status: "scheduled", itemCount: 4 });
+      saveTemplate();
+      await screen.findByText(ACTION_ERROR_COPY.TEMPLATE_LIMIT);
+
+      saveTemplate();
+
+      await screen.findByText("Plantilla guardada.");
+      expect(mocks.savePracticeAsTemplate).toHaveBeenCalledTimes(2);
+      expect(screen.queryByText(ACTION_ERROR_COPY.TEMPLATE_LIMIT)).not.toBeInTheDocument();
+      expect(templateButton()).toBeDisabled();
+    });
+
+    it("una sesión que ya no se encuentra lo dice igual", async () => {
+      mocks.savePracticeAsTemplate.mockResolvedValue(fail("NOT_FOUND"));
+      renderActions({ status: "cancelled", canEdit: false, itemCount: 4 });
+
+      saveTemplate();
+
+      expect(await screen.findByText(ACTION_ERROR_COPY.NOT_FOUND)).toBeInTheDocument();
+      expect(templateButton()).toBeEnabled();
+    });
+
+    it("si se cae la llamada, es un SAVE_FAILED sin el mensaje del error", async () => {
+      mocks.savePracticeAsTemplate.mockRejectedValue(new Error("fallo de red con datos internos"));
+      renderActions({ status: "scheduled", itemCount: 4 });
+
+      saveTemplate();
+
+      expect(await screen.findByText(ACTION_ERROR_COPY.SAVE_FAILED)).toBeInTheDocument();
+      expect(screen.queryByText(/fallo de red/)).not.toBeInTheDocument();
+      expect(templateButton()).toBeEnabled();
+    });
+
+    it("su aviso no tapa el de cancelar, ni el de cancelar tapa el suyo", async () => {
+      mocks.cancelPractice.mockResolvedValue(fail("NOT_FOUND"));
+      mocks.savePracticeAsTemplate.mockResolvedValue(fail("TEMPLATE_LIMIT"));
+      renderActions({ status: "scheduled", itemCount: 4 });
+
+      // Primero falla cancelar…
+      fireEvent.click(cancelTrigger());
+      fireEvent.click(within(await dialog()).getByRole("button", { name: "Cancelar sesión" }));
+      await screen.findByText(ACTION_ERROR_COPY.NOT_FOUND);
+      await waitFor(() => expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument());
+
+      // …y después guardar la plantilla: los dos avisos a la vez, cada uno bajo su botón.
+      saveTemplate();
+      await screen.findByText(ACTION_ERROR_COPY.TEMPLATE_LIMIT);
+
+      expect(screen.getByText(ACTION_ERROR_COPY.NOT_FOUND)).toBeInTheDocument();
+      expect(screen.getAllByRole("alert")).toHaveLength(2);
+      expect(templateButton().nextElementSibling).toHaveTextContent(ACTION_ERROR_COPY.TEMPLATE_LIMIT);
+      expect(cancelTrigger().nextElementSibling).toHaveTextContent(ACTION_ERROR_COPY.NOT_FOUND);
+
+      // Volver a intentar cancelar quita su aviso, no el de la plantilla.
+      mocks.cancelPractice.mockResolvedValue(ok(null));
+      fireEvent.click(cancelTrigger());
+      fireEvent.click(within(await dialog()).getByRole("button", { name: "Cancelar sesión" }));
+      await waitFor(() => expect(mocks.refresh).toHaveBeenCalledTimes(1));
+      await waitFor(() => expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument());
+      expect(screen.queryByText(ACTION_ERROR_COPY.NOT_FOUND)).not.toBeInTheDocument();
+      expect(screen.getByText(ACTION_ERROR_COPY.TEMPLATE_LIMIT)).toBeInTheDocument();
+    });
+
+    it("tampoco tapa el de duplicar, ni que la plantilla se guarde borra el de duplicar", async () => {
+      mocks.duplicatePractice.mockResolvedValue(fail("INVALID", { date: "Elige una fecha y una hora válidas." }));
+      renderActions({ status: "done", canEdit: false, itemCount: 4 });
+      openDuplicate();
+      copy();
+      await screen.findByText(ACTION_ERROR_COPY.INVALID);
+
+      saveTemplate();
+      await screen.findByText("Plantilla guardada.");
+
+      expect(screen.getByText(ACTION_ERROR_COPY.INVALID)).toBeInTheDocument();
+      expect(screen.getByLabelText("Fecha")).toHaveAccessibleDescription("Elige una fecha y una hora válidas.");
+      expect(screen.getByRole("button", { name: "Crear copia" })).toBeEnabled();
+    });
   });
 });

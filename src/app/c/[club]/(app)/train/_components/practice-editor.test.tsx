@@ -3,6 +3,7 @@ import Link from "next/link";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { ACTION_ERROR_COPY, fail, ok, type ActionResult } from "@/lib/action-result";
 import type { DrillSummary, FocusArea } from "@/modules/drills/types";
+import type { Proposal, ProposedItem } from "@/modules/practice/proposal";
 import type { PracticeDetail, PracticeDetailItem } from "@/modules/practice/types";
 
 const mocks = vi.hoisted(() => ({
@@ -10,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   savePracticeItems: vi.fn(),
   updatePracticeMeta: vi.fn(),
   createPractice: vi.fn(),
+  proposePracticeItems: vi.fn(),
   push: vi.fn(),
   reload: vi.fn(),
 }));
@@ -19,6 +21,7 @@ vi.mock("@/modules/practice/actions", () => ({
   savePracticeItems: mocks.savePracticeItems,
   updatePracticeMeta: mocks.updatePracticeMeta,
   createPractice: mocks.createPractice,
+  proposePracticeItems: mocks.proposePracticeItems,
 }));
 // Solo el router es de pega: `useAction` usa el `unstable_rethrow` de verdad.
 vi.mock("next/navigation", async (importOriginal) => ({
@@ -95,7 +98,11 @@ const VALUES: PracticeFormValues = {
   notes: "",
 };
 
-function renderEditor(overrides: Partial<PracticeDetail> = {}) {
+/** `extra` es lo que la página añade para preparar la sesión: la franja y la propuesta al entrar. */
+function renderEditor(
+  overrides: Partial<PracticeDetail> = {},
+  extra: { slotMinutes?: number; autoPropose?: boolean } = {},
+) {
   return render(
     <PracticeEditor
       clubSlug="club-a"
@@ -103,6 +110,7 @@ function renderEditor(overrides: Partial<PracticeDetail> = {}) {
       options={{ teams: [{ id: TEAM, name: "Equipo A" }], focusAreas: [{ id: FOCUS, name: "Rebote" }] }}
       drillFocusAreas={DRILL_FOCUS_AREAS}
       initialValues={VALUES}
+      {...extra}
     />,
   );
 }
@@ -883,5 +891,648 @@ describe("PracticeEditor · ejercicios de la biblioteca", () => {
 
     expect(prevented).toBe(false);
     expect(leaveDialog()).not.toBeInTheDocument();
+  });
+});
+
+describe("PracticeEditor · encaje con la franja", () => {
+  /** Cualquier frase de encaje, esté donde esté. */
+  const anyFit = () => screen.queryByText(/^Te (sobran?|pasas) \d+ min$/);
+
+  it("le da al constructor lo que dura la franja: junto al total dice si lo montado encaja", () => {
+    renderEditor({}, { slotMinutes: 75 });
+
+    // Los dos ejercicios de la sesión suman 25 minutos.
+    const notice = screen.getByText("Te sobran 50 min");
+    expect(screen.getByText("Total").parentElement?.nextElementSibling).toBe(notice);
+
+    changeItems();
+    expect(screen.getByText("Te sobran 45 min")).toBeInTheDocument();
+  });
+
+  it("si lo montado se pasa de la franja, lo dice, y se puede guardar igual", async () => {
+    renderEditor({}, { slotMinutes: 20 });
+    expect(screen.getByText("Te pasas 5 min")).toBeInTheDocument();
+
+    changeItems();
+    expect(screen.getByText("Te pasas 10 min")).toBeInTheDocument();
+    click("Guardar sesión");
+
+    await screen.findByText("Sesión guardada.");
+    expect(mocks.savePracticeItems).toHaveBeenCalledTimes(1);
+  });
+
+  it("sin franja no dice nada: es lo que pasaba antes de que la página la diera", () => {
+    renderEditor();
+
+    expect(anyFit()).not.toBeInTheDocument();
+    changeItems();
+    expect(anyFit()).not.toBeInTheDocument();
+  });
+
+  it("con la sesión sin ejercicios tampoco, aunque haya franja", () => {
+    renderEditor({ items: [] }, { slotMinutes: 75 });
+
+    expect(anyFit()).not.toBeInTheDocument();
+  });
+});
+
+describe("PracticeEditor · proponer entrenamiento", () => {
+  const EDIT = `${DETAIL}/edit`;
+  const UNSAVED = "Propuesta sin guardar. Revísala, cámbiala y guarda.";
+  const NOTHING = "No hay ejercicios en la biblioteca para esta sesión. Móntala tú.";
+
+  function proposed(n: number, title: string, phase: string, minutes: number, hint: string): ProposedItem {
+    return { drillId: `00000000-0000-4000-8000-0000000000d${n}`, title, phase, minutes, hint };
+  }
+
+  // Una propuesta de una hora: 10 + 35 + 15.
+  const WARMUP = proposed(1, "Rueda de pases en carrera", "Activación", 10, "Pase · 2 puntos clave");
+  const MAIN = proposed(2, "Rebote y salida", "Rebote", 35, "Rebote · 3 puntos clave · 1 variante");
+  const GAME = proposed(3, "Tres contra tres", "Competición", 15, "Transición · 1 variante");
+  const PROPOSED = [WARMUP, MAIN, GAME];
+
+  /** Lo que devuelve la acción: los ítems y los minutos que no ha podido cubrir. */
+  const proposal = (items: ProposedItem[] = PROPOSED): ActionResult<Proposal> => ok({ items, uncoveredMinutes: 0 });
+
+  /** El editor de una sesión recién creada: aún sin ejercicios. */
+  const renderEmpty = (extra: Parameters<typeof renderEditor>[1] = {}) => renderEditor({ items: [] }, extra);
+
+  const proposeButton = () => screen.queryByRole("button", { name: "Proponer entrenamiento" });
+  const propose = () => click("Proponer entrenamiento");
+  /** Las filas del constructor, que con la sesión vacía no hay ninguna. */
+  const builderRows = () => screen.queryAllByRole("listitem").filter((row) => row.hasAttribute("data-row"));
+  /** El nombre del botón que abre una fila propuesta: la fase, el título y la línea de por qué está. */
+  const rowName = (entry: ProposedItem) => `${entry.phase} ${entry.title} ${entry.hint}`;
+  /** La región de estado del editor, donde salen los avisos de la propuesta. */
+  const noticeRegion = () =>
+    screen.getAllByRole("status").find((region) => region.classList.contains("empty:hidden")) as HTMLElement;
+  const calls = () => mocks.proposePracticeItems.mock.calls.length;
+
+  /**
+   * Llega como quien viene de «Proponer entrenamiento» en la sesión nueva: con el parámetro en
+   * la URL. El `location` de pega de este fichero no tiene ruta, así que aquí vuelve el de jsdom.
+   */
+  function arrive(search = "?propose=1") {
+    vi.unstubAllGlobals();
+    window.history.replaceState({ from: "new" }, "", `${EDIT}${search}`);
+  }
+
+  beforeEach(() => {
+    mocks.proposePracticeItems.mockResolvedValue(proposal());
+  });
+  afterEach(() => {
+    window.history.replaceState(null, "", "/");
+  });
+
+  describe("cuándo se ofrece", () => {
+    it("con la sesión sin ejercicios hay «Proponer entrenamiento», encima de «Añadir ejercicio»", () => {
+      renderEmpty();
+
+      const button = proposeButton() as HTMLElement;
+      expect(button).toBeEnabled();
+      expect(button).toHaveClass("border-line-strong", "w-full");
+      expect(button).not.toHaveClass("bg-brand-accent");
+      expect(button).toHaveAttribute("type", "button");
+      expect(button.compareDocumentPosition(screen.getByRole("button", { name: "Añadir ejercicio" }))).toBe(
+        Node.DOCUMENT_POSITION_FOLLOWING,
+      );
+      expect(
+        screen
+          .getByRole("button", { name: "Añadir ejercicio" })
+          .compareDocumentPosition(screen.getByRole("button", { name: "Añadir bloque libre" })),
+      ).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    });
+
+    it("con ejercicios no: proponer encima de lo montado lo mezclaría", () => {
+      renderEditor();
+
+      expect(rows()).toHaveLength(2);
+      expect(proposeButton()).not.toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Añadir ejercicio" })).toBeInTheDocument();
+    });
+
+    it("no pide nada hasta que se pulsa, y de entrada no hay ningún aviso", () => {
+      renderEmpty();
+
+      expect(mocks.proposePracticeItems).not.toHaveBeenCalled();
+      // La región de los avisos está ya en el árbol, vacía: así se anuncia lo que entre en ella.
+      expect(noticeRegion()).toBeEmptyDOMElement();
+      expect(button("Guardar sesión")).toBeDisabled();
+    });
+
+    it("aparece al quitar el último ejercicio, y desaparece al añadir uno a mano", () => {
+      renderEditor({ items: [item(1, "Rueda de pases", 10)] });
+      expect(proposeButton()).not.toBeInTheDocument();
+
+      click("Rueda de pases");
+      click("Quitar Rueda de pases");
+      expect(proposeButton()).toBeInTheDocument();
+
+      click("Añadir bloque libre");
+      expect(proposeButton()).not.toBeInTheDocument();
+      expect(mocks.proposePracticeItems).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("al pulsarlo", () => {
+    it("pide la propuesta de esa sesión de ese club", async () => {
+      renderEmpty();
+
+      propose();
+
+      await waitFor(() => expect(builderRows()).toHaveLength(3));
+      expect(mocks.proposePracticeItems).toHaveBeenCalledTimes(1);
+      expect(mocks.proposePracticeItems).toHaveBeenCalledWith("club-a", { eventId: EVENT });
+    });
+
+    it("los ejercicios propuestos entran en la lista, en su orden, con su fase, su título, sus minutos y por qué están", async () => {
+      renderEmpty();
+
+      propose();
+
+      await waitFor(() => expect(builderRows()).toHaveLength(3));
+      PROPOSED.forEach((entry, index) => {
+        const row = builderRows()[index];
+        const toggle = within(row).getByRole("button", { name: rowName(entry) });
+        expect(row.textContent?.slice(0, 2), entry.title).toBe(`0${index + 1}`);
+        // La fase arriba, el título y, debajo, la línea de por qué está ahí.
+        expect(Array.from(toggle.children).map((child) => child.textContent), entry.title).toEqual([
+          entry.phase,
+          entry.title,
+          entry.hint,
+        ]);
+        expect(toggle, entry.title).toHaveAttribute("aria-expanded", "false");
+        expect(within(row).getByText(`${entry.minutes}'`), entry.title).toBeInTheDocument();
+      });
+      expect(screen.getByText("Total").parentElement).toHaveTextContent("60'");
+      // Ya no es una sesión vacía.
+      expect(screen.queryByText("Esta sesión aún no tiene ejercicios")).not.toBeInTheDocument();
+    });
+
+    it("entran sin guardar: lo dice un aviso sobre la lista, en la región que ya estaba", async () => {
+      renderEmpty();
+      const region = noticeRegion();
+
+      propose();
+
+      const notice = await screen.findByText(UNSAVED);
+      expect(region).toContainElement(notice);
+      expect(notice.compareDocumentPosition(builderRows()[0])).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+      // Es un aviso, no un error.
+      expect(notice).toHaveClass("text-body", "text-ink-2");
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+      expect(screen.queryByText(NOTHING)).not.toBeInTheDocument();
+      // Nada se ha escrito todavía.
+      expect(mocks.savePracticeItems).not.toHaveBeenCalled();
+      expect(screen.queryByText("Sesión guardada.")).not.toBeInTheDocument();
+    });
+
+    it("«Guardar sesión» queda activo, y salir pregunta como con cualquier otro cambio", async () => {
+      renderEmpty();
+      expect(button("Guardar sesión")).toBeDisabled();
+      expect(unloadAsks()).toBe(false);
+
+      propose();
+      await screen.findByText(UNSAVED);
+
+      expect(button("Guardar sesión")).toBeEnabled();
+      expect(unloadAsks()).toBe(true);
+      expect(clickBack()).toBe("se queda");
+      expect(leaveDialog()).toBeInTheDocument();
+      click("Seguir editando");
+      expect(builderRows()).toHaveLength(3);
+    });
+
+    it("con la propuesta en la lista, «Proponer entrenamiento» desaparece: la lista ya no está vacía", async () => {
+      renderEmpty();
+
+      propose();
+      await screen.findByText(UNSAVED);
+
+      expect(proposeButton()).not.toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Añadir ejercicio" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Añadir bloque libre" })).toBeEnabled();
+    });
+
+    it("mientras llega, el botón espera: un segundo toque no pide otra", async () => {
+      const pending = deferred<Proposal>();
+      mocks.proposePracticeItems.mockReturnValue(pending.promise);
+      renderEmpty();
+
+      propose();
+
+      await waitFor(() => expect(proposeButton()).toBeDisabled());
+      fireEvent.click(proposeButton() as HTMLElement);
+      expect(calls()).toBe(1);
+      expect(builderRows()).toHaveLength(0);
+      expect(noticeRegion()).toBeEmptyDOMElement();
+
+      pending.finish(proposal());
+      await screen.findByText(UNSAVED);
+      expect(builderRows()).toHaveLength(3);
+      expect(calls()).toBe(1);
+    });
+
+    it("lo propuesto se revisa como cualquier fila: se cambia, se quita y el aviso sigue mientras no se guarde", async () => {
+      renderEmpty();
+      propose();
+      await screen.findByText(UNSAVED);
+
+      click(`Más minutos, ${MAIN.title}`);
+      expect(builderRows()[1]).toHaveTextContent("40'");
+      click(rowName(GAME));
+      click(`Quitar ${GAME.title}`);
+
+      expect(builderRows()).toHaveLength(2);
+      expect(screen.getByText("Total").parentElement).toHaveTextContent("50'");
+      expect(screen.getByText(UNSAVED)).toBeInTheDocument();
+      expect(button("Guardar sesión")).toBeEnabled();
+    });
+
+    it("con la franja de la sesión, dice también si la propuesta encaja", async () => {
+      renderEmpty({ slotMinutes: 75 });
+
+      propose();
+      await screen.findByText(UNSAVED);
+
+      // La propuesta dura 60 minutos.
+      expect(screen.getByText("Te sobran 15 min")).toBeInTheDocument();
+    });
+  });
+
+  describe("al guardar la sesión", () => {
+    it("se envían los ejercicios propuestos, sin la línea de por qué están", async () => {
+      renderEmpty();
+      propose();
+      await screen.findByText(UNSAVED);
+
+      click("Guardar sesión");
+      await screen.findByText("Sesión guardada.");
+
+      expect(mocks.savePracticeItems).toHaveBeenCalledTimes(1);
+      const [slug, input] = mocks.savePracticeItems.mock.calls[0];
+      expect(slug).toBe("club-a");
+      expect(input).toMatchObject({ eventId: EVENT, expectedUpdatedAt: UPDATED_AT });
+      expect(input.items).toStrictEqual(
+        PROPOSED.map(({ drillId, title, phase, minutes }) => ({ drillId, title, phase, minutes, notes: null })),
+      );
+      expect(JSON.stringify(input)).not.toContain("puntos clave");
+    });
+
+    it("el aviso de «Propuesta sin guardar» desaparece, y salir ya no pregunta", async () => {
+      renderEmpty();
+      propose();
+      await screen.findByText(UNSAVED);
+
+      click("Guardar sesión");
+      await screen.findByText("Sesión guardada.");
+
+      expect(screen.queryByText(UNSAVED)).not.toBeInTheDocument();
+      expect(noticeRegion()).toBeEmptyDOMElement();
+      expect(builderRows()).toHaveLength(3);
+      expect(unloadAsks()).toBe(false);
+      expect(clickBack()).toBe("navega");
+    });
+
+    it("si guardar falla, el aviso sigue: la propuesta sigue sin guardar", async () => {
+      mocks.savePracticeItems.mockResolvedValue(fail("SAVE_FAILED"));
+      renderEmpty();
+      propose();
+      await screen.findByText(UNSAVED);
+
+      click("Guardar sesión");
+      await screen.findByText(ACTION_ERROR_COPY.SAVE_FAILED);
+
+      expect(screen.getByText(UNSAVED)).toBeInTheDocument();
+      expect(builderRows()).toHaveLength(3);
+      expect(unloadAsks()).toBe(true);
+    });
+  });
+
+  describe("propuesta vacía", () => {
+    beforeEach(() => {
+      mocks.proposePracticeItems.mockResolvedValue(proposal([]));
+    });
+
+    it("dice que no hay ejercicios en la biblioteca, y no deja nada que guardar", async () => {
+      renderEmpty();
+      const region = noticeRegion();
+
+      propose();
+
+      const notice = await screen.findByText(NOTHING);
+      expect(region).toContainElement(notice);
+      expect(screen.queryByText(UNSAVED)).not.toBeInTheDocument();
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+      expect(builderRows()).toHaveLength(0);
+      expect(button("Guardar sesión")).toBeDisabled();
+      expect(unloadAsks()).toBe(false);
+    });
+
+    it("se puede volver a proponer", async () => {
+      renderEmpty();
+      propose();
+      await screen.findByText(NOTHING);
+
+      await waitFor(() => expect(proposeButton()).toBeEnabled());
+      propose();
+
+      await waitFor(() => expect(calls()).toBe(2));
+      expect(mocks.proposePracticeItems).toHaveBeenLastCalledWith("club-a", { eventId: EVENT });
+      await waitFor(() => expect(proposeButton()).toBeEnabled());
+      expect(screen.getByText(NOTHING)).toBeInTheDocument();
+    });
+
+    it("si a la segunda hay ejercicios, entran y el aviso pasa a ser el de «sin guardar»", async () => {
+      mocks.proposePracticeItems.mockResolvedValueOnce(proposal([])).mockResolvedValueOnce(proposal());
+      renderEmpty();
+      propose();
+      await screen.findByText(NOTHING);
+      await waitFor(() => expect(proposeButton()).toBeEnabled());
+
+      propose();
+
+      await screen.findByText(UNSAVED);
+      expect(screen.queryByText(NOTHING)).not.toBeInTheDocument();
+      expect(builderRows()).toHaveLength(3);
+    });
+
+    it("lo dice hasta que se añade algo a mano", async () => {
+      renderEmpty();
+      propose();
+      await screen.findByText(NOTHING);
+
+      click("Añadir bloque libre");
+
+      expect(screen.queryByText(NOTHING)).not.toBeInTheDocument();
+      // Lo añadido a mano no es una propuesta.
+      expect(screen.queryByText(UNSAVED)).not.toBeInTheDocument();
+      expect(builderRows()).toHaveLength(1);
+    });
+  });
+
+  describe("si la acción falla", () => {
+    it("dice por qué, sobre el botón, y el botón sigue disponible", async () => {
+      mocks.proposePracticeItems.mockResolvedValue(fail("NOT_FOUND"));
+      renderEmpty();
+
+      propose();
+
+      const alert = (await screen.findByText(ACTION_ERROR_COPY.NOT_FOUND)).closest('[role="alert"]') as HTMLElement;
+      expect(alert.nextElementSibling).toBe(proposeButton());
+      await waitFor(() => expect(proposeButton()).toBeEnabled());
+      expect(builderRows()).toHaveLength(0);
+      expect(noticeRegion()).toBeEmptyDOMElement();
+      expect(button("Guardar sesión")).toBeDisabled();
+      expect(unloadAsks()).toBe(false);
+    });
+
+    it("el aviso no se lleva el foco: sale justo encima del botón que se acaba de pulsar", async () => {
+      mocks.proposePracticeItems.mockResolvedValue(fail("SAVE_FAILED"));
+      renderEmpty();
+
+      propose();
+
+      const alert = (await screen.findByText(ACTION_ERROR_COPY.SAVE_FAILED)).closest('[role="alert"]');
+      // El foco, si se lo llevara, llegaría en un efecto, un turno después de pintarse.
+      await waitFor(() => expect(proposeButton()).toBeEnabled());
+      expect(alert).not.toHaveFocus();
+    });
+
+    it("al volver a pedirla se quita el aviso y, si va bien, entra la propuesta", async () => {
+      mocks.proposePracticeItems.mockResolvedValueOnce(fail("SAVE_FAILED")).mockResolvedValueOnce(proposal());
+      renderEmpty();
+      propose();
+      await screen.findByText(ACTION_ERROR_COPY.SAVE_FAILED);
+      await waitFor(() => expect(proposeButton()).toBeEnabled());
+
+      propose();
+
+      await screen.findByText(UNSAVED);
+      expect(calls()).toBe(2);
+      expect(builderRows()).toHaveLength(3);
+      expect(screen.queryByText(ACTION_ERROR_COPY.SAVE_FAILED)).not.toBeInTheDocument();
+    });
+
+    it("si se cae la llamada, es un SAVE_FAILED sin el mensaje del error", async () => {
+      mocks.proposePracticeItems.mockRejectedValue(new Error("fallo de red con datos internos"));
+      renderEmpty();
+
+      propose();
+
+      expect(await screen.findByText(ACTION_ERROR_COPY.SAVE_FAILED)).toBeInTheDocument();
+      expect(screen.queryByText(/fallo de red/)).not.toBeInTheDocument();
+      await waitFor(() => expect(proposeButton()).toBeEnabled());
+    });
+  });
+
+  describe("lo que deja de ser una propuesta", () => {
+    it("guardada, un cambio posterior ya no es «Propuesta sin guardar»", async () => {
+      renderEmpty();
+      propose();
+      await screen.findByText(UNSAVED);
+      click("Guardar sesión");
+      await screen.findByText("Sesión guardada.");
+
+      click(`Más minutos, ${MAIN.title}`);
+
+      expect(button("Guardar sesión")).toBeEnabled();
+      expect(screen.queryByText(UNSAVED)).not.toBeInTheDocument();
+    });
+
+    it("quitada entera, lo que se monte después a mano no es la propuesta", async () => {
+      mocks.proposePracticeItems.mockResolvedValue(proposal([WARMUP]));
+      renderEmpty();
+      propose();
+      await screen.findByText(UNSAVED);
+
+      click(rowName(WARMUP));
+      click(`Quitar ${WARMUP.title}`);
+      click("Añadir bloque libre");
+
+      expect(builderRows()).toHaveLength(1);
+      expect(screen.queryByText(UNSAVED)).not.toBeInTheDocument();
+    });
+
+    it("el aviso de que no había ejercicios no vuelve al quitar lo que se añadió a mano", async () => {
+      mocks.proposePracticeItems.mockResolvedValue(proposal([]));
+      renderEmpty();
+      propose();
+      await screen.findByText(NOTHING);
+
+      click("Añadir bloque libre");
+      click("Quitar Sin título");
+
+      expect(builderRows()).toHaveLength(0);
+      expect(screen.queryByText(NOTHING)).not.toBeInTheDocument();
+      expect(proposeButton()).toBeEnabled();
+    });
+
+    it("si mientras llega se añade algo a mano, la propuesta se descarta: no se mezcla", async () => {
+      const pending = deferred<Proposal>();
+      mocks.proposePracticeItems.mockReturnValue(pending.promise);
+      renderEmpty();
+      propose();
+      await waitFor(() => expect(proposeButton()).toBeDisabled());
+
+      click("Añadir bloque libre");
+      expect(proposeButton()).not.toBeInTheDocument();
+      pending.finish(proposal());
+
+      // Se da tiempo a que la respuesta se aplique: no debe añadir nada.
+      await waitFor(() => expect(mocks.proposePracticeItems).toHaveBeenCalledTimes(1));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      expect(builderRows()).toHaveLength(1);
+      expect(screen.queryByText(UNSAVED)).not.toBeInTheDocument();
+    });
+
+    it("con ejercicios al entrar, `autoPropose` no vale ni después de vaciar la lista", () => {
+      renderEditor({}, { autoPropose: true });
+      expect(calls()).toBe(0);
+
+      for (const row of rows()) {
+        fireEvent.click(within(row).getAllByRole("button").find((b) => b.dataset.control === "toggle") as HTMLElement);
+        fireEvent.click(screen.getByRole("button", { name: /^Quitar / }));
+      }
+
+      expect(builderRows()).toHaveLength(0);
+      expect(proposeButton()).toBeEnabled();
+      expect(calls()).toBe(0);
+    });
+  });
+
+  describe("con `autoPropose` (quien llega de «Proponer entrenamiento» en la sesión nueva)", () => {
+    it("pide la propuesta sola al montarse, sin pulsar nada, y la carga como sin guardar", async () => {
+      renderEmpty({ autoPropose: true });
+
+      await screen.findByText(UNSAVED);
+      expect(mocks.proposePracticeItems).toHaveBeenCalledTimes(1);
+      expect(mocks.proposePracticeItems).toHaveBeenCalledWith("club-a", { eventId: EVENT });
+      expect(builderRows()).toHaveLength(3);
+      expect(within(builderRows()[0]).getByRole("button", { name: rowName(WARMUP) })).toBeInTheDocument();
+      expect(button("Guardar sesión")).toBeEnabled();
+      expect(mocks.savePracticeItems).not.toHaveBeenCalled();
+    });
+
+    it("mientras llega, el botón está a la vista pero espera", async () => {
+      const pending = deferred<Proposal>();
+      mocks.proposePracticeItems.mockReturnValue(pending.promise);
+      renderEmpty({ autoPropose: true });
+
+      await waitFor(() => expect(proposeButton()).toBeDisabled());
+      expect(calls()).toBe(1);
+
+      pending.finish(proposal());
+      await screen.findByText(UNSAVED);
+      expect(calls()).toBe(1);
+    });
+
+    it("gasta el parámetro: quita `?propose=1` de la URL, en la misma entrada del historial", async () => {
+      arrive();
+      const entries = window.history.length;
+      const replaceState = vi.spyOn(window.history, "replaceState");
+      expect(window.location.search).toBe("?propose=1");
+
+      renderEmpty({ autoPropose: true });
+      // Ya al montarse, sin esperar a la propuesta: recargar mientras llega no la pide otra vez.
+      expect(window.location.search).toBe("");
+
+      await screen.findByText(UNSAVED);
+      expect(window.location.pathname).toBe(EDIT);
+      expect(window.location.search).toBe("");
+      expect(window.history.length).toBe(entries);
+      // Lo que el historial guardaba de esa entrada sigue ahí.
+      expect(window.history.state).toEqual({ from: "new" });
+      expect(replaceState).toHaveBeenCalledTimes(1);
+      expect(replaceState).toHaveBeenCalledWith({ from: "new" }, "", EDIT);
+    });
+
+    it("una sola vez: volver a pintar el editor no la pide de nuevo", async () => {
+      const view = renderEmpty({ autoPropose: true });
+      await screen.findByText(UNSAVED);
+
+      view.rerender(
+        <PracticeEditor
+          clubSlug="club-a"
+          practice={practice({ items: [] })}
+          options={{ teams: [{ id: TEAM, name: "Equipo A" }], focusAreas: [{ id: FOCUS, name: "Rebote" }] }}
+          drillFocusAreas={DRILL_FOCUS_AREAS}
+          initialValues={VALUES}
+          autoPropose
+        />,
+      );
+
+      expect(calls()).toBe(1);
+      expect(builderRows()).toHaveLength(3);
+    });
+
+    it("tampoco si después se quitan todos los ejercicios y el botón vuelve a salir; a mano sí", async () => {
+      mocks.proposePracticeItems.mockResolvedValue(proposal([WARMUP]));
+      renderEmpty({ autoPropose: true });
+      await screen.findByText(UNSAVED);
+      expect(proposeButton()).not.toBeInTheDocument();
+
+      click(rowName(WARMUP));
+      click(`Quitar ${WARMUP.title}`);
+
+      expect(builderRows()).toHaveLength(0);
+      expect(proposeButton()).toBeEnabled();
+      expect(calls()).toBe(1);
+      // Vacía otra vez y sin nada pendiente: ni propuesta sin guardar ni aviso de salida.
+      expect(screen.queryByText(UNSAVED)).not.toBeInTheDocument();
+      expect(unloadAsks()).toBe(false);
+
+      propose();
+      await screen.findByText(UNSAVED);
+      expect(calls()).toBe(2);
+      expect(builderRows()).toHaveLength(1);
+    });
+
+    it("con la biblioteca vacía lo dice, no insiste sola y deja pedirla a mano", async () => {
+      mocks.proposePracticeItems.mockResolvedValue(proposal([]));
+      renderEmpty({ autoPropose: true });
+
+      await screen.findByText(NOTHING);
+      await waitFor(() => expect(proposeButton()).toBeEnabled());
+      expect(calls()).toBe(1);
+
+      propose();
+      await waitFor(() => expect(calls()).toBe(2));
+      await waitFor(() => expect(proposeButton()).toBeEnabled());
+    });
+
+    it("si falla, lo dice y no reintenta sola: el botón queda para pedirla", async () => {
+      mocks.proposePracticeItems.mockResolvedValue(fail("SAVE_FAILED"));
+      renderEmpty({ autoPropose: true });
+
+      expect(await screen.findByText(ACTION_ERROR_COPY.SAVE_FAILED)).toBeInTheDocument();
+      await waitFor(() => expect(proposeButton()).toBeEnabled());
+      expect(calls()).toBe(1);
+      expect(builderRows()).toHaveLength(0);
+    });
+
+    it("sin `autoPropose` no la pide al montarse ni toca la URL", () => {
+      arrive();
+      const replaceState = vi.spyOn(window.history, "replaceState");
+
+      renderEmpty();
+
+      expect(mocks.proposePracticeItems).not.toHaveBeenCalled();
+      expect(replaceState).not.toHaveBeenCalled();
+      expect(window.location.search).toBe("?propose=1");
+      expect(proposeButton()).toBeEnabled();
+    });
+
+    it("pedirla a mano tampoco toca la URL", async () => {
+      arrive("");
+      const replaceState = vi.spyOn(window.history, "replaceState");
+      renderEmpty();
+
+      propose();
+      await screen.findByText(UNSAVED);
+
+      expect(replaceState).not.toHaveBeenCalled();
+      expect(window.location.pathname).toBe(EDIT);
+    });
   });
 });

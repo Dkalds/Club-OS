@@ -19,7 +19,7 @@ import { ACTION_ERROR_COPY } from "@/lib/action-result";
 import { useAction } from "@/lib/use-action";
 import { savePracticeItems } from "@/modules/practice/actions";
 import { withSavedIds } from "./practice-rows";
-import { changeMinutes, moveItem, totalMinutes } from "@/modules/practice/items";
+import { changeMinutes, fitNotice, moveItem, totalMinutes } from "@/modules/practice/items";
 import { DEFAULT_ITEM_MINUTES, MAX_ITEMS, MAX_ITEMS_MESSAGE } from "@/modules/practice/limits";
 import type { PracticeItemDraft, SavedPracticeItem } from "@/modules/practice/types";
 import { Card } from "@/ui/card";
@@ -39,7 +39,8 @@ type Control = "toggle" | "up" | "down" | "add";
 const KEYBOARD_INSTRUCTIONS =
   "Pulsa Espacio para coger el ejercicio, las flechas para moverlo y Espacio otra vez para soltarlo. Escape cancela.";
 
-type Add = (item: PracticeItemDraft) => void;
+/** Añade un ítem al final; `hint` es la línea de por qué está ahí (la de una propuesta). */
+export type Add = (item: PracticeItemDraft, extra?: { hint?: string }) => void;
 
 /**
  * Lo que pinta `extraActions`. Es un componente, y no una llamada dentro del constructor, porque
@@ -51,12 +52,14 @@ function ExtraActions({
   render,
   add,
   full,
+  empty,
 }: {
-  render: (add: Add, full: boolean) => ReactNode;
+  render: (add: Add, full: boolean, empty: boolean) => ReactNode;
   add: Add;
   full: boolean;
+  empty: boolean;
 }) {
-  return render(add, full);
+  return render(add, full, empty);
 }
 
 /**
@@ -84,9 +87,10 @@ function ExtraActions({
  * Solo una fila está abierta a la vez. «Añadir bloque libre» añade al final un bloque de 10
  * minutos, abierto y con el foco en su «Título»; con 30 ítems se desactiva y dice por qué.
  * `extraActions` es el hueco de lo que añade otra cosa (los ejercicios de la biblioteca): recibe
- * `add`, que añade el ítem al final sin abrirlo (ni hace nada si ya hay 30), y `full`, si la
- * lista ya lleva los 30 (quien pinte un selector desactiva ahí sus botones), y lo que pinte va
- * encima de «Añadir bloque libre». `add` es para un manejador, y se puede llamar varias veces
+ * `add`, que añade el ítem al final sin abrirlo (ni hace nada si ya hay 30), `full`, si la
+ * lista ya lleva los 30 (quien pinte un selector desactiva ahí sus botones), y `empty`, si no
+ * hay ninguno (ahí se ofrece proponer un entrenamiento), y lo que pinte va encima de «Añadir
+ * bloque libre». `add` es para un manejador, y se puede llamar varias veces
  * en el mismo evento: cada llamada se suma a la anterior. «Quitar» quita sin preguntar: no se
  * pierde nada guardado hasta que se guarda. El foco va entonces a la fila que ocupa su sitio.
  *
@@ -104,6 +108,9 @@ function ExtraActions({
  * pintar nada, para que el otro botón se cierre ya), y que ha terminado, cuando el resultado
  * ya está pintado y la copia nueva, entregada.
  *
+ * Con `slotMinutes` (lo que dura la franja de la sesión), junto al total dice si lo montado
+ * encaja: «Te sobran 10 min» o «Te pasas 10 min» (`fitNotice`). Solo avisa: se guarda igual.
+ *
  * Si guardar falla, la lista no se toca: el aviso sale arriba (y se lleva el foco) con su
  * salida, «Recargar» si otra persona guardó antes (`onReload`: hasta que se pulsa, lo montado
  * sigue ahí) o «Volver a la sesión» si la sesión ya está cerrada. Los errores de un campo se
@@ -120,6 +127,7 @@ export function PracticeBuilder({
   onPendingChange,
   onReload,
   extraActions,
+  slotMinutes,
 }: {
   clubSlug: string;
   eventId: string;
@@ -130,7 +138,8 @@ export function PracticeBuilder({
   onDirtyChange: (dirty: boolean) => void;
   onPendingChange: (pending: boolean) => void;
   onReload: () => void;
-  extraActions?: (add: Add, full: boolean) => ReactNode;
+  extraActions?: (add: Add, full: boolean, empty: boolean) => ReactNode;
+  slotMinutes?: number;
 }) {
   const { pending, failure, run } = useAction();
   const [rows, setRows] = useState<Row[]>(() => initialItems.map(toRow));
@@ -201,6 +210,8 @@ export function PracticeBuilder({
   const phases = phaseOptions([...savedRows, ...rows]);
   const rowErrors = failure ? errorsByRow(failure.fieldErrors, sentKeys) : new Map<string, RowErrors>();
   const sessionHref = `/c/${clubSlug}/train/${eventId}`;
+  const total = totalMinutes(rows);
+  const fit = slotMinutes === undefined ? null : fitNotice(total, slotMinutes);
 
   /**
    * Todo cambio de la lista pasa por aquí: la pinta, quita el «Sesión guardada.» y avisa. Quien
@@ -250,7 +261,7 @@ export function PracticeBuilder({
    * pintura, así que varias llamadas en el mismo evento se suman en vez de pisarse. Una fila
    * nueva siempre es un cambio sin guardar.
    */
-  function append(item: PracticeItemDraft): string | null {
+  function append(item: PracticeItemDraft, hint?: string): string | null {
     if (rows.length >= MAX_ITEMS) return null;
 
     newKeys.current += 1;
@@ -262,6 +273,7 @@ export function PracticeBuilder({
       phase: item.phase,
       minutes: item.minutes,
       notes: item.notes,
+      ...(hint ? { hint } : {}),
     };
     // Se vuelve a mirar el tope: una llamada anterior de este mismo evento ha podido llenarla.
     setRows((current) => (current.length < MAX_ITEMS ? [...current, row] : current));
@@ -421,8 +433,9 @@ export function PracticeBuilder({
         <ExtraActions
           render={extraActions}
           full={full}
-          add={(item) => {
-            append(item);
+          empty={rows.length === 0}
+          add={(item, extra) => {
+            append(item, extra?.hint);
           }}
         />
       ) : null}
@@ -451,7 +464,8 @@ export function PracticeBuilder({
       <div className="fixed inset-x-0 bottom-[calc(var(--nav-height)+env(safe-area-inset-bottom))] z-10 border-t border-line bg-surface-1">
         <div className="mx-auto flex w-full max-w-(--content-max) items-center justify-between gap-(--space-3) px-(--space-4) py-(--space-3)">
           <div className="flex min-w-0 flex-col">
-            <PracticeTotal minutes={totalMinutes(rows)} inline />
+            <PracticeTotal minutes={total} inline />
+            {fit ? <p className="text-body-s text-ink-2">{fit}</p> : null}
             {/*
               La región de estado está siempre en el árbol, vacía hasta que se guarda: un lector
               de pantalla solo anuncia el texto que cambia dentro de una región que ya existía.
