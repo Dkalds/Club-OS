@@ -65,6 +65,7 @@ export function adminNavItems(clubSlug: string, terminology: Terminology): Admin
     { label: "Club", href: `${base}/club` },
     { label: "Equipos", href: `${base}/teams` },
     { label: "Personas", href: `${base}/people` },
+    { label: "Ejercicios pendientes", href: `${base}/drills` },
     { label: "Invitaciones", href: `${base}/invites` },
   ];
 }
