@@ -100,6 +100,7 @@ describe("adminNavItems", () => {
       { label: "Equipos", href: "/c/club-a/admin/teams" },
       { label: "Personas", href: "/c/club-a/admin/people" },
       { label: "Ejercicios pendientes", href: "/c/club-a/admin/drills" },
+      { label: "Cobertura", href: "/c/club-a/admin/coverage" },
       { label: "Invitaciones", href: "/c/club-a/admin/invites" },
     ]);
   });
@@ -116,6 +117,7 @@ describe("adminNavItems", () => {
       "Equipos",
       "Personas",
       "Ejercicios pendientes",
+      "Cobertura",
       "Invitaciones",
     ]);
     expect(items.map((item) => item.href)).toEqual(adminNavItems(SLUG, {}).map((item) => item.href));
@@ -133,6 +135,7 @@ describe("adminNavItems", () => {
       "Equipos",
       "Personas",
       "Ejercicios pendientes",
+      "Cobertura",
       "Invitaciones",
     ]);
   });

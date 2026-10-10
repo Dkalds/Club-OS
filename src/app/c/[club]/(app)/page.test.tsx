@@ -3,10 +3,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { HomeData } from "@/modules/home/types";
 import { clubContext } from "@/modules/tenancy/test-support";
 
-const mocks = vi.hoisted(() => ({ getClubContext: vi.fn(), getHomeData: vi.fn() }));
+const mocks = vi.hoisted(() => ({ getClubContext: vi.fn(), getHomeData: vi.fn(), getCoverageMatrix: vi.fn() }));
 
 vi.mock("@/modules/tenancy/queries", () => ({ getClubContext: mocks.getClubContext }));
 vi.mock("@/modules/home/queries", () => ({ getHomeData: mocks.getHomeData }));
+vi.mock("@/modules/coverage/queries", () => ({
+  DEFAULT_COVERAGE_WEEKS: 6,
+  getCoverageMatrix: mocks.getCoverageMatrix,
+}));
 // Como el de verdad: `notFound()` corta el render lanzando.
 vi.mock("next/navigation", () => ({
   notFound: () => {
@@ -32,6 +36,7 @@ const HOME: HomeData = {
 beforeEach(() => {
   vi.resetAllMocks();
   mocks.getHomeData.mockResolvedValue(HOME);
+  mocks.getCoverageMatrix.mockResolvedValue({ standards: [], rows: [] });
 });
 
 // La página se protege sola: un layout no protege a sus páginas.
@@ -76,5 +81,28 @@ describe("Inicio del club", () => {
     render(await ClubHomePage(PARAMS));
 
     expect(screen.queryByRole("link", { name: "Nueva sesión" })).not.toBeInTheDocument();
+  });
+
+  it("un admin ve el resumen de cobertura; un entrenador no", async () => {
+    mocks.getClubContext.mockResolvedValue(clubContext("admin"));
+    mocks.getCoverageMatrix.mockResolvedValue({
+      standards: [{ id: "s1", number: 1, title: "x" }],
+      rows: [{ team: { id: "t1", name: "Equipo A" }, covered: [true] }],
+    });
+
+    render(await ClubHomePage(PARAMS));
+
+    expect(screen.getByRole("heading", { name: "Cobertura de The Way" })).toBeInTheDocument();
+    expect(screen.getByText(/1 de 1 combinaciones/)).toBeInTheDocument();
+    expect(mocks.getCoverageMatrix).toHaveBeenCalledTimes(1);
+  });
+
+  it("un entrenador no ve el resumen de cobertura, ni se consulta", async () => {
+    mocks.getClubContext.mockResolvedValue(clubContext("coach"));
+
+    render(await ClubHomePage(PARAMS));
+
+    expect(screen.queryByRole("heading", { name: "Cobertura de The Way" })).not.toBeInTheDocument();
+    expect(mocks.getCoverageMatrix).not.toHaveBeenCalled();
   });
 });

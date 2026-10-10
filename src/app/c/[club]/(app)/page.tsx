@@ -1,5 +1,7 @@
 import { requireClub } from "@/lib/guards";
 import { can } from "@/lib/permissions";
+import { addLocalDays, isoToLocalInputs } from "@/lib/time";
+import { DEFAULT_COVERAGE_WEEKS, getCoverageMatrix } from "@/modules/coverage/queries";
 import { HomeScreen } from "@/modules/home/home-screen";
 import { getHomeData } from "@/modules/home/queries";
 
@@ -21,7 +23,17 @@ export default async function ClubHomePage({ params }: PageProps<"/c/[club]">) {
   const { club } = await params;
   const ctx = await requireClub(club);
 
-  const home = await getHomeData(ctx, new Date().toISOString());
+  const now = new Date().toISOString();
+  const home = await getHomeData(ctx, now);
+
+  let coverageSummary: { coveredCount: number; totalCount: number } | null = null;
+  if (can(ctx, "coverage.view")) {
+    const to = isoToLocalInputs(now, ctx.org.timezone).date;
+    const from = isoToLocalInputs(addLocalDays(now, -DEFAULT_COVERAGE_WEEKS * 7, ctx.org.timezone), ctx.org.timezone).date;
+    const matrix = await getCoverageMatrix(ctx, from, to);
+    const coveredCount = matrix.rows.reduce((sum, row) => sum + row.covered.filter(Boolean).length, 0);
+    coverageSummary = { coveredCount, totalCount: matrix.rows.length * matrix.standards.length };
+  }
 
   return (
     <HomeScreen
@@ -29,6 +41,7 @@ export default async function ClubHomePage({ params }: PageProps<"/c/[club]">) {
       clubSlug={ctx.org.slug}
       ownShortName={ctx.branding.shortName}
       canCreatePractice={can(ctx, "practice.manage")}
+      coverageSummary={coverageSummary}
     />
   );
 }

@@ -43,6 +43,7 @@ describe("layout de Gestión", () => {
       "Equipos",
       "Personas",
       "Ejercicios pendientes",
+      "Cobertura",
       "Invitaciones",
     ]);
     expect(within(screen.getByRole("main")).getByRole("heading", { name: "Contenido" })).toBeInTheDocument();
