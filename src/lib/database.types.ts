@@ -792,6 +792,9 @@ isOneToOne: false
               "id": string,"updated_at": string
             }[]
                            },
+"save_drill_board":
+{ Args: { "p_board"?: Json,"p_drill": string,"p_expected_updated_at": string }; Returns: string
+                           },
 "save_game_principle":
 { Args: { "p_id": string,"p_points": (string)[],"p_summary": string,"p_title": string }; Returns: undefined
                            },

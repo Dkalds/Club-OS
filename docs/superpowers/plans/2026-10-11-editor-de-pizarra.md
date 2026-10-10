@@ -26,9 +26,9 @@
 
 ### 1. Base de datos
 
-- [ ] `supabase/migrations/20270216000100_save_drill_board.sql`: `grant update (board)`; `save_drill_board(p_drill, p_expected_updated_at, p_board default null) returns timestamptz`.
-- [ ] `supabase/tests/database/drill_board_save.test.sql`; `drill_board.test.sql` y `posture.test.sql` al día.
-- [ ] `pnpm db:types`, `supabase db lint`.
+- [x] `supabase/migrations/20270216000100_save_drill_board.sql`: `grant update (board)`; `save_drill_board(p_drill, p_expected_updated_at, p_board default null) returns timestamptz`.
+- [x] `supabase/tests/database/drill_board_save.test.sql`; `drill_board.test.sql` y `posture.test.sql` al día.
+- [x] `pnpm db:types`, `supabase db lint`.
 
 ### 2. El reductor
 
