@@ -188,6 +188,16 @@ Lo que la Fase 3 dejó para el principio de la Fase 4 y la Fase 4 no recogió: r
 - Tests:
   - Los e2e siguen copiando su andamiaje: `targetIsLocal` y `CAN_WRITE` están en cinco sitios (`admin.spec.ts`, `drill-detail.spec.ts`, `drill-editor.spec.ts`, `way.spec.ts` y `e2e/helpers/train.ts`), `hydrated` en dos y `expectFitsMobile` en tres. Los specs de Entrenar ya comparten `e2e/helpers/train.ts`: llevar a un helper común los demás.
 
+**Lo que deja el importador de contenido** (10 oct 2026; especificación en `docs/superpowers/specs/2026-10-10-importador-de-contenido-design.md`):
+
+- **Cargar el paquete en el remoto.** `content/arcangel/biblioteca-entrenador-2026` solo se ha importado en local. Hacerlo en el remoto es decisión del propietario: producción es hoy una demo con acceso público, y el contenido real se mezclaría con los datos de ejemplo. Se hace con `ALLOW_REMOTE_IMPORT=true` puesta desde la shell (README, «Contenido de un club»).
+- **Los 24 ejercicios por categoría del manual** (capítulo 06) no están en el paquete: comparten el mismo texto de montaje, secuencia, corrección y progresión, y varios son versiones de uno común. Entran cuando tengan texto propio; el formato ya admite `status: "draft"`.
+- **Error frecuente e indicador no tienen campo en la ficha.** El importador los guarda como un punto de coaching («Error frecuente: …») y como tercer párrafo del desarrollo («Indicador.»). Las sesiones modelo y el cuadro de mando del manual no tienen equivalente en la app.
+- **Pantalla de importación en Gestión.** Hoy importar es un comando con la clave de servicio. El formato de `pack.json` (`content/README.md`) queda como contrato para cuando un club pueda subir lo suyo.
+- **`pnpm test:int` falla con un paquete importado en local.** `scripts/seed/seed.int.test.ts` cuenta todos los ejercicios de cada club (21 en Arcángel). Se arregla contando solo los ids del seed; no se hizo porque la entrega no tocaba el seed ni sus tests.
+- **Las pizarras del manual traen su fondo claro y su título dentro de la imagen.** En la ficha, de tema oscuro, se ven con una banda clara arriba y abajo. Se quita regenerándolas sin fondo o recortándolas al campo.
+- **Edad, rango de jugadores y material de los 44** son una propuesta que el propietario aprobó con la especificación: los 4x4 quedan desde U16 y el único 5x5 desde U18. Se corrigen en `pack.json` y se vuelven a cargar con `--update`, o directamente en la app.
+
 ## Lista para la Task 12 (entorno remoto)
 
 Hecho (todo en el repo; el detalle operativo está en el README, «Entorno remoto»):
