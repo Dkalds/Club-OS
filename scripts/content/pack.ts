@@ -14,6 +14,10 @@ import { MAX_DIAGRAM_BYTES, sniffImageType, type DiagramType } from "@/modules/m
 
 export const PACK_FILE = "pack.json";
 
+// La marca de orden de bytes con la que algunos editores de Windows empiezan un fichero. Por
+// su código, no como carácter: en el fuente sería invisible y cualquier formateador la quitaría.
+const BOM = 0xfeff;
+
 export type PackDrill = {
   key: string;
   title: string;
@@ -301,7 +305,7 @@ export async function loadPack(dir: string): Promise<LoadedPack> {
   let raw: unknown;
   try {
     // Un editor de Windows puede guardar el fichero con BOM, y `JSON.parse` no lo admite.
-    raw = JSON.parse(text.replace(/^﻿/, ""));
+    raw = JSON.parse(text.charCodeAt(0) === BOM ? text.slice(1) : text);
   } catch (error) {
     throw new PackError([
       `${PACK_FILE} no es un JSON válido: ${error instanceof Error ? error.message : String(error)}`,

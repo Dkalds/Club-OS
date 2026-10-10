@@ -19,8 +19,9 @@ pnpm content:import content/<club>/<paquete> --club <slug del club>
 ```
 
 - **Solo crea lo que falta.** Un ejercicio que ya existe no se toca: lo editado en la app manda.
-- **`--update` sobrescribe.** Cada ejercicio del paquete vuelve a lo que dice el paquete: ficha, estado, puntos, variantes, objetivos de trabajo, principios y pizarra. Los Standards enlazados en la app se conservan. Lo retocado en la app en esos ejercicios se pierde.
+- **`--update` sobrescribe.** Cada ejercicio del paquete vuelve a lo que dice el paquete: ficha, estado, puntos, variantes, objetivos de trabajo, principios y pizarra. Lo que el formato no lleva se conserva: los Standards enlazados, el resumen y el vídeo. El resto de lo retocado en la app en esos ejercicios se pierde.
 - **Nunca borra** un ejercicio que el paquete ya no trae.
+- **Si una ejecución se corta a mitad**, repetir el comando completa el ejercicio que se quedó sin puntos ni objetivos de trabajo.
 - **Solo escribe en un Supabase local**, salvo `ALLOW_REMOTE_IMPORT=true` puesta desde la shell para esa orden.
 - Antes de escribir valida el paquete entero y comprueba que el club tiene los objetivos de trabajo y los principios que el paquete nombra. Si algo falla, lo dice todo de una vez y no escribe nada.
 
@@ -82,7 +83,7 @@ Más detalle en el README del repositorio, «Contenido de un club».
 
 Los límites de un ejercicio son los del formulario de la app: todo lo que se importa se puede abrir y guardar en ella. Una propiedad que no esté en estas tablas es un error, para que una errata en un nombre no se pierda en silencio.
 
-El formato no lleva Standards ni vídeo. Se añaden en la app.
+El formato no lleva Standards, resumen ni vídeo. Se añaden en la app, y `--update` no los toca.
 
 ## Qué hay
 

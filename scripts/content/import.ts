@@ -2,12 +2,15 @@
 // se escribe lo deciden `pack.ts` (leer y validar) y `rows.ts` (filas e ids).
 //
 // Por defecto solo crea: un ejercicio que ya existe no se toca, porque lo editado en la app
-// manda. Con `update`, cada ejercicio del paquete vuelve a lo que dice el paquete. Ninguno de
-// los dos modos borra un ejercicio que el paquete ya no trae.
+// manda. Con `update`, cada ejercicio del paquete vuelve a lo que dice el paquete; lo que el
+// formato no lleva (Standards, resumen y vídeo) se queda como esté en la app. Ninguno de los
+// dos modos borra un ejercicio que el paquete ya no trae.
 //
 // Las escrituras van por la API y no comparten transacción. Cada respuesta se comprueba y, ante
 // el primer error, se deshace lo que esta ejecución había CREADO. Lo que `update` ya había
-// sobrescrito no se puede deshacer: se repara volviendo a importar con `update`.
+// sobrescrito no se puede deshacer: se repara volviendo a importar con `update`. Si el proceso
+// muere a mitad (se cierra la terminal), no hay quien deshaga: la siguiente ejecución completa
+// el ejercicio que se quedó sin hijos.
 
 import { readFile } from "node:fs/promises";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -27,6 +30,7 @@ export type ImportOptions = { dir: string; club: string; update?: boolean };
 export type ImportReport = {
   club: string;
   pack: { id: string; title: string };
+  // Los que no existían, y los que una ejecución cortada dejó a medias y esta ha completado.
   created: string[];
   skipped: string[];
   updated: string[];
@@ -98,7 +102,21 @@ async function deleteStaleChildren(db: Client, rows: PackDrillRows[]): Promise<v
   }
 }
 
-/** Sube las pizarras y escribe fichas de medios, ejercicios e hijos, en orden de claves foráneas. */
+/**
+ * La ficha de un ejercicio que ya existe, sin las columnas que el formato del paquete no lleva:
+ * el resumen y el vídeo que alguien puso en la app no se pisan, como tampoco los Standards.
+ */
+function packColumns(drill: PackDrillRows["drill"]): PackDrillRows["drill"] {
+  const columns = { ...drill };
+  delete columns.summary;
+  delete columns.video_url;
+  return columns;
+}
+
+/**
+ * Sube las pizarras y escribe fichas de medios, ejercicios e hijos, en orden de claves foráneas.
+ * `created` son los ejercicios que no existían; `updated`, los que existían y se reescriben.
+ */
 async function write(
   db: Client,
   created: PackDrillRows[],
@@ -134,7 +152,8 @@ async function write(
   if (updated.length > 0) {
     assertWritten(
       "drills",
-      (await db.from("drills").upsert(updated.map((row) => row.drill), { onConflict: "id" })).error,
+      (await db.from("drills").upsert(updated.map((row) => packColumns(row.drill)), { onConflict: "id" }))
+        .error,
     );
   }
 
@@ -257,22 +276,43 @@ export async function importPack(options: ImportOptions, client?: Client): Promi
 
   const created = rows.filter((row) => !existingIds.has(row.drill.id));
   const present = rows.filter((row) => existingIds.has(row.drill.id));
-  const updated = options.update ? present : [];
-  const skipped = options.update ? [] : present;
 
-  // La ficha de la pizarra que cada ejercicio a actualizar tenía hasta ahora, por su id
+  // Un ejercicio del paquete que existe sin ningún objetivo de trabajo es el resto de una
+  // ejecución que murió entre escribir la ficha y sus hijos: el paquete y el formulario de la
+  // app exigen al menos uno. No es algo editado en la app: se completa, también sin `update`.
+  const unfinished = new Set<string>();
+  if (present.length > 0 && !options.update) {
+    const linked = await db
+      .from("drill_focus_areas")
+      .select("drill_id")
+      .in(
+        "drill_id",
+        present.map((row) => row.drill.id),
+      );
+    assertRead("los objetivos de trabajo de los ejercicios", linked.error);
+    const withFocus = new Set((linked.data ?? []).map((link) => link.drill_id));
+    for (const row of present) if (!withFocus.has(row.drill.id)) unfinished.add(row.drill.id);
+  }
+
+  const completed = present.filter((row) => unfinished.has(row.drill.id));
+  const updated = options.update ? present : [];
+  const skipped = options.update ? [] : present.filter((row) => !unfinished.has(row.drill.id));
+  // Lo que ya existía y se reescribe: lo pedido con `update` y lo que quedó a medias.
+  const rewritten = [...updated, ...completed];
+
+  // La ficha de la pizarra que cada ejercicio a reescribir tenía hasta ahora, por su id
   // determinista: también la de los que ya no traen pizarra.
   const mediaIdOf = (row: PackDrillRows) => contentId(organizationId, packId, `drill:${row.key}:diagram`);
   const previous = new Map<string, string>();
-  if (updated.length > 0) {
-    const media = await db.from("media_assets").select("id, path").in("id", updated.map(mediaIdOf));
+  if (rewritten.length > 0) {
+    const media = await db.from("media_assets").select("id, path").in("id", rewritten.map(mediaIdOf));
     assertRead("las fichas de las pizarras", media.error);
     for (const asset of media.data ?? []) previous.set(asset.id, asset.path);
   }
 
   const undo: Created = { drills: [], media: [], objects: [] };
   try {
-    await write(db, created, updated, undo);
+    await write(db, created, rewritten, undo);
   } catch (error) {
     const problems = await rollBack(db, undo);
     const reason =
@@ -284,12 +324,13 @@ export async function importPack(options: ImportOptions, client?: Client): Promi
     );
   }
 
-  await retirePreviousDiagrams(db, updated, previous, mediaIdOf);
+  await retirePreviousDiagrams(db, rewritten, previous, mediaIdOf);
 
+  const finished = new Set([...created, ...completed].map((row) => row.key));
   return {
     club: club.data.slug,
     pack: { id: packId, title: loaded.pack.title },
-    created: created.map((row) => row.key),
+    created: rows.filter((row) => finished.has(row.key)).map((row) => row.key),
     skipped: skipped.map((row) => row.key),
     updated: updated.map((row) => row.key),
   };

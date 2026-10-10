@@ -252,6 +252,15 @@ describe("loadPack", () => {
     expect((await loadPack(dir)).pack.drills).toHaveLength(2);
   });
 
+  it("el BOM se nombra por su código: ni pack.ts ni este test llevan el carácter invisible", () => {
+    // Un editor o un formateador que quite BOMs lo borraría del fuente sin que se viera, y un
+    // paquete guardado con BOM dejaría de leerse sin que ningún test fallara.
+    for (const file of ["pack.ts", "pack.test.ts"]) {
+      const source = readFileSync(path.join(import.meta.dirname, file), "utf8");
+      expect(source.includes(String.fromCharCode(0xfeff)), file).toBe(false);
+    }
+  });
+
   it("junta los errores del contenido y los de los ficheros", async () => {
     const dir = copyOfFixture();
     const input = raw();

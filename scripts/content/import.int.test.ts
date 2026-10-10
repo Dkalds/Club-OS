@@ -40,6 +40,9 @@ const K1 = "rueda-de-pases-en-estrella";
 const K2 = "dos-contra-uno-en-carrera";
 const ARCANGEL = seedId("arcangel", "organization");
 const DEMO = seedId("club-demo", "organization");
+/** Lo que alguien añade a la ficha en la app y el formato del paquete no lleva. */
+const APP_SUMMARY = "Resumen puesto en la app";
+const APP_VIDEO = "https://www.youtube.com/watch?v=aaaaaaaaaaa";
 
 /** Los ids que el paquete de ejemplo tiene en un club: sus dos ejercicios y la ficha de la pizarra. */
 function ids(org: string) {
@@ -120,7 +123,7 @@ describe.skipIf(!isLocalSupabaseUrl(url))("importPack contra Supabase local", ()
     const { k1, k2 } = ids(org);
     const { data, error } = await admin
       .from("drills")
-      .select("id, title, status, created_by, diagram_media_id, updated_at")
+      .select("id, title, status, created_by, diagram_media_id, summary, video_url, updated_at")
       .in("id", [k1, k2]);
     expect(error).toBeNull();
     return data ?? [];
@@ -129,7 +132,7 @@ describe.skipIf(!isLocalSupabaseUrl(url))("importPack contra Supabase local", ()
   async function drill(id: string) {
     const { data, error } = await admin
       .from("drills")
-      .select("id, title, status, created_by, diagram_media_id, updated_at")
+      .select("id, title, status, created_by, diagram_media_id, summary, video_url, updated_at")
       .eq("id", id)
       .single();
     expect(error).toBeNull();
@@ -179,13 +182,19 @@ describe.skipIf(!isLocalSupabaseUrl(url))("importPack contra Supabase local", ()
 
   /**
    * Lo que hace `save_drill` cuando alguien guarda el ejercicio desde la app: cambia la ficha y
-   * sustituye los puntos por otros con ids nuevos en las mismas posiciones. Además enlaza un
-   * Standard del club, que el paquete no trae. Devuelve los ids de los puntos nuevos.
+   * sustituye los puntos por otros con ids nuevos en las mismas posiciones. Además pone un
+   * resumen y un vídeo y enlaza un Standard del club: nada de eso lo trae el paquete. Devuelve
+   * los ids de los puntos nuevos.
    */
   async function savedInApp(drillId: string): Promise<string[]> {
     const edited = await admin
       .from("drills")
-      .update({ title: "Editado en la app", diagram_media_id: null })
+      .update({
+        title: "Editado en la app",
+        diagram_media_id: null,
+        summary: APP_SUMMARY,
+        video_url: APP_VIDEO,
+      })
       .eq("id", drillId);
     expect(edited.error).toBeNull();
 
@@ -338,7 +347,13 @@ describe.skipIf(!isLocalSupabaseUrl(url))("importPack contra Supabase local", ()
     const report = await importPack({ dir: FIXTURE, club: "arcangel", update: true }, admin);
 
     expect(report).toMatchObject({ created: [], skipped: [], updated: [K1, K2] });
-    expect(await drill(k1)).toMatchObject({ title: "Rueda de pases en estrella", diagram_media_id: media });
+    expect(await drill(k1)).toMatchObject({
+      title: "Rueda de pases en estrella",
+      diagram_media_id: media,
+      // El formato del paquete no lleva resumen ni vídeo: los que se pusieron en la app siguen ahí.
+      summary: APP_SUMMARY,
+      video_url: APP_VIDEO,
+    });
     expect((await pointsOf(k1)).map((point) => point.id)).toEqual([
       contentId(ARCANGEL, PACK, `drill:${K1}:point:0`),
       contentId(ARCANGEL, PACK, `drill:${K1}:point:1`),
@@ -398,6 +413,37 @@ describe.skipIf(!isLocalSupabaseUrl(url))("importPack contra Supabase local", ()
 
     expect(report).toMatchObject({ created: [K1, K2], skipped: [], updated: [] });
     expect((await drill(k1)).diagram_media_id).toBe(media);
+  });
+
+  it("completa un ejercicio que una ejecución cortada dejó a medias", async () => {
+    const { k1, media } = ids(ARCANGEL);
+    // Lo que queda si el proceso muere tras escribir la ficha y antes de sus hijos: el ejercicio,
+    // sin puntos, sin variantes y sin ningún objetivo de trabajo.
+    const bare = await admin.from("drills").insert({
+      id: k1,
+      organization_id: ARCANGEL,
+      title: "Rueda de pases en estrella",
+      min_players: 5,
+      max_players: 12,
+      min_minutes: 8,
+      max_minutes: 10,
+      min_age: 10,
+      status: "published",
+      created_by: null,
+    });
+    expect(bare.error).toBeNull();
+
+    const report = await importPack({ dir: FIXTURE, club: "arcangel" }, admin);
+
+    expect(report).toMatchObject({ created: [K1, K2], skipped: [], updated: [] });
+    expect(await drill(k1)).toMatchObject({ status: "published", diagram_media_id: media });
+    expect((await pointsOf(k1)).map((point) => point.text)).toEqual([
+      "Manos preparadas antes de recibir",
+      "Paso hacia el pase",
+    ]);
+    expect(await countOf("drill_variants", k1)).toBe(1);
+    expect(await countOf("drill_focus_areas", k1)).toBe(1);
+    expect(await objectsIn(ARCANGEL)).toEqual([`${media}.png`]);
   });
 
   it("con update, una pizarra de otro tipo sustituye a la anterior y una que ya no está se retira", async () => {

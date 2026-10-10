@@ -116,8 +116,9 @@ pnpm content:import content/arcangel/biblioteca-entrenador-2026 --club arcangel
 ```
 
 - **Solo crea lo que falta.** Repetirlo no duplica nada, y un ejercicio que ya existe no se toca: lo editado en la app manda.
-- **`--update` sobrescribe.** Cada ejercicio del paquete vuelve a lo que dice el paquete, y lo retocado en la app en esos ejercicios se pierde. Los Standards enlazados se conservan.
+- **`--update` sobrescribe.** Cada ejercicio del paquete vuelve a lo que dice el paquete, y lo retocado en la app en esos ejercicios se pierde. Lo que el formato del paquete no lleva se conserva: los Standards enlazados, el resumen y el vídeo.
 - **Antes de escribir lo comprueba todo:** el paquete entero y que el club tenga los objetivos de trabajo y los principios que el paquete nombra. Si algo falla, lo dice de una vez y no escribe nada. Si falla a mitad de la escritura, deshace lo que había creado.
+- **Si la ejecución se corta** (se cierra la terminal a mitad), repetir el comando completa el ejercicio que se quedó a medias.
 - **Solo escribe en un Supabase local**, salvo `ALLOW_REMOTE_IMPORT=true`. Esa variable va en la shell, solo para esa orden, y nunca en `.env.local`, igual que `ALLOW_REMOTE_SEED`. Permitir sembrar no permite importar, ni al revés. Para un remoto, la URL y la clave de servicio se ponen como en [Sembrar el demo](#sembrar-el-demo).
 
 El formato del paquete está en [`content/README.md`](content/README.md).
