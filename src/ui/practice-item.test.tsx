@@ -76,6 +76,57 @@ describe("PracticeItem", () => {
     expect(screen.getByRole("button", { name: "Más minutos, Sin título" })).toBeInTheDocument();
   });
 
+  describe("la línea de por qué está ahí (`hint`)", () => {
+    const HINT = "Transición · 2 puntos clave · 1 variante";
+
+    it("sale bajo el título, dentro del botón que abre la fila", () => {
+      renderItem({ hint: HINT });
+
+      const line = screen.getByText(HINT);
+      const button = screen.getByRole("button", { name: `Activación ${TITLE} ${HINT}` });
+      expect(button).toHaveAttribute("data-control", "toggle");
+      expect(button).toContainElement(line);
+      // Debajo del título, y la última línea del botón: fase, título y por qué.
+      expect(screen.getByText(TITLE).compareDocumentPosition(line)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+      expect(button.lastElementChild).toBe(line);
+      expect(Array.from(button.children).map((child) => child.textContent)).toEqual(["Activación", TITLE, HINT]);
+    });
+
+    it("es una línea aparte, en body-s y en ink-2: el título sigue siendo lo que más pesa", () => {
+      renderItem({ hint: HINT });
+
+      expect(screen.getByText(HINT)).toHaveClass("block", "text-body-s", "text-ink-2", "wrap-break-word");
+      expect(screen.getByText(TITLE)).toHaveClass("text-body-strong");
+    });
+
+    it("no cambia el nombre de los demás botones de la fila: siguen llevando solo el título", () => {
+      renderItem({ hint: HINT, expanded: true });
+
+      for (const name of [`Más minutos, ${TITLE}`, `Menos minutos, ${TITLE}`, `Subir ${TITLE}`, `Quitar ${TITLE}`]) {
+        expect(screen.getByRole("button", { name }), name).toBeInTheDocument();
+      }
+    });
+
+    it("pulsar la línea abre la fila, como pulsar el título", () => {
+      const { onToggle } = renderItem({ hint: HINT });
+
+      fireEvent.click(screen.getByText(HINT));
+
+      expect(onToggle).toHaveBeenCalledTimes(1);
+    });
+
+    it("sin `hint`, o con uno vacío, no hay línea: el botón acaba en el título", () => {
+      const { unmount } = renderItem();
+      expect(toggle().lastElementChild).toBe(screen.getByText(TITLE));
+      expect(toggle().children).toHaveLength(2);
+      unmount();
+
+      renderItem({ hint: "" });
+      expect(toggle().lastElementChild).toBe(screen.getByText(TITLE));
+      expect(toggle().children).toHaveLength(2);
+    });
+  });
+
   describe("minutos", () => {
     it("«Más minutos, {título}» llama a onMinutes(5)", () => {
       const { onMinutes } = renderItem();

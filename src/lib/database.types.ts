@@ -766,6 +766,9 @@ isOneToOne: false
 "create_game":
 { Args: { "p_competition"?: string,"p_ends_at": string,"p_home_away"?: string,"p_location"?: string,"p_opponent": string,"p_starts_at": string,"p_team": string }; Returns: string
                            },
+"create_practice_from_template":
+{ Args: { "p_ends_at": string,"p_location"?: string,"p_primary_focus"?: string,"p_secondary_focus"?: string,"p_starts_at": string,"p_team": string,"p_template": string,"p_title": string }; Returns: string
+                           },
 "create_practice_session":
 { Args: { "p_ends_at": string,"p_location"?: string,"p_primary_focus"?: string,"p_secondary_focus"?: string,"p_starts_at": string,"p_team": string,"p_title": string }; Returns: string
                            },
@@ -791,6 +794,9 @@ isOneToOne: false
                            },
 "save_game_principle":
 { Args: { "p_id": string,"p_points": (string)[],"p_summary": string,"p_title": string }; Returns: undefined
+                           },
+"save_practice_as_template":
+{ Args: { "p_event": string }; Returns: string
                            },
 "save_practice_items":
 { Args: { "p_expected_updated_at": string,"p_items": Json,"p_plan": string,"p_save_id"?: string }; Returns: Json

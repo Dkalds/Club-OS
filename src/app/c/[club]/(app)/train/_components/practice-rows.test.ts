@@ -28,12 +28,28 @@ describe("toRow y toItem", () => {
       notes: "Sin bote.",
     });
   });
+
+  it("la línea de una propuesta (`hint`) tampoco se envía, tenga o no id la fila", () => {
+    const hint = "Rebote · 2 puntos clave";
+
+    expect(toItem({ ...A, hint })).toStrictEqual(SAVED);
+    expect(toItem({ ...B, hint })).toStrictEqual(toItem(B));
+    expect(toItem({ ...B, hint })).not.toHaveProperty("hint");
+  });
 });
 
 describe("sameRows", () => {
   it("dos listas con las mismas filas, en el mismo orden y con lo mismo escrito son la misma", () => {
     expect(sameRows([A, B], [{ ...A }, { ...B }])).toBe(true);
     expect(sameRows([], [])).toBe(true);
+  });
+
+  it("la línea de una propuesta (`hint`) no cuenta como cambio: con ella, sin ella o con otra, es la misma lista", () => {
+    const hinted = { ...B, hint: "Rebote · 2 puntos clave" };
+
+    expect(sameRows([A, hinted], [A, B])).toBe(true);
+    expect(sameRows([A, B], [A, hinted])).toBe(true);
+    expect(sameRows([A, hinted], [A, { ...B, hint: "Pase · 1 variante" }])).toBe(true);
   });
 
   it.each([

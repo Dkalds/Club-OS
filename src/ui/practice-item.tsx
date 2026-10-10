@@ -56,7 +56,7 @@ function Minutes({ minutes, className }: { minutes: number; className: string })
  * dos es para quien lo escucha («Técnica 3 calles»): entre bloques no ocupa sitio. Un título
  * largo pasa a otra línea en vez de cortarse: es lo que distingue un ítem de otro.
  */
-function PhaseAndTitle({ phase, title }: { phase: string | null; title: string }) {
+function PhaseAndTitle({ phase, title, hint }: { phase: string | null; title: string; hint?: string }) {
   return (
     <>
       {phase ? (
@@ -65,6 +65,12 @@ function PhaseAndTitle({ phase, title }: { phase: string | null; title: string }
         </>
       ) : null}
       <span className="block text-body-strong wrap-break-word">{practiceItemName(title)}</span>
+      {hint ? (
+        <>
+          {" "}
+          <span className="block text-body-s wrap-break-word text-ink-2">{hint}</span>
+        </>
+      ) : null}
     </>
   );
 }
@@ -117,11 +123,15 @@ function MinutesButton({
  * No es un `<li>`: quien la monta en una lista pone el suyo, y con él lo que necesite, como
  * la referencia y la transformación de dnd-kit. Cada fila lleva su separador, un borde arriba
  * de `line`, y no lo lleva la que va en el primer `<li>` de la lista.
+ *
+ * `hint` es una línea más bajo el título, en `body-s`: por qué está ahí un ejercicio que llega
+ * de una propuesta («Transición · 2 puntos clave · 1 variante»). Con ella la fila crece.
  */
 export function PracticeItem({
   index,
   title,
   phase,
+  hint,
   minutes,
   isFirst,
   isLast,
@@ -137,6 +147,7 @@ export function PracticeItem({
   index: number;
   title: string;
   phase: string | null;
+  hint?: string;
   minutes: number;
   isFirst: boolean;
   isLast: boolean;
@@ -173,7 +184,7 @@ export function PracticeItem({
           onClick={onToggle}
           className="min-h-(--target-min) min-w-0 flex-1 cursor-pointer text-left focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus-ring"
         >
-          <PhaseAndTitle phase={phase} title={title} />
+          <PhaseAndTitle phase={phase} title={title} hint={hint} />
         </button>
         <div className="flex shrink-0 items-center gap-0.5">
           <MinutesButton label={`Menos minutos, ${name}`} onClick={() => onMinutes(-5)}>

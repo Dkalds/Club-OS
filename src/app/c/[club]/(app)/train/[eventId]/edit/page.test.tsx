@@ -73,8 +73,11 @@ function practice(overrides: Partial<PracticeDetail> = {}): PracticeDetail {
   };
 }
 
-function props(eventId = "e-1") {
-  return { params: Promise.resolve({ club: "club-a", eventId }), searchParams: Promise.resolve({}) };
+/** Los parámetros de la URL como los da Next: uno repetido llega como lista. */
+type Search = Record<string, string | string[] | undefined>;
+
+function props(eventId = "e-1", search: Search = {}) {
+  return { params: Promise.resolve({ club: "club-a", eventId }), searchParams: Promise.resolve(search) };
 }
 
 /** Lo que la página le pasó al editor. */
@@ -236,5 +239,117 @@ describe("/train/[eventId]/edit, editor", () => {
       location: "",
       notes: "",
     });
+  });
+});
+
+describe("/train/[eventId]/edit, el encaje con la franja", () => {
+  it("le da al editor lo que dura la franja, para que diga si lo montado encaja", async () => {
+    render(await EditPracticePage(props()));
+
+    // De 18:00 a 19:15: 75 minutos, aunque la sesión solo lleve un ejercicio de 10.
+    expect(editorProps().slotMinutes).toBe(75);
+  });
+
+  it("es la franja y no la suma de los ejercicios, también cuando suman más", async () => {
+    mocks.getPractice.mockResolvedValue(
+      practice({
+        startsAt: "2026-10-06T16:00:00.000Z",
+        endsAt: "2026-10-06T17:00:00.000Z",
+        items: [
+          { id: "i-1", drillId: null, drillVisible: false, title: "Calentamiento", phase: null, minutes: 40, notes: null, completed: null, actualMinutes: null },
+          { id: "i-2", drillId: null, drillVisible: false, title: "Partido", phase: null, minutes: 50, notes: null, completed: null, actualMinutes: null },
+        ],
+      }),
+    );
+
+    render(await EditPracticePage(props()));
+
+    expect(editorProps().slotMinutes).toBe(60);
+  });
+
+  it("con la sesión sin ejercicios también es la franja", async () => {
+    mocks.getPractice.mockResolvedValue(practice({ items: [] }));
+
+    render(await EditPracticePage(props()));
+
+    expect(editorProps().slotMinutes).toBe(75);
+  });
+
+  it("es la misma duración que propone el formulario de «Fecha y datos»", async () => {
+    mocks.getPractice.mockResolvedValue(
+      practice({ startsAt: "2026-10-06T16:00:00.000Z", endsAt: "2026-10-06T17:30:00.000Z" }),
+    );
+
+    render(await EditPracticePage(props()));
+
+    expect(editorProps().slotMinutes).toBe(90);
+    expect(editorProps().initialValues.durationMinutes).toBe("90");
+  });
+});
+
+describe("/train/[eventId]/edit, la propuesta al entrar", () => {
+  /** La sesión recién creada: aún sin ejercicios. */
+  const empty = () => practice({ items: [] });
+
+  it("con `?propose=1` y la sesión sin ejercicios, el editor pide la propuesta al entrar", async () => {
+    mocks.getPractice.mockResolvedValue(empty());
+
+    render(await EditPracticePage(props("e-1", { propose: "1" })));
+
+    expect(editorProps().autoPropose).toBe(true);
+  });
+
+  it("con `?propose=1` pero la sesión ya montada, no: el parámetro no hace nada", async () => {
+    render(await EditPracticePage(props("e-1", { propose: "1" })));
+
+    expect(practice().items).toHaveLength(1);
+    expect(editorProps().autoPropose).toBe(false);
+  });
+
+  it("sin el parámetro no la pide, tenga o no ejercicios", async () => {
+    mocks.getPractice.mockResolvedValue(empty());
+    const { unmount } = render(await EditPracticePage(props()));
+    expect(editorProps().autoPropose).toBe(false);
+    unmount();
+
+    mocks.getPractice.mockResolvedValue(practice());
+    render(await EditPracticePage(props()));
+    expect(editorProps().autoPropose).toBe(false);
+  });
+
+  it.each([
+    ["otro valor", "true"],
+    ["un cero", "0"],
+    ["vacío", ""],
+    ["el uno con algo más", "1 "],
+    ["el uno con ceros", "01"],
+    ["repetido", ["1", "1"]],
+  ] as const)("solo vale el `1` exacto: %s no la pide", async (_what, propose) => {
+    mocks.getPractice.mockResolvedValue(empty());
+
+    render(await EditPracticePage(props("e-1", { propose: typeof propose === "string" ? propose : [...propose] })));
+
+    expect(editorProps().autoPropose).toBe(false);
+  });
+
+  it("otros parámetros de la URL no cuentan", async () => {
+    mocks.getPractice.mockResolvedValue(empty());
+
+    render(await EditPracticePage(props("e-1", { auto: "1", proposal: "1" })));
+
+    expect(editorProps().autoPropose).toBe(false);
+  });
+
+  it("quien no gestiona sesiones recibe el 404 aunque traiga el parámetro", async () => {
+    mocks.getClubContext.mockResolvedValue(clubContext("player"));
+    mocks.getPractice.mockResolvedValue(practice({ items: [], canEdit: false }));
+
+    await expect(EditPracticePage(props("e-1", { propose: "1" }))).rejects.toThrow("NOT_FOUND");
+  });
+
+  it("una sesión cerrada lleva a su detalle aunque traiga el parámetro", async () => {
+    mocks.getPractice.mockResolvedValue(practice({ status: "done", items: [], canEdit: false }));
+
+    await expect(EditPracticePage(props("e-1", { propose: "1" }))).rejects.toThrow("REDIRECT /c/club-a/train/e-1");
   });
 });
