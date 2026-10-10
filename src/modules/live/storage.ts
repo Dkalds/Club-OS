@@ -1,31 +1,56 @@
-import type { LiveState } from "./types";
+import type { LiveState, StoredLive } from "./types";
+
+/** La versión de lo guardado. Un estado de otra versión se descarta al leerlo. */
+const STORAGE_VERSION = 2;
 
 export function LIVE_STATE_KEY(eventId: string): string {
   return `clubos:live:${eventId}`;
 }
 
-export function saveLiveState(state: LiveState): void {
+/**
+ * Guarda el estado del directo en el dispositivo. `synced` dice si ese mismo estado ya llegó
+ * al servidor: mientras sea `false`, al volver a abrir manda el dispositivo (`reconcile`).
+ */
+export function saveLiveState(state: LiveState, synced: boolean): void {
   try {
-    localStorage.setItem(LIVE_STATE_KEY(state.eventId), JSON.stringify(state));
+    localStorage.setItem(
+      LIVE_STATE_KEY(state.eventId),
+      JSON.stringify({ version: STORAGE_VERSION, synced, state }),
+    );
   } catch {
     // localStorage no disponible o lleno: Live sigue en memoria
   }
 }
 
-export function loadLiveState(eventId: string): LiveState | null {
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+/**
+ * Lo guardado para este evento, o `null` si no hay nada, no se puede leer, es de otra versión
+ * (los estados de la versión 1 no sabían si se habían enviado) o es de otro evento.
+ */
+export function loadLiveState(eventId: string): StoredLive | null {
   try {
     const raw = localStorage.getItem(LIVE_STATE_KEY(eventId));
     if (!raw) return null;
     const parsed: unknown = JSON.parse(raw);
-    if (
-      typeof parsed !== "object" ||
-      parsed === null ||
-      (parsed as { version?: unknown }).version !== 1
-    ) {
-      return null;
-    }
-    return parsed as LiveState;
+    if (!isRecord(parsed) || parsed.version !== STORAGE_VERSION) return null;
+
+    const { state, synced } = parsed;
+    if (!isRecord(state) || state.version !== STORAGE_VERSION || state.eventId !== eventId) return null;
+
+    return { state: state as LiveState, synced: synced === true };
   } catch {
     return null;
+  }
+}
+
+/** Borra lo guardado para este evento («Empezar de nuevo»). */
+export function clearLiveState(eventId: string): void {
+  try {
+    localStorage.removeItem(LIVE_STATE_KEY(eventId));
+  } catch {
+    // localStorage no disponible
   }
 }

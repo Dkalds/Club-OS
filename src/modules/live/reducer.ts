@@ -100,5 +100,9 @@ export function toProgressPayload(
   return {
     items,
     finished: state.finishedAt !== null,
+    // El estado del directo que guarda el servidor: sin empezar no se manda ninguno (C15).
+    ...(state.startedAt !== null
+      ? { startedAt: new Date(state.startedAt).toISOString(), position: state.index }
+      : {}),
   };
 }

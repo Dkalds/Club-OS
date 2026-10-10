@@ -2,26 +2,16 @@
 
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import type { LiveAction, LiveSession, LiveState } from "./types";
+import { reconcile } from "./reconcile";
 import { liveReducer, remainingMs, toProgressPayload } from "./reducer";
 import { loadLiveState, saveLiveState } from "./storage";
 import { syncLiveProgress } from "./sync";
 
 type SyncStatus = "saved-local" | "saved" | "offline" | "idle";
 
+/** El estado con el que se abre: lo del dispositivo frente a lo que sabe el servidor. */
 function initialState(session: LiveSession): LiveState {
-  return (
-    loadLiveState(session.eventId) ?? {
-      version: 1,
-      eventId: session.eventId,
-      index: 0,
-      startedAt: null,
-      itemStartedAt: null,
-      pausedAt: null,
-      pausedMs: 0,
-      progress: {},
-      finishedAt: null,
-    }
-  );
+  return reconcile(session, loadLiveState(session.eventId), Date.now());
 }
 
 export function useLive(session: LiveSession) {
@@ -46,7 +36,11 @@ export function useLive(session: LiveSession) {
   }, []);
 
   useEffect(() => {
-    saveLiveState(state);
+    // Antes de «Iniciar» no hay nada que guardar ni que enviar: abrir la pantalla no marca la
+    // sesión como empezada ni mueve su copia.
+    if (state.startedAt === null) return;
+
+    saveLiveState(state, false);
     const payload = {
       ...toProgressPayload(state, session),
       clubSlug: session.clubSlug,
@@ -76,7 +70,10 @@ export function useLive(session: LiveSession) {
       })
       .then(() => {
         release();
-        if (current()) setSyncStatus("saved");
+        if (!current()) return;
+        // Este mismo estado ya está en el servidor: al volver a abrir, manda el servidor.
+        saveLiveState(state, true);
+        setSyncStatus("saved");
       })
       .catch(() => {
         release();

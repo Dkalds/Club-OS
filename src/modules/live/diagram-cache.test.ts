@@ -17,10 +17,14 @@ const session: LiveSession = {
       phase: null,
       minutes: 10,
       diagramUrl: "https://storage.example.com/img.png",
+      videoUrl: null,
       keyPoints: [],
       standards: [],
+      completed: null,
+      actualMinutes: null,
     },
   ],
+  live: { startedAt: null, position: null },
 };
 
 function makeFakeCache() {

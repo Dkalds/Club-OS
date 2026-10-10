@@ -4,9 +4,17 @@ export type LiveItem = {
   phase: string | null;
   minutes: number;
   diagramUrl: string | null;
+  /** El enlace al vídeo del ejercicio (YouTube o Vimeo), si lo tiene. */
+  videoUrl: string | null;
   keyPoints: string[];
   standards: { number: number; title: string }[];
+  /** Lo que el servidor tiene registrado de este ejercicio; `null` si aún nada. */
+  completed: boolean | null;
+  actualMinutes: number | null;
 };
+
+/** Lo que el servidor sabe del directo: cuándo se inició y por qué ejercicio va (desde 0). */
+export type ServerLive = { startedAt: string | null; position: number | null };
 
 export type LiveSession = {
   eventId: string;
@@ -14,6 +22,7 @@ export type LiveSession = {
   title: string;
   startsAt: string;
   items: LiveItem[];
+  live: ServerLive;
 };
 
 export type ItemProgress = {
@@ -22,7 +31,7 @@ export type ItemProgress = {
 };
 
 export type LiveState = {
-  version: 1;
+  version: 2;
   eventId: string;
   index: number;
   startedAt: number | null;
@@ -32,6 +41,9 @@ export type LiveState = {
   progress: Record<string, ItemProgress>;
   finishedAt: number | null;
 };
+
+/** Lo que guarda el dispositivo: el estado y si lo último ya llegó al servidor. */
+export type StoredLive = { state: LiveState; synced: boolean };
 
 export type LiveAction =
   | { type: "start" }

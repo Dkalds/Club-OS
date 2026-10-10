@@ -407,7 +407,10 @@ describe("PracticeActions · iniciar entrenamiento", () => {
   });
 
   it("si hay estado guardado, el enlace dice «Continuar entrenamiento»", () => {
-    mocks.loadLiveState.mockReturnValue({ version: 1 as const, eventId: EVENT, index: 0, startedAt: 1000, itemStartedAt: 1000, pausedAt: null, pausedMs: 0, progress: {}, finishedAt: null });
+    mocks.loadLiveState.mockReturnValue({
+      state: { version: 2 as const, eventId: EVENT, index: 0, startedAt: 1000, itemStartedAt: 1000, pausedAt: null, pausedMs: 0, progress: {}, finishedAt: null },
+      synced: true,
+    });
 
     renderActions({ status: "scheduled", hasItems: true });
 

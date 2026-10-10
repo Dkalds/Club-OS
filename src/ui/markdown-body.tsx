@@ -1,4 +1,7 @@
 import Markdown, { type Components, type ExtraProps } from "react-markdown";
+import { safeHref } from "@/lib/safe-href";
+
+export { safeHref };
 
 // Sin `"use client"`: el `Markdown` síncrono de react-markdown no usa hooks (solo
 // `MarkdownHooks`, que aquí no se importa). Así funciona igual en un componente de servidor
@@ -11,25 +14,6 @@ import Markdown, { type Components, type ExtraProps } from "react-markdown";
  * club y lo lee cada miembro, así que no lleva `rehype-raw` ni más plugins.
  */
 const ALLOWED_ELEMENTS = ["p", "strong", "em", "ul", "ol", "li", "h3", "blockquote", "a"];
-
-const SAFE_PROTOCOLS = new Set(["http:", "https:", "mailto:"]);
-
-/**
- * La URL tal cual, solo si su protocolo es `http:`, `https:` o `mailto:`; `null` en cualquier
- * otro caso: `javascript:`, `data:`, rutas relativas, anclas y URLs que no se pueden leer.
- *
- * Lo lee el analizador de URLs del estándar, que es el que usa el navegador: ignora los
- * espacios de delante y los tabuladores o saltos de línea de dentro, y no distingue
- * mayúsculas, así que `JAVASCRIPT:` y `java<tab>script:` salen como `javascript:`.
- */
-export function safeHref(url: string): string | null {
-  try {
-    return SAFE_PROTOCOLS.has(new URL(url).protocol) ? url : null;
-  } catch {
-    // Sin protocolo (`/ruta`, `#ancla`) o ilegible: `new URL` lanza.
-    return null;
-  }
-}
 
 /** Un elemento del árbol del Markdown (lo que React Markdown da a cada componente como `node`). */
 type MarkdownElement = NonNullable<ExtraProps["node"]>;

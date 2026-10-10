@@ -1,5 +1,21 @@
 "use client";
 
+import { CTAButton } from "./cta-button";
+import { CheckIcon, NextIcon, PauseIcon, PlayIcon, PreviousIcon } from "./icons";
+
+// Los dos controles laterales: cuadrados de `target-live`, al alcance del pulgar.
+const SIDE =
+  "flex size-(--target-live) flex-none cursor-pointer items-center justify-center rounded-lg border " +
+  "border-line-strong bg-surface-2 text-ink disabled:cursor-default disabled:text-ink-3 " +
+  "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring";
+
+/**
+ * Los controles del directo (design/components/Timer): anterior, pausa o reanudar, y
+ * siguiente. Miden `target-live` de alto y el central es el único `primary`.
+ *
+ * En el último ejercicio el de la derecha ya no pasa al siguiente: termina el entrenamiento, y
+ * lo dice su nombre y su icono. Quien lo monta pregunta antes de terminar.
+ */
 export function LiveControls({
   onPrevious,
   onTogglePause,
@@ -15,59 +31,29 @@ export function LiveControls({
   isFirst: boolean;
   isLast: boolean;
 }) {
-  const ctlClass =
-    "cos-live__ctl flex h-(--target-live) w-(--target-live) flex-none items-center justify-center rounded-(--radius-lg) border border-line-strong bg-surface-2 text-ink";
-  const icoLg =
-    "cos-ico cos-ico--lg size-7 fill-none stroke-current [stroke-width:1.75] [stroke-linecap:round] [stroke-linejoin:round]";
-
   return (
-    <div className="cos-live__controls flex items-center gap-(--space-3)">
-      <button
-        className={ctlClass}
-        aria-label="Ejercicio anterior"
-        onClick={onPrevious}
-        disabled={isFirst}
-      >
-        <svg className={icoLg} viewBox="0 0 24 24" aria-hidden="true">
-          <path d="m18 5-9 7 9 7z" />
-          <path d="M6 5v14" />
-        </svg>
+    <div className="flex items-center gap-(--space-3)">
+      <button type="button" className={SIDE} aria-label="Ejercicio anterior" onClick={onPrevious} disabled={isFirst}>
+        <PreviousIcon size={28} />
       </button>
 
-      <button
-        className="cos-btn cos-btn--primary cos-btn--live flex flex-1 items-center justify-center gap-(--space-2) rounded-(--radius-lg) bg-brand-accent font-display text-body-l font-bold uppercase tracking-wide text-brand-on-accent h-(--target-live)"
+      <CTAButton
+        variant="primary"
+        size="live"
+        className="flex-1"
+        icon={paused ? <PlayIcon /> : <PauseIcon />}
         onClick={onTogglePause}
       >
-        {paused ? (
-          <>
-            <svg className="cos-ico size-5 fill-none stroke-current [stroke-width:1.75] [stroke-linecap:round] [stroke-linejoin:round]" viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M5 3l14 9-14 9z" />
-            </svg>
-            Reanudar
-          </>
-        ) : (
-          <>
-            <svg className="cos-ico size-5 fill-none stroke-current [stroke-width:1.75] [stroke-linecap:round] [stroke-linejoin:round]" viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M9 5v14M15 5v14" />
-            </svg>
-            Pausa
-          </>
-        )}
-      </button>
+        {paused ? "Reanudar" : "Pausa"}
+      </CTAButton>
 
       <button
-        className={ctlClass}
-        aria-label="Siguiente ejercicio"
+        type="button"
+        className={SIDE}
+        aria-label={isLast ? "Terminar entrenamiento" : "Siguiente ejercicio"}
         onClick={onNext}
       >
-        {isLast ? (
-          <span className="text-body-s">Terminar entrenamiento</span>
-        ) : (
-          <svg className={icoLg} viewBox="0 0 24 24" aria-hidden="true">
-            <path d="m6 5 9 7-9 7z" />
-            <path d="M18 5v14" />
-          </svg>
-        )}
+        {isLast ? <CheckIcon size={28} /> : <NextIcon size={28} />}
       </button>
     </div>
   );
