@@ -11,6 +11,7 @@ import {
   type Row,
   type Store,
 } from "@/lib/test-support";
+import type { Board } from "@/modules/board/types";
 import { pointRow, principleRow, sectionRow, standardRow } from "@/modules/methodology/test-support";
 
 const mocks = vi.hoisted(() => ({
@@ -23,6 +24,7 @@ vi.mock("@/lib/supabase/server", () => ({ createClient: mocks.createClient }));
 vi.mock("@/lib/log", () => ({ logError: mocks.logError }));
 vi.mock("@/modules/media/storage", () => ({ signedUrl: mocks.signedUrl }));
 
+import { DETAIL_COLUMNS, RELATED_COLUMNS, SUMMARY_COLUMNS } from "./map-rows";
 import { getDrill, getDrillFormOptions, getFocusAreas, getRelatedDrills, searchDrills } from "./queries";
 
 // Las lecturas de la biblioteca, contra un doble de la base de datos que aplica los filtros y el
@@ -129,6 +131,70 @@ function drillRow(id: string, organization_id: string, overrides: Row = {}): Row
     ...overrides,
   };
 }
+
+/** Una pizarra válida y pequeña: el 1 pasa al 2 y corta; después el 2 bota hacia el aro. */
+const BOARD: Board = {
+  version: 1,
+  court: "half",
+  tokens: [
+    { id: "a1", kind: "attacker", label: "1", at: { x: 50, y: 80 } },
+    { id: "a2", kind: "attacker", label: "2", at: { x: 20, y: 60 } },
+    { id: "ball", kind: "ball", at: { x: 53, y: 80 } },
+  ],
+  steps: [
+    {
+      note: "El 1 pasa al 2 y corta",
+      moves: [
+        { token: "ball", kind: "pass", to: { x: 23, y: 60 } },
+        { token: "a1", kind: "cut", to: { x: 50, y: 30 } },
+      ],
+    },
+    { moves: [{ token: "a2", kind: "dribble", to: { x: 30, y: 25 } }] },
+  ],
+};
+
+/**
+ * Lo que puede traer `drills.board` sin ser una pizarra: la base solo mira que sea un objeto de
+ * la versión 1 y que no pase de 32 kB, así que la forma entera la comprueba la app al leer.
+ */
+const NOT_A_BOARD: Array<[string, unknown]> = [
+  ["null (el ejercicio no tiene)", null],
+  ["otra versión", { ...BOARD, version: 2 }],
+  ["sin fichas", { ...BOARD, tokens: [] }],
+  [
+    "un movimiento de una ficha que no existe",
+    { ...BOARD, steps: [{ moves: [{ token: "nadie", kind: "cut", to: { x: 1, y: 1 } }] }] },
+  ],
+  [
+    "una ficha fuera de la pista",
+    { ...BOARD, tokens: [{ id: "a1", kind: "attacker", at: { x: 50, y: 101 } }], steps: [] },
+  ],
+  ["un objeto de la versión 1 sin nada más", { version: 1 }],
+  ["un texto", "una pizarra"],
+];
+
+/**
+ * Las columnas de primer nivel de un `select`: lo anidado (entre paréntesis) fuera, de dentro
+ * afuera. El doble de la base no mira la cadena del `select`, así que lo que se pide se
+ * comprueba sobre la propia cadena.
+ */
+function topLevelColumns(columns: string): string[] {
+  let flat = columns;
+  while (/\([^()]*\)/.test(flat)) flat = flat.replace(/\([^()]*\)/g, "");
+  return flat.split(",").map((column) => column.trim());
+}
+
+// ── Las columnas ─────────────────────────────────────────────────────────────────────────
+
+describe("las columnas que se piden", () => {
+  it.each([
+    ["la lista (SUMMARY_COLUMNS)", SUMMARY_COLUMNS],
+    ["los relacionados (RELATED_COLUMNS)", RELATED_COLUMNS],
+    ["la ficha (DETAIL_COLUMNS)", DETAIL_COLUMNS],
+  ])("%s pide la pizarra del ejercicio, como columna suya", (_name, columns) => {
+    expect(topLevelColumns(columns)).toContain("board");
+  });
+});
 
 // ── searchDrills ─────────────────────────────────────────────────────────────────────────
 
@@ -323,6 +389,60 @@ describe("searchDrills", () => {
 
     expect(drills[0].focus.map((focus) => focus.slug)).toEqual([`objetivo-${tag(F1)}`]);
     expect(drills[1].focus).toEqual([]);
+  });
+
+  describe("la pizarra", () => {
+    it("un ejercicio con pizarra la lleva, para la miniatura de su tarjeta", async () => {
+      install({ search_drills: [drillRow(uuid(2), ORG, { board: BOARD })] });
+
+      const [drill] = (await searchDrills(CTX, {})).drills;
+
+      expect(drill.board).toEqual(BOARD);
+    });
+
+    it("llega ya validada: lo que la forma no conoce no viaja", async () => {
+      const raw = { ...BOARD, autor: "alguien", tokens: BOARD.tokens.map((token) => ({ ...token, color: "x" })) };
+      install({ search_drills: [drillRow(uuid(2), ORG, { board: raw })] });
+
+      const [drill] = (await searchDrills(CTX, {})).drills;
+
+      expect(drill.board).toEqual(BOARD);
+      expect(drill.board).not.toHaveProperty("autor");
+      expect(drill.board?.tokens[0]).not.toHaveProperty("color");
+    });
+
+    it("sin la columna en la fila, la clave `board` no está", async () => {
+      install({ search_drills: [drillRow(uuid(2), ORG)] });
+
+      const [drill] = (await searchDrills(CTX, {})).drills;
+
+      expect(drill).not.toHaveProperty("board");
+    });
+
+    it.each(NOT_A_BOARD)("%s: la clave `board` no está, y el ejercicio sale igual", async (_name, board) => {
+      install({ search_drills: [drillRow(uuid(2), ORG, { title: "Con la pizarra rota", board })] });
+
+      const { drills } = await searchDrills(CTX, {});
+
+      expect(drills).toHaveLength(1);
+      // Ni `undefined` ni `null`: la clave no viaja.
+      expect(drills[0]).not.toHaveProperty("board");
+      expect(drills[0].title).toBe("Con la pizarra rota");
+    });
+
+    it("cada ejercicio lleva la suya: una rota no deja sin pizarra a los demás", async () => {
+      install({
+        search_drills: [
+          drillRow(uuid(2), ORG, { title: "A", board: BOARD }),
+          drillRow(uuid(3), ORG, { title: "B", board: { ...BOARD, version: 2 } }),
+          drillRow(uuid(4), ORG, { title: "C", board: { ...BOARD, court: "full" } }),
+        ],
+      });
+
+      const { drills } = await searchDrills(CTX, {});
+
+      expect(drills.map((drill) => drill.board?.court ?? null)).toEqual(["half", null, "full"]);
+    });
   });
 
   it("sin resultados, una lista vacía", async () => {
@@ -655,6 +775,49 @@ describe("getDrill", () => {
 
       expect(detail?.focusAreaIds).toEqual([F1]);
       expect(detail?.focus).toHaveLength(1);
+    });
+  });
+
+  describe("la pizarra", () => {
+    it("la ficha de un ejercicio con pizarra la lleva, ya validada", async () => {
+      const raw = { ...BOARD, autor: "alguien" };
+      install({ drills: [drillRow(DRILL_ID, ORG, { board: raw })] }, { userId: ME });
+
+      const detail = await getDrill(CTX, DRILL_ID);
+
+      expect(detail?.board).toEqual(BOARD);
+      expect(detail?.board).not.toHaveProperty("autor");
+    });
+
+    it("sin la columna en la fila, la clave `board` no está", async () => {
+      install({ drills: [drillRow(DRILL_ID, ORG)] }, { userId: ME });
+
+      expect(await getDrill(CTX, DRILL_ID)).not.toHaveProperty("board");
+    });
+
+    it.each(NOT_A_BOARD)("%s: la clave `board` no está, y la ficha sale entera", async (_name, board) => {
+      install({ drills: [drillRow(DRILL_ID, ORG, { board, objective: "Asegurar el rebote." })] }, { userId: ME });
+
+      const detail = await getDrill(CTX, DRILL_ID);
+
+      expect(detail).not.toBeNull();
+      expect(detail).not.toHaveProperty("board");
+      expect(detail).toMatchObject({ id: DRILL_ID, objective: "Asegurar el rebote." });
+    });
+
+    it("no quita el diagrama: un ejercicio con las dos cosas trae la pizarra y la imagen firmada", async () => {
+      // Quien pinta decide cuál enseña (en la ficha manda la pizarra); la lectura trae las dos,
+      // porque el formulario de edición sigue enseñando la imagen subida.
+      install({
+        drills: [drillRow(DRILL_ID, ORG, { board: BOARD, diagram_media_id: MEDIA, media_assets: { path: PATH } })],
+      });
+      mocks.signedUrl.mockResolvedValue("http://storage.test/sign/x.png?token=t");
+
+      const detail = await getDrill(CTX, DRILL_ID);
+
+      expect(detail?.board).toEqual(BOARD);
+      expect(detail?.diagramUrl).toBe("http://storage.test/sign/x.png?token=t");
+      expect(detail?.diagramMediaId).toBe(MEDIA);
     });
   });
 
@@ -1023,6 +1186,30 @@ describe("getRelatedDrills", () => {
         ],
       },
     ]);
+  });
+
+  it("un ejercicio con pizarra la lleva, en cada principio en el que sale", async () => {
+    install({ drills: [related(1, "Con pizarra", [P1, P2], { board: BOARD })] });
+
+    const result = await getRelatedDrills(CTX, [P1, P2]);
+
+    expect(result[P1][0].board).toEqual(BOARD);
+    expect(result[P2][0].board).toEqual(BOARD);
+  });
+
+  it("sin pizarra, o con una que no cumple la forma, la clave `board` no está", async () => {
+    install({
+      drills: [
+        related(1, "A sin columna", [P1]),
+        related(2, "B a null", [P1], { board: null }),
+        related(3, "C rota", [P1], { board: { ...BOARD, version: 2 } }),
+      ],
+    });
+
+    const result = await getRelatedDrills(CTX, [P1]);
+
+    expect(result[P1]).toHaveLength(3);
+    for (const drill of result[P1]) expect(drill, drill.title).not.toHaveProperty("board");
   });
 
   it("un error de lectura se registra y lanza: no es «sin ejercicios»", async () => {

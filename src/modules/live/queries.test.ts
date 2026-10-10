@@ -1,4 +1,5 @@
 import { afterEach, expect, it, vi } from "vitest";
+import type { Board } from "@/modules/board/types";
 import type { ClubContext } from "@/modules/tenancy/queries";
 import { clubContext } from "@/modules/tenancy/test-support";
 
@@ -202,4 +203,191 @@ it("en curso: cuándo se inició y por qué ejercicio va", async () => {
   );
   const session = await openSession();
   expect(session.live).toEqual({ startedAt: "2026-11-17T17:02:00+00:00", position: 1, updatedAt: "2026-11-17T17:20:00.250000+00:00" });
+});
+
+// ── La pizarra y cómo se organiza ────────────────────────────────────────────────────────
+
+/** Una pizarra válida y pequeña: el 1 pasa al 2 y corta. */
+const BOARD: Board = {
+  version: 1,
+  court: "half",
+  tokens: [
+    { id: "a1", kind: "attacker", label: "1", at: { x: 50, y: 80 } },
+    { id: "a2", kind: "attacker", label: "2", at: { x: 20, y: 60 } },
+    { id: "ball", kind: "ball", at: { x: 53, y: 80 } },
+  ],
+  steps: [
+    {
+      note: "El 1 pasa al 2 y corta",
+      moves: [
+        { token: "ball", kind: "pass", to: { x: 23, y: 60 } },
+        { token: "a1", kind: "cut", to: { x: 50, y: 30 } },
+      ],
+    },
+  ],
+};
+
+const IMAGE_PATH = "org/abc/drills/def/img.png";
+const SIGNED = "https://storage.example.com/img.png";
+
+/** La misma sesión con `overrides` en el ejercicio de su ítem con ejercicio (el primero por `sort`). */
+function withDrill(overrides: Record<string, unknown>) {
+  const [plan] = eventRow.practice_plans;
+  return {
+    ...eventRow,
+    practice_plans: [
+      {
+        ...plan,
+        practice_items: plan.practice_items.map((item) =>
+          item.drills ? { ...item, drills: { ...item.drills, ...overrides } } : item,
+        ),
+      },
+    ],
+  };
+}
+
+it("un ejercicio con pizarra la lleva, ya validada", async () => {
+  mocks.signedUrl.mockResolvedValue(SIGNED);
+  useDb(ok(withDrill({ board: { ...BOARD, autor: "alguien" } })));
+
+  const session = await openSession();
+
+  expect(session.items[0].board).toEqual(BOARD);
+  expect(session.items[0].board).not.toHaveProperty("autor");
+});
+
+it("con pizarra no se firma la imagen: manda la pizarra y la URL no se usaría", async () => {
+  mocks.signedUrl.mockResolvedValue(SIGNED);
+  // El ejercicio de la sesión tiene las dos cosas: imagen subida (`media_assets`) y pizarra.
+  useDb(ok(withDrill({ board: BOARD })));
+
+  const session = await openSession();
+
+  expect(mocks.signedUrl).not.toHaveBeenCalled();
+  expect(session.items[0].diagramUrl).toBeNull();
+  expect(session.items[0].board).toEqual(BOARD);
+});
+
+it("sin pizarra y con imagen, se firma como antes y la clave `board` no está", async () => {
+  mocks.signedUrl.mockResolvedValue(SIGNED);
+  useDb(ok(withDrill({ board: null })));
+
+  const session = await openSession();
+
+  expect(mocks.signedUrl).toHaveBeenCalledTimes(1);
+  expect(mocks.signedUrl).toHaveBeenCalledWith(IMAGE_PATH, expect.any(Number));
+  expect(session.items[0].diagramUrl).toBe(SIGNED);
+  expect(session.items[0]).not.toHaveProperty("board");
+});
+
+it("sin la columna en la fila es lo mismo: se firma la imagen y no hay `board`", async () => {
+  mocks.signedUrl.mockResolvedValue(SIGNED);
+  useDb(ok(eventRow));
+
+  const session = await openSession();
+
+  expect(mocks.signedUrl).toHaveBeenCalledTimes(1);
+  expect(session.items[0].diagramUrl).toBe(SIGNED);
+  expect(session.items[0]).not.toHaveProperty("board");
+});
+
+it.each([
+  ["otra versión", { ...BOARD, version: 2 }],
+  ["sin fichas", { ...BOARD, tokens: [] }],
+  ["un objeto de la versión 1 sin nada más", { version: 1 }],
+  ["un texto", "una pizarra"],
+])("una pizarra rota (%s) es como no tenerla: sin `board`, y con la imagen firmada", async (_name, board) => {
+  mocks.signedUrl.mockResolvedValue(SIGNED);
+  useDb(ok(withDrill({ board })));
+
+  const session = await openSession();
+
+  expect(session.items[0]).not.toHaveProperty("board");
+  expect(mocks.signedUrl).toHaveBeenCalledWith(IMAGE_PATH, expect.any(Number));
+  expect(session.items[0].diagramUrl).toBe(SIGNED);
+});
+
+it("con pizarra y sin imagen: la pizarra, sin diagrama y sin firmar nada", async () => {
+  useDb(ok(withDrill({ board: BOARD, diagram_media_id: null, media_assets: null })));
+
+  const session = await openSession();
+
+  expect(session.items[0].board).toEqual(BOARD);
+  expect(session.items[0].diagramUrl).toBeNull();
+  expect(mocks.signedUrl).not.toHaveBeenCalled();
+});
+
+it("la pizarra no quita lo demás del ejercicio: título, vídeo, puntos clave y Standards", async () => {
+  useDb(ok(withDrill({ board: BOARD })));
+
+  const session = await openSession();
+
+  expect(session.items[0]).toMatchObject({
+    id: ITEM1,
+    title: "Salida de presión",
+    videoUrl: "https://youtu.be/abc123",
+    keyPoints: ["Punto clave 1", "Punto clave 2", "Punto clave 3"],
+    completed: true,
+    actualMinutes: 9,
+  });
+  expect(session.items[0].standards).toHaveLength(2);
+});
+
+it("cómo se organiza: `setup` es el `setup_md` del ejercicio, recortado", async () => {
+  mocks.signedUrl.mockResolvedValue(null);
+  useDb(ok(withDrill({ setup_md: "  \nDos filas en la línea de fondo.\n\nUn balón por pareja.\n  " })));
+
+  const session = await openSession();
+
+  // Solo se recortan los extremos: lo de dentro es Markdown y queda tal cual.
+  expect(session.items[0].setup).toBe("Dos filas en la línea de fondo.\n\nUn balón por pareja.");
+});
+
+it.each([
+  ["null", null],
+  ["vacío", ""],
+  ["solo espacios y saltos de línea", "  \n\t "],
+])("un `setup_md` %s deja el ítem sin la clave `setup`", async (_name, setup_md) => {
+  mocks.signedUrl.mockResolvedValue(null);
+  useDb(ok(withDrill({ setup_md })));
+
+  const session = await openSession();
+
+  // Ni `""` ni `undefined`: la clave no viaja.
+  expect(session.items[0]).not.toHaveProperty("setup");
+});
+
+it("sin la columna `setup_md` en la fila tampoco hay `setup`", async () => {
+  mocks.signedUrl.mockResolvedValue(null);
+  useDb(ok(eventRow));
+
+  const session = await openSession();
+
+  expect(session.items[0]).not.toHaveProperty("setup");
+});
+
+it("la pizarra y cómo se organiza no dependen una de otra", async () => {
+  mocks.signedUrl.mockResolvedValue(SIGNED);
+  useDb(ok(withDrill({ board: BOARD, setup_md: "Por parejas." })));
+  const both = (await openSession()).items[0];
+  expect(both.board).toEqual(BOARD);
+  expect(both.setup).toBe("Por parejas.");
+
+  useDb(ok(withDrill({ board: { version: 2 }, setup_md: "Por parejas." })));
+  const onlySetup = (await openSession()).items[0];
+  expect(onlySetup).not.toHaveProperty("board");
+  expect(onlySetup.setup).toBe("Por parejas.");
+});
+
+it("un ítem sin ejercicio no lleva pizarra ni cómo se organiza, y no firma nada", async () => {
+  useDb(ok(withDrill({ board: BOARD, setup_md: "Por parejas." })));
+
+  const session = await openSession();
+
+  // El segundo ítem es un bloque libre (`drills: null`); el primero, con pizarra, tampoco firma.
+  expect(session.items[1].id).toBe(ITEM2);
+  expect(session.items[1]).not.toHaveProperty("board");
+  expect(session.items[1]).not.toHaveProperty("setup");
+  expect(session.items[1].diagramUrl).toBeNull();
+  expect(mocks.signedUrl).not.toHaveBeenCalled();
 });

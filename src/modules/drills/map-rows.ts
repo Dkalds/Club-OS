@@ -1,4 +1,5 @@
-import type { Database } from "@/lib/database.types";
+import type { Database, Json } from "@/lib/database.types";
+import { parseBoard } from "@/modules/board/schema";
 import type { Standard } from "@/modules/methodology/types";
 import type { DrillDetail, DrillSummary } from "./types";
 
@@ -25,9 +26,12 @@ export const RELATED_PER_PRINCIPLE = 3;
  */
 export const RELATED_SCAN_LIMIT = 1000;
 
-/** Las columnas de la tarjeta de la lista; los objetivos van anidados por la tabla de vínculos. */
+/**
+ * Las columnas de la tarjeta de la lista; los objetivos van anidados por la tabla de vínculos.
+ * La pizarra viaja con ellas: la tarjeta enseña su miniatura.
+ */
 export const SUMMARY_COLUMNS = `id, title, status, created_by,
-  min_age, max_age, min_players, max_players, min_minutes, max_minutes,
+  min_age, max_age, min_players, max_players, min_minutes, max_minutes, board,
   drill_focus_areas(focus_areas(slug, name, sort))`;
 
 /**
@@ -37,7 +41,7 @@ export const SUMMARY_COLUMNS = `id, title, status, created_by,
  * `getRelatedDrills` sobre `drill_principles.principle_id` actúa sobre las dos cosas).
  */
 export const RELATED_COLUMNS = `id, title, status, created_by,
-  min_age, max_age, min_players, max_players, min_minutes, max_minutes,
+  min_age, max_age, min_players, max_players, min_minutes, max_minutes, board,
   drill_focus_areas(focus_areas(slug, name, sort)),
   drill_principles!inner(principle_id)`;
 
@@ -50,7 +54,7 @@ export const RELATED_COLUMNS = `id, title, status, created_by,
  * `media_assets` por la clave compuesta.
  */
 export const DETAIL_COLUMNS = `id, title, status, created_by,
-  min_age, max_age, min_players, max_players, min_minutes, max_minutes,
+  min_age, max_age, min_players, max_players, min_minutes, max_minutes, board,
   summary, objective, setup_md, equipment, video_url, diagram_media_id, updated_at,
   drill_focus_areas(focus_areas(id, slug, name, sort)),
   drill_principles(principle_id, game_principles(id, slug, title, sort, status)),
@@ -79,7 +83,11 @@ export type SummaryRow = Pick<
   | "max_players"
   | "min_minutes"
   | "max_minutes"
-> & { drill_focus_areas: Array<{ focus_areas: FocusEmbed | null }> };
+> & {
+  /** La pizarra tal cual llega de la base: la valida `parseBoard` al mapear. */
+  board?: Json | null;
+  drill_focus_areas: Array<{ focus_areas: FocusEmbed | null }>;
+};
 
 export type DetailRow = Omit<SummaryRow, "drill_focus_areas"> &
   Pick<
@@ -126,7 +134,11 @@ function orderedFocus<T extends FocusEmbed>(links: Array<{ focus_areas: T | null
 }
 
 export function toDrillSummary(row: SummaryRow): DrillSummary {
+  // Una pizarra que no cumple la forma se trata como si no hubiera: la clave no viaja.
+  const board = parseBoard(row.board);
+
   return {
+    ...(board ? { board } : {}),
     id: row.id,
     title: row.title,
     status: row.status,

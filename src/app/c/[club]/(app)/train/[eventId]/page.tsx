@@ -8,6 +8,7 @@ import { phaseBlocks, sessionMinutes, totalMinutes } from "@/modules/practice/it
 import { getPractice } from "@/modules/practice/queries";
 import { standardsLabel } from "@/modules/tenancy/navigation";
 import { BackLink } from "@/ui/back-link";
+import { BoardThumb } from "@/ui/board-thumb";
 import { Card } from "@/ui/card";
 import { TrainIcon } from "@/ui/icons";
 import { PracticeItemView, PracticeTotal } from "@/ui/practice-item";
@@ -123,6 +124,7 @@ export default async function PracticePage({ params }: PageProps<"/c/[club]/trai
                     phase={null}
                     minutes={item.minutes}
                     href={item.drillVisible ? `/c/${ctx.org.slug}/drills/${item.drillId}` : undefined}
+                    thumb={item.board ? <BoardThumb board={item.board} /> : undefined}
                     // Solo si el directo dejó registro de ese ejercicio: una sesión que se dio por
                     // hecha sin dirigirla desde la app no tiene ninguno, y «Sin hacer» sería mentira.
                     result={

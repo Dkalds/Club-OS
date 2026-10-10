@@ -1,5 +1,6 @@
 import { render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { Board } from "@/modules/board/types";
 import type { PracticeDetail, PracticeDetailItem } from "@/modules/practice/types";
 import { clubContext } from "@/modules/tenancy/test-support";
 
@@ -329,6 +330,104 @@ describe("/train/[eventId], ejercicios", () => {
 
       const hrefs = screen.getAllByRole("link").map((link) => link.getAttribute("href"));
       expect(hrefs.filter((href) => href?.includes("/drills/"))).toEqual([`/c/club-a/drills/${DRILL}`]);
+    });
+  });
+
+  describe("la miniatura de la pizarra", () => {
+    const DRILL = "00000000-0000-4000-8000-0000000000d1";
+    const OTHER = "00000000-0000-4000-8000-0000000000d3";
+    const THUMB = "[data-board-thumb]";
+
+    /** Una pizarra válida y pequeña: el 1 pasa al 2 y corta. */
+    const BOARD: Board = {
+      version: 1,
+      court: "half",
+      tokens: [
+        { id: "a1", kind: "attacker", label: "1", at: { x: 50, y: 80 } },
+        { id: "a2", kind: "attacker", label: "2", at: { x: 20, y: 60 } },
+        { id: "ball", kind: "ball", at: { x: 53, y: 80 } },
+      ],
+      steps: [
+        {
+          note: "El 1 pasa al 2 y corta",
+          moves: [
+            { token: "ball", kind: "pass", to: { x: 23, y: 60 } },
+            { token: "a1", kind: "cut", to: { x: 50, y: 30 } },
+          ],
+        },
+      ],
+    };
+
+    /** Un bloque libre, un ejercicio con pizarra y otro sin ella. */
+    function withBoard(): PracticeDetailItem[] {
+      return [
+        item(1, "Técnica", "Bloque libre", 10),
+        { ...item(2, "Técnica", "Rebote y salida", 15), drillId: DRILL, drillVisible: true, board: BOARD },
+        { ...item(3, "Técnica", "Pase y corte", 10), drillId: OTHER, drillVisible: true },
+      ];
+    }
+
+    it("la fila de un ejercicio con pizarra lleva su miniatura; las demás, no", async () => {
+      const { container } = await renderPage({ items: withBoard() });
+
+      const rows = itemRows();
+      expect(rows.map((row) => row.querySelectorAll(THUMB).length)).toEqual([0, 1, 0]);
+      expect(container.querySelectorAll(THUMB)).toHaveLength(1);
+    });
+
+    it("sin ninguna pizarra en la sesión no hay ninguna miniatura", async () => {
+      const { container } = await renderPage();
+
+      expect(container.querySelector(THUMB)).toBeNull();
+    });
+
+    it("va dentro del enlace a la ficha, entre el número y el título", async () => {
+      await renderPage({ items: withBoard() });
+
+      const link = within(itemRows()[1]).getByRole("link");
+      const thumb = link.querySelector(THUMB) as Element;
+      expect(thumb.parentElement).toBe(link);
+      expect(within(link).getByText("02").compareDocumentPosition(thumb)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+      expect(thumb.compareDocumentPosition(within(link).getByText("Rebote y salida"))).toBe(
+        Node.DOCUMENT_POSITION_FOLLOWING,
+      );
+    });
+
+    it("es decorativa y sin controles: ni imagen con nombre ni botones, y la fila sigue con un único enlace", async () => {
+      await renderPage({ items: withBoard() });
+
+      const row = itemRows()[1];
+      expect(row.querySelector(THUMB)).toHaveAttribute("aria-hidden", "true");
+      expect(within(row).queryByRole("img")).not.toBeInTheDocument();
+      expect(within(row).queryByRole("button")).not.toBeInTheDocument();
+      expect(within(row).getAllByRole("link")).toHaveLength(1);
+      expect(within(row).getByRole("link")).toHaveAttribute("href", `/c/club-a/drills/${DRILL}`);
+      // La nota de un paso es de la ficha, no de la fila.
+      expect(row).not.toHaveTextContent("El 1 pasa al 2 y corta");
+    });
+
+    it("cada fila lleva la suya", async () => {
+      const items = withBoard();
+      items[2] = { ...items[2], board: { ...BOARD, court: "full" } };
+
+      await renderPage({ items });
+
+      const thumbs = itemRows().map((row) => row.querySelector(THUMB));
+      expect(thumbs[0]).toBeNull();
+      expect(thumbs[1]).not.toBeNull();
+      expect(thumbs[2]).not.toBeNull();
+      // Media pista y pista completa no se dibujan en la misma caja.
+      expect(thumbs[1]?.getAttribute("viewBox")).not.toBe(thumbs[2]?.getAttribute("viewBox"));
+    });
+
+    it("en una sesión hecha sigue ahí, junto a cómo acabó el ejercicio", async () => {
+      const items = withBoard().map((each) => ({ ...each, completed: true, actualMinutes: 9 }));
+
+      await renderPage({ status: "done", canEdit: false, items, actualMinutes: 30 });
+
+      const row = itemRows()[1];
+      expect(row.querySelectorAll(THUMB)).toHaveLength(1);
+      expect(row).toHaveTextContent("Hecho · 9 min");
     });
   });
 

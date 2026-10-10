@@ -1,5 +1,6 @@
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { Board } from "@/modules/board/types";
 import type { DrillDetail, DrillStatus } from "@/modules/drills/types";
 import type { Standard } from "@/modules/methodology/types";
 import type { PracticeListItem } from "@/modules/practice/types";
@@ -40,6 +41,27 @@ const STANDARDS: Standard[] = [
   { id: "st-4", number: 4, title: "CUARTO STANDARD", description: "Descripción del cuarto." },
   { id: "st-5", number: 5, title: "QUINTO STANDARD", description: "Descripción del quinto." },
 ];
+
+/** Una pizarra válida y pequeña, de dos pasos: el 1 pasa al 2 y corta; después el 2 bota hacia el aro. */
+const BOARD: Board = {
+  version: 1,
+  court: "half",
+  tokens: [
+    { id: "a1", kind: "attacker", label: "1", at: { x: 50, y: 80 } },
+    { id: "a2", kind: "attacker", label: "2", at: { x: 20, y: 60 } },
+    { id: "ball", kind: "ball", at: { x: 53, y: 80 } },
+  ],
+  steps: [
+    {
+      note: "El 1 pasa al 2 y corta",
+      moves: [
+        { token: "ball", kind: "pass", to: { x: 23, y: 60 } },
+        { token: "a1", kind: "cut", to: { x: 50, y: 30 } },
+      ],
+    },
+    { moves: [{ token: "a2", kind: "dribble", to: { x: 30, y: 25 } }] },
+  ],
+};
 
 /** La ficha de un ejercicio sin nada opcional: lo mínimo que puede traer `getDrill`. */
 function minimal(overrides: Partial<DrillDetail> = {}): DrillDetail {
@@ -534,10 +556,10 @@ describe("una ficha mínima", () => {
     expect(screen.queryByRole("link", { name: "Ver vídeo" })).not.toBeInTheDocument();
   });
 
-  it("sin diagrama sale la pista vacía", async () => {
+  it("sin pizarra ni diagrama no sale nada: una pista vacía no es una pizarra", async () => {
     await renderPage();
 
-    expect(screen.getByRole("img", { name: "Pista sin diagrama" })).toBeInTheDocument();
+    expect(screen.queryByRole("img")).not.toBeInTheDocument();
   });
 
   it("sigue teniendo el título, las píldoras y la pista", async () => {
@@ -555,6 +577,93 @@ describe("una ficha mínima", () => {
     await renderPage();
 
     expect(screen.queryAllByRole("heading", { level: 2 })).toHaveLength(0);
+  });
+});
+
+describe("la pizarra", () => {
+  it("con pizarra pinta la pizarra, con su nombre y el paso en el que está", async () => {
+    mocks.getDrill.mockResolvedValue(minimal({ board: BOARD }));
+
+    await renderPage();
+
+    expect(screen.getByRole("img", { name: "Pizarra de Rebote + outlet, paso 1 de 2" })).toBeInTheDocument();
+    expect(screen.getAllByRole("img")).toHaveLength(1);
+  });
+
+  it("si el ejercicio tiene pizarra e imagen, manda la pizarra: la imagen no se pinta", async () => {
+    // `full()` trae `diagramUrl`.
+    mocks.getDrill.mockResolvedValue(full({ board: BOARD }));
+
+    const { container } = await renderPage();
+
+    expect(screen.getByRole("img", { name: /^Pizarra de Rebote \+ outlet/ })).toBeInTheDocument();
+    expect(screen.queryByRole("img", { name: /^Diagrama de/ })).not.toBeInTheDocument();
+    expect(screen.getAllByRole("img")).toHaveLength(1);
+    // Ni a la vista ni cargándose por detrás: la URL firmada no se usa.
+    expect(container.querySelector("img")).toBeNull();
+    expect(container.innerHTML).not.toContain("storage.test");
+  });
+
+  it("es la pizarra entera, con sus controles y la nota del paso, no una miniatura", async () => {
+    mocks.getDrill.mockResolvedValue(minimal({ board: BOARD }));
+
+    const { container } = await renderPage();
+
+    expect(screen.getByRole("button", { name: "Reproducir la pizarra" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Paso siguiente" })).toBeInTheDocument();
+    expect(screen.getByText("El 1 pasa al 2 y corta")).toBeInTheDocument();
+    expect(container.querySelector("[data-board-thumb]")).toBeNull();
+  });
+
+  it("los pasos se recorren en la propia ficha", async () => {
+    mocks.getDrill.mockResolvedValue(minimal({ board: BOARD }));
+    await renderPage();
+
+    fireEvent.click(screen.getByRole("button", { name: "Paso siguiente" }));
+
+    expect(screen.getByRole("img", { name: "Pizarra de Rebote + outlet, paso 2 de 2" })).toBeInTheDocument();
+  });
+
+  it("una foto fija (sin pasos) se nombra solo con el título, y no lleva controles", async () => {
+    mocks.getDrill.mockResolvedValue(minimal({ board: { ...BOARD, steps: [] } }));
+
+    await renderPage();
+
+    expect(screen.getByRole("img", { name: "Pizarra de Rebote + outlet" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Reproducir la pizarra" })).not.toBeInTheDocument();
+  });
+
+  it("va tras el título y las píldoras, antes de la primera sección", async () => {
+    mocks.getDrill.mockResolvedValue(full({ board: BOARD }));
+
+    await renderPage();
+
+    const board = screen.getByRole("img", { name: /^Pizarra de/ });
+    expect(screen.getByText("U12+").compareDocumentPosition(board)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(board.compareDocumentPosition(screen.getByRole("heading", { level: 2, name: "Objetivo" }))).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    );
+    // El resto de la ficha sigue en su orden.
+    expect(sections()).toEqual([
+      "Objetivo",
+      "Organización",
+      "Coaching points",
+      "Standards",
+      "Principios",
+      "Variantes",
+      "Material",
+      "Vídeo",
+    ]);
+  });
+
+  it("sin pizarra y con imagen, el único dibujo es la imagen: no hay pizarra ni sus controles", async () => {
+    // `full()`, la ficha de `beforeEach`: con `diagramUrl` y sin `board`.
+    await renderPage();
+
+    expect(screen.getAllByRole("img")).toHaveLength(1);
+    expect(screen.getByRole("img")).toHaveAccessibleName("Diagrama de Rebote + outlet");
+    expect(screen.queryByRole("img", { name: /^Pizarra de/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Reproducir la pizarra" })).not.toBeInTheDocument();
   });
 });
 
