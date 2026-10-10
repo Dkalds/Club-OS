@@ -6,7 +6,7 @@ const mocks = vi.hoisted(() => ({ createClient: vi.fn(), logError: vi.fn() }));
 vi.mock("@/lib/supabase/server", () => ({ createClient: mocks.createClient }));
 vi.mock("@/lib/log", () => ({ logError: mocks.logError }));
 
-import { getConsentStatus } from "./queries";
+import { getConsentStatus, getConsentTexts } from "./queries";
 
 // Un doble mínimo: aplica el `eq`/`is`/`in` por tabla y devuelve lo que toque. RLS no se
 // simula. Datos neutros: los tests de `src/` no nombran a ningún club (pnpm check:guards).
@@ -18,11 +18,13 @@ function installDatabase({
   consents = [] as Row[],
   guardianships = [] as Row[],
   activeImageConsents = [] as Row[],
+  branding = { terms_text: "Condiciones.", image_consent_text: "Imagen." } as Row,
 }: {
   userId?: string | null;
   consents?: Row[];
   guardianships?: Row[];
   activeImageConsents?: Row[];
+  branding?: Row;
 } = {}) {
   mocks.createClient.mockResolvedValue({
     auth: { getClaims: async () => ({ data: userId ? { claims: { sub: userId } } : null, error: null }) },
@@ -35,6 +37,10 @@ function installDatabase({
           in: () => Promise.resolve({ data: activeImageConsents, error: null }),
           limit: () => Promise.resolve({ data: consents, error: null }),
         };
+        return builder;
+      }
+      if (table === "organization_branding") {
+        const builder = { select: () => builder, eq: () => builder, single: () => Promise.resolve({ data: branding, error: null }) };
         return builder;
       }
       let calls = 0;
@@ -53,6 +59,17 @@ function installDatabase({
 const uuid = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
 const ADMIN = clubContext("admin");
 const COACH = clubContext("coach");
+
+describe("getConsentTexts", () => {
+  it("lee los dos textos vigentes del club", async () => {
+    installDatabase({ branding: { terms_text: "Condiciones de prueba.", image_consent_text: "Imagen de prueba." } });
+
+    expect(await getConsentTexts(COACH)).toEqual({
+      termsText: "Condiciones de prueba.",
+      imageConsentText: "Imagen de prueba.",
+    });
+  });
+});
 
 describe("getConsentStatus", () => {
   it("sin ninguna fila de términos: needsTerms true", async () => {

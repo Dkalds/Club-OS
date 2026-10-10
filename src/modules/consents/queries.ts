@@ -7,6 +7,22 @@ import type { ConsentStatus } from "./types";
 // Lectura de qué consentimiento falta ([D7] términos, [D8] imagen). Con la sesión de quien
 // entra: RLS ya limita cada consulta a sus propias filas y a sus propias tutelas.
 
+/** Los dos textos vigentes del club, para la pantalla de consentimiento. */
+export async function getConsentTexts(
+  ctx: ClubContext,
+): Promise<{ termsText: string; imageConsentText: string }> {
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from("organization_branding")
+    .select("terms_text, image_consent_text")
+    .eq("organization_id", ctx.org.id)
+    .single();
+  if (error) throwReadError("consents.texts", error);
+
+  return { termsText: data.terms_text, imageConsentText: data.image_consent_text };
+}
+
 /**
  * Si la cuenta de la sesión ya aceptó los términos de este club, y qué tutelas propias no
  * tienen todavía un consentimiento de imagen activo (ni dado, ni revocado desde entonces).

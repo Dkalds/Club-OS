@@ -1,9 +1,10 @@
 import { render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const mocks = vi.hoisted(() => ({ createClient: vi.fn() }));
+const mocks = vi.hoisted(() => ({ createClient: vi.fn(), acceptPendingInvitations: vi.fn() }));
 
 vi.mock("@/lib/supabase/server", () => ({ createClient: mocks.createClient }));
+vi.mock("@/modules/invitations/accept", () => ({ acceptPendingInvitations: mocks.acceptPendingInvitations }));
 // Como el de verdad: `redirect()` corta el render lanzando.
 vi.mock("next/navigation", () => ({
   redirect: (path: string) => {
@@ -78,6 +79,7 @@ beforeEach(() => {
   vi.spyOn(console, "error").mockImplementation((...args: unknown[]) => {
     logged.push(args.map(String).join(" "));
   });
+  mocks.acceptPendingInvitations.mockResolvedValue([]);
   signedInAs(ME);
 });
 
@@ -140,6 +142,12 @@ describe("/select-club con varios clubes", () => {
     expect(rows.map((row) => row.getAttribute("href"))).toEqual(["/c/club-b", "/c/club-a"]);
     expect(queried).toEqual(["memberships"]);
   });
+
+  it("acepta las invitaciones pendientes antes de leer los clubes", async () => {
+    render(await SelectClubPage());
+
+    expect(mocks.acceptPendingInvitations).toHaveBeenCalledOnce();
+  });
 });
 
 describe("/select-club con un solo club", () => {
@@ -194,6 +202,7 @@ describe("/select-club: sesión y averías", () => {
 
     await expect(SelectClubPage()).rejects.toThrow("REDIRECT /login");
     expect(queried).toEqual([]);
+    expect(mocks.acceptPendingInvitations).not.toHaveBeenCalled();
   });
 
   it("si la consulta falla, deja rastro sin datos personales y lanza (lo recoge la página de error)", async () => {

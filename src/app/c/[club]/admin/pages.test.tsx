@@ -11,6 +11,9 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("@/modules/tenancy/queries", () => ({ getClubContext: mocks.getClubContext }));
+vi.mock("@/modules/consents/queries", () => ({
+  getConsentStatus: async () => ({ needsTerms: false, pendingGuardianships: [] }),
+}));
 vi.mock("@/modules/methodology/admin-queries", () => ({
   listSectionsForAdmin: mocks.listSectionsForAdmin,
   listValuesForAdmin: mocks.listValuesForAdmin,
