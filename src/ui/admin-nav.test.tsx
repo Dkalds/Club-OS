@@ -34,6 +34,7 @@ describe("AdminNav", () => {
       "Standards",
       "Club",
       "Equipos",
+      "Personas",
       "Invitaciones",
     ]);
     expect(within(nav).getByRole("link", { name: "Valores" })).toHaveAttribute(

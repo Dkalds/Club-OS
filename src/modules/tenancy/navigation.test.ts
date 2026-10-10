@@ -90,7 +90,7 @@ describe("navItems", () => {
 });
 
 describe("adminNavItems", () => {
-  it("por defecto: The Way, Valores, Principios, Standards, Club, Equipos e Invitaciones, con rutas bajo /admin", () => {
+  it("por defecto: The Way, Valores, Principios, Standards, Club, Equipos, Personas e Invitaciones, con rutas bajo /admin", () => {
     expect(adminNavItems(SLUG, {})).toEqual([
       { label: "The Way", href: "/c/club-a/admin/way" },
       { label: "Valores", href: "/c/club-a/admin/values" },
@@ -98,6 +98,7 @@ describe("adminNavItems", () => {
       { label: "Standards", href: "/c/club-a/admin/standards" },
       { label: "Club", href: "/c/club-a/admin/club" },
       { label: "Equipos", href: "/c/club-a/admin/teams" },
+      { label: "Personas", href: "/c/club-a/admin/people" },
       { label: "Invitaciones", href: "/c/club-a/admin/invites" },
     ]);
   });
@@ -112,6 +113,7 @@ describe("adminNavItems", () => {
       "Normas",
       "Club",
       "Equipos",
+      "Personas",
       "Invitaciones",
     ]);
     expect(items.map((item) => item.href)).toEqual(adminNavItems(SLUG, {}).map((item) => item.href));
@@ -127,6 +129,7 @@ describe("adminNavItems", () => {
       "Standards",
       "Club",
       "Equipos",
+      "Personas",
       "Invitaciones",
     ]);
   });
