@@ -828,8 +828,10 @@ select is_empty(
   'anon no tiene ningún privilegio sobre las tablas'
 );
 
--- Sobre la tabla entera, `authenticated` solo tiene además el `delete` de los ítems. El alta y
--- el cambio de eventos, planes e ítems van por columnas (cuáles, en posture.test.sql).
+-- Sobre la tabla entera, `authenticated` solo tiene además el `delete` de los ítems y el de
+-- los planes (`20270119000100_practice_templates.sql`: la política solo abre una plantilla
+-- propia). El alta y el cambio de eventos, planes e ítems van por columnas (cuáles, en
+-- posture.test.sql).
 select results_eq(
   $$select c.relname::text collate "default", p.privilege
     from pg_class as c
@@ -841,8 +843,8 @@ select results_eq(
     where c.relnamespace = 'public'::regnamespace
       and c.relname in ('focus_areas', 'events', 'games', 'practice_plans', 'practice_items')
       and has_table_privilege('authenticated', c.oid, p.privilege)$$,
-  $$values ('practice_items', 'delete')$$,
-  'authenticated no tiene más privilegio de escritura sobre una tabla entera que borrar ítems'
+  $$values ('practice_items', 'delete'), ('practice_plans', 'delete')$$,
+  'authenticated no tiene más privilegio de escritura sobre una tabla entera que borrar ítems y planes'
 );
 
 select results_eq(
@@ -868,7 +870,8 @@ select results_eq(
 
 -- Sin política no hay acceso. Los focos solo se leen: una política, `for select`. Los eventos,
 -- los planes y los ítems tienen además las de escritura de `20261117000200_practice_write.sql`
--- (alta y cambio, y borrado solo en los ítems), y los eventos y los partidos, las de
+-- (alta y cambio, y borrado solo en los ítems), los planes y los ítems, las de las plantillas
+-- (`20270119000100_practice_templates.sql`), y los eventos y los partidos, las de
 -- `20261215000200_games_write.sql` (alta y cambio de partidos). Todas son solo para
 -- `authenticated`. Las columnas de tipo `name` del catálogo llevan la collation "C";
 -- se pasan a la de por defecto para compararlas con `values`.
@@ -891,9 +894,12 @@ select results_eq(
     ('games', 'games_update_managed', 'UPDATE', array['authenticated'], 'PERMISSIVE'),
     ('practice_items', 'practice_items_delete_editable', 'DELETE', array['authenticated'], 'PERMISSIVE'),
     ('practice_items', 'practice_items_insert_editable', 'INSERT', array['authenticated'], 'PERMISSIVE'),
+    ('practice_items', 'practice_items_insert_template', 'INSERT', array['authenticated'], 'PERMISSIVE'),
     ('practice_items', 'practice_items_select_visible', 'SELECT', array['authenticated'], 'PERMISSIVE'),
     ('practice_items', 'practice_items_update_editable', 'UPDATE', array['authenticated'], 'PERMISSIVE'),
+    ('practice_plans', 'practice_plans_delete_own_template', 'DELETE', array['authenticated'], 'PERMISSIVE'),
     ('practice_plans', 'practice_plans_insert_managed', 'INSERT', array['authenticated'], 'PERMISSIVE'),
+    ('practice_plans', 'practice_plans_insert_template', 'INSERT', array['authenticated'], 'PERMISSIVE'),
     ('practice_plans', 'practice_plans_select_visible', 'SELECT', array['authenticated'], 'PERMISSIVE'),
     ('practice_plans', 'practice_plans_update_editable', 'UPDATE', array['authenticated'], 'PERMISSIVE')$$,
   'las políticas de las cinco tablas: lectura en todas, escritura en eventos, partidos, planes e ítems, y solo para authenticated'

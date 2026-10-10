@@ -127,10 +127,11 @@ select set_eq(
       -- Calendario (20261005000300): los focos y los partidos, solo lectura.
       ('focus_areas', array['select']),
       ('games', array['select']),
-      -- Sesiones (20261117000200): el alta y el cambio van por columnas, abajo. Solo se
-      -- borran los ítems; ni eventos ni planes.
+      -- Sesiones (20261117000200): el alta y el cambio van por columnas, abajo. Se borran
+      -- los ítems y, de los planes, solo una plantilla propia (20270119000100: la política
+      -- no abre el borrado de un plan de equipo). Los eventos, nunca.
       ('events', array['select']),
-      ('practice_plans', array['select']),
+      ('practice_plans', array['select', 'delete']),
       ('practice_items', array['select', 'delete']),
       -- Metodología (20261020000100, 20261021000100): el cambio va por columnas, abajo. El
       -- `delete` solo tiene política en `principle_points`: en las otras cuatro no encuentra
@@ -185,7 +186,7 @@ select set_eq(
       ('events', 'update', array['starts_at', 'ends_at', 'location', 'status']),
       ('practice_plans', 'insert',
         array['organization_id', 'team_id', 'event_id', 'title', 'primary_focus_id',
-              'secondary_focus_id', 'notes']),
+              'secondary_focus_id', 'notes', 'is_template']),
       ('practice_plans', 'update',
         array['title', 'primary_focus_id', 'secondary_focus_id', 'notes', 'status',
               'last_save_id', 'actual_minutes', 'live_started_at', 'live_position']),

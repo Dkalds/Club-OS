@@ -51,14 +51,16 @@ Con eso, `buildProposal` (pura) arma la lista:
 
 | Fase | Parte del tiempo | Qué busca |
 | --- | --- | --- |
-| Activación | 15 % | un ejercicio de técnica, corto |
+| Activación | 15 % | el ejercicio más corto que valga |
 | Objetivo principal (con su nombre) | 45 % | dos ejercicios de ese objetivo; uno si la sesión dura menos de 60 min |
 | Objetivo secundario (con su nombre) | 20 % | un ejercicio de ese objetivo; sin secundario, otro del principal |
-| Competición | 20 % | el ejercicio que más jugadores admite de entre ataque, defensa y transición |
+| Competición | 20 % | el ejercicio que más jugadores admite |
 
 - **Qué ejercicios valen.** La edad del equipo cabe en el rango del ejercicio y, si se conoce el tamaño de la plantilla, cabe en su rango de jugadores. Ninguno se repite dentro de la propuesta. Se prefieren los que no se han usado en las tres últimas sesiones. Entre los que quedan, por título: con los mismos datos, la misma propuesta.
+El motor no conoce los objetivos de ningún club (regla 3): recibe los de la sesión y los de cada ejercicio, y solo los compara.
+
 - **Si no hay candidato para un hueco**, se relaja por este orden: se admite lo usado hace poco, se deja de mirar el número de jugadores y, por último, vale cualquier objetivo. La edad no se relaja nunca. Si ni así hay ejercicio, ese hueco se queda sin cubrir.
-- **Minutos.** Cada bloque recibe su parte en pasos de 5 minutos, dentro del rango del ejercicio. Lo que falte o sobre para llegar a la duración de la sesión se reparte entre los bloques que aún admiten, del principal hacia fuera.
+- **Minutos.** Cada bloque recibe su parte en pasos de 5 minutos, dentro del rango del ejercicio. Lo que falte o sobre para llegar a la duración de la sesión se reparte entre los bloques que aún admiten, del principal hacia fuera. Si ni con los mínimos caben todos (una sesión de 15 min), se quitan huecos: el secundario, la activación, la competición y el segundo del principal, por ese orden.
 - **Lo que devuelve.** Los ítems (ejercicio, título, fase, minutos) con, para cada uno, por qué está ahí: sus objetivos, cuántos puntos de corrección clave tiene y cuántas variantes. Y los minutos que no ha podido cubrir. Con la biblioteca vacía, una lista vacía.
 
 La propuesta no escribe nada. Sin objetivo principal en la sesión, las fases principales toman los objetivos con más ejercicios válidos.
@@ -86,9 +88,10 @@ No se editan: se corrige la sesión y se guarda otra.
 Una migración, sin tablas nuevas:
 
 - Políticas nuevas en `practice_plans`: alta de una plantilla (`team_id` y `event_id` nulos, `is_template`, de quien la crea, con membresía activa de cuerpo técnico o dirección en ese club) y borrado de una plantilla propia. `grant insert (is_template)` y `grant delete` para `authenticated`. La de lectura ya deja ver un plan sin equipo solo a su autor (y a dirección).
+- Con `is_template` concedida, dos cierres: un `check` (una plantilla no tiene evento) y la política de alta de un plan de equipo, que rechaza el que venga marcado como plantilla.
 - Política nueva en `practice_items`: alta de ítems en una plantilla propia. Borrarlos va con el plan (`on delete cascade`).
 - `save_practice_as_template(p_event uuid) returns uuid`: `NOT_FOUND` si el evento no es un entreno con plan de un equipo que se gestiona; `INVALID` si no tiene ejercicios; `TEMPLATE_LIMIT` con 50.
-- `create_practice_from_template(p_template uuid, p_team uuid, p_starts_at timestamptz, p_ends_at timestamptz, p_title text, p_primary_focus uuid default null, p_secondary_focus uuid default null, p_location text default null, p_notes text default null) returns uuid`: `NOT_FOUND` si la plantilla no es mía o es de otro club que el equipo, o si no gestiono el equipo. Crea evento, plan e ítems en una transacción.
+- `create_practice_from_template(p_template uuid, p_team uuid, p_starts_at timestamptz, p_ends_at timestamptz, p_title text, p_primary_focus uuid default null, p_secondary_focus uuid default null, p_location text default null) returns uuid`: `NOT_FOUND` si la plantilla no es mía o es de otro club que el equipo, o si no gestiono el equipo. Crea evento, plan e ítems en una transacción; las notas son las de la plantilla y se cambian después, en la sesión.
 - Las dos, `security invoker`, con `execute` solo para `authenticated`, y el orden de comprobaciones de C26.
 - `posture.test.sql` al día y pgTAP propio: aislamiento por club, por autor (otro entrenador del mismo club no ve ni usa ni borra mi plantilla) y por equipo.
 
