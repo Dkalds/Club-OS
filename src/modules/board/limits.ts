@@ -15,3 +15,7 @@ export const LABEL_MAX = 2;
 export const COURT_MAX = 100;
 /** A qué distancia, en unidades de pista, el balón está «pegado» a un jugador y le acompaña si bota. */
 export const BALL_REACH = 6;
+/** Cambios que el editor recuerda para deshacer. */
+export const HISTORY_MAX = 50;
+/** El número más alto que el editor le pone a un jugador: del 1 al 9 por equipo. */
+export const MAX_LABEL_NUMBER = 9;

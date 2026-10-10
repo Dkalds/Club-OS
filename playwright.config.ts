@@ -27,6 +27,7 @@ const ADMIN_SPECS = [
   /practice-builder\.spec\.ts/,
   /practice-drills\.spec\.ts/,
   /practice-prepare\.spec\.ts/,
+  /board-editor\.spec\.ts/,
   /live\.spec\.ts/,
   /games\.spec\.ts/,
 ];

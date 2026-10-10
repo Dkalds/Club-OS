@@ -8,15 +8,18 @@ import { logError } from "@/lib/log";
 import { mutate as runMutation, type Write } from "@/lib/mutate";
 import type { Action } from "@/lib/permissions";
 import { WAY_ROUTE } from "@/lib/routes";
+import { parseBoard } from "@/modules/board/schema";
 import { DIAGRAM_ERROR, DIAGRAM_MIME, sniffImageType } from "@/modules/media/diagram-file";
 import { MEDIA_BUCKET, mediaPath, signedUrl } from "@/modules/media/storage";
 import {
   diagramUploadSchema,
   drillIdSchema,
   drillInputSchema,
+  saveDrillBoardSchema,
   updateDrillSchema,
   type DrillIdInput,
   type DrillInput,
+  type SaveDrillBoardInput,
   type UpdateDrillInput,
 } from "./schema";
 import type { DrillStatus } from "./types";
@@ -171,6 +174,58 @@ export async function updateDrill(
       if (error) return fromDb(error);
 
       return ok({ updatedAt: onlyRow(rows).updated_at });
+    },
+  );
+}
+
+/**
+ * Las rutas donde se ve la pizarra de un ejercicio además de la biblioteca: la ficha de una
+ * sesión (su miniatura) y el directo. Siguen las carpetas de `src/app/c/[club]/`.
+ */
+const BOARD_ROUTES = ["/c/[club]/(app)/drills", "/c/[club]/(app)/train", "/c/[club]/(live)"] as const;
+
+/**
+ * Guarda la pizarra de un ejercicio de este club, o la quita con `board: null`, con
+ * `save_drill_board` y la copia esperada: la pizarra comparte copia con el resto de la ficha.
+ *
+ * La pizarra se valida aquí con `parseBoard`, el mismo validador de quien la lee: una que no
+ * cumple la forma es `INVALID` sin llegar a la base, y lo que se guarda es lo ya validado (las
+ * claves de más no viajan). Antes de llamar a la función se comprueba que el ejercicio es de
+ * este club (C25): la función recibe solo su id. Quién puede guardarla lo dice ella: quien
+ * puede editar el ejercicio (la dirección, y quien entrena en un borrador propio); los demás,
+ * `NOT_FOUND`. Si alguien guardó antes, `STALE_COPY`. Devuelve el `updated_at` nuevo.
+ */
+export async function saveDrillBoard(
+  clubSlug: string,
+  input: SaveDrillBoardInput,
+): Promise<ActionResult<{ updatedAt: string }>> {
+  return runMutation(
+    { tag: "drills.save-board", permission: "drill.create", routes: BOARD_ROUTES },
+    clubSlug,
+    saveDrillBoardSchema,
+    input,
+    async ({ db, ctx, data, fromDb }) => {
+      const board = data.board === null || data.board === undefined ? null : parseBoard(data.board);
+      if (data.board !== null && data.board !== undefined && board === null) return fail("INVALID");
+
+      const { data: drill, error: readError } = await db
+        .from("drills")
+        .select("id")
+        .eq("organization_id", ctx.org.id)
+        .eq("id", data.drillId)
+        .maybeSingle();
+      if (readError) return fromDb(readError);
+      if (!drill) return fail("NOT_FOUND");
+
+      const { data: updatedAt, error } = await db.rpc("save_drill_board", {
+        p_drill: data.drillId,
+        p_expected_updated_at: data.expectedUpdatedAt,
+        // Ausente y no `null` (C15): sin pizarra, la función la quita.
+        ...(board ? { p_board: board as unknown as Json } : {}),
+      });
+      if (error) return fromDb(error);
+
+      return ok({ updatedAt });
     },
   );
 }
