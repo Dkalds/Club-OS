@@ -83,7 +83,7 @@ Pizarras ficticias para ocho ejercicios de Arcángel y uno de Club Demo, que cub
 
 Una migración:
 
-- `alter table drills add column board jsonb`, con `check (board is null or (jsonb_typeof(board) = 'object' and board ->> 'version' = '1' and octet_length(board::text) <= 32768))`.
+- `alter table drills add column board jsonb`, con `check (board is null or (jsonb_typeof(board) = 'object' and board @> '{"version": 1}' and octet_length(board::text) <= 32768))`.
 - Sin `grant` nuevo: `authenticated` la lee como el resto del ejercicio (la misma fila, la misma política) y no la escribe.
 - `search_drills` devuelve `setof drills`: la columna llega sola.
 - pgTAP: el `check` (ni un texto, ni otra versión, ni 40 kB), que `authenticated` no puede escribirla ni por la API directa, que `save_drill` la conserva, y que quien no ve el ejercicio tampoco ve su pizarra (otro club; un borrador ajeno). `posture.test.sql` al día.

@@ -26,9 +26,9 @@
 
 ### 1. Base de datos
 
-- [ ] `supabase/migrations/20270202000100_drill_board.sql`: `drills.board jsonb` con su `check` (objeto, `version` 1, 32 kB). Sin `grant`.
-- [ ] `supabase/tests/database/drill_board.test.sql`: el `check`; `authenticated` no la escribe (API directa); `save_drill` la conserva; quien no ve el ejercicio no la ve. `posture.test.sql` al día si lista columnas.
-- [ ] `pnpm db:types`, `supabase db lint`.
+- [x] `supabase/migrations/20270202000100_drill_board.sql`: `drills.board jsonb` con su `check` (objeto, `version` 1, 32 kB). Sin `grant`.
+- [x] `supabase/tests/database/drill_board.test.sql`: el `check`; `authenticated` no la escribe (API directa); `save_drill` la conserva; quien no ve el ejercicio no la ve. `posture.test.sql` al día si lista columnas.
+- [x] `pnpm db:types`, `supabase db lint`.
 
 ### 2. La pizarra como dato
 
