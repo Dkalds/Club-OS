@@ -23,3 +23,7 @@ export type PracticeDetailItem = SavedPracticeItem & { drillVisible: boolean; co
 export type PracticeDetail = { eventId: string; planId: string; teamId: string; teamName: string; status: PracticeStatus; startsAt: string; endsAt: string; slotLabel: string; location: string | null; title: string; primaryFocus: FocusOption | null; secondaryFocus: FocusOption | null; notes: string | null; items: PracticeDetailItem[]; standards: Standard[]; updatedAt: string; canEdit: boolean; live: LiveProgress; actualMinutes: number | null };
 /** Ítems consecutivos de la misma fase. `startIndex` es la posición del primero en la lista completa. */
 export type PhaseBlock<T> = { phase: string | null; startIndex: number; items: T[]; minutes: number };
+/** Una plantilla de sesión de quien la guarda: lo que dura, cuántos ejercicios tiene y sus objetivos. No tiene equipo ni fecha. */
+export type PracticeTemplate = { id: string; title: string; totalMinutes: number; itemCount: number; primaryFocus: FocusOption | null; secondaryFocus: FocusOption | null };
+/** La hora, la duración y el lugar con los que se propone una sesión nueva de un equipo: los de su última sesión. */
+export type TeamDefaults = { time: string; durationMinutes: number; location: string | null };

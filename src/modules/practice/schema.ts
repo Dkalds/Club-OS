@@ -188,6 +188,25 @@ export const cancelPracticeSchema = z.object({ eventId: id });
 
 export const resetLiveProgressSchema = z.object({ eventId: id });
 
+// ── Proponer ─────────────────────────────────────────────────────────────────────────────
+
+export const proposePracticeItemsSchema = z.object({ eventId: id });
+
+// ── Plantillas ───────────────────────────────────────────────────────────────────────────
+
+export const savePracticeAsTemplateSchema = z.object({ eventId: id });
+
+/**
+ * Una sesión nueva con los ejercicios de una plantilla: los mismos datos que al crearla desde
+ * cero (el formulario los trae puestos desde la plantilla y se pueden cambiar) y la plantilla.
+ */
+export const createPracticeFromTemplateSchema = z
+  .object({ templateId: id, teamId, ...sessionFields })
+  .refine(differentFocus, DIFFERENT_FOCUS)
+  .transform(promoteSecondary);
+
+export const deletePracticeTemplateSchema = z.object({ templateId: id });
+
 // Lo que reciben las acciones: la entrada tal cual la manda un formulario, antes de Zod.
 export type CreatePracticeInput = z.input<typeof createPracticeSchema>;
 export type UpdatePracticeMetaInput = z.input<typeof updatePracticeMetaSchema>;
@@ -197,3 +216,7 @@ export type AddDrillToPracticeInput = z.input<typeof addDrillToPracticeSchema>;
 export type DuplicatePracticeInput = z.input<typeof duplicatePracticeSchema>;
 export type CancelPracticeInput = z.input<typeof cancelPracticeSchema>;
 export type ResetLiveProgressInput = z.input<typeof resetLiveProgressSchema>;
+export type ProposePracticeItemsInput = z.input<typeof proposePracticeItemsSchema>;
+export type SavePracticeAsTemplateInput = z.input<typeof savePracticeAsTemplateSchema>;
+export type CreatePracticeFromTemplateInput = z.input<typeof createPracticeFromTemplateSchema>;
+export type DeletePracticeTemplateInput = z.input<typeof deletePracticeTemplateSchema>;
