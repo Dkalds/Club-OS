@@ -51,8 +51,13 @@ export function boardFrames(board: Board): BoardFrame[] {
   return frames;
 }
 
-/** Cómo se nombra una pizarra para quien no la ve: «Pizarra de 3 calles, paso 2 de 4». */
-export function boardLabel(title: string, step: number, total: number): string {
+/**
+ * Cómo se nombra una pizarra para quien no la ve: «Pizarra de 3 calles, paso 2 de 4». `position`
+ * es el paso que se enseña, desde 0, y `steps` cuántos tiene; con `position` igual a `steps` la
+ * secuencia ha terminado («final»). Una foto fija, sin pasos, es solo su nombre.
+ */
+export function boardLabel(title: string, position: number, steps: number): string {
   const name = `Pizarra de ${title}`;
-  return total > 1 ? `${name}, paso ${step + 1} de ${total}` : name;
+  if (steps === 0) return name;
+  return position >= steps ? `${name}, final` : `${name}, paso ${position + 1} de ${steps}`;
 }

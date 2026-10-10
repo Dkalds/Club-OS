@@ -251,8 +251,9 @@ describe("boardFrames", () => {
 });
 
 describe("boardLabel", () => {
-  it("nombra la pizarra y, si hay varios, el paso", () => {
-    expect(boardLabel("3 calles", 0, 1)).toBe("Pizarra de 3 calles");
+  it("nombra la pizarra y, si tiene pasos, por cuál va", () => {
+    expect(boardLabel("3 calles", 0, 0)).toBe("Pizarra de 3 calles");
     expect(boardLabel("3 calles", 1, 4)).toBe("Pizarra de 3 calles, paso 2 de 4");
+    expect(boardLabel("3 calles", 4, 4)).toBe("Pizarra de 3 calles, final");
   });
 });

@@ -191,6 +191,26 @@ body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--f
 @media (prefers-reduced-motion: no-preference) { .cos-skel { animation: cos-pulse 1.4s ease-in-out infinite; } }
 @keyframes cos-pulse { 50% { opacity: .55; } }
 
+/* Board: la pizarra de un ejercicio (pista, fichas, movimientos y controles) */
+.cos-board { display: flex; flex-direction: column; gap: var(--space-2); }
+.cos-board__court { display: block; width: 100%; aspect-ratio: 4 / 3; border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--surface-1); }
+.cos-board__court--full { aspect-ratio: 25 / 14; }
+.cos-board__lines { fill: none; stroke: var(--ink-3); stroke-width: 1.2; vector-effect: non-scaling-stroke; }
+.cos-board__lines * { vector-effect: non-scaling-stroke; }
+.cos-board__move { fill: none; stroke: var(--brand-accent); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.cos-board__move * { vector-effect: non-scaling-stroke; }
+.cos-board__attacker { fill: var(--surface-1); stroke: var(--ink); stroke-width: 1.6; vector-effect: non-scaling-stroke; }
+.cos-board__defender { fill: none; stroke: var(--brand-accent); stroke-width: 1.8; stroke-linecap: round; vector-effect: non-scaling-stroke; }
+.cos-board__ball { fill: var(--ink); }
+.cos-board__cone { fill: none; stroke: var(--ink-3); stroke-width: 1.2; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+.cos-board__label { fill: var(--ink); font-family: var(--font-text); font-weight: 600; font-size: 4.2px; }
+.cos-board__label--defender { fill: var(--brand-accent); font-size: 3.4px; }
+.cos-board__controls { display: flex; align-items: center; gap: var(--space-1); }
+.cos-board__controls .cos-iconbtn:disabled { color: var(--ink-3); cursor: default; }
+.cos-board__step { margin-left: auto; font-size: 13px; line-height: 18px; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.cos-board__note { margin: 0; min-height: var(--space-6); color: var(--ink-2); }
+.cos-board__thumb { display: block; width: 80px; height: 60px; border-radius: var(--radius-sm); background: var(--surface-2); }
+
 /* AppShell */
 .cos-shell { width: 375px; height: 760px; display: flex; flex-direction: column; background: var(--bg); border: 1px solid var(--line); border-radius: var(--radius-xl); overflow: hidden; }
 .cos-shell__main { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: var(--space-6); padding-bottom: var(--space-6); }
