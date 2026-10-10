@@ -9,7 +9,7 @@
 -- nacimiento.
 begin;
 
-select plan(74);
+select plan(75);
 
 -- ── Fixtures (como postgres) ─────────────────────────────────────────────────────────
 -- Club A
@@ -252,10 +252,12 @@ select results_eq(
   'admin ve a todas las personas de su club y a nadie de B'
 );
 
-select throws_ok(
-  $$update teams set name = 'Otro nombre'$$,
-  '42501', null,
-  'ni el admin escribe en esta fase'
+-- Desde Fase 7 Task 10, dirección edita los equipos de su club (sin where, solo toca los
+-- suyos: RLS filtra en silencio los de B, no hace falta un 42501 para protegerlos).
+select results_eq(
+  $$update teams set name = name || ' (editado)' returning organization_id$$,
+  $$values (current_setting('fx.club_a')::uuid), (current_setting('fx.club_a')::uuid)$$,
+  'admin edita los equipos de su club con un update sin where, y solo los suyos'
 );
 
 -- ── coachB: el aislamiento entre clubes vale en los dos sentidos ─────────────────────
@@ -541,15 +543,27 @@ select is_empty(
   'anon no tiene ningún privilegio sobre las tablas'
 );
 
+-- seasons, categories y teams tienen insert y update desde Fase 7 Task 10 (dirección);
+-- esas tres quedan fuera de aquí y las cubre club_admin_write.test.sql y posture.test.sql.
 select is_empty(
   $$select c.relname, p.privilege
     from pg_class as c
     cross join unnest(array['insert', 'update', 'delete', 'truncate', 'references', 'trigger'])
       as p (privilege)
     where c.relnamespace = 'public'::regnamespace
-      and c.relname in ('people', 'seasons', 'categories', 'teams', 'team_staff', 'team_players')
+      and c.relname in ('people', 'team_staff', 'team_players')
       and has_table_privilege('authenticated', c.oid, p.privilege)$$,
-  'authenticated no tiene privilegios de escritura'
+  'authenticated no tiene privilegios de escritura sobre las tablas que siguen de solo lectura'
+);
+select is_empty(
+  $$select c.relname, p.privilege
+    from pg_class as c
+    cross join unnest(array['delete', 'truncate', 'references', 'trigger'])
+      as p (privilege)
+    where c.relnamespace = 'public'::regnamespace
+      and c.relname in ('seasons', 'categories', 'teams')
+      and has_table_privilege('authenticated', c.oid, p.privilege)$$,
+  'y ni seasons, categories ni teams se borran (sin grant de delete)'
 );
 
 select results_eq(

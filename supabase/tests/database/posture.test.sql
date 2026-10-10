@@ -114,14 +114,18 @@ select set_eq(
   $$select t.tabla, p.privilegio
     from (values
       -- Tenancy y estructura deportiva (20261005000100, 20261005000200): solo lectura.
+      -- El cambio de organizations/organization_branding va por columnas, abajo
+      -- (20270112000500, Fase 7 Task 10).
       ('organizations', array['select']),
       ('organization_branding', array['select']),
       ('profiles', array['select']),
       ('memberships', array['select']),
       ('people', array['select']),
-      ('seasons', array['select']),
-      ('categories', array['select']),
-      ('teams', array['select']),
+      -- Temporadas, categorías y equipos (20270112000500): el alta y el cambio son de
+      -- dirección; no se borran.
+      ('seasons', array['select', 'insert', 'update']),
+      ('categories', array['select', 'insert', 'update']),
+      ('teams', array['select', 'insert', 'update']),
       ('team_staff', array['select']),
       ('team_players', array['select']),
       -- Calendario (20261005000300): los focos y los partidos, solo lectura.
@@ -241,7 +245,13 @@ select set_eq(
       ('coach_notes', 'update', array['body', 'visibility']),
       -- Invitaciones (20270112000100): cancelar pone cancelled_at; reenviar, un token y una
       -- caducidad nuevos. Ninguna otra columna, y RLS exige que siga pendiente para las dos.
-      ('invitations', 'update', array['cancelled_at', 'token_hash', 'expires_at'])
+      ('invitations', 'update', array['cancelled_at', 'token_hash', 'expires_at']),
+      -- Club de dirección (20270112000500, Fase 7 Task 10): ni slug ni status, nunca aquí.
+      ('organizations', 'update', array['name', 'timezone']),
+      ('organization_branding', 'update',
+        array['display_name', 'wordmark_sub', 'short_name', 'way_name', 'tagline',
+              'color_accent', 'color_accent_pressed', 'color_on_accent', 'color_accent_soft',
+              'terminology', 'terms_text', 'image_consent_text'])
     ) as t (tabla, privilegio, columnas)
     cross join unnest(t.columnas) as c (columna)$$,
   'los privilegios de columna de authenticated en public son exactamente los de la lista'
