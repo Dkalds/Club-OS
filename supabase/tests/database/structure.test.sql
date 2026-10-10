@@ -510,7 +510,8 @@ select throws_ok(
 -- Añadir un dato personal a `people` obliga a tocar este test a propósito.
 select columns_are(
   'public', 'people',
-  array['id', 'organization_id', 'first_name', 'last_name', 'birth_year', 'created_at', 'archived_at'],
+  array['id', 'organization_id', 'first_name', 'last_name', 'birth_year', 'created_at', 'archived_at',
+        'photo_media_id'],
   'people guarda el año de nacimiento, nunca la fecha completa'
 );
 
