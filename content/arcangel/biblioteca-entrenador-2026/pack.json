@@ -1,0 +1,888 @@
+{
+  "id": "biblioteca-entrenador-2026",
+  "title": "Biblioteca del entrenador · Manual de pista 2026",
+  "drills": [
+    {
+      "key": "sellar-al-tirador",
+      "title": "Sellar al tirador",
+      "age": [12, null],
+      "players": [4, 12],
+      "minutes": [5, 8],
+      "focus": ["rebote"],
+      "principles": ["rebote"],
+      "equipment": ["Balones"],
+      "objective": "Impedir segunda opción tras tiro frontal.",
+      "setupMd": "**Montaje.** 2x2, dos exteriores y un entrenador tirador.\n\n**Secuencia.** Tiro del entrenador; defensores encuentran pareja, sellan y capturan; salida con pase.\n\n**Indicador.** Rebotes defensivos / tiros fallados.",
+      "points": [
+        { "text": "Mirar hombre antes de balón", "key": true },
+        { "text": "Pies activos", "key": true },
+        { "text": "Error frecuente: saltar directamente sin contactar" }
+      ],
+      "variants": [
+        { "title": "Progresión", "description": "Añadir tercer atacante desde esquina." }
+      ],
+      "diagram": "diagrams/01-sellar-al-tirador.png"
+    },
+    {
+      "key": "cierre-desde-lado-debil",
+      "title": "Cierre desde lado débil",
+      "age": [12, null],
+      "players": [4, 12],
+      "minutes": [5, 8],
+      "focus": ["rebote"],
+      "principles": ["rebote"],
+      "equipment": ["Balones"],
+      "objective": "Cerrar a un atacante que corta desde esquina opuesta.",
+      "setupMd": "**Montaje.** 2x2 en lado fuerte y débil.\n\n**Secuencia.** Tras tiro desde ala, defensor alejado cruza, localiza atacante y sella.\n\n**Indicador.** Cierres efectivos / 10 tiros.",
+      "points": [
+        { "text": "Anticipación y orientación del cuerpo", "key": true },
+        { "text": "Error frecuente: perseguir balón y perder espalda" }
+      ],
+      "variants": [
+        { "title": "Progresión", "description": "Introducir rebote largo y segundo tiro." }
+      ],
+      "diagram": "diagrams/02-cierre-desde-lado-debil.png"
+    },
+    {
+      "key": "espalda-contra-espalda",
+      "title": "Espalda contra espalda",
+      "age": [10, null],
+      "players": [2, 12],
+      "minutes": [5, 8],
+      "focus": ["rebote"],
+      "principles": ["rebote"],
+      "equipment": ["Balones"],
+      "objective": "Resolver cierre sin visión inicial del atacante.",
+      "setupMd": "**Montaje.** 1x1 en zona, ambos de espaldas, entrenador con balón.\n\n**Secuencia.** A señal de tiro, defensor pivota, identifica rival, gana posición y captura.\n\n**Indicador.** Capturas / 8 intentos.",
+      "points": [
+        { "text": "Pivote equilibrado y contacto legal", "key": true },
+        { "text": "Error frecuente: girar siempre hacia mismo lado" }
+      ],
+      "variants": [
+        { "title": "Progresión", "description": "Ataque puede fintar hacia ambos lados." }
+      ],
+      "diagram": "diagrams/03-espalda-contra-espalda.png"
+    },
+    {
+      "key": "rebote-largo-y-primer-pase",
+      "title": "Rebote largo y primer pase",
+      "age": [12, null],
+      "players": [6, 12],
+      "minutes": [5, 8],
+      "focus": ["rebote"],
+      "principles": ["rebote"],
+      "equipment": ["Balones"],
+      "objective": "Conectar rebote exterior y contraataque.",
+      "setupMd": "**Montaje.** 3x3 con dos jugadores abiertos.\n\n**Secuencia.** Tiro largo; defensores atacan rebote largo; capturador pasa a banda y todos corren.\n\n**Indicador.** Salidas limpias / 10 rebotes.",
+      "points": [
+        { "text": "No bajar balón", "key": true },
+        { "text": "Pase al jugador libre", "key": true },
+        { "text": "Error frecuente: botar antes de levantar cabeza" }
+      ],
+      "variants": [
+        { "title": "Progresión", "description": "Defensa rival presiona primer pase." }
+      ],
+      "diagram": "diagrams/04-rebote-largo-y-primer-pase.png"
+    },
+    {
+      "key": "cierre-mas-segundo-esfuerzo",
+      "title": "Cierre más segundo esfuerzo",
+      "age": [12, null],
+      "players": [4, 12],
+      "minutes": [5, 8],
+      "focus": ["rebote"],
+      "principles": ["rebote"],
+      "equipment": ["Balones"],
+      "objective": "Mantener lucha tras balón dividido.",
+      "setupMd": "**Montaje.** 2x2 en zona, entrenador reboteador.\n\n**Secuencia.** Entrenador lanza al aro; si balón queda suelto, jugar hasta posesión clara.\n\n**Indicador.** Posesiones aseguradas / 10.",
+      "points": [
+        { "text": "Recolocación sin agarrones", "key": true },
+        { "text": "Error frecuente: dar acción por perdida tras primer salto" }
+      ],
+      "variants": [
+        { "title": "Progresión", "description": "Añadir límite de 3 segundos." }
+      ],
+      "diagram": "diagrams/05-cierre-mas-segundo-esfuerzo.png"
+    },
+    {
+      "key": "3x3-con-salida-obligatoria",
+      "title": "3x3 con salida obligatoria",
+      "age": [12, null],
+      "players": [6, 12],
+      "minutes": [5, 8],
+      "focus": ["rebote"],
+      "principles": ["rebote"],
+      "equipment": ["Balones", "Conos"],
+      "objective": "Integrar rebote y primera ventaja.",
+      "setupMd": "**Montaje.** 3x3 media pista con carriles marcados.\n\n**Secuencia.** Defensa captura; primer pase antes de medio campo; ataque puede presionar.\n\n**Indicador.** Pases de salida efectivos / 10.",
+      "points": [
+        { "text": "Captura fuerte y ocupar calles", "key": true },
+        { "text": "Error frecuente: tres jugadores corren por mismo carril" }
+      ],
+      "variants": [
+        { "title": "Progresión", "description": "Defensa persigue y transición hasta aro opuesto." }
+      ],
+      "diagram": "diagrams/06-3x3-con-salida-obligatoria.png"
+    },
+    {
+      "key": "carrera-exterior-al-aro",
+      "title": "Carrera exterior al aro",
+      "age": [12, null],
+      "players": [4, 12],
+      "minutes": [5, 8],
+      "focus": ["rebote"],
+      "principles": ["rebote"],
+      "equipment": ["Balones"],
+      "objective": "Atacar espacio libre tras lanzamiento.",
+      "setupMd": "**Montaje.** 2x2 con tiro desde ala.\n\n**Secuencia.** Al elevarse tirador, atacante opuesto entra desde fuera; defensor intenta bloquear.\n\n**Indicador.** Segundas opciones / 10 tiros.",
+      "points": [
+        { "text": "Momento de arrancada y trayectoria", "key": true },
+        { "text": "Error frecuente: entrar antes del tiro y facilitar bloqueo" }
+      ],
+      "variants": [
+        { "title": "Progresión", "description": "Cambiar ángulo de tiro." }
+      ],
+      "diagram": "diagrams/07-carrera-exterior-al-aro.png"
+    },
+    {
+      "key": "dos-cargan-uno-equilibra",
+      "title": "Dos cargan, uno equilibra",
+      "age": [12, null],
+      "players": [6, 12],
+      "minutes": [5, 8],
+      "focus": ["rebote"],
+      "principles": ["rebote"],
+      "equipment": ["Balones"],
+      "objective": "Distribuir riesgos de rebote y balance.",
+      "setupMd": "**Montaje.** 3x3 con un exterior alto.\n\n**Secuencia.** Tras tiro, dos atacan tablero y uno protege carril central; defensa sale.\n\n**Indicador.** Puntos 2ª opción menos contraataques recibidos.",
+      "points": [
+        { "text": "Distinguir atacante que carga y último hombre", "key": true },
+        { "text": "Error frecuente: tres cargan y conceden bandeja" }
+      ],
+      "variants": [
+        { "title": "Progresión", "description": "Transición rival real tras captura." }
+      ],
+      "diagram": "diagrams/08-dos-cargan-uno-equilibra.png"
+    },
+    {
+      "key": "toque-ofensivo-dirigido",
+      "title": "Toque ofensivo dirigido",
+      "age": [10, null],
+      "players": [3, 12],
+      "minutes": [5, 8],
+      "focus": ["rebote"],
+      "principles": ["rebote"],
+      "equipment": ["Balones"],
+      "objective": "Convertir rebote imposible en balón recuperable.",
+      "setupMd": "**Montaje.** 1x1 interior y compañero exterior.\n\n**Secuencia.** Tiro alto; atacante busca toque hacia exterior en vez de captura forzada.\n\n**Indicador.** Toques controlados / 10.",
+      "points": [
+        { "text": "Orientar mano abierta hacia compañero", "key": true },
+        { "text": "Error frecuente: palmeo ciego al rival" }
+      ],
+      "variants": [
+        { "title": "Progresión", "description": "Añadir defensor del receptor." }
+      ],
+      "diagram": "diagrams/09-toque-ofensivo-dirigido.png"
+    },
+    {
+      "key": "rebote-tras-penetracion",
+      "title": "Rebote tras penetración",
+      "age": [12, null],
+      "players": [6, 12],
+      "minutes": [5, 8],
+      "focus": ["rebote"],
+      "principles": ["rebote"],
+      "equipment": ["Balones"],
+      "objective": "Ocupar línea de rebote cuando hay entrada.",
+      "setupMd": "**Montaje.** 3x3 con penetrador y dos apoyos.\n\n**Secuencia.** Penetrador ataca; compañero débil carga; fuerte ajusta; tercero balancea.\n\n**Indicador.** Rebotes / fallos de penetración.",
+      "points": [
+        { "text": "No ocupar trayectoria del penetrador", "key": true },
+        { "text": "Error frecuente: amontonarse bajo aro" }
+      ],
+      "variants": [
+        { "title": "Progresión", "description": "Finalizaciones desde ambos lados." }
+      ],
+      "diagram": "diagrams/10-rebote-tras-penetracion.png"
+    },
+    {
+      "key": "segunda-accion-en-4-segundos",
+      "title": "Segunda acción en 4 segundos",
+      "age": [12, null],
+      "players": [4, 12],
+      "minutes": [5, 8],
+      "focus": ["rebote"],
+      "principles": ["rebote"],
+      "equipment": ["Balones"],
+      "objective": "Resolver tras rebote sin parar juego.",
+      "setupMd": "**Montaje.** 2x2 cerca del aro con entrenador tirador.\n\n**Secuencia.** Tiro, rebote ofensivo y decisión inmediata: finalizar o sacar pase.\n\n**Indicador.** Tiros de calidad tras rebote / 10.",
+      "points": [
+        { "text": "Cabeza alta y contacto equilibrado", "key": true },
+        { "text": "Error frecuente: tiro precipitado entre dos rivales" }
+      ],
+      "variants": [
+        { "title": "Progresión", "description": "Añadir ayuda desde esquina." }
+      ],
+      "diagram": "diagrams/11-segunda-accion-en-4-segundos.png"
+    },
+    {
+      "key": "4x4-decision-de-carga",
+      "title": "4x4 decisión de carga",
+      "age": [16, null],
+      "players": [8, 12],
+      "minutes": [5, 8],
+      "focus": ["rebote"],
+      "principles": ["rebote"],
+      "equipment": ["Balones"],
+      "objective": "Leer quién carga según posición real.",
+      "setupMd": "**Montaje.** 4x4 media pista, tiro libre.\n\n**Secuencia.** Tras cada lanzamiento dos atacan, uno decide según ventaja, último equilibra.\n\n**Indicador.** Diferencial segundas opciones y transiciones.",
+      "points": [
+        { "text": "Lectura de distancias, no norma rígida", "key": true },
+        { "text": "Error frecuente: cargar con mal ángulo" }
+      ],
+      "variants": [
+        { "title": "Progresión", "description": "Contraataque rival con puntos dobles." }
+      ],
+      "diagram": "diagrams/12-4x4-decision-de-carga.png"
+    },
+    {
+      "key": "1x1-orientar-a-banda",
+      "title": "1x1 orientar a banda",
+      "age": [10, null],
+      "players": [2, 12],
+      "minutes": [5, 8],
+      "focus": ["defensa"],
+      "principles": ["defensa"],
+      "equipment": ["Balones", "Conos"],
+      "objective": "Desviar penetración sin falta.",
+      "setupMd": "**Montaje.** 1x1 desde cabecera, banda como referencia.\n\n**Secuencia.** Defensor coloca pie alto, orienta al atacante a banda y contiene hasta cono.\n\n**Indicador.** Paradas legales / 10.",
+      "points": [
+        { "text": "Distancia de brazo y desplazamiento lateral", "key": true },
+        { "text": "Error frecuente: cruzar pies o meter mano por detrás" }
+      ],
+      "variants": [
+        { "title": "Progresión", "description": "Atacante puede cambiar dirección." }
+      ],
+      "diagram": "diagrams/13-1x1-orientar-a-banda.png"
+    },
+    {
+      "key": "1x1-recuperar-tras-ventaja",
+      "title": "1x1 recuperar tras ventaja",
+      "age": [12, null],
+      "players": [2, 12],
+      "minutes": [5, 8],
+      "focus": ["defensa"],
+      "principles": ["defensa"],
+      "equipment": ["Balones"],
+      "objective": "Entrenar sprint y frenada.",
+      "setupMd": "**Montaje.** 1x1 con atacante dos metros adelantado.\n\n**Secuencia.** Atacante sale al aro; defensor persigue, recupera ángulo y contesta sin contacto.\n\n**Indicador.** Finalizaciones dificultadas / 10.",
+      "points": [
+        { "text": "Correr primero, frenar después", "key": true },
+        { "text": "Error frecuente: saltos descontrolados" }
+      ],
+      "variants": [
+        { "title": "Progresión", "description": "Salida aleatoria del entrenador." }
+      ],
+      "diagram": "diagrams/14-1x1-recuperar-tras-ventaja.png"
+    },
+    {
+      "key": "negacion-de-primera-linea",
+      "title": "Negación de primera línea",
+      "age": [12, null],
+      "players": [4, 12],
+      "minutes": [5, 8],
+      "focus": ["defensa"],
+      "principles": ["defensa"],
+      "equipment": ["Balones"],
+      "objective": "Evitar recepción fácil.",
+      "setupMd": "**Montaje.** 2x2 ala y cabecera.\n\n**Secuencia.** Un atacante sin balón busca recibir; defensor niega línea; pase atrás reinicia.\n\n**Indicador.** Recepciones negadas / 8.",
+      "points": [
+        { "text": "Ver balón y atacante", "key": true },
+        { "text": "Error frecuente: negar mirando solo al balón" }
+      ],
+      "variants": [
+        { "title": "Progresión", "description": "Puerta atrás permitida." }
+      ],
+      "diagram": "diagrams/15-negacion-de-primera-linea.png"
+    },
+    {
+      "key": "salto-al-balon",
+      "title": "Salto al balón",
+      "age": [12, null],
+      "players": [6, 12],
+      "minutes": [5, 8],
+      "focus": ["defensa"],
+      "principles": ["defensa"],
+      "equipment": ["Balones"],
+      "objective": "Cambiar posición defensiva en vuelo de pase.",
+      "setupMd": "**Montaje.** 3x3 perímetro sin bote.\n\n**Secuencia.** Cada pase obliga al defensor a saltar hacia balón y reajustar línea.\n\n**Indicador.** Rotaciones a tiempo / 12 pases.",
+      "points": [
+        { "text": "Moverse con balón en aire", "key": true },
+        { "text": "Error frecuente: reaccionar tras recepción" }
+      ],
+      "variants": [
+        { "title": "Progresión", "description": "Autorizar cortes y puertas atrás." }
+      ],
+      "diagram": "diagrams/16-salto-al-balon.png"
+    },
+    {
+      "key": "cambio-defensivo-comunicado",
+      "title": "Cambio defensivo comunicado",
+      "age": [14, null],
+      "players": [4, 12],
+      "minutes": [5, 8],
+      "focus": ["defensa"],
+      "principles": ["defensa"],
+      "equipment": ["Balones"],
+      "objective": "Intercambiar asignación sin desajuste.",
+      "setupMd": "**Montaje.** 2x2 con cruce de atacantes.\n\n**Secuencia.** Atacantes cruzan; defensores gritan cambio, toman nuevo jugador y contienen.\n\n**Indicador.** Cambios sin ventaja / 10.",
+      "points": [
+        { "text": "Comunicación previa y pecho al atacante", "key": true },
+        { "text": "Error frecuente: dos defensores persiguen mismo jugador" }
+      ],
+      "variants": [
+        { "title": "Progresión", "description": "Añadir balón y finalización." }
+      ],
+      "diagram": "diagrams/17-cambio-defensivo-comunicado.png"
+    },
+    {
+      "key": "2x1-lateral-de-aprendizaje",
+      "title": "2x1 lateral de aprendizaje",
+      "age": [14, null],
+      "players": [3, 12],
+      "minutes": [5, 8],
+      "focus": ["defensa"],
+      "principles": ["defensa"],
+      "equipment": ["Balones"],
+      "objective": "Coordinar dos defensores sin golpear.",
+      "setupMd": "**Montaje.** 2 defensores y 1 atacante en carril lateral.\n\n**Secuencia.** Tras señal, defensores cierran líneas de pase sin contacto; atacante protege y sale.\n\n**Indicador.** Errores forzados sin falta / 10.",
+      "points": [
+        { "text": "Ángulos, manos activas y salida segura", "key": true },
+        { "text": "Error frecuente: acercarse en línea recta y chocar" }
+      ],
+      "variants": [
+        { "title": "Progresión", "description": "Añadir receptor libre: 2x2." }
+      ],
+      "diagram": "diagrams/18-2x1-lateral-de-aprendizaje.png"
+    },
+    {
+      "key": "presion-3x3-toda-pista",
+      "title": "Presión 3x3 toda pista",
+      "age": [14, null],
+      "players": [6, 12],
+      "minutes": [5, 8],
+      "focus": ["defensa"],
+      "principles": ["defensa"],
+      "equipment": ["Balones"],
+      "objective": "Presionar sin perder cobertura.",
+      "setupMd": "**Montaje.** 3x3 pista entera.\n\n**Secuencia.** Tras saque, primer defensor contiene, segundo niega apoyo y tercero protege pase largo.\n\n**Indicador.** Recuperaciones y canastas concedidas.",
+      "points": [
+        { "text": "Balance presión-cobertura", "key": true },
+        { "text": "Error frecuente: tres defensores van al balón" }
+      ],
+      "variants": [
+        { "title": "Progresión", "description": "Permitir inversión y pase largo." }
+      ],
+      "diagram": "diagrams/19-presion-3x3-toda-pista.png"
+    },
+    {
+      "key": "4x4-presion-tras-canasta",
+      "title": "4x4 presión tras canasta",
+      "age": [16, null],
+      "players": [8, 12],
+      "minutes": [5, 8],
+      "focus": ["defensa"],
+      "principles": ["defensa"],
+      "equipment": ["Balones"],
+      "objective": "Conectar conversión defensa-ataque.",
+      "setupMd": "**Montaje.** 4x4 pista entera y saque de fondo.\n\n**Secuencia.** Tras anotar, emparejar, negar pase cómodo, proteger centro y recuperar si superados.\n\n**Indicador.** Tiempo hasta emparejamiento.",
+      "points": [
+        { "text": "Comunicación y repliegue inmediato", "key": true },
+        { "text": "Error frecuente: protestar canasta y no volver" }
+      ],
+      "variants": [
+        { "title": "Progresión", "description": "Añadir quinta pareja." }
+      ],
+      "diagram": "diagrams/20-4x4-presion-tras-canasta.png"
+    },
+    {
+      "key": "primer-pase-a-banda",
+      "title": "Primer pase a banda",
+      "age": [10, null],
+      "players": [3, 12],
+      "minutes": [5, 8],
+      "focus": ["transicion"],
+      "principles": ["transicion"],
+      "equipment": ["Balones"],
+      "objective": "Salir de rebote sin bote innecesario.",
+      "setupMd": "**Montaje.** 3 atacantes, entrenador tirador.\n\n**Secuencia.** Reboteador captura, gira y pasa a banda; receptor adelanta a corredor.\n\n**Indicador.** Salidas sin pérdida / 10.",
+      "points": [
+        { "text": "Orientar hombros antes de pasar", "key": true },
+        { "text": "Error frecuente: primer pase al centro ocupado" }
+      ],
+      "variants": [
+        { "title": "Progresión", "description": "Defensor presiona receptor." }
+      ],
+      "diagram": "diagrams/21-primer-pase-a-banda.png"
+    },
+    {
+      "key": "carriles-3x0-con-decisiones",
+      "title": "Carriles 3x0 con decisiones",
+      "age": [10, null],
+      "players": [3, 12],
+      "minutes": [5, 8],
+      "focus": ["transicion"],
+      "principles": ["transicion"],
+      "equipment": ["Balones"],
+      "objective": "Ocupar ancho y profundidad.",
+      "setupMd": "**Montaje.** 3 atacantes desde línea de fondo.\n\n**Secuencia.** Salida con pase, corredor central y dos calles; último pase a mejor finalizador.\n\n**Indicador.** Bandejas con pase / 10.",
+      "points": [
+        { "text": "Correr abiertos y mirar aro", "key": true },
+        { "text": "Error frecuente: tres corren juntos" }
+      ],
+      "variants": [
+        { "title": "Progresión", "description": "Entrenador señala lado de finalización." }
+      ],
+      "diagram": "diagrams/22-carriles-3x0-con-decisiones.png"
+    },
+    {
+      "key": "2x1-leer-al-defensor",
+      "title": "2x1 leer al defensor",
+      "age": [10, null],
+      "players": [3, 12],
+      "minutes": [5, 8],
+      "focus": ["transicion"],
+      "principles": ["transicion"],
+      "equipment": ["Balones"],
+      "objective": "Elegir pase o finalización.",
+      "setupMd": "**Montaje.** 2 atacantes desde medio campo, 1 defensor.\n\n**Secuencia.** Defensor protege aro o balón; manejador decide en dos botes máximo.\n\n**Indicador.** Decisiones correctas / 10.",
+      "points": [
+        { "text": "Esperar compromiso defensor", "key": true },
+        { "text": "Error frecuente: pasar demasiado pronto" }
+      ],
+      "variants": [
+        { "title": "Progresión", "description": "Defensor arranca desde atrás." }
+      ],
+      "diagram": "diagrams/23-2x1-leer-al-defensor.png"
+    },
+    {
+      "key": "3x2-continuo",
+      "title": "3x2 continuo",
+      "age": [12, null],
+      "players": [7, 12],
+      "minutes": [5, 8],
+      "focus": ["transicion"],
+      "principles": ["transicion"],
+      "equipment": ["Balones"],
+      "objective": "Atacar superioridad y reorganizar.",
+      "setupMd": "**Montaje.** 3 atacantes contra 2, dos esperan en fondo.\n\n**Secuencia.** Tras finalizar, dos defensores salen con tercer compañero contra dos que vuelven.\n\n**Indicador.** Tiros liberados / 10.",
+      "points": [
+        { "text": "Pase temprano y calles", "key": true },
+        { "text": "Error frecuente: penetrar contra dos sin levantar cabeza" }
+      ],
+      "variants": [
+        { "title": "Progresión", "description": "Limitar 6 segundos por ataque." }
+      ],
+      "diagram": "diagrams/24-3x2-continuo.png"
+    },
+    {
+      "key": "rebote-a-transicion-4x3",
+      "title": "Rebote a transición 4x3",
+      "age": [14, null],
+      "players": [7, 12],
+      "minutes": [5, 8],
+      "focus": ["transicion"],
+      "principles": ["transicion"],
+      "equipment": ["Balones"],
+      "objective": "Convertir captura en ventaja.",
+      "setupMd": "**Montaje.** 4 atacantes tras rebote contra 3 que repliegan.\n\n**Secuencia.** Captura, salida lateral, dos calles y tráiler; defensa protege aro y pase.\n\n**Indicador.** Tiros de calidad antes de 8 s.",
+      "points": [
+        { "text": "Primer pase y corredor adelantado", "key": true },
+        { "text": "Error frecuente: bote largo al centro sin lectura" }
+      ],
+      "variants": [
+        { "title": "Progresión", "description": "Cuarto defensor recupera desde fondo." }
+      ],
+      "diagram": "diagrams/25-rebote-a-transicion-4x3.png"
+    },
+    {
+      "key": "8-segundos-con-lectura",
+      "title": "8 segundos con lectura",
+      "age": [16, null],
+      "players": [8, 12],
+      "minutes": [5, 8],
+      "focus": ["transicion"],
+      "principles": ["transicion"],
+      "equipment": ["Balones", "Cronómetro"],
+      "objective": "Acelerar sin forzar tiro malo.",
+      "setupMd": "**Montaje.** 4x4 pista entera.\n\n**Secuencia.** Cronómetro 8 s para crear ventaja; si no existe, continuar posicional.\n\n**Indicador.** Buenas ventajas / 10 posesiones.",
+      "points": [
+        { "text": "Distinguir velocidad de precipitación", "key": true },
+        { "text": "Error frecuente: tiro forzado por reloj interno" }
+      ],
+      "variants": [
+        { "title": "Progresión", "description": "Añadir puntos por pase extra tras 8 s." }
+      ],
+      "diagram": "diagrams/26-8-segundos-con-lectura.png"
+    },
+    {
+      "key": "contra-contraataque",
+      "title": "Contra-contraataque",
+      "age": [12, null],
+      "players": [6, 12],
+      "minutes": [5, 8],
+      "focus": ["transicion"],
+      "principles": ["transicion"],
+      "equipment": ["Balones"],
+      "objective": "Evitar transición rival tras pérdida.",
+      "setupMd": "**Montaje.** 3x3 con entrenador que introduce segundo balón.\n\n**Secuencia.** Ataque pierde balón simulado; tres repliegan: uno frena, dos protegen aro y pase.\n\n**Indicador.** Canastas fáciles concedidas / 10.",
+      "points": [
+        { "text": "Sprint a aro y comunicación", "key": true },
+        { "text": "Error frecuente: ir todos a robar" }
+      ],
+      "variants": [
+        { "title": "Progresión", "description": "Añadir segunda oleada rival." }
+      ],
+      "diagram": "diagrams/27-contra-contraataque.png"
+    },
+    {
+      "key": "oleadas-5x4-a-5x5",
+      "title": "Oleadas 5x4 a 5x5",
+      "age": [16, null],
+      "players": [10, 15],
+      "minutes": [5, 8],
+      "focus": ["transicion"],
+      "principles": ["transicion"],
+      "equipment": ["Balones"],
+      "objective": "Resolver ventaja decreciente.",
+      "setupMd": "**Montaje.** 5 atacantes, 4 defensores y 1 recuperador.\n\n**Secuencia.** Ataque sale; quinto defensor entra 2 s después; ataque debe leer ventana.\n\n**Indicador.** Ventajas convertidas / 10.",
+      "points": [
+        { "text": "No bloquear carriles y jugar ventaja", "key": true },
+        { "text": "Error frecuente: parar para organizar jugada" }
+      ],
+      "variants": [
+        { "title": "Progresión", "description": "Variar tiempo de recuperación." }
+      ],
+      "diagram": "diagrams/28-oleadas-5x4-a-5x5.png"
+    },
+    {
+      "key": "pasar-y-cortar-2x2",
+      "title": "Pasar y cortar 2x2",
+      "age": [12, null],
+      "players": [4, 12],
+      "minutes": [5, 8],
+      "focus": ["ataque"],
+      "principles": ["ataque"],
+      "equipment": ["Balones"],
+      "objective": "Crear ventaja tras pase.",
+      "setupMd": "**Montaje.** 2x2 ala-cabecera.\n\n**Secuencia.** Pase a ala, corte fuerte al aro, reemplazo y lectura de ayuda.\n\n**Indicador.** Ventajas tras corte / 10.",
+      "points": [
+        { "text": "Corte mirando balón", "key": true },
+        { "text": "Error frecuente: cortar sin cambio de ritmo" }
+      ],
+      "variants": [
+        { "title": "Progresión", "description": "Permitir puerta atrás." }
+      ],
+      "diagram": "diagrams/29-pasar-y-cortar-2x2.png"
+    },
+    {
+      "key": "puerta-atras-por-negacion",
+      "title": "Puerta atrás por negación",
+      "age": [12, null],
+      "players": [4, 12],
+      "minutes": [5, 8],
+      "focus": ["ataque"],
+      "principles": ["ataque"],
+      "equipment": ["Balones"],
+      "objective": "Castigar defensa agresiva.",
+      "setupMd": "**Montaje.** 2x2 exterior.\n\n**Secuencia.** Defensa niega recepción; atacante finta apoyo y corta detrás para pase.\n\n**Indicador.** Pases al corte / 10.",
+      "points": [
+        { "text": "Cambiar velocidad", "key": true },
+        { "text": "Error frecuente: cortar sin ver pasador" }
+      ],
+      "variants": [
+        { "title": "Progresión", "description": "Defensa puede cambiar." }
+      ],
+      "diagram": "diagrams/30-puerta-atras-por-negacion.png"
+    },
+    {
+      "key": "penetrar-y-doblar-3x3",
+      "title": "Penetrar y doblar 3x3",
+      "age": [14, null],
+      "players": [6, 12],
+      "minutes": [5, 8],
+      "focus": ["ataque"],
+      "principles": ["ataque"],
+      "equipment": ["Balones"],
+      "objective": "Conectar ventaja individual con pase.",
+      "setupMd": "**Montaje.** 3x3 con esquinas ocupadas.\n\n**Secuencia.** Atacante rompe primera línea; compañero mantiene esquina, tercero ocupa salida.\n\n**Indicador.** Tiros abiertos tras penetración.",
+      "points": [
+        { "text": "Espacios y ángulo de pase", "key": true },
+        { "text": "Error frecuente: acompañar penetrador al aro" }
+      ],
+      "variants": [
+        { "title": "Progresión", "description": "Ayuda defensiva libre." }
+      ],
+      "diagram": "diagrams/31-penetrar-y-doblar-3x3.png"
+    },
+    {
+      "key": "1x1-con-espacio-real",
+      "title": "1x1 con espacio real",
+      "age": [10, null],
+      "players": [3, 12],
+      "minutes": [5, 8],
+      "focus": ["ataque"],
+      "principles": ["ataque"],
+      "equipment": ["Balones"],
+      "objective": "Atacar desde recepción en ventaja.",
+      "setupMd": "**Montaje.** 1x1 con pasador fijo.\n\n**Secuencia.** Atacante recibe en movimiento, decide tiro o penetración; pasador no estorba.\n\n**Indicador.** Ventajas en primeros dos botes.",
+      "points": [
+        { "text": "Primer paso y lectura de pies", "key": true },
+        { "text": "Error frecuente: botar sin amenaza" }
+      ],
+      "variants": [
+        { "title": "Progresión", "description": "Ayuda tardía desde esquina." }
+      ],
+      "diagram": "diagrams/32-1x1-con-espacio-real.png"
+    },
+    {
+      "key": "corte-y-reemplazo-3x3",
+      "title": "Corte y reemplazo 3x3",
+      "age": [12, null],
+      "players": [6, 12],
+      "minutes": [5, 8],
+      "focus": ["ataque"],
+      "principles": ["ataque"],
+      "equipment": ["Balones"],
+      "objective": "Mantener cinco espacios conceptuales.",
+      "setupMd": "**Montaje.** 3x3 exterior.\n\n**Secuencia.** Pase-corte; jugador alejado reemplaza hueco; tercer atacante lee defensa.\n\n**Indicador.** Cortes y reemplazos correctos / 10.",
+      "points": [
+        { "text": "No ocupar mismo carril", "key": true },
+        { "text": "Error frecuente: quedarse parado tras pase" }
+      ],
+      "variants": [
+        { "title": "Progresión", "description": "Defensa cambia y niega." }
+      ],
+      "diagram": "diagrams/33-corte-y-reemplazo-3x3.png"
+    },
+    {
+      "key": "atacar-closeout-3x3",
+      "title": "Atacar closeout 3x3",
+      "age": [12, null],
+      "players": [6, 12],
+      "minutes": [5, 8],
+      "focus": ["ataque"],
+      "principles": ["ataque"],
+      "equipment": ["Balones"],
+      "objective": "Castigar recuperación larga.",
+      "setupMd": "**Montaje.** 3x3, balón cambia de lado.\n\n**Secuencia.** Defensa ayuda al centro; pase al exterior y atacante decide tiro, pase o entrada.\n\n**Indicador.** Buenas decisiones / 10.",
+      "points": [
+        { "text": "Recepción preparada", "key": true },
+        { "text": "Error frecuente: atacar hacia ayuda" }
+      ],
+      "variants": [
+        { "title": "Progresión", "description": "Añadir segunda ayuda." }
+      ],
+      "diagram": "diagrams/34-atacar-closeout-3x3.png"
+    },
+    {
+      "key": "juego-libre-con-0-5-segundos",
+      "title": "Juego libre con 0,5 segundos",
+      "age": [16, null],
+      "players": [8, 12],
+      "minutes": [5, 8],
+      "focus": ["ataque"],
+      "principles": ["ataque"],
+      "equipment": ["Balones"],
+      "objective": "Reducir balón parado.",
+      "setupMd": "**Montaje.** 4x4 media pista.\n\n**Secuencia.** Tras recibir, decidir pronto: pasar, tirar o penetrar; sin automatizar tiro.\n\n**Indicador.** Posesiones con balón vivo.",
+      "points": [
+        { "text": "Mirar aro antes de elegir", "key": true },
+        { "text": "Error frecuente: pases apresurados sin leer" }
+      ],
+      "variants": [
+        { "title": "Progresión", "description": "Permitir retención si hay ventaja." }
+      ],
+      "diagram": "diagrams/35-juego-libre-con-0-5-segundos.png"
+    },
+    {
+      "key": "5x5-ventaja-antes-que-sistema",
+      "title": "5x5 ventaja antes que sistema",
+      "age": [18, null],
+      "players": [10, 15],
+      "minutes": [5, 8],
+      "focus": ["ataque"],
+      "principles": ["ataque"],
+      "equipment": ["Balones"],
+      "objective": "Transferir fundamentos al juego.",
+      "setupMd": "**Montaje.** 5x5 media pista.\n\n**Secuencia.** Se puntúa doble tras corte, extra-pass o penetrar-doblar; sin jugadas prefijadas.\n\n**Indicador.** Tiros liberados por posesión.",
+      "points": [
+        { "text": "Crear y conservar espacios", "key": true },
+        { "text": "Error frecuente: confundir velocidad con prisa" }
+      ],
+      "variants": [
+        { "title": "Progresión", "description": "Quitar bonificaciones progresivamente." }
+      ],
+      "diagram": "diagrams/36-5x5-ventaja-antes-que-sistema.png"
+    },
+    {
+      "key": "bote-con-mirada-periferica",
+      "title": "Bote con mirada periférica",
+      "age": [8, null],
+      "players": [2, 12],
+      "minutes": [5, 8],
+      "focus": ["tecnica"],
+      "principles": [],
+      "equipment": ["Balones"],
+      "objective": "Controlar balón viendo compañeros.",
+      "setupMd": "**Montaje.** Parejas con balón y señales visuales.\n\n**Secuencia.** Uno bota alternando alturas mientras lee dedos que muestra compañero.\n\n**Indicador.** Señales reconocidas / 10.",
+      "points": [
+        { "text": "Cabeza levantada y bote lateral", "key": true },
+        { "text": "Error frecuente: mirar balón al cambiar mano" }
+      ],
+      "variants": [
+        { "title": "Progresión", "description": "Añadir defensor sombra." }
+      ],
+      "diagram": "diagrams/37-bote-con-mirada-periferica.png"
+    },
+    {
+      "key": "paradas-y-pivotes-bajo-presion",
+      "title": "Paradas y pivotes bajo presión",
+      "age": [10, null],
+      "players": [2, 12],
+      "minutes": [5, 8],
+      "focus": ["tecnica"],
+      "principles": [],
+      "equipment": ["Balones", "Conos"],
+      "objective": "Conservar eje y balón.",
+      "setupMd": "**Montaje.** 1x1 en cuadrado 4x4 m.\n\n**Secuencia.** Atacante recibe en carrera, para en uno/dos tiempos y pivota para encontrar salida.\n\n**Indicador.** Pivotes legales / 10.",
+      "points": [
+        { "text": "Equilibrio y pie pivote", "key": true },
+        { "text": "Error frecuente: levantar pie antes de soltar balón" }
+      ],
+      "variants": [
+        { "title": "Progresión", "description": "Defensor activo." }
+      ],
+      "diagram": "diagrams/38-paradas-y-pivotes-bajo-presion.png"
+    },
+    {
+      "key": "finalizacion-mano-no-dominante",
+      "title": "Finalización mano no dominante",
+      "age": [8, null],
+      "players": [2, 12],
+      "minutes": [5, 8],
+      "focus": ["tecnica"],
+      "principles": [],
+      "equipment": ["Balones"],
+      "objective": "Finalizar desde ambos lados.",
+      "setupMd": "**Montaje.** 1x0 con entrenador pasador.\n\n**Secuencia.** Recepción en carrera y entrada por lado débil con mano exterior.\n\n**Indicador.** Aciertos / 10.",
+      "points": [
+        { "text": "Pasos y protección", "key": true },
+        { "text": "Error frecuente: cambiar a mano dominante bajo aro" }
+      ],
+      "variants": [
+        { "title": "Progresión", "description": "Defensor perseguidor." }
+      ],
+      "diagram": "diagrams/39-finalizacion-mano-no-dominante.png"
+    },
+    {
+      "key": "cambio-de-ritmo-contra-rival",
+      "title": "Cambio de ritmo contra rival",
+      "age": [10, null],
+      "players": [2, 12],
+      "minutes": [5, 8],
+      "focus": ["tecnica"],
+      "principles": [],
+      "equipment": ["Balones", "Conos"],
+      "objective": "Superar defensor sin encadenar trucos.",
+      "setupMd": "**Montaje.** 1x1 desde ala con cono de arranque.\n\n**Secuencia.** Atacante amenaza, desacelera y acelera en primer paso; máximo un cambio.\n\n**Indicador.** Primeras ventajas / 10.",
+      "points": [
+        { "text": "Cambio real de velocidad", "key": true },
+        { "text": "Error frecuente: botar de lado sin ganar terreno" }
+      ],
+      "variants": [
+        { "title": "Progresión", "description": "Defensor ajusta distancia." }
+      ],
+      "diagram": "diagrams/40-cambio-de-ritmo-contra-rival.png"
+    },
+    {
+      "key": "pase-bajo-presion-2x1",
+      "title": "Pase bajo presión 2x1",
+      "age": [10, null],
+      "players": [3, 12],
+      "minutes": [5, 8],
+      "focus": ["tecnica"],
+      "principles": [],
+      "equipment": ["Balones"],
+      "objective": "Seleccionar pase seguro.",
+      "setupMd": "**Montaje.** 2 atacantes contra 1 defensor.\n\n**Secuencia.** Conservan balón y progresan 10 m; defensor intercepta; máximo dos botes.\n\n**Indicador.** Pases seguros / 10.",
+      "points": [
+        { "text": "Fintas y ángulos", "key": true },
+        { "text": "Error frecuente: pasar flotado" }
+      ],
+      "variants": [
+        { "title": "Progresión", "description": "Reducir espacio." }
+      ],
+      "diagram": "diagrams/41-pase-bajo-presion-2x1.png"
+    },
+    {
+      "key": "tiro-desde-recepcion",
+      "title": "Tiro desde recepción",
+      "age": [8, null],
+      "players": [4, 12],
+      "minutes": [5, 8],
+      "focus": ["tecnica"],
+      "principles": [],
+      "equipment": ["Balones"],
+      "objective": "Preparar pies y manos.",
+      "setupMd": "**Montaje.** Dos parejas en alas.\n\n**Secuencia.** Pasador envía; tirador prepara apoyos, recibe, alinea y tira; rebote rotativo.\n\n**Indicador.** Tiros técnicamente correctos / 10.",
+      "points": [
+        { "text": "Equilibrio y distancia adecuada", "key": true },
+        { "text": "Error frecuente: saltos hacia delante excesivos" }
+      ],
+      "variants": [
+        { "title": "Progresión", "description": "Defensor closeout." }
+      ],
+      "diagram": "diagrams/42-tiro-desde-recepcion.png"
+    },
+    {
+      "key": "finalizar-con-contacto-controlado",
+      "title": "Finalizar con contacto controlado",
+      "age": [10, null],
+      "players": [2, 12],
+      "minutes": [5, 8],
+      "focus": ["tecnica"],
+      "principles": [],
+      "equipment": ["Balones", "Almohadilla de contacto"],
+      "objective": "Mantener control al recibir oposición.",
+      "setupMd": "**Montaje.** 1x1 desde codo, contacto con almohadilla opcional.\n\n**Secuencia.** Atacante supera rival y finaliza con contacto leve legal.\n\n**Indicador.** Finalizaciones equilibradas / 10.",
+      "points": [
+        { "text": "Protección del balón", "key": true },
+        { "text": "Error frecuente: buscar choque sin equilibrio" }
+      ],
+      "variants": [
+        { "title": "Progresión", "description": "Cambiar ángulo de defensor." }
+      ],
+      "diagram": "diagrams/43-finalizar-con-contacto-controlado.png"
+    },
+    {
+      "key": "lectura-de-ayudas-2x2",
+      "title": "Lectura de ayudas 2x2",
+      "age": [12, null],
+      "players": [4, 12],
+      "minutes": [5, 8],
+      "focus": ["tecnica"],
+      "principles": [],
+      "equipment": ["Balones"],
+      "objective": "Elegir finalizar o asistir.",
+      "setupMd": "**Montaje.** 2x2 ala y esquina.\n\n**Secuencia.** Atacante penetra; segundo defensor ayuda o se queda; elegir pase o finalización.\n\n**Indicador.** Decisiones adecuadas / 10.",
+      "points": [
+        { "text": "Leer defensor sin balón", "key": true },
+        { "text": "Error frecuente: decidir antes de observar" }
+      ],
+      "variants": [
+        { "title": "Progresión", "description": "Defensa varía ayuda al azar." }
+      ],
+      "diagram": "diagrams/44-lectura-de-ayudas-2x2.png"
+    }
+  ]
+}

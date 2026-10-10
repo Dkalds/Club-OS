@@ -15,6 +15,7 @@
     "test:e2e": "playwright test",
     "tokens": "tsx scripts/tokens-to-css.ts",
     "seed": "tsx scripts/seed.ts",
+    "content:import": "tsx scripts/content-import.ts",
     "demo:password": "tsx scripts/demo-password.ts",
     "db:types": "supabase gen types typescript --local > src/lib/database.types.ts",
     "check:guards": "bash scripts/check-guards.sh"

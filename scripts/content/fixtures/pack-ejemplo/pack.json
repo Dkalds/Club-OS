@@ -1,0 +1,35 @@
+{
+  "id": "pack-ejemplo",
+  "title": "Paquete de ejemplo",
+  "drills": [
+    {
+      "key": "rueda-de-pases-en-estrella",
+      "title": "Rueda de pases en estrella",
+      "age": [10, null],
+      "players": [5, 12],
+      "minutes": [8, 10],
+      "focus": ["tecnica"],
+      "equipment": ["Balones"],
+      "objective": "Pasar y moverse sin perder de vista el siguiente pase.",
+      "setupMd": "**Montaje.** Cinco filas en estrella y un balón.\n\n**Secuencia.** Cada jugador pasa a la segunda fila a su derecha y sigue su pase.",
+      "points": [
+        { "text": "Manos preparadas antes de recibir", "key": true },
+        { "text": "Paso hacia el pase" }
+      ],
+      "variants": [
+        { "title": "Con dos balones", "description": "Entra un segundo balón cuando el ritmo es estable." }
+      ],
+      "diagram": "diagrams/rueda-de-pases-en-estrella.png"
+    },
+    {
+      "key": "dos-contra-uno-en-carrera",
+      "title": "Dos contra uno en carrera",
+      "age": [12, 16],
+      "players": [3, 9],
+      "minutes": [6, 8],
+      "focus": ["transicion", "ataque"],
+      "principles": ["transicion"],
+      "status": "draft"
+    }
+  ]
+}
