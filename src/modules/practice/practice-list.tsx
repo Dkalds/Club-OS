@@ -7,10 +7,10 @@ import { DateChip, ListRow } from "@/ui/list-row";
 import { noTeamsState } from "@/modules/team/no-teams";
 import type { ClubContext } from "@/modules/tenancy/queries";
 import { EmptyState } from "@/ui/states";
-import { practiceRowSubtitle, statusLabel } from "./format";
-import type { PracticeListItem } from "./types";
+import { practiceRowSubtitle, statusLabel, templateSubtitle } from "./format";
+import type { PracticeListItem, PracticeTemplate } from "./types";
 
-// Las dos pestañas de la lista son enlaces (cambian la URL, no un estado del cliente) con la
+// Las pestañas de la lista son enlaces (cambian la URL, no un estado del cliente) con la
 // forma de los chips de `ui/filter.tsx`: el enlace es el área táctil de `target-min` y la
 // píldora de 36px, lo que se ve. Se copian y no se importan porque ese archivo es de cliente,
 // y una constante que sale de un archivo de cliente no es un texto en un componente de
@@ -55,19 +55,25 @@ function trailOf(practice: PracticeListItem): ReactNode {
  * arriba: una pantalla, un solo botón principal.
  *
  * Sin equipos no hay nada que listar ni pestañas que cambiar: solo el aviso, con su salida.
+ *
+ * «Plantillas» es la tercera pestaña, solo para quien gestiona sesiones: las suyas
+ * (`templates`), por título, con lo que duran, sus ejercicios y sus objetivos. Una fila abre la
+ * sesión nueva con esa plantilla puesta. No tienen equipo ni fecha: no llevan chip de día.
  */
 export function PracticeList({
   clubSlug,
   scope,
   practices,
+  templates = [],
   teamCount,
   canCreate,
   role,
   truncated = false,
 }: {
   clubSlug: string;
-  scope: "upcoming" | "history";
+  scope: "upcoming" | "history" | "templates";
   practices: PracticeListItem[];
+  templates?: PracticeTemplate[];
   teamCount: number;
   canCreate: boolean;
   role: ClubContext["membership"]["role"];
@@ -76,13 +82,14 @@ export function PracticeList({
   const base = `/c/${clubSlug}`;
   const trainHref = `${base}/train`;
   const historyHref = `${trainHref}?scope=history`;
+  const templatesHref = `${trainHref}?scope=templates`;
   const newHref = `${trainHref}/new`;
 
   if (teamCount === 0) {
     return <EmptyState icon={<TeamIcon size={28} />} {...noTeamsState(role, clubSlug, "sessions")} />;
   }
 
-  const empty = practices.length === 0;
+  const empty = scope === "templates" ? templates.length === 0 : practices.length === 0;
   const createInEmptyState = canCreate && empty && scope === "upcoming";
 
   return (
@@ -111,9 +118,41 @@ export function PracticeList({
         >
           <span className={TAB_PILL}>Histórico</span>
         </Link>
+        {canCreate ? (
+          <Link
+            href={templatesHref}
+            prefetch={false}
+            aria-current={scope === "templates" ? "page" : undefined}
+            className={TAB_LINK}
+          >
+            <span className={TAB_PILL}>Plantillas</span>
+          </Link>
+        ) : null}
       </nav>
 
-      {!empty ? (
+      {scope === "templates" ? (
+        empty ? (
+          <EmptyState
+            icon={<TrainIcon size={28} />}
+            title="Aún no tienes plantillas"
+            body="Abre una sesión que te haya salido bien y guárdala como plantilla."
+            action={{ label: "Ver histórico", href: historyHref }}
+          />
+        ) : (
+          <Card variant="flush" as="ul">
+            {templates.map((template) => (
+              <ListRow
+                key={template.id}
+                href={`${newHref}?template=${template.id}`}
+                lead={<TrainIcon size={20} />}
+                title={template.title}
+                subtitle={templateSubtitle(template)}
+                trail="Usar"
+              />
+            ))}
+          </Card>
+        )
+      ) : !empty ? (
         <>
           <Card variant="flush" as="ul">
             {/* Las filas (`<li>`) van directas dentro de la lista: pintan sus separadores. */}

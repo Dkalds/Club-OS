@@ -69,6 +69,7 @@ export function SortableRow({
         index={index}
         title={row.title}
         phase={row.phase}
+        hint={row.hint}
         minutes={row.minutes}
         isFirst={index === 0}
         isLast={index === count - 1}

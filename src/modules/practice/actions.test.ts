@@ -9,25 +9,34 @@ const mocks = vi.hoisted(() => ({
   requireClub: vi.fn(),
   revalidatePath: vi.fn(),
   searchDrills: vi.fn(),
+  getProposalInput: vi.fn(),
 }));
 
 vi.mock("@/lib/supabase/server", () => ({ createClient: mocks.createClient }));
 vi.mock("@/lib/guards", () => ({ requireClub: mocks.requireClub }));
 vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidatePath }));
 vi.mock("@/modules/drills/queries", () => ({ searchDrills: mocks.searchDrills }));
+// La lectura de la propuesta tiene sus tests en `proposal-queries.test.ts`: aquí se sustituye
+// para ver qué hace la acción con lo que devuelve. `buildProposal` es el de verdad.
+vi.mock("./proposal-queries", () => ({ getProposalInput: mocks.getProposalInput }));
 
 import type { DrillSummary } from "@/modules/drills/types";
 import {
   addDrillToPractice,
   cancelPractice,
   createPractice,
+  createPracticeFromTemplate,
+  deletePracticeTemplate,
   duplicatePractice,
   findDrills,
+  proposePracticeItems,
   resetLiveProgress,
+  savePracticeAsTemplate,
   savePracticeItems,
   updatePracticeMeta,
 } from "./actions";
-import type { CreatePracticeInput, UpdatePracticeMetaInput } from "./schema";
+import type { ProposalDrill, ProposalInput } from "./proposal";
+import type { CreatePracticeFromTemplateInput, CreatePracticeInput, UpdatePracticeMetaInput } from "./schema";
 import type { PracticeItemDraft } from "./types";
 
 // Datos neutros: los tests de `src/` no pueden nombrar a ningún club (pnpm check:guards).
@@ -73,7 +82,9 @@ class FakeQuery implements PromiseLike<Reply> {
 
   select = (...args: unknown[]) => this.record("select", args);
   update = (...args: unknown[]) => this.record("update", args);
+  delete = (...args: unknown[]) => this.record("delete", args);
   eq = (...args: unknown[]) => this.record("eq", args);
+  is = (...args: unknown[]) => this.record("is", args);
   maybeSingle = (...args: unknown[]) => this.record("maybeSingle", args);
 
   then<A = Reply, B = never>(
@@ -1904,6 +1915,739 @@ describe("resetLiveProgress", () => {
       ok: false,
       error: "INVALID",
       fieldErrors: { eventId: "No encontramos este contenido." },
+    });
+    expect(mocks.requireClub).not.toHaveBeenCalled();
+    expect(mocks.createClient).not.toHaveBeenCalled();
+  });
+});
+
+// ── La propuesta y las plantillas ────────────────────────────────────────────────────────
+
+const TEMPLATE = "00000000-0000-4000-8000-0000000000c1";
+/** La lectura previa «¿es una plantilla de este club?»: la encuentra... */
+const ownTemplate = reply({ id: TEMPLATE });
+/** ...o no: no existe, es de otro club, no se ve o es la sesión de un equipo. */
+const noTemplate = reply(null);
+
+const fromTemplate: CreatePracticeFromTemplateInput = { templateId: TEMPLATE, ...create };
+
+/** Las tres acciones de plantillas que escriben, cada una con una entrada válida. */
+const TEMPLATE_ACTIONS: Array<[string, () => Promise<ActionResult<unknown>>]> = [
+  ["savePracticeAsTemplate", () => savePracticeAsTemplate("club-a", { eventId: EVENT })],
+  ["createPracticeFromTemplate", () => createPracticeFromTemplate("club-a", fromTemplate)],
+  ["deletePracticeTemplate", () => deletePracticeTemplate("club-a", { templateId: TEMPLATE })],
+];
+
+describe("plantillas: quién gestiona y qué pasa después", () => {
+  it.each(TEMPLATE_ACTIONS)(
+    "%s: quien no entrena recibe NOT_FOUND sin tocar la base de datos",
+    async (_name, run) => {
+      for (const role of ["player", "guardian"] as const) {
+        mocks.requireClub.mockResolvedValue(clubContext(role));
+
+        await expect(run()).resolves.toEqual({ ok: false, error: "NOT_FOUND" });
+      }
+
+      expect(mocks.createClient).not.toHaveBeenCalled();
+      expect(mocks.revalidatePath).not.toHaveBeenCalled();
+      expect(logged).toEqual([]);
+    },
+  );
+
+  it.each(TEMPLATE_ACTIONS)("%s: un club que no existe lanza el 404, no lo traga", async (_name, run) => {
+    mocks.requireClub.mockRejectedValue(NOT_FOUND);
+
+    await expect(run()).rejects.toBe(NOT_FOUND);
+
+    expect(mocks.createClient).not.toHaveBeenCalled();
+    expect(logged).toEqual([]);
+  });
+
+  const WRITES: Array<[string, Reply[], () => Promise<ActionResult<unknown>>]> = [
+    ["savePracticeAsTemplate", [ownEvent, reply(TEMPLATE)], TEMPLATE_ACTIONS[0][1]],
+    ["createPracticeFromTemplate", [ownTeam, ownTemplate, reply(NEW_EVENT)], TEMPLATE_ACTIONS[1][1]],
+    ["deletePracticeTemplate", [reply([{ id: TEMPLATE }])], TEMPLATE_ACTIONS[2][1]],
+  ];
+
+  it.each(WRITES)("%s: revalida el patrón de ruta de la app y layout", async (_name, replies, run) => {
+    useDb(...replies);
+
+    const result = await run();
+
+    expect(result.ok).toBe(true);
+    expect(mocks.revalidatePath.mock.calls).toEqual([["/c/[club]/(app)", "layout"]]);
+  });
+
+  it.each(WRITES)("%s: no revalida si la escritura falla, y se registra", async (name, replies, run) => {
+    // La última respuesta es la de la escritura: se cambia por un error de la base de datos.
+    useDb(...replies.slice(0, -1), dbError("XX000", 'fila con "texto del club"'));
+
+    const result = await run();
+
+    const tag = {
+      savePracticeAsTemplate: "save-practice-as-template",
+      createPracticeFromTemplate: "create-practice-from-template",
+      deletePracticeTemplate: "delete-practice-template",
+    }[name];
+    expect(result).toEqual({ ok: false, error: "SAVE_FAILED" });
+    expect(mocks.revalidatePath).not.toHaveBeenCalled();
+    expect(logged).toEqual([`[practice.${tag}] PostgrestError code=XX000`]);
+  });
+
+  it.each(WRITES)("%s: si el cliente lanza una excepción devuelve SAVE_FAILED", async (_name, _replies, run) => {
+    mocks.createClient.mockRejectedValue(new TypeError("fetch failed"));
+
+    const result = await run();
+
+    expect(result).toEqual({ ok: false, error: "SAVE_FAILED" });
+    expect(mocks.revalidatePath).not.toHaveBeenCalled();
+    expect(logged).toHaveLength(1);
+  });
+});
+
+// ── proposePracticeItems ─────────────────────────────────────────────────────────────────
+
+describe("proposePracticeItems", () => {
+  const FOCUS = { slug: "objetivo-a", name: "Objetivo A" };
+
+  function proposalDrill(overrides: Partial<ProposalDrill> = {}): ProposalDrill {
+    return {
+      id: DRILL,
+      title: "Rebote y salida",
+      minAge: 8,
+      maxAge: null,
+      minPlayers: 4,
+      maxPlayers: 12,
+      minMinutes: 10,
+      maxMinutes: 15,
+      focus: [FOCUS],
+      keyPoints: 2,
+      variants: 1,
+      ...overrides,
+    };
+  }
+
+  /** Una sesión de media hora con su objetivo y un único ejercicio en la biblioteca. */
+  const input: ProposalInput = {
+    minutes: 30,
+    age: 12,
+    players: 9,
+    primaryFocus: FOCUS,
+    secondaryFocus: null,
+    drills: [proposalDrill()],
+    recentDrillIds: [],
+  };
+
+  it("devuelve la propuesta que sale de lo leído: los ítems y los minutos sin cubrir", async () => {
+    mocks.getProposalInput.mockResolvedValue(input);
+
+    const result = await proposePracticeItems("club-a", { eventId: EVENT });
+
+    // El único ejercicio va al hueco del objetivo principal, con su máximo (15 de los 30 min).
+    expect(result).toEqual({
+      ok: true,
+      data: {
+        items: [
+          {
+            drillId: DRILL,
+            title: "Rebote y salida",
+            phase: "Objetivo A",
+            minutes: 15,
+            hint: "Objetivo A · 2 puntos clave · 1 variante",
+          },
+        ],
+        uncoveredMinutes: 15,
+      },
+    });
+  });
+
+  it("lee lo de ese entreno en el club de la sesión", async () => {
+    mocks.getProposalInput.mockResolvedValue(input);
+
+    await proposePracticeItems("club-b", { eventId: EVENT });
+
+    expect(mocks.requireClub).toHaveBeenCalledWith("club-b");
+    expect(mocks.getProposalInput).toHaveBeenCalledTimes(1);
+    expect(mocks.getProposalInput).toHaveBeenCalledWith(clubContext("coach"), EVENT);
+  });
+
+  it("con la biblioteca vacía propone una lista vacía y toda la franja queda sin cubrir", async () => {
+    mocks.getProposalInput.mockResolvedValue({ ...input, drills: [] });
+
+    const result = await proposePracticeItems("club-a", { eventId: EVENT });
+
+    expect(result).toEqual({ ok: true, data: { items: [], uncoveredMinutes: 30 } });
+  });
+
+  it("un ejercicio que no vale por edad no entra en la propuesta", async () => {
+    mocks.getProposalInput.mockResolvedValue({ ...input, drills: [proposalDrill({ minAge: 14 })] });
+
+    const result = await proposePracticeItems("club-a", { eventId: EVENT });
+
+    expect(result).toEqual({ ok: true, data: { items: [], uncoveredMinutes: 30 } });
+  });
+
+  it("un entreno que no llega (no existe, es de otro club, no se ve o no tiene plan) es NOT_FOUND", async () => {
+    mocks.getProposalInput.mockResolvedValue(null);
+
+    const result = await proposePracticeItems("club-a", { eventId: EVENT });
+
+    expect(result).toEqual({ ok: false, error: "NOT_FOUND" });
+    expect(logged).toEqual([]);
+  });
+
+  it("una lectura que falla es SAVE_FAILED y se registra sin el contenido del error", async () => {
+    mocks.getProposalInput.mockRejectedValue(
+      Object.assign(new Error('fila con "texto del club"'), { code: "XX000" }),
+    );
+
+    const result = await proposePracticeItems("club-a", { eventId: EVENT });
+
+    expect(result).toEqual({ ok: false, error: "SAVE_FAILED" });
+    expect(logged).toEqual(["[practice.propose-items] Error code=XX000"]);
+  });
+
+  it("lo que lanza notFound() lo recoge Next: no se convierte en SAVE_FAILED", async () => {
+    const thrown = (() => {
+      try {
+        notFound();
+      } catch (error) {
+        return error;
+      }
+      throw new Error("el control de flujo de Next tenía que lanzar");
+    })();
+    mocks.getProposalInput.mockRejectedValue(thrown);
+
+    await expect(proposePracticeItems("club-a", { eventId: EVENT })).rejects.toBe(thrown);
+
+    expect(logged).toEqual([]);
+  });
+
+  it("también lo hace la dirección", async () => {
+    mocks.requireClub.mockResolvedValue(clubContext("admin"));
+    mocks.getProposalInput.mockResolvedValue(input);
+
+    const result = await proposePracticeItems("club-a", { eventId: EVENT });
+
+    expect(result.ok).toBe(true);
+  });
+
+  it.each(["player", "guardian"] as const)("un %s recibe NOT_FOUND sin leer nada", async (role) => {
+    mocks.requireClub.mockResolvedValue(clubContext(role));
+
+    const result = await proposePracticeItems("club-a", { eventId: EVENT });
+
+    expect(result).toEqual({ ok: false, error: "NOT_FOUND" });
+    expect(mocks.getProposalInput).not.toHaveBeenCalled();
+    expect(mocks.createClient).not.toHaveBeenCalled();
+  });
+
+  it("un club que no existe lanza el 404, no lo traga", async () => {
+    mocks.requireClub.mockRejectedValue(NOT_FOUND);
+
+    await expect(proposePracticeItems("club-a", { eventId: EVENT })).rejects.toBe(NOT_FOUND);
+
+    expect(mocks.getProposalInput).not.toHaveBeenCalled();
+  });
+
+  it("un id que no es un uuid es INVALID y no consulta el club ni lee nada", async () => {
+    const result = await proposePracticeItems("club-a", { eventId: "no-es-un-uuid" });
+
+    expect(result).toEqual({
+      ok: false,
+      error: "INVALID",
+      fieldErrors: { eventId: "No encontramos este contenido." },
+    });
+    expect(mocks.requireClub).not.toHaveBeenCalled();
+    expect(mocks.getProposalInput).not.toHaveBeenCalled();
+  });
+
+  it("una entrada sin id es INVALID", async () => {
+    const result = await proposePracticeItems("club-a", unsafe({}));
+
+    expect(result).toMatchObject({ ok: false, error: "INVALID" });
+    expect(mocks.getProposalInput).not.toHaveBeenCalled();
+  });
+
+  it("solo lee: no revalida nada, ni cuando propone ni cuando no encuentra", async () => {
+    mocks.getProposalInput.mockResolvedValueOnce(input).mockResolvedValueOnce(null);
+
+    await proposePracticeItems("club-a", { eventId: EVENT });
+    await proposePracticeItems("club-a", { eventId: EVENT });
+
+    expect(mocks.revalidatePath).not.toHaveBeenCalled();
+    // Tampoco abre un cliente por su cuenta: la lectura es de `getProposalInput`.
+    expect(mocks.createClient).not.toHaveBeenCalled();
+  });
+});
+
+// ── savePracticeAsTemplate ───────────────────────────────────────────────────────────────
+
+describe("savePracticeAsTemplate", () => {
+  it("guarda la sesión como plantilla y devuelve su id", async () => {
+    const db = useDb(ownEvent, reply(TEMPLATE));
+
+    const result = await savePracticeAsTemplate("club-a", { eventId: EVENT });
+
+    expect(result).toEqual({ ok: true, data: { templateId: TEMPLATE } });
+    expect(db.rpcs).toEqual([{ name: "save_practice_as_template", args: { p_event: EVENT } }]);
+    expect(mocks.revalidatePath).toHaveBeenCalledWith("/c/[club]/(app)", "layout");
+  });
+
+  it("a la función solo viaja el entreno", async () => {
+    const db = useDb(ownEvent, reply(TEMPLATE));
+
+    await savePracticeAsTemplate("club-a", unsafe({ eventId: EVENT, title: "Otra", organizationId: ORG }));
+
+    expect(db.rpcs[0].args).toStrictEqual({ p_event: EVENT });
+  });
+
+  it("antes de llamar a la función comprueba que el entreno es de este club", async () => {
+    const db = useDb(ownEvent, reply(TEMPLATE));
+
+    await savePracticeAsTemplate("club-a", { eventId: EVENT });
+
+    expect(db.queries).toHaveLength(1);
+    expect(db.queries[0].table).toBe("events");
+    expect(db.queries[0].sent("select")).toEqual(["id, practice_plans(id)"]);
+    expect(db.queries[0].filters).toEqual([
+      ["organization_id", ORG],
+      ["id", EVENT],
+      ["kind", "practice"],
+    ]);
+  });
+
+  it("vale el plan como objeto, no solo como lista", async () => {
+    const db = useDb(ownEventObject, reply(TEMPLATE));
+
+    const result = await savePracticeAsTemplate("club-a", { eventId: EVENT });
+
+    expect(result).toEqual({ ok: true, data: { templateId: TEMPLATE } });
+    expect(db.rpcs).toHaveLength(1);
+  });
+
+  it.each([
+    ["un entreno de otro club", noEvent],
+    ["un entreno sin plan", noPlan],
+  ])("%s es NOT_FOUND sin llamar a la función", async (_name, found) => {
+    const db = useDb(found);
+
+    const result = await savePracticeAsTemplate("club-a", { eventId: EVENT });
+
+    expect(result).toEqual({ ok: false, error: "NOT_FOUND" });
+    expect(db.rpcs).toEqual([]);
+    expect(mocks.revalidatePath).not.toHaveBeenCalled();
+    expect(logged).toEqual([]);
+  });
+
+  it("si falla la lectura previa no llama a la función y se registra", async () => {
+    const db = useDb(dbError("XX000", "boom"));
+
+    const result = await savePracticeAsTemplate("club-a", { eventId: EVENT });
+
+    expect(result).toEqual({ ok: false, error: "SAVE_FAILED" });
+    expect(db.rpcs).toEqual([]);
+    expect(logged).toEqual(["[practice.save-practice-as-template] PostgrestError code=XX000"]);
+  });
+
+  it("un equipo que no se gestiona es NOT_FOUND (P0002) y no se registra", async () => {
+    useDb(ownEvent, dbError("P0002", "NOT_FOUND"));
+
+    const result = await savePracticeAsTemplate("club-a", { eventId: EVENT });
+
+    expect(result).toEqual({ ok: false, error: "NOT_FOUND" });
+    expect(mocks.revalidatePath).not.toHaveBeenCalled();
+    expect(logged).toEqual([]);
+  });
+
+  it("con 50 plantillas propias es TEMPLATE_LIMIT y no se registra", async () => {
+    useDb(ownEvent, dbError("P0001", "TEMPLATE_LIMIT"));
+
+    const result = await savePracticeAsTemplate("club-a", { eventId: EVENT });
+
+    expect(result).toEqual({ ok: false, error: "TEMPLATE_LIMIT" });
+    expect(mocks.revalidatePath).not.toHaveBeenCalled();
+    expect(logged).toEqual([]);
+  });
+
+  it("una sesión sin ejercicios es INVALID (22023) y no se registra", async () => {
+    useDb(ownEvent, dbError("22023", "INVALID"));
+
+    const result = await savePracticeAsTemplate("club-a", { eventId: EVENT });
+
+    expect(result).toEqual({ ok: false, error: "INVALID" });
+    expect(mocks.revalidatePath).not.toHaveBeenCalled();
+    expect(logged).toEqual([]);
+  });
+
+  it("un P0001 con un mensaje que no es de la lista es SAVE_FAILED y se registra", async () => {
+    useDb(ownEvent, dbError("P0001", "otra cosa"));
+
+    const result = await savePracticeAsTemplate("club-a", { eventId: EVENT });
+
+    expect(result).toEqual({ ok: false, error: "SAVE_FAILED" });
+    expect(logged).toEqual(["[practice.save-practice-as-template] PostgrestError code=P0001"]);
+  });
+
+  it("un permiso denegado tras pasar `can` es NOT_FOUND y se registra", async () => {
+    useDb(ownEvent, dbError("42501", "new row violates row-level security policy"));
+
+    const result = await savePracticeAsTemplate("club-a", { eventId: EVENT });
+
+    expect(result).toEqual({ ok: false, error: "NOT_FOUND" });
+    expect(logged).toEqual(["[practice.save-practice-as-template] PostgrestError code=42501"]);
+  });
+
+  it("un id que no es un uuid no llega a la base de datos", async () => {
+    const result = await savePracticeAsTemplate("club-a", { eventId: "no-es-un-uuid" });
+
+    expect(result).toEqual({
+      ok: false,
+      error: "INVALID",
+      fieldErrors: { eventId: "No encontramos este contenido." },
+    });
+    expect(mocks.requireClub).not.toHaveBeenCalled();
+    expect(mocks.createClient).not.toHaveBeenCalled();
+  });
+});
+
+// ── createPracticeFromTemplate ───────────────────────────────────────────────────────────
+
+describe("createPracticeFromTemplate", () => {
+  it("crea la sesión con la plantilla, a la hora del club", async () => {
+    const db = useDb(ownTeam, ownTemplate, reply(NEW_EVENT));
+
+    const result = await createPracticeFromTemplate("club-a", fromTemplate);
+
+    // 18:00 en Madrid, en noviembre (UTC+1), son las 17:00 en UTC; con 75 min acaba a las 18:15.
+    // Los objetivos y el lugar vacíos no viajan (C15): `toStrictEqual` no admite claves de más.
+    expect(db.rpcs).toHaveLength(1);
+    expect(db.rpcs[0].name).toBe("create_practice_from_template");
+    expect(db.rpcs[0].args).toStrictEqual({
+      p_template: TEMPLATE,
+      p_team: TEAM,
+      p_starts_at: "2026-11-17T17:00:00.000Z",
+      p_ends_at: "2026-11-17T18:15:00.000Z",
+      p_title: "Defensa en transición",
+    });
+    expect(result).toEqual({ ok: true, data: { eventId: NEW_EVENT } });
+    expect(mocks.revalidatePath).toHaveBeenCalledWith("/c/[club]/(app)", "layout");
+  });
+
+  it("la hora sale de la zona del club también en verano", async () => {
+    const db = useDb(ownTeam, ownTemplate, reply(NEW_EVENT));
+
+    await createPracticeFromTemplate("club-a", { ...fromTemplate, date: "2026-07-14" });
+
+    expect(db.rpcs[0].args.p_starts_at).toBe("2026-07-14T16:00:00.000Z");
+    expect(db.rpcs[0].args.p_ends_at).toBe("2026-07-14T17:15:00.000Z");
+  });
+
+  it("manda lo que se rellena, con los textos recortados", async () => {
+    const db = useDb(ownTeam, ownTemplate, reply(NEW_EVENT));
+
+    await createPracticeFromTemplate("club-a", {
+      ...fromTemplate,
+      title: "  Defensa en transición  ",
+      primaryFocusId: F1,
+      secondaryFocusId: F2,
+      location: "  Pista 2  ",
+    });
+
+    expect(db.rpcs[0].args).toStrictEqual({
+      p_template: TEMPLATE,
+      p_team: TEAM,
+      p_starts_at: "2026-11-17T17:00:00.000Z",
+      p_ends_at: "2026-11-17T18:15:00.000Z",
+      p_title: "Defensa en transición",
+      p_primary_focus: F1,
+      p_secondary_focus: F2,
+      p_location: "Pista 2",
+    });
+  });
+
+  it.each([
+    ["null", null],
+    ["texto vacío", ""],
+  ])("un opcional que llega como %s no se envía", async (_name, empty) => {
+    const db = useDb(ownTeam, ownTemplate, reply(NEW_EVENT));
+
+    await createPracticeFromTemplate("club-a", {
+      ...fromTemplate,
+      primaryFocusId: empty,
+      secondaryFocusId: empty,
+      location: empty === null ? null : "   ",
+    });
+
+    expect(Object.keys(db.rpcs[0].args).sort()).toEqual([
+      "p_ends_at",
+      "p_starts_at",
+      "p_team",
+      "p_template",
+      "p_title",
+    ]);
+  });
+
+  it("un secundario sin principal viaja como principal", async () => {
+    const db = useDb(ownTeam, ownTemplate, reply(NEW_EVENT));
+
+    await createPracticeFromTemplate("club-a", { ...fromTemplate, secondaryFocusId: F2 });
+
+    expect(db.rpcs[0].args.p_primary_focus).toBe(F2);
+    expect(db.rpcs[0].args).not.toHaveProperty("p_secondary_focus");
+  });
+
+  it("lee antes el equipo y la plantilla de este club, y la función recibe esos mismos", async () => {
+    const db = useDb(ownTeam, ownTemplate, reply(NEW_EVENT));
+
+    await createPracticeFromTemplate("club-a", fromTemplate);
+
+    expect(db.queries).toHaveLength(2);
+
+    const [team, template] = db.queries;
+    expect(team.table).toBe("teams");
+    expect(team.sent("select")).toEqual(["id"]);
+    expect(team.filters).toEqual([
+      ["organization_id", ORG],
+      ["id", TEAM],
+    ]);
+
+    // Una plantilla: de este club, marcada como tal y sin equipo.
+    expect(template.table).toBe("practice_plans");
+    expect(template.sent("select")).toEqual(["id"]);
+    expect(template.filters).toEqual([
+      ["organization_id", ORG],
+      ["id", TEMPLATE],
+      ["is_template", true],
+    ]);
+    expect(template.sent("is")).toEqual(["team_id", null]);
+    expect(template.calls.some((call) => call.method === "maybeSingle")).toBe(true);
+
+    expect(db.rpcs[0].args.p_team).toBe(TEAM);
+    expect(db.rpcs[0].args.p_template).toBe(TEMPLATE);
+  });
+
+  it("un equipo que no es de este club es NOT_FOUND: ni mira la plantilla ni llama a la función", async () => {
+    const db = useDb(noTeam);
+
+    const result = await createPracticeFromTemplate("club-a", fromTemplate);
+
+    expect(result).toEqual({ ok: false, error: "NOT_FOUND" });
+    expect(db.queries).toHaveLength(1);
+    expect(db.rpcs).toEqual([]);
+    expect(mocks.revalidatePath).not.toHaveBeenCalled();
+    expect(logged).toEqual([]);
+  });
+
+  it("una plantilla que no es de este club es NOT_FOUND y no llega a la función", async () => {
+    const db = useDb(ownTeam, noTemplate);
+
+    const result = await createPracticeFromTemplate("club-a", fromTemplate);
+
+    expect(result).toEqual({ ok: false, error: "NOT_FOUND" });
+    expect(db.queries).toHaveLength(2);
+    expect(db.rpcs).toEqual([]);
+    expect(mocks.revalidatePath).not.toHaveBeenCalled();
+    expect(logged).toEqual([]);
+  });
+
+  it("si falla la lectura de la plantilla no llama a la función y se registra", async () => {
+    const db = useDb(ownTeam, dbError("XX000", "boom"));
+
+    const result = await createPracticeFromTemplate("club-a", fromTemplate);
+
+    expect(result).toEqual({ ok: false, error: "SAVE_FAILED" });
+    expect(db.rpcs).toEqual([]);
+    expect(logged).toEqual(["[practice.create-practice-from-template] PostgrestError code=XX000"]);
+  });
+
+  it("una plantilla ajena o un equipo que no se gestiona es NOT_FOUND (P0002) y no se registra", async () => {
+    useDb(ownTeam, ownTemplate, dbError("P0002", "NOT_FOUND"));
+
+    const result = await createPracticeFromTemplate("club-a", fromTemplate);
+
+    expect(result).toEqual({ ok: false, error: "NOT_FOUND" });
+    expect(mocks.revalidatePath).not.toHaveBeenCalled();
+    expect(logged).toEqual([]);
+  });
+
+  it.each([
+    ["22023", "INVALID", "INVALID"],
+    ["23514", "check", "INVALID"],
+    ["P0001", "TEMPLATE_LIMIT", "TEMPLATE_LIMIT"],
+  ] as const)("un %s de la función (%s) es %s y no se registra", async (code, message, error) => {
+    useDb(ownTeam, ownTemplate, dbError(code, message));
+
+    const result = await createPracticeFromTemplate("club-a", fromTemplate);
+
+    expect(result).toEqual({ ok: false, error });
+    expect(mocks.revalidatePath).not.toHaveBeenCalled();
+    expect(logged).toEqual([]);
+  });
+
+  it("un objetivo de otro club es una clave foránea rota (23503): SAVE_FAILED, y se registra", async () => {
+    useDb(ownTeam, ownTemplate, dbError("23503", "Key (primary_focus_id)=(...) is not present in table"));
+
+    const result = await createPracticeFromTemplate("club-a", { ...fromTemplate, primaryFocusId: F1 });
+
+    expect(result).toEqual({ ok: false, error: "SAVE_FAILED" });
+    expect(logged).toEqual(["[practice.create-practice-from-template] PostgrestError code=23503"]);
+  });
+
+  it("una fecha imposible o una hora que no existe no llegan a la base de datos", async () => {
+    const db = useDb();
+
+    const date = await createPracticeFromTemplate("club-a", { ...fromTemplate, date: "2026-02-30" });
+    const time = await createPracticeFromTemplate("club-a", { ...fromTemplate, time: "25:00" });
+
+    const invalid = {
+      ok: false,
+      error: "INVALID",
+      fieldErrors: { date: "Elige una fecha y una hora válidas." },
+    };
+    expect(date).toEqual(invalid);
+    expect(time).toEqual(invalid);
+    expect(db.calls).toBe(0);
+  });
+
+  it("una plantilla o un equipo cuyo id no es un uuid no llegan a la base de datos", async () => {
+    const result = await createPracticeFromTemplate("club-a", {
+      ...fromTemplate,
+      templateId: "no-es-un-uuid",
+      teamId: "tampoco",
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      error: "INVALID",
+      fieldErrors: { templateId: "No encontramos este contenido.", teamId: "Elige un equipo." },
+    });
+    expect(mocks.requireClub).not.toHaveBeenCalled();
+    expect(mocks.createClient).not.toHaveBeenCalled();
+  });
+
+  it("sin plantilla es INVALID", async () => {
+    const result = await createPracticeFromTemplate("club-a", unsafe(create));
+
+    expect(result).toMatchObject({ ok: false, error: "INVALID" });
+    expect(result.ok ? null : Object.keys(result.fieldErrors ?? {})).toEqual(["templateId"]);
+    expect(mocks.createClient).not.toHaveBeenCalled();
+  });
+
+  it("los datos del formulario se validan como al crear desde cero", async () => {
+    const result = await createPracticeFromTemplate("club-a", {
+      ...fromTemplate,
+      title: "   ",
+      date: "",
+      time: "",
+      durationMinutes: 0,
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      error: "INVALID",
+      fieldErrors: {
+        title: "Escribe un título.",
+        date: "Elige una fecha.",
+        time: "Elige una hora.",
+        durationMinutes: expect.stringContaining("La duración tiene que estar entre"),
+      },
+    });
+    expect(mocks.createClient).not.toHaveBeenCalled();
+  });
+
+  it("el secundario no puede repetir el principal", async () => {
+    const result = await createPracticeFromTemplate("club-a", {
+      ...fromTemplate,
+      primaryFocusId: F1,
+      secondaryFocusId: F1,
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      error: "INVALID",
+      fieldErrors: { secondaryFocusId: "El objetivo secundario tiene que ser distinto del principal." },
+    });
+    expect(mocks.createClient).not.toHaveBeenCalled();
+  });
+});
+
+// ── deletePracticeTemplate ───────────────────────────────────────────────────────────────
+
+describe("deletePracticeTemplate", () => {
+  it("borra la plantilla: el propio delete va acotado al club y a una plantilla sin equipo", async () => {
+    const db = useDb(reply([{ id: TEMPLATE }]));
+
+    const result = await deletePracticeTemplate("club-a", { templateId: TEMPLATE });
+
+    expect(result).toEqual({ ok: true, data: null });
+    expect(db.rpcs).toEqual([]);
+    expect(db.queries).toHaveLength(1);
+
+    const [query] = db.queries;
+    expect(query.table).toBe("practice_plans");
+    // Es un `delete` y nada más: ni un `update` ni una lectura previa.
+    expect(query.calls[0]).toEqual({ method: "delete", args: [] });
+    expect(query.calls.some((call) => call.method === "update")).toBe(false);
+    expect(query.filters).toEqual([
+      ["organization_id", ORG],
+      ["id", TEMPLATE],
+      ["is_template", true],
+    ]);
+    expect(query.calls.filter((call) => call.method === "is").map((call) => call.args)).toEqual([
+      ["team_id", null],
+    ]);
+    // Pide las filas borradas: sin ellas no sabría si borró algo.
+    expect(query.sent("select")).toEqual(["id"]);
+    expect(mocks.revalidatePath).toHaveBeenCalledWith("/c/[club]/(app)", "layout");
+  });
+
+  it("con 0 filas (no existe, es de otro club, es de otra persona o es la sesión de un equipo) es NOT_FOUND", async () => {
+    useDb(reply([]));
+
+    const result = await deletePracticeTemplate("club-a", { templateId: TEMPLATE });
+
+    expect(result).toEqual({ ok: false, error: "NOT_FOUND" });
+    expect(mocks.revalidatePath).not.toHaveBeenCalled();
+    expect(logged).toEqual([]);
+  });
+
+  it("un permiso denegado es NOT_FOUND y se registra", async () => {
+    useDb(dbError("42501", "permission denied for table practice_plans"));
+
+    const result = await deletePracticeTemplate("club-a", { templateId: TEMPLATE });
+
+    expect(result).toEqual({ ok: false, error: "NOT_FOUND" });
+    expect(mocks.revalidatePath).not.toHaveBeenCalled();
+    expect(logged).toEqual(["[practice.delete-practice-template] PostgrestError code=42501"]);
+  });
+
+  it("un fallo inesperado es SAVE_FAILED y se registra sin el contenido de la fila", async () => {
+    useDb(dbError("XX000", 'fila con "texto del club"'));
+
+    const result = await deletePracticeTemplate("club-a", { templateId: TEMPLATE });
+
+    expect(result).toEqual({ ok: false, error: "SAVE_FAILED" });
+    expect(mocks.revalidatePath).not.toHaveBeenCalled();
+    expect(logged).toEqual(["[practice.delete-practice-template] PostgrestError code=XX000"]);
+  });
+
+  it("borra la plantilla que le piden, no otra", async () => {
+    const other = "00000000-0000-4000-8000-0000000000c2";
+    const db = useDb(reply([{ id: other }]));
+
+    await deletePracticeTemplate("club-a", { templateId: other });
+
+    expect(db.queries[0].filters).toContainEqual(["id", other]);
+  });
+
+  it("un id que no es un uuid no llega a la base de datos", async () => {
+    const result = await deletePracticeTemplate("club-a", { templateId: "no-es-un-uuid" });
+
+    expect(result).toEqual({
+      ok: false,
+      error: "INVALID",
+      fieldErrors: { templateId: "No encontramos este contenido." },
     });
     expect(mocks.requireClub).not.toHaveBeenCalled();
     expect(mocks.createClient).not.toHaveBeenCalled();

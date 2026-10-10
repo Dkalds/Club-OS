@@ -13,21 +13,31 @@ import { parseDrillFilters } from "@/modules/drills/filters";
 import { searchDrills } from "@/modules/drills/queries";
 import type { DrillSummary } from "@/modules/drills/types";
 import { MAX_ITEMS, MAX_ITEMS_MESSAGE } from "./limits";
+import { buildProposal, type Proposal } from "./proposal";
+import { getProposalInput } from "./proposal-queries";
 import {
   addDrillToPracticeSchema,
   cancelPracticeSchema,
+  createPracticeFromTemplateSchema,
   createPracticeSchema,
+  deletePracticeTemplateSchema,
   duplicatePracticeSchema,
   findDrillsSchema,
+  proposePracticeItemsSchema,
   resetLiveProgressSchema,
+  savePracticeAsTemplateSchema,
   savePracticeItemsSchema,
   updatePracticeMetaSchema,
   type AddDrillToPracticeInput,
   type CancelPracticeInput,
+  type CreatePracticeFromTemplateInput,
   type CreatePracticeInput,
+  type DeletePracticeTemplateInput,
   type DuplicatePracticeInput,
   type FindDrillsInput,
+  type ProposePracticeItemsInput,
   type ResetLiveProgressInput,
+  type SavePracticeAsTemplateInput,
   type SavePracticeItemsInput,
   type UpdatePracticeMetaInput,
 } from "./schema";
@@ -48,8 +58,13 @@ import type { PracticeItemDraft } from "./types";
 // No hay ningún insert ni update directo de `events`, `practice_plans` ni `practice_items`;
 // cancelar es el único `update`, y solo del estado.
 //
-// `findDrills` solo lee (es la búsqueda del selector de ejercicios) y no pasa por `mutate`: no
-// hay nada que revalidar. Sigue su mismo orden de Zod, club y permiso.
+// `findDrills` y `proposePracticeItems` solo leen (la búsqueda del selector de ejercicios y la
+// propuesta de entrenamiento) y no pasan por `mutate`: no hay nada que revalidar. Siguen su
+// mismo orden de Zod, club y permiso.
+//
+// Las plantillas (planes sin equipo, de quien las guarda) van por las funciones de
+// `20270119000100_practice_templates.sql`; borrar una es el único `delete`, y solo de una
+// plantilla.
 //
 // Todo va acotado al club de `clubSlug`. Las funciones SQL no comparan con él: las que reciben
 // un id de entreno (`update_practice_session`, `save_practice_items`, `duplicate_practice`)
@@ -569,6 +584,172 @@ export async function resetLiveProgress(
       if (error) return fromDb(error);
 
       return ok({ updatedAt });
+    },
+  );
+}
+
+// ── Proponer ────────────────────────────────────────────────────────────────────────────
+
+/**
+ * «Proponer entrenamiento»: un borrador de sesión para el entreno `eventId`, con ejercicios
+ * publicados de la biblioteca que valen para su equipo y los minutos de su franja repartidos
+ * (`buildProposal`). No escribe nada: lo que devuelve entra en el constructor como cambios sin
+ * guardar. Con la biblioteca vacía, una lista vacía.
+ *
+ * Solo lee, como `findDrills`: quien no gestiona sesiones recibe `NOT_FOUND` sin leer nada; un
+ * entreno que no existe, es de otro club, no se ve o no tiene plan, `NOT_FOUND` también; una
+ * lectura que falla es `SAVE_FAILED` y se registra.
+ */
+export async function proposePracticeItems(
+  clubSlug: string,
+  input: ProposePracticeItemsInput,
+): Promise<ActionResult<Proposal>> {
+  const parsed = proposePracticeItemsSchema.safeParse(input);
+  if (!parsed.success) return fromZodError(parsed.error);
+
+  const ctx = await requireClub(clubSlug);
+  if (!can(ctx, "practice.manage")) return fail("NOT_FOUND");
+
+  try {
+    const proposalInput = await getProposalInput(ctx, parsed.data.eventId);
+    return proposalInput ? ok(buildProposal(proposalInput)) : fail("NOT_FOUND");
+  } catch (error) {
+    unstable_rethrow(error);
+    logError("practice.propose-items", error);
+    return fail("SAVE_FAILED");
+  }
+}
+
+// ── Plantillas ──────────────────────────────────────────────────────────────────────────
+
+/**
+ * `NOT_FOUND` si `templateId` no es una plantilla de este club que quien llama pueda ver. La
+ * función que crea la sesión comprueba además que es suya; esta lectura acota al club (C25).
+ */
+async function findTemplate(
+  { db, ctx, fromDb }: Pick<Write<unknown>, "db" | "ctx" | "fromDb">,
+  templateId: string,
+): Promise<ActionResult<null>> {
+  const { data, error } = await db
+    .from("practice_plans")
+    .select("id")
+    .eq("organization_id", ctx.org.id)
+    .eq("id", templateId)
+    .eq("is_template", true)
+    .is("team_id", null)
+    .maybeSingle();
+  if (error) return fromDb(error);
+
+  return data ? ok(null) : fail("NOT_FOUND");
+}
+
+/**
+ * «Guardar como plantilla»: copia la sesión del entreno `eventId` (título, objetivos y
+ * ejercicios con su fase y sus minutos; las notas no viajan) a una plantilla de quien llama, con
+ * `save_practice_as_template`. Vale una sesión programada, hecha o cancelada. Antes comprueba
+ * que el entreno es de este club: si no, `NOT_FOUND` sin llamar a la función. Una sesión sin
+ * ejercicios es `INVALID`; con 50 plantillas propias en el club, `TEMPLATE_LIMIT`. Devuelve el
+ * id de la plantilla.
+ */
+export async function savePracticeAsTemplate(
+  clubSlug: string,
+  input: SavePracticeAsTemplateInput,
+): Promise<ActionResult<{ templateId: string }>> {
+  return mutate(
+    "save-practice-as-template",
+    clubSlug,
+    savePracticeAsTemplateSchema,
+    input,
+    async (run) => {
+      const { db, data, fromDb } = run;
+
+      const practice = await findPractice(run, data.eventId);
+      if (!practice.ok) return practice;
+
+      const { data: templateId, error } = await db.rpc("save_practice_as_template", {
+        p_event: data.eventId,
+      });
+      if (error) return fromDb(error);
+
+      return ok({ templateId });
+    },
+  );
+}
+
+/**
+ * Un entreno programado en un equipo con los ejercicios de una plantilla propia, ya guardados,
+ * con `create_practice_from_template`. Los datos son los del formulario, como en
+ * `createPractice`; la sesión nace sin notas. Antes comprueba que el equipo y la plantilla
+ * son de este club: si no, `NOT_FOUND` sin llamar a la función, que es la que comprueba que el
+ * equipo se gestiona y que la plantilla es de quien llama. Devuelve el id del entreno nuevo.
+ */
+export async function createPracticeFromTemplate(
+  clubSlug: string,
+  input: CreatePracticeFromTemplateInput,
+): Promise<ActionResult<{ eventId: string }>> {
+  return mutate(
+    "create-practice-from-template",
+    clubSlug,
+    createPracticeFromTemplateSchema,
+    input,
+    async (run) => {
+      const { db, ctx, data, fromDb } = run;
+
+      const start = startsAt(data.date, data.time, ctx.org.timezone);
+      if (start === null) return fail("INVALID", INVALID_SLOT);
+
+      const team = await findTeam(run, data.teamId);
+      if (!team.ok) return team;
+
+      const template = await findTemplate(run, data.templateId);
+      if (!template.ok) return template;
+
+      const { data: eventId, error } = await db.rpc("create_practice_from_template", {
+        p_template: data.templateId,
+        p_team: data.teamId,
+        p_starts_at: start,
+        p_ends_at: endsAt(start, data.durationMinutes),
+        p_title: data.title,
+        ...given({
+          p_primary_focus: data.primaryFocusId,
+          p_secondary_focus: data.secondaryFocusId,
+          p_location: data.location,
+        }),
+      });
+      if (error) return fromDb(error);
+
+      return ok({ eventId });
+    },
+  );
+}
+
+/**
+ * Borra una plantilla propia de este club, con sus ejercicios. El propio `delete` es la
+ * comprobación: solo toca una plantilla (sin equipo) de este club, y RLS solo deja borrar la de
+ * quien llama. Sin esa fila (no existe, es de otro club, es de otra persona o es la sesión de un
+ * equipo) no borra nada y es `NOT_FOUND`. Las sesiones creadas con ella no cambian.
+ */
+export async function deletePracticeTemplate(
+  clubSlug: string,
+  input: DeletePracticeTemplateInput,
+): Promise<ActionResult<null>> {
+  return mutate(
+    "delete-practice-template",
+    clubSlug,
+    deletePracticeTemplateSchema,
+    input,
+    async ({ db, ctx, data, fromDb }) => {
+      const { data: rows, error } = await db
+        .from("practice_plans")
+        .delete()
+        .eq("organization_id", ctx.org.id)
+        .eq("id", data.templateId)
+        .eq("is_template", true)
+        .is("team_id", null)
+        .select("id");
+      if (error) return fromDb(error);
+
+      return rows.length === 0 ? fail("NOT_FOUND") : ok(null);
     },
   );
 }

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useId, useState, type FormEvent } from "react";
 import { ACTION_ERROR_COPY } from "@/lib/action-result";
@@ -7,12 +8,18 @@ import { useAction } from "@/lib/use-action";
 import { liveEntry, type LiveProgress } from "@/modules/live/label";
 import { clearLiveState } from "@/modules/live/storage";
 import { cancelLiveSync } from "@/modules/live/sync";
-import { cancelPractice, duplicatePractice, resetLiveProgress } from "@/modules/practice/actions";
+import {
+  cancelPractice,
+  duplicatePractice,
+  resetLiveProgress,
+  savePracticeAsTemplate,
+} from "@/modules/practice/actions";
 import type { PracticeStatus } from "@/modules/practice/types";
 import { Card } from "@/ui/card";
 import { ConfirmDialog } from "@/ui/confirm-dialog";
 import { CTAButton } from "@/ui/cta-button";
 import { FormAlert, TextField } from "@/ui/form-field";
+import { CheckIcon } from "@/ui/icons";
 
 /**
  * Lo que se hace con una sesión desde su detalle: dirigirla, editarla, duplicarla y cancelarla.
@@ -34,14 +41,22 @@ import { FormAlert, TextField } from "@/ui/form-field";
  * `copied` lo mantiene parado desde que sale bien hasta que la página cambia: un segundo toque
  * en ese rato crearía otra copia.
  *
+ * «Guardar como plantilla» (`secondary`), con la sesión en cualquier estado mientras tenga
+ * ejercicios: copia su título, sus objetivos y sus ejercicios (no sus notas) a una plantilla de quien
+ * la guarda (`savePracticeAsTemplate`). Al guardarla lo dice, con el enlace a «Plantillas», y el
+ * botón se queda parado: otro toque guardaría otra igual.
+ *
  * «Cancelar sesión» (`danger`) pregunta antes con `ConfirmDialog`: cancelar saca la sesión de
  * Inicio y de Próximas, y no se deshace desde aquí. El diálogo se queda abierto, con sus botones
  * parados, hasta que la acción termina; sale como salga se cierra. Si ha ido bien, `refresh`
  * vuelve a pedir la página, que ya sabe que la sesión no es editable; si no, el motivo queda en
  * la página, donde se puede volver a intentar (el diálogo no tiene sitio para un aviso).
  *
- * Los dos avisos de fallo son de cada acción: uno fallado no tapa ni borra al otro.
+ * Los avisos de fallo son de cada acción: uno fallado no tapa ni borra a los otros.
  */
+/** Lo que se dice si la sesión ya no tiene ejercicios al guardarla como plantilla (otra persona los quitó). */
+const NO_ITEMS_TO_TEMPLATE = "Esta sesión ya no tiene ejercicios. Recarga para verla al día.";
+
 /** Una sesión que nunca se ha iniciado: lo que vale mientras quien lo monta no diga otra cosa. */
 const NOT_STARTED: LiveProgress = { started: false, position: null };
 
@@ -69,6 +84,8 @@ export function PracticeActions({
   const duplicating = useAction();
   const cancelling = useAction();
   const restarting = useAction();
+  const templating = useAction();
+  const [templateSaved, setTemplateSaved] = useState(false);
   const [panelOpen, setPanelOpen] = useState(false);
   const [date, setDate] = useState(duplicateDefaults.date);
   const [time, setTime] = useState(duplicateDefaults.time);
@@ -124,6 +141,14 @@ export function PracticeActions({
         clearLiveState(eventId);
         router.refresh();
       },
+    );
+  }
+
+  function saveAsTemplate() {
+    if (templating.pending || templateSaved) return;
+    templating.run(
+      () => savePracticeAsTemplate(clubSlug, { eventId }),
+      () => setTemplateSaved(true),
     );
   }
 
@@ -208,6 +233,49 @@ export function PracticeActions({
             </CTAButton>
           </form>
         </Card>
+      ) : null}
+
+      {itemCount > 0 ? (
+        <>
+          <CTAButton
+            variant="secondary"
+            block
+            disabled={templating.pending || templateSaved}
+            onClick={saveAsTemplate}
+          >
+            Guardar como plantilla
+          </CTAButton>
+          {templating.failure ? (
+            <FormAlert
+              message={
+                // Sin campo que señalar: la sesión se ha quedado sin ejercicios desde que se abrió.
+                templating.failure.error === "INVALID"
+                  ? NO_ITEMS_TO_TEMPLATE
+                  : ACTION_ERROR_COPY[templating.failure.error]
+              }
+            />
+          ) : null}
+          {/*
+            Siempre en el árbol, también vacía: un lector de pantalla solo anuncia lo que cambia
+            en una región que ya existía. Vacía no ocupa nada: el margen negativo anula su hueco.
+          */}
+          <div role="status" className="empty:-mt-(--space-3)">
+            {templateSaved ? (
+              <p className="flex flex-wrap items-center gap-(--space-2) text-body-strong text-success">
+                <CheckIcon size={16} />
+                Plantilla guardada.
+                <Link
+                  href={`/c/${clubSlug}/train?scope=templates`}
+                  // Sin prefetch: el destino es una ruta dinámica detrás del proxy de sesión.
+                  prefetch={false}
+                  className="inline-flex min-h-(--target-min) items-center text-brand-accent underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+                >
+                  Ver plantillas
+                </Link>
+              </p>
+            ) : null}
+          </div>
+        </>
       ) : null}
 
       {canEdit ? (

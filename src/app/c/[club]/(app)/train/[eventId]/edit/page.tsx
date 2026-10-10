@@ -26,8 +26,15 @@ import { PracticeEditor } from "../../_components/practice-editor";
  * la biblioteca (`getFocusAreas`, con su slug, que es lo que filtra la búsqueda), no de las
  * opciones del formulario, que no lo llevan. Si algo no se puede leer, lanza y lo recoge
  * `error.tsx`.
+ *
+ * `?propose=1` (exacto) es quien llega de «Proponer entrenamiento» en la sesión nueva: el
+ * constructor pide la propuesta al entrar. Solo con la sesión aún sin ejercicios: sobre una ya
+ * montada el parámetro no hace nada.
  */
-export default async function EditPracticePage({ params }: PageProps<"/c/[club]/train/[eventId]/edit">) {
+export default async function EditPracticePage({
+  params,
+  searchParams,
+}: PageProps<"/c/[club]/train/[eventId]/edit">) {
   const { club, eventId } = await params;
   const ctx = await requireClub(club);
 
@@ -36,7 +43,13 @@ export default async function EditPracticePage({ params }: PageProps<"/c/[club]/
   if (!can(ctx, "practice.manage")) notFound();
   if (practice.status !== "scheduled") redirect(`/c/${ctx.org.slug}/train/${practice.eventId}`);
 
-  const [options, drillFocusAreas] = await Promise.all([getPracticeFormOptions(ctx), getFocusAreas(ctx)]);
+  const [options, drillFocusAreas, { propose }] = await Promise.all([
+    getPracticeFormOptions(ctx),
+    getFocusAreas(ctx),
+    searchParams,
+  ]);
+  // Sin ítems, `sessionMinutes` da lo que dura la franja.
+  const slotMinutes = sessionMinutes([], practice.startsAt, practice.endsAt);
 
   return (
     <PracticeEditor
@@ -44,12 +57,13 @@ export default async function EditPracticePage({ params }: PageProps<"/c/[club]/
       practice={practice}
       options={options}
       drillFocusAreas={drillFocusAreas}
+      slotMinutes={slotMinutes}
+      autoPropose={propose === "1" && practice.items.length === 0}
       initialValues={{
         teamId: practice.teamId,
         title: practice.title,
         ...isoToLocalInputs(practice.startsAt, ctx.org.timezone),
-        // Sin ítems, `sessionMinutes` da lo que dura la franja.
-        durationMinutes: String(sessionMinutes([], practice.startsAt, practice.endsAt)),
+        durationMinutes: String(slotMinutes),
         primaryFocusId: practice.primaryFocus?.id ?? "",
         secondaryFocusId: practice.secondaryFocus?.id ?? "",
         location: practice.location ?? "",

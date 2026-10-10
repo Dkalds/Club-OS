@@ -129,14 +129,16 @@ export async function createSession(
   await page.getByRole("link", { name: "Preparar sesión" }).click();
   await expect(page).toHaveURL(new RegExp(`${CLUB}/train/new$`));
   await expect(title(page)).toHaveText("Nueva sesión");
-  await hydrated(page.getByRole("button", { name: "Crear sesión" }));
+  await hydrated(page.getByRole("button", { name: "Empezar desde cero" }));
 
   await field(page, "Título").fill(session.title);
   await field(page, "Fecha").fill(session.date);
   await field(page, "Hora").fill(session.time);
   await field(page, "Duración (min)").fill(session.minutes);
+  // El formulario trae el lugar de la última sesión del equipo: aquí la sesión nace sin lugar.
+  await field(page, "Lugar").fill("");
   if (session.focus) await field(page, "Objetivo principal").selectOption({ label: session.focus });
-  await page.getByRole("button", { name: "Crear sesión" }).click();
+  await page.getByRole("button", { name: "Empezar desde cero" }).click();
 
   await expect(page).toHaveURL(EDIT_URL);
   await expect(title(page)).toHaveText(session.title);

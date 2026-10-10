@@ -7,8 +7,9 @@ import {
   practiceMeta,
   practiceRowSubtitle,
   statusLabel,
+  templateSubtitle,
 } from "./format";
-import type { PracticeListItem } from "./types";
+import type { PracticeListItem, PracticeTemplate } from "./types";
 
 describe("minutesLabel", () => {
   it("pone la unidad tras el número", () => {
@@ -106,5 +107,44 @@ describe("practiceRowSubtitle", () => {
 
   it("sin lugar tampoco", () => {
     expect(practiceRowSubtitle({ ...practice, location: null }, 2)).toBe("Equipo A · 75 min · 5 ejercicios");
+  });
+});
+
+describe("templateSubtitle", () => {
+  const template = {
+    totalMinutes: 45,
+    itemCount: 4,
+    primaryFocus: { name: "Tiro" },
+    secondaryFocus: { name: "Pase" },
+  };
+
+  it("junta lo que dura, cuántos ejercicios tiene y sus dos objetivos, el principal delante", () => {
+    expect(templateSubtitle(template)).toBe("45 min · 4 ejercicios · Tiro, Pase");
+  });
+
+  it("con un solo objetivo no deja una coma colgando, sea el principal o el secundario", () => {
+    expect(templateSubtitle({ ...template, secondaryFocus: null })).toBe("45 min · 4 ejercicios · Tiro");
+    expect(templateSubtitle({ ...template, primaryFocus: null })).toBe("45 min · 4 ejercicios · Pase");
+  });
+
+  it("sin objetivos no deja un separador colgando", () => {
+    expect(templateSubtitle({ ...template, primaryFocus: null, secondaryFocus: null })).toBe("45 min · 4 ejercicios");
+  });
+
+  it("con un ejercicio lo dice en singular", () => {
+    expect(templateSubtitle({ ...template, totalMinutes: 10, itemCount: 1 })).toBe("10 min · 1 ejercicio · Tiro, Pase");
+  });
+
+  it("vale la plantilla tal como llega a la lista: ni su título ni los ids de sus objetivos salen aquí", () => {
+    const whole: PracticeTemplate = {
+      id: "t-1",
+      title: "Salida de presión",
+      totalMinutes: 45,
+      itemCount: 4,
+      primaryFocus: { id: "f-1", name: "Tiro" },
+      secondaryFocus: { id: "f-2", name: "Pase" },
+    };
+
+    expect(templateSubtitle(whole)).toBe("45 min · 4 ejercicios · Tiro, Pase");
   });
 });

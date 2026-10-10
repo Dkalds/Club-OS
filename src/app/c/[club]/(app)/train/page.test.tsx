@@ -3,10 +3,19 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { PracticeListItem } from "@/modules/practice/types";
 import { clubContext } from "@/modules/tenancy/test-support";
 
-const mocks = vi.hoisted(() => ({ getClubContext: vi.fn(), listPractices: vi.fn() }));
+const mocks = vi.hoisted(() => ({
+  getClubContext: vi.fn(),
+  listPractices: vi.fn(),
+  listManageableTeams: vi.fn(),
+  listTemplates: vi.fn(),
+}));
 
 vi.mock("@/modules/tenancy/queries", () => ({ getClubContext: mocks.getClubContext }));
-vi.mock("@/modules/practice/queries", () => ({ listPractices: mocks.listPractices }));
+vi.mock("@/modules/practice/queries", () => ({
+  listPractices: mocks.listPractices,
+  listManageableTeams: mocks.listManageableTeams,
+}));
+vi.mock("@/modules/practice/template-queries", () => ({ listTemplates: mocks.listTemplates }));
 // Como el de verdad: `notFound()` corta el render lanzando.
 vi.mock("next/navigation", () => ({
   notFound: () => {
@@ -31,6 +40,15 @@ const PRACTICE: PracticeListItem = {
   location: "Pabellón 2",
 };
 
+const TEMPLATE = {
+  id: "00000000-0000-4000-8000-0000000000c1",
+  title: "Rueda de tiro",
+  totalMinutes: 45,
+  itemCount: 4,
+  primaryFocus: null,
+  secondaryFocus: null,
+};
+
 function params(search: Record<string, string | string[] | undefined> = {}) {
   return { params: Promise.resolve({ club: "club-a" }), searchParams: Promise.resolve(search) };
 }
@@ -41,6 +59,8 @@ beforeEach(() => {
   vi.resetAllMocks();
   mocks.getClubContext.mockResolvedValue(clubContext("coach"));
   mocks.listPractices.mockResolvedValue({ practices: [PRACTICE], teamCount: 1 });
+  mocks.listManageableTeams.mockResolvedValue([{ id: "t-1", name: "Equipo A" }]);
+  mocks.listTemplates.mockResolvedValue([TEMPLATE]);
 });
 
 describe("/train, acceso y lectura", () => {
@@ -156,6 +176,57 @@ describe("/train, pantalla", () => {
     render(await TrainPage(params()));
 
     expect(screen.queryByText(/llega en una próxima fase/)).not.toBeInTheDocument();
+  });
+});
+
+describe("/train, plantillas", () => {
+  it("con `scope=templates` lee mis plantillas y no las sesiones", async () => {
+    const ctx = clubContext("coach");
+    mocks.getClubContext.mockResolvedValue(ctx);
+
+    render(await TrainPage(params({ scope: "templates" })));
+
+    expect(mocks.listTemplates).toHaveBeenCalledWith(ctx);
+    expect(mocks.listPractices).not.toHaveBeenCalled();
+    expect(screen.getByRole("link", { name: /Rueda de tiro/ })).toHaveAttribute(
+      "href",
+      `/c/club-a/train/new?template=${TEMPLATE.id}`,
+    );
+    expect(screen.getByRole("link", { name: "Plantillas" })).toHaveAttribute("aria-current", "page");
+  });
+
+  it("sigue con un solo <h1>, «Sesiones»", async () => {
+    render(await TrainPage(params({ scope: "templates" })));
+
+    expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
+    expect(screen.getByRole("heading", { level: 1, name: "Sesiones" })).toBeInTheDocument();
+  });
+
+  it("sin equipos, el aviso de que aún no está en ninguno", async () => {
+    mocks.listManageableTeams.mockResolvedValue([]);
+
+    render(await TrainPage(params({ scope: "templates" })));
+
+    expect(screen.getByRole("heading", { level: 2, name: "Aún no estás en ningún equipo" })).toBeInTheDocument();
+    expect(screen.queryByText("Rueda de tiro")).not.toBeInTheDocument();
+  });
+
+  it.each(["player", "guardian"] as const)(
+    "un %s no tiene plantillas: le salen las próximas, sin leer ninguna",
+    async (role) => {
+      mocks.getClubContext.mockResolvedValue(clubContext(role));
+
+      render(await TrainPage(params({ scope: "templates" })));
+
+      expect(mocks.listTemplates).not.toHaveBeenCalled();
+      expect(mocks.listPractices).toHaveBeenCalledWith(expect.anything(), "upcoming", expect.any(String));
+    },
+  );
+
+  it("si no se pueden leer, lanza: lo recoge `error.tsx`", async () => {
+    mocks.listTemplates.mockRejectedValue(new Error("practice.templates: fallo"));
+
+    await expect(TrainPage(params({ scope: "templates" }))).rejects.toThrow("practice.templates: fallo");
   });
 });
 

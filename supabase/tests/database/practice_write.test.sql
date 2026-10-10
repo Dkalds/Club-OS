@@ -366,13 +366,14 @@ select results_eq(
   'c1 cambia un plan de su equipo que no tiene evento, y su ítem'
 );
 
--- Las plantillas privadas (planes sin equipo) quedan fuera de la fase: ni se crean ni se
--- cambian. c1 ve la suya (última columna): quien se lo impide es la política de escritura.
+-- Un plan sin equipo solo entra como plantilla propia (`practice_templates.test.sql`), y una
+-- plantilla no se cambia. c1 ve la suya (última columna): quien se lo impide es la política
+-- de escritura.
 select throws_ok(
   $$insert into practice_plans (organization_id, title)
     values (current_setting('fx.club_a')::uuid, 'Plantilla nueva')$$,
   '42501', 'new row violates row-level security policy for table "practice_plans"',
-  'nadie crea un plan sin equipo'
+  'nadie crea un plan sin equipo que no sea una plantilla'
 );
 
 select results_eq(
@@ -391,13 +392,18 @@ select results_eq(
   'c1 ve su plantilla privada pero no la cambia, ni cambia ni borra su ítem'
 );
 
-select throws_ok(
+-- Añadirle ítems sí puede desde `20270119000100_practice_templates.sql`: así se copia una
+-- sesión a una plantilla. Se retira después para que el resto del fichero no lo cuente.
+select lives_ok(
   $$insert into practice_items (organization_id, plan_id, sort, title_override, minutes)
     values (current_setting('fx.club_a')::uuid, current_setting('fx.tpl_c1')::uuid, 2,
             'privada-c1-2', 10)$$,
-  '42501', 'new row violates row-level security policy for table "practice_items"',
-  'c1 no añade ítems a su plantilla privada'
+  'c1 añade ítems a su plantilla privada'
 );
+
+reset role;
+delete from practice_items where title_override = 'privada-c1-2';
+select tests.authenticate_as(current_setting('fx.c1')::uuid);
 
 -- Las claves foráneas compuestas valen también para quien sí puede escribir la fila.
 select throws_ok(
@@ -982,19 +988,19 @@ select throws_ok(
   'un plan no se crea a nombre de otro'
 );
 
--- ── Nadie borra eventos ni planes ────────────────────────────────────────────────────
--- No hay `grant delete`: el borrado falla por privilegios, antes de llegar a RLS. Si alguien
--- lo concediera sin política, el borrado no encontraría filas y estas dos aserciones fallarían.
+-- ── Nadie borra eventos ni planes de equipo ──────────────────────────────────────────
+-- En `events` no hay `grant delete`: el borrado falla por privilegios, antes de llegar a RLS.
+-- En `practice_plans` lo hay desde `20270119000100_practice_templates.sql`, con una política
+-- que solo abre la plantilla propia: el borrado de un plan de equipo no encuentra filas.
 select throws_ok(
   $$delete from events where id = current_setting('fx.e_t1_libre')::uuid$$,
   '42501', 'permission denied for table events',
   'nadie borra un evento, tampoco el admin'
 );
 
-select throws_ok(
-  $$delete from practice_plans where id = current_setting('fx.plan_suelto')::uuid$$,
-  '42501', 'permission denied for table practice_plans',
-  'nadie borra un plan, tampoco el admin'
+select is_empty(
+  $$delete from practice_plans where id = current_setting('fx.plan_suelto')::uuid returning id$$,
+  'nadie borra un plan de equipo, tampoco el admin'
 );
 
 -- ── Sin `where`: hasta dónde llega cada uno ──────────────────────────────────────────
