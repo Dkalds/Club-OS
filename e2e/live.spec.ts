@@ -166,7 +166,13 @@ test("«Empezar de nuevo» deja la sesión sin iniciar, también en un móvil qu
   // navegador la abre y se queda con su estado guardado.
   await page.goto(LIVE_URL);
   await expect(page.getByText("3 / 4")).toBeVisible();
-  await expectSaved(page);
+  // Abrir un directo en curso no escribe en el servidor (no hay «Guardado»): solo deja en este
+  // navegador el estado que trae, marcado como ya enviado.
+  await expect
+    .poll(() => page.evaluate((key) => localStorage.getItem(key), `clubos:live:${TODAY_LIVE_ID}`))
+    .toContain('"synced":true');
+  await expect(page.getByText("Guardado", { exact: true })).toHaveCount(0);
+  expect((await liveStateInDb()).live_position).toBe(2);
 
   await page.getByRole("link", { name: "Salir" }).click();
   await expect(page).toHaveURL(new RegExp(`${DETAIL_URL}$`));

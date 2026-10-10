@@ -38,10 +38,6 @@ const DRAFT = ARCANGEL.drills.find((drill) => drill.status === "draft");
 const TRANSITION_SHOWN = ["3 calles", "3x2 continuo", "4x4 transición"];
 const TRANSITION_REST = ["Contraataque 2x1", "Rebote + outlet"];
 
-function mainNav(page: Page) {
-  return page.getByRole("navigation", { name: "Principal" });
-}
-
 /** Un `<h1>`: toda pantalla tiene uno solo, y es lo que dice dónde se está. */
 function title(page: Page) {
   return page.getByRole("heading", { level: 1 });

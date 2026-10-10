@@ -164,11 +164,14 @@ test("en la ficha de un ejercicio, la cabecera de detalle sustituye a la de marc
   await expect(page.getByText(ARCANGEL.branding.display_name, { exact: true })).toBeHidden();
   await expect(page.locator("header:visible")).toHaveCount(1);
 
-  // La de detalle está arriba del todo y se queda ahí al desplazar la ficha.
+  // La de detalle está arriba del todo y se queda ahí al desplazar la ficha. Se desplaza por
+  // código, no con la rueda: la rueda depende de dónde esté el puntero y de si la página ya mide.
   const box = await detailHeader(page).boundingBox();
   expect(box?.y).toBe(0);
-  await page.mouse.wheel(0, 400);
-  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
+  await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+  if (await page.evaluate(() => document.documentElement.scrollHeight > window.innerHeight)) {
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
+  }
   await expect(detailHeader(page)).toBeInViewport({ ratio: 1 });
 
   // La pestaña sigue siendo Biblioteca, y «Volver» lleva a ella, con la cabecera de marca otra vez.

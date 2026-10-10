@@ -30,9 +30,9 @@
 
 ### Tarea 0 · Entorno del worktree
 
-- [ ] `supabase/config.toml`: `project_id = "clubos-mejoras"` y puertos en un rango libre (mirar `docker ps`); `git update-index --skip-worktree supabase/config.toml`.
-- [ ] `pnpm supabase start -x studio,imgproxy,vector,logflare,realtime,edge-runtime,supavisor`; `.env.local` desde `pnpm supabase status -o env` sin imprimir claves.
-- [ ] Línea base en verde: `pnpm seed`, `pnpm test`, `pnpm test:db`, `pnpm check:guards`, `pnpm typecheck`.
+- [x] `supabase/config.toml`: `project_id = "clubos-mejoras"` y puertos en un rango libre (mirar `docker ps`); `git update-index --skip-worktree supabase/config.toml`.
+- [x] `pnpm supabase start -x studio,imgproxy,vector,logflare,realtime,edge-runtime,supavisor`; `.env.local` desde `pnpm supabase status -o env` sin imprimir claves.
+- [x] Línea base en verde: `pnpm seed`, `pnpm test`, `pnpm test:db`, `pnpm check:guards`, `pnpm typecheck`.
 
 ### Tarea 1 · Base de datos: estado del directo
 
@@ -48,9 +48,9 @@
 - `public.record_live_progress(p_event uuid, p_items jsonb, p_finished boolean, p_actual_minutes int default null, p_started_at timestamptz default null, p_position int default null) returns jsonb` (se borra la de cuatro argumentos). `live_started_at = coalesce(live_started_at, p_started_at)`; `live_position = coalesce(p_position, live_position)`; `p_position` fuera de 0–29 o con la sesión sin empezar (ni guardada ni en esta llamada) → `INVALID` (`22023`).
 - `public.reset_live_progress(p_event uuid) returns timestamptz`: `private.open_session`, ítems a `completed = null, actual_minutes = null`, plan a `live_started_at = null, live_position = null`; devuelve `updated_at`. `execute` solo `authenticated`.
 
-- [ ] pgTAP que falla: columnas y `check`; `record_live_progress` guarda `p_started_at` la primera vez y no lo pisa; `p_position` sustituye; `p_position = 30` y posición sin inicio dan `22023`; `reset_live_progress` limpia plan e ítems y mueve `updated_at`; entrenador de otro equipo y miembro de otro club reciben `P0002` en las dos; sesión `done` → `SESSION_CLOSED` en reset; `anon` no ejecuta ninguna.
-- [ ] Migración; `pnpm supabase db reset`; `pnpm test:db` en verde; `pnpm supabase db lint`.
-- [ ] `pnpm db:types`; commit.
+- [x] pgTAP que falla: columnas y `check`; `record_live_progress` guarda `p_started_at` la primera vez y no lo pisa; `p_position` sustituye; `p_position = 30` y posición sin inicio dan `22023`; `reset_live_progress` limpia plan e ítems y mueve `updated_at`; entrenador de otro equipo y miembro de otro club reciben `P0002` en las dos; sesión `done` → `SESSION_CLOSED` en reset; `anon` no ejecuta ninguna.
+- [x] Migración; `pnpm supabase db reset`; `pnpm test:db` en verde; `pnpm supabase db lint`.
+- [x] `pnpm db:types`; commit.
 
 ### Tarea 2 · Directo: estado y sincronización
 
@@ -67,8 +67,8 @@
 - `useLive` no envía nada mientras `state.startedAt === null`, guarda `synced: false` al cambiar el estado y `true` cuando el envío termina bien.
 - `getLiveSession` devuelve `{ kind: "live"; session } | { kind: "done" } | null` y falla con `throwReadError`.
 
-- [ ] Tests que fallan: `reconcile` (los cuatro casos, posición fuera de rango, sesión sin ejercicios); `storage` (v1 se descarta, `synced` va y vuelve); `useLive` (sin envío antes de iniciar; `synced` tras éxito); `schema` y `route` (parámetros nuevos, omitidos si no llegan); `queries` (estado del servidor, sesión hecha).
-- [ ] Implementar; `pnpm test src/modules/live src/app/api` en verde; commit.
+- [x] Tests que fallan: `reconcile` (los cuatro casos, posición fuera de rango, sesión sin ejercicios); `storage` (v1 se descarta, `synced` va y vuelve); `useLive` (sin envío antes de iniciar; `synced` tras éxito); `schema` y `route` (parámetros nuevos, omitidos si no llegan); `queries` (estado del servidor, sesión hecha).
+- [x] Implementar; `pnpm test src/modules/live src/app/api` en verde; commit.
 
 ### Tarea 3 · Directo: pantalla
 
@@ -76,9 +76,9 @@
 - Modificar: `src/app/c/[club]/(live)/train/[eventId]/live/page.tsx`, `live-screen.tsx`, `error.tsx`, `loading.tsx`; `src/ui/live-controls.tsx`, `src/ui/timer.tsx` (solo quitar clases que no existen)
 - Crear: `live-screen.test.tsx` si no existe
 
-- [ ] Tests que fallan: la página redirige a la ficha con `kind: "done"`; la pantalla sin iniciar enseña «Iniciar» como botón principal y el número de ejercicios; con vídeo, un enlace «Vídeo» con `target="_blank"` y `rel="noopener noreferrer"`; ninguna clase `cos-` ni `-space-` suelta en el marcado.
-- [ ] Rehacer el marcado con utilidades de token y `CTAButton`; el vídeo pasa por `safeHref`.
-- [ ] Tests en verde; `pnpm check:guards`; commit.
+- [x] Tests que fallan: la página redirige a la ficha con `kind: "done"`; la pantalla sin iniciar enseña «Iniciar» como botón principal y el número de ejercicios; con vídeo, un enlace «Vídeo» con `target="_blank"` y `rel="noopener noreferrer"`; ninguna clase `cos-` ni `-space-` suelta en el marcado.
+- [x] Rehacer el marcado con utilidades de token y `CTAButton`; el vídeo pasa por `safeHref`.
+- [x] Tests en verde; `pnpm check:guards`; commit.
 
 ### Tarea 4 · Iniciar, continuar, revisar en la ficha y en Inicio
 
@@ -92,9 +92,9 @@
 - `liveEntry(live: { started: boolean; position: number | null }, itemCount: number): { label: "Iniciar entrenamiento" | "Continuar entrenamiento"; caption: string | null }`; `caption` es «Ejercicio 3 de 5».
 - Acción `resetLiveProgress(clubSlug, { eventId }): Promise<ActionResult<{ updatedAt: string }>>` con `mutate`, permiso `practice.manage`, lectura previa acotada al club (C25).
 
-- [ ] Tests que fallan: `liveEntry`; `PracticeActions` en los tres estados (sin iniciar; en curso con «Empezar de nuevo» y su confirmación, que al terminar llama a `clearLiveState`; hecha sin botón de directo); la ficha de una sesión hecha enseña minutos reales y previstos por ejercicio y el total real; `buildHome` y `HomeScreen` con sesión en curso; `resetLiveProgress` (éxito, `NOT_FOUND` sin llamar a la RPC, `SESSION_CLOSED`).
-- [ ] Implementar. `PracticeActions` deja de leer `localStorage` para decidir la etiqueta.
-- [ ] Tests en verde; commit.
+- [x] Tests que fallan: `liveEntry`; `PracticeActions` en los tres estados (sin iniciar; en curso con «Empezar de nuevo» y su confirmación, que al terminar llama a `clearLiveState`; hecha sin botón de directo); la ficha de una sesión hecha enseña minutos reales y previstos por ejercicio y el total real; `buildHome` y `HomeScreen` con sesión en curso; `resetLiveProgress` (éxito, `NOT_FOUND` sin llamar a la RPC, `SESSION_CLOSED`).
+- [x] Implementar. `PracticeActions` deja de leer `localStorage` para decidir la etiqueta.
+- [x] Tests en verde; commit.
 
 ### Tarea 5 · Equipo activo
 
@@ -110,8 +110,8 @@
 - `TeamSwitcher({ clubSlug, teams: { id: string; name: string }[], activeId: string | null })`: botón con el nombre o «Todos» que abre `BottomSheet` «Equipo»; opciones como botones con `aria-pressed`; al elegir, `setActiveTeam` y `router.refresh()`.
 - `TopNavigation` (variante `home`) acepta `team?: { teams; activeId }` y lo pinta solo con más de un equipo.
 
-- [ ] Tests que fallan: `pickScope` (sin cookie, cookie válida, cookie ajena o malformada, sin equipos); `setActiveTeam` (equipo ajeno → `NOT_FOUND` sin escribir cookie; `null` borra); `TeamSwitcher`; `TopNavigation` con uno y con dos equipos; `listPractices`, `listGames` y `getHomeData` filtran por `scoped`; Inicio de dirección con equipos del club; Equipo abre la plantilla con equipo activo.
-- [ ] Implementar; tests en verde; commit.
+- [x] Tests que fallan: `pickScope` (sin cookie, cookie válida, cookie ajena o malformada, sin equipos); `setActiveTeam` (equipo ajeno → `NOT_FOUND` sin escribir cookie; `null` borra); `TeamSwitcher`; `TopNavigation` con uno y con dos equipos; `listPractices`, `listGames` y `getHomeData` filtran por `scoped`; Inicio de dirección con equipos del club; Equipo abre la plantilla con equipo activo.
+- [x] Implementar; tests en verde; commit.
 
 ### Tarea 6 · Agenda
 
@@ -126,16 +126,16 @@
 - `listAgenda(ctx, { scope, kind }, nowIso): Promise<{ weeks: AgendaWeek[]; teamCount: number; truncated: boolean }>`; `buildAgenda(events, teams, { scope, nowIso, tz, clubSlug }): AgendaWeek[]` (pura).
 - Etiquetas de semana: «Esta semana», «Semana que viene», «Semana pasada» y, si no, «Semana del 19 oct» (lunes de esa semana en la zona del club).
 
-- [ ] Tests que fallan: `buildAgenda` (agrupa por semana de lunes a domingo en la zona del club; orden ascendente en próximos y descendente en anteriores; un entreno sin plan no sale; partido con resultado; cancelado; con varios equipos el subtítulo abre con el equipo; semana del cambio de hora con `TZ=UTC` y `TZ=America/Santiago`); `listAgenda` (filtra por `scoped`, por `kind`, corta en 50); `AgendaList` (pestañas, chips que conservan la otra query, estados vacíos, «Añadir» solo con permiso); la página (`?scope` y `?kind` no válidos caen en los valores por defecto); `/games` redirige a `/agenda?kind=game`.
-- [ ] Implementar; tests en verde; commit.
+- [x] Tests que fallan: `buildAgenda` (agrupa por semana de lunes a domingo en la zona del club; orden ascendente en próximos y descendente en anteriores; un entreno sin plan no sale; partido con resultado; cancelado; con varios equipos el subtítulo abre con el equipo; semana del cambio de hora con `TZ=UTC` y `TZ=America/Santiago`); `listAgenda` (filtra por `scoped`, por `kind`, corta en 50); `AgendaList` (pestañas, chips que conservan la otra query, estados vacíos, «Añadir» solo con permiso); la página (`?scope` y `?kind` no válidos caen en los valores por defecto); `/games` redirige a `/agenda?kind=game`.
+- [x] Implementar; tests en verde; commit.
 
 ### Tarea 7 · Sesiones y Biblioteca
 
 **Ficheros**
 - Modificar: `src/app/c/[club]/(app)/train/page.tsx` y sus `loading`/`error`; `src/modules/practice/practice-list.tsx`; `src/modules/team/no-teams.ts`; `BackLink` y avisos que dicen «Entrenar» en `train/**` y `drills/**`; `src/app/c/[club]/(app)/drills/page.tsx`, `loading.tsx`, `error.tsx`
 
-- [ ] Tests que fallan (ajustando los existentes): `/train` se titula «Sesiones», no enlaza a la biblioteca y su botón dice «Preparar sesión»; los enlaces de vuelta dicen «Sesiones»; `/drills` lleva la cabecera de marca, `<h1>` visible «Biblioteca» y «Nuevo ejercicio» con permiso; la ficha de un ejercicio vuelve a `/drills`.
-- [ ] Implementar; tests en verde; commit.
+- [x] Tests que fallan (ajustando los existentes): `/train` se titula «Sesiones», no enlaza a la biblioteca y su botón dice «Preparar sesión»; los enlaces de vuelta dicen «Sesiones»; `/drills` lleva la cabecera de marca, `<h1>` visible «Biblioteca» y «Nuevo ejercicio» con permiso; la ficha de un ejercicio vuelve a `/drills`.
+- [x] Implementar; tests en verde; commit.
 
 ### Tarea 8 · Navegación por rol e Identidad
 
@@ -149,20 +149,20 @@
 - `AccountMenu({ name, links: { label: string; href: string }[] })`.
 - `HomeScreen` gana `identity: { href: string; subtitle: string } | null`.
 
-- [ ] Tests que fallan: `navItems` por los cuatro roles; `activeNavKey` (`/agenda`, `/games/x`, `/train/x`, `/drills/x`, `/team/x`, `/way/x` con y sin pestaña de identidad, otro club); `BottomNavigation` con dos y con cinco pestañas (columnas repartidas, una sola `aria-current`); `AccountMenu` con «Identidad» y «Gestión»; `HomeScreen` con y sin la fila de identidad; el layout pasa el rol.
-- [ ] Implementar; tests en verde; commit.
+- [x] Tests que fallan: `navItems` por los cuatro roles; `activeNavKey` (`/agenda`, `/games/x`, `/train/x`, `/drills/x`, `/team/x`, `/way/x` con y sin pestaña de identidad, otro club); `BottomNavigation` con dos y con cinco pestañas (columnas repartidas, una sola `aria-current`); `AccountMenu` con «Identidad» y «Gestión»; `HomeScreen` con y sin la fila de identidad; el layout pasa el rol.
+- [x] Implementar; tests en verde; commit.
 
 ### Tarea 9 · Design system y documentación
 
-- [ ] `design/components/BottomNavigation` (pestañas nuevas y variante de dos), `design/components/TopNavigation` (selector de equipo), `design/components/Timer` o la que recoja el directo si su vista previa difiere de lo implementado.
-- [ ] `docs/superpowers/plans/2026-10-03-00-contratos-entre-fases.md`: sección «Uso diario — produce» (firmas de arriba, C3 con `/agenda`, tipos de Inicio).
-- [ ] `docs/superpowers/backlog.md`: «Lo que deja el uso diario» y las decisiones a confirmar; quitar lo que esta pieza resuelve (Inicio de dirección, «Pista sin diagrama» no, eso es de la pieza 3).
-- [ ] Commit.
+- [x] `design/components/BottomNavigation` (pestañas nuevas y variante de dos), `design/components/TopNavigation` (selector de equipo), `design/components/Timer` o la que recoja el directo si su vista previa difiere de lo implementado.
+- [x] `docs/superpowers/plans/2026-10-03-00-contratos-entre-fases.md`: sección «Uso diario — produce» (firmas de arriba, C3 con `/agenda`, tipos de Inicio).
+- [x] `docs/superpowers/backlog.md`: «Lo que deja el uso diario» y las decisiones a confirmar; quitar lo que esta pieza resuelve (Inicio de dirección, «Pista sin diagrama» no, eso es de la pieza 3).
+- [x] Commit.
 
 ### Tarea 10 · E2E y cierre
 
-- [ ] Ajustar los specs existentes a los nombres nuevos (`home`, `train`, `games`, `team`, `drills-library`, `practice-*`, `live`, `tenancy`).
-- [ ] Specs nuevos: `e2e/navigation.spec.ts` (pestañas del entrenador y destino; Identidad desde Inicio y desde el menú), `e2e/agenda.spec.ts` (grupos, chips, anteriores), `e2e/team-scope.spec.ts` (dirección cambia de equipo y lo ven Inicio, Agenda, Sesiones y Equipo; en `admin`), y en `e2e/live.spec.ts`: iniciar → siguiente → salir → «Continuar · Ejercicio 2 de N» en Inicio y en la ficha → continúa en el 2; «Empezar de nuevo»; terminar → ficha con minutos reales; `/live` de la hecha redirige.
-- [ ] Suite entera desde base vacía: `supabase db reset`, `pnpm seed` (dos veces), `pnpm db:types` sin deriva, `supabase db lint`, `lint`, `typecheck`, `check:guards`, `TZ=UTC pnpm test`, `test:db`, `test:int`, `test:e2e`.
-- [ ] Repaso en el navegador a 375×812 con los usuarios del seed (guion de Playwright de usar y tirar): consola sin errores, sin scroll horizontal, áreas táctiles de 44 px.
-- [ ] Revisión de toda la rama con un revisor nuevo; una tanda de arreglos.
+- [x] Ajustar los specs existentes a los nombres nuevos (`home`, `train`, `games`, `team`, `drills-library`, `practice-*`, `live`, `tenancy`).
+- [x] Specs nuevos: `e2e/navigation.spec.ts` (pestañas del entrenador y destino; Identidad desde Inicio y desde el menú), `e2e/agenda.spec.ts` (grupos, chips, anteriores), `e2e/team-scope.spec.ts` (dirección cambia de equipo y lo ven Inicio, Agenda, Sesiones y Equipo; en `admin`), y en `e2e/live.spec.ts`: iniciar → siguiente → salir → «Continuar · Ejercicio 2 de N» en Inicio y en la ficha → continúa en el 2; «Empezar de nuevo»; terminar → ficha con minutos reales; `/live` de la hecha redirige.
+- [x] Suite entera desde base vacía: `supabase db reset`, `pnpm seed` (dos veces), `pnpm db:types` sin deriva, `supabase db lint`, `lint`, `typecheck`, `check:guards`, `TZ=UTC pnpm test`, `test:db`, `test:int`, `test:e2e`.
+- [x] Repaso en el navegador a 375×812 con los usuarios del seed (guion de Playwright de usar y tirar): consola sin errores, sin scroll horizontal, áreas táctiles de 44 px.
+- [x] Revisión de toda la rama con un revisor nuevo; una tanda de arreglos.
