@@ -86,7 +86,7 @@ Con las sesiones de entrenamiento pasa lo mismo: las del seed vuelven a lo que d
 | `pnpm check:guards` | Reglas 2, 3 y 4 de CLAUDE.md (ni la clave de servicio ni nada de un club en `src/`; ni colores hex ni medidas entre corchetes con unidad en los componentes), que cada página de Gestión se exporta con `adminPage` y tokens al día | Nada más |
 | `pnpm test` | Unidad y componentes (Vitest) | Nada más |
 | `pnpm test:db` | RLS y aislamiento entre clubes y entre equipos, las funciones SQL y la postura de privilegios de todo `public` (pgTAP) | Supabase local |
-| `pnpm test:int` | El seed, `generateLoginCode` (el código de acceso de los e2e) y Storage (`scripts/media/storage.int.test.ts`: el bucket `club-media` y sus políticas, con la sesión de cada usuario del seed) contra la base de datos | Supabase local con Storage, `.env.local` y el seed ya cargado (`pnpm seed`) |
+| `pnpm test:int` | El seed, `generateLoginCode` (el código de acceso de los e2e), Storage (`scripts/media/storage.int.test.ts`: el bucket `club-media` y sus políticas, con la sesión de cada usuario del seed) y el importador de contenido (`scripts/content/import.int.test.ts`) contra la base de datos | Supabase local con Storage, `.env.local` y el seed ya cargado (`pnpm seed`) |
 | `pnpm test:e2e` | La app en un móvil de 375×812 (Playwright) | Supabase local, `.env.local` y un puerto libre: el 3000, o el de `PORT`. Con `BASE_URL`, ver [Entorno remoto](#entorno-remoto) |
 
 - La primera vez, instala el navegador de los e2e: `pnpm exec playwright install chromium`.
@@ -106,6 +106,26 @@ Para probar en la red local:
 - `pnpm dev --hostname <IP de tu equipo>` y abre `http://<IP>:3000`. En desarrollo la cookie no es `Secure`.
 - O un túnel HTTPS hacia `pnpm start`.
 - O la app desplegada, que ya va por HTTPS: ver [Entorno remoto](#entorno-remoto).
+
+## Contenido de un club
+
+El seed trae ejercicios de ejemplo, ficticios. El contenido real de un club (sus ejercicios, con su pizarra) vive en un **paquete** bajo `content/` y se carga con su propio comando, que no toca el seed:
+
+```bash
+pnpm content:import content/arcangel/biblioteca-entrenador-2026 --club arcangel
+```
+
+- **Solo crea lo que falta.** Repetirlo no duplica nada, y un ejercicio que ya existe no se toca: lo editado en la app manda.
+- **`--update` sobrescribe.** Cada ejercicio del paquete vuelve a lo que dice el paquete, y lo retocado en la app en esos ejercicios se pierde. Los Standards enlazados se conservan.
+- **Antes de escribir lo comprueba todo:** el paquete entero y que el club tenga los objetivos de trabajo y los principios que el paquete nombra. Si algo falla, lo dice de una vez y no escribe nada. Si falla a mitad de la escritura, deshace lo que había creado.
+- **Solo escribe en un Supabase local**, salvo `ALLOW_REMOTE_IMPORT=true`. Esa variable va en la shell, solo para esa orden, y nunca en `.env.local`, igual que `ALLOW_REMOTE_SEED`. Permitir sembrar no permite importar, ni al revés. Para un remoto, la URL y la clave de servicio se ponen como en [Sembrar el demo](#sembrar-el-demo).
+
+El formato del paquete está en [`content/README.md`](content/README.md).
+
+Dos avisos en local:
+
+- **Los e2e borran lo importado.** Dejan los clubes del seed como recién sembrados (ver [Tests](#tests)). Después de pasarlos hay que importar otra vez.
+- **`pnpm test:int` falla con un paquete importado.** El test del seed cuenta los ejercicios de cada club. Para volver a una base limpia: `pnpm supabase db reset` y `pnpm seed`.
 
 ## Entorno remoto
 
