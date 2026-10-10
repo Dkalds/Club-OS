@@ -173,7 +173,7 @@ Lista, en este orden:
 - [ ] **Aplicar las migraciones** con `pnpm supabase db push`. Antes de confirmar, comprueba que la lista que enseña es la que viste en `migration list`.
 - [ ] **Volver a sembrar el demo** («Sembrar el demo», más abajo). El seed de la Fase 4 añade a Arcángel tres ejercicios («Ayuda y recuperación 3x3», «Presión al balón en medio campo» y «Bloqueo y rebote 3x3»: 21 en total, 23 con los 2 de Club Demo), los enlaza a tres ítems de la sesión «Defensa presionante» y da a Alevín A una sesión cancelada, «Tiro libre y finalizaciones», para que el histórico tenga una. Un nuevo seed devuelve las sesiones del seed a lo que dice el seed (título, estado, lugar y ejercicios); las creadas en la app se quedan.
 - [ ] **Comprobar a mano**, en un móvil y con la app desplegada:
-  - Como entrenador (`alex@arcangel.test`): Entrenar → «Nueva sesión», crearla, añadirle un ejercicio y guardarla. Tiene que salir en «Próximas» y en Inicio si es la siguiente.
+  - Como entrenador (`alex@arcangel.test`): Sesiones → «Preparar sesión», crearla, añadirle un ejercicio y guardarla. Tiene que salir en «Próximas» y en Inicio si es la siguiente.
   - Como la entrenadora de otro equipo (`nora@arcangel.test`): abrir la URL de esa sesión. Tiene que ver «No encontramos esta página», sin ningún dato de la sesión. Lo mismo con `marta@demo.test`, del otro club.
   - Las horas: la sesión sale a la hora que se escribió, que es la del club (`organizations.timezone`), aunque el móvil esté en otra zona horaria.
 
@@ -195,7 +195,24 @@ Lista, en este orden:
   - Como entrenador (`alex@arcangel.test`): Equipo → Hugo Serrano. Tiene que ver dos objetivos activos, el historial con uno logrado y las dos notas. Añadir un objetivo, marcarlo como logrado y escribir una nota.
   - Como su ayudante (`irene@arcangel.test`): la misma ficha. Tiene que ver la nota del cuerpo técnico y **no** la privada de Álex. Lo mismo como dirección (`raul@arcangel.test`).
   - Como la entrenadora de otro equipo (`nora@arcangel.test`) y como `marta@demo.test`: la URL de esa ficha da «No encontramos esta página».
-  - Partidos: crear uno, cancelarlo, y corregir el resultado del jugado.
+  - Partidos (Agenda → «Añadir» → «Partido»): crear uno, cancelarlo, y corregir el resultado del jugado.
+
+### Despliegue del uso diario (navegación por rol, Agenda y directo)
+
+Trae una migración: `20270105000100_live_state`. Añade a `practice_plans` dos columnas (`live_started_at` y `live_position`), sustituye `record_live_progress` por una con dos parámetros opcionales más y crea `reset_live_progress`. Tiene que estar aplicada **antes de usar la preview del PR** y **antes de fusionar**: sin ella, Inicio y la ficha de una sesión fallan (piden esas columnas) y el directo no guarda.
+
+No hay tablas nuevas, ni nada en Storage, en Auth o en las variables de entorno.
+
+Lista, en este orden:
+
+- [ ] **Ver qué falta por aplicar**: `pnpm supabase migration list` contra el proyecto enlazado.
+- [ ] **Saber qué hace con lo que ya hay.** Las columnas nacen vacías: todas las sesiones programadas quedan «sin iniciar», también las que algún móvil tuviera a medias (su estado guardado es de una versión anterior y se descarta). Una sesión ya hecha no cambia.
+- [ ] **Entre aplicarla y desplegar**, la app antigua llama a `record_live_progress` con cuatro argumentos: los dos nuevos tienen valor por defecto, así que sigue funcionando.
+- [ ] **Aplicar la migración** con `pnpm supabase db push`, comprobando que la lista que enseña es la de `migration list`.
+- [ ] **Comprobar a mano**, en un móvil y con la app desplegada:
+  - Como entrenador (`alex@arcangel.test`): la barra es Inicio, Agenda, Sesiones, Biblioteca y Equipo. Agenda enseña entrenos y partidos por semanas, y «Identidad» está en Inicio y en el menú de cuenta.
+  - Iniciar la sesión de hoy desde Inicio, pasar al segundo ejercicio y salir: Inicio y la ficha dicen «Continuar entrenamiento» y «Ejercicio 2 de 4», también en otro dispositivo. Continuar abre el segundo. «Empezar de nuevo» lo deja en «Iniciar entrenamiento».
+  - Como dirección (`raul@arcangel.test`): la cabecera tiene el selector de equipo. Elegir uno filtra Inicio, Agenda, Sesiones y Equipo; «Todos mis equipos» lo quita.
 
 ### Variables en Vercel
 
