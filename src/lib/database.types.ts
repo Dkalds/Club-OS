@@ -525,13 +525,13 @@ isOneToOne: false
                   ]
                 },"practice_plans": {
                   Row: {
-                    "actual_minutes": number | null,"created_at": string,"created_by": string | null,"event_id": string | null,"event_kind": Database["public"]['Enums']["event_kind"],"id": string,"is_template": boolean,"last_save_id": string | null,"notes": string | null,"organization_id": string,"primary_focus_id": string | null,"secondary_focus_id": string | null,"status": string,"team_id": string | null,"title": string,"updated_at": string,"updated_by": string | null
+                    "actual_minutes": number | null,"created_at": string,"created_by": string | null,"event_id": string | null,"event_kind": Database["public"]['Enums']["event_kind"],"id": string,"is_template": boolean,"last_save_id": string | null,"live_position": number | null,"live_started_at": string | null,"notes": string | null,"organization_id": string,"primary_focus_id": string | null,"secondary_focus_id": string | null,"status": string,"team_id": string | null,"title": string,"updated_at": string,"updated_by": string | null
                   }
                   Insert: {
-                    "actual_minutes"?: number | null,"created_at"?: string,"created_by"?: string | null,"event_id"?: string | null,"event_kind"?: Database["public"]['Enums']["event_kind"],"id"?: string,"is_template"?: boolean,"last_save_id"?: string | null,"notes"?: string | null,"organization_id": string,"primary_focus_id"?: string | null,"secondary_focus_id"?: string | null,"status"?: string,"team_id"?: string | null,"title": string,"updated_at"?: string,"updated_by"?: string | null
+                    "actual_minutes"?: number | null,"created_at"?: string,"created_by"?: string | null,"event_id"?: string | null,"event_kind"?: Database["public"]['Enums']["event_kind"],"id"?: string,"is_template"?: boolean,"last_save_id"?: string | null,"live_position"?: number | null,"live_started_at"?: string | null,"notes"?: string | null,"organization_id": string,"primary_focus_id"?: string | null,"secondary_focus_id"?: string | null,"status"?: string,"team_id"?: string | null,"title": string,"updated_at"?: string,"updated_by"?: string | null
                   }
                   Update: {
-                    "actual_minutes"?: number | null,"created_at"?: string,"created_by"?: string | null,"event_id"?: string | null,"event_kind"?: Database["public"]['Enums']["event_kind"],"id"?: string,"is_template"?: boolean,"last_save_id"?: string | null,"notes"?: string | null,"organization_id"?: string,"primary_focus_id"?: string | null,"secondary_focus_id"?: string | null,"status"?: string,"team_id"?: string | null,"title"?: string,"updated_at"?: string,"updated_by"?: string | null
+                    "actual_minutes"?: number | null,"created_at"?: string,"created_by"?: string | null,"event_id"?: string | null,"event_kind"?: Database["public"]['Enums']["event_kind"],"id"?: string,"is_template"?: boolean,"last_save_id"?: string | null,"live_position"?: number | null,"live_started_at"?: string | null,"notes"?: string | null,"organization_id"?: string,"primary_focus_id"?: string | null,"secondary_focus_id"?: string | null,"status"?: string,"team_id"?: string | null,"title"?: string,"updated_at"?: string,"updated_by"?: string | null
                   }
                   Relationships: [
                     {
@@ -776,10 +776,13 @@ isOneToOne: false
 { Args: { "p_event": string,"p_score_against": number,"p_score_for": number }; Returns: undefined
                            },
 "record_live_progress":
-{ Args: { "p_actual_minutes"?: number,"p_event": string,"p_finished": boolean,"p_items": Json }; Returns: Json
+{ Args: { "p_actual_minutes"?: number,"p_event": string,"p_finished": boolean,"p_items": Json,"p_position"?: number,"p_started_at"?: string }; Returns: Json
                            },
 "reorder_methodology":
 { Args: { "p_ids": (string)[],"p_kind": string,"p_org": string }; Returns: undefined
+                           },
+"reset_live_progress":
+{ Args: { "p_event": string }; Returns: string
                            },
 "save_drill":
 { Args: { "p_drill"?: string,"p_expected_updated_at"?: string,"p_org": string,"p_payload"?: Json }; Returns: {
