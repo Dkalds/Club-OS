@@ -4,7 +4,7 @@ import { can } from "@/lib/permissions";
 import { defaultSessionDate } from "@/lib/time";
 import { DEFAULT_GAME_MINUTES } from "@/modules/games/limits";
 import { noTeamsState } from "@/modules/team/no-teams";
-import { listMyTeams } from "@/modules/team/queries";
+import { getTeamScope } from "@/modules/team/scope";
 import { BackLink } from "@/ui/back-link";
 import { TeamIcon } from "@/ui/icons";
 import { EmptyState } from "@/ui/states";
@@ -19,7 +19,7 @@ export default async function NewGamePage({ params }: PageProps<"/c/[club]/games
   const ctx = await requireClub(club);
   if (!can(ctx, "game.manage")) notFound();
 
-  const teams = await listMyTeams(ctx);
+  const { teams, active } = await getTeamScope(ctx);
   const gamesHref = `/c/${ctx.org.slug}/games`;
   const first = teams[0];
 
@@ -32,7 +32,8 @@ export default async function NewGamePage({ params }: PageProps<"/c/[club]/games
           clubSlug={ctx.org.slug}
           teams={teams}
           initial={{
-            teamId: first.id,
+            // El equipo activo, si hay uno elegido; si no, el primero.
+            teamId: (active ?? first).id,
             opponent: "",
             date: defaultSessionDate(new Date().toISOString(), ctx.org.timezone, DEFAULT_GAME_TIME),
             time: DEFAULT_GAME_TIME,

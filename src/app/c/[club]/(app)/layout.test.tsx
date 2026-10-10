@@ -2,21 +2,31 @@ import { fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { clubContext } from "@/modules/tenancy/test-support";
 
-const mocks = vi.hoisted(() => ({ getClubContext: vi.fn(), getViewerName: vi.fn() }));
+const mocks = vi.hoisted(() => ({ getClubContext: vi.fn(), getViewerName: vi.fn(), listMyTeams: vi.fn() }));
 
+// Sin cookie de equipo activo: se ven todos «mis equipos» (`getTeamScope`).
+vi.mock("next/headers", () => ({ cookies: async () => ({ get: () => undefined }) }));
 vi.mock("@/modules/tenancy/queries", () => ({
   getClubContext: mocks.getClubContext,
   getViewerName: mocks.getViewerName,
 }));
+vi.mock("@/modules/team/queries", () => ({ listMyTeams: mocks.listMyTeams }));
+// El selector de equipo es de cliente y llama a una acción: aquí solo importa si se monta.
+vi.mock("@/modules/team/actions", () => ({ setActiveTeam: vi.fn() }));
 // Como el de verdad: `notFound()` corta el render lanzando.
 vi.mock("next/navigation", () => ({
   notFound: () => {
     throw new Error("NOT_FOUND");
   },
   usePathname: () => "/c/club-a",
+  useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
 }));
 
 import AppLayout from "./layout";
+
+// Datos neutros: los tests de `src/` no pueden nombrar a ningún club (pnpm check:guards).
+const TEAM_A = { id: "00000000-0000-4000-8000-0000000000a1", name: "Equipo A", categoryName: "C1", seasonName: "2026/27" };
+const TEAM_B = { id: "00000000-0000-4000-8000-0000000000b1", name: "Equipo B", categoryName: "C2", seasonName: "2026/27" };
 
 function renderLayout(club = "club-a") {
   return AppLayout({ children: <h1>Contenido</h1>, params: Promise.resolve({ club }) });
@@ -29,6 +39,7 @@ function openAccountMenu() {
 beforeEach(() => {
   vi.resetAllMocks();
   mocks.getViewerName.mockResolvedValue("Ana Ruiz");
+  mocks.listMyTeams.mockResolvedValue([TEAM_A]);
 });
 
 describe("layout de la app móvil del club", () => {
@@ -87,5 +98,34 @@ describe("layout de la app móvil del club", () => {
 
     await expect(renderLayout("club-b")).rejects.toThrow("NOT_FOUND");
     expect(mocks.getViewerName).not.toHaveBeenCalled();
+  });
+
+  it("con un solo equipo no hay selector de equipo", async () => {
+    mocks.getClubContext.mockResolvedValue(clubContext("coach"));
+
+    render(await renderLayout());
+
+    expect(screen.queryByRole("button", { name: /Cambiar de equipo$/ })).not.toBeInTheDocument();
+  });
+
+  it("con más de un equipo, la cabecera lleva el selector, que por defecto dice «Todos»", async () => {
+    const ctx = clubContext("admin");
+    mocks.getClubContext.mockResolvedValue(ctx);
+    mocks.listMyTeams.mockResolvedValue([TEAM_B, TEAM_A]);
+
+    render(await renderLayout());
+
+    expect(mocks.listMyTeams).toHaveBeenCalledWith(ctx);
+    const switcher = within(screen.getByRole("banner")).getByRole("button", { name: /Cambiar de equipo$/ });
+    expect(switcher).toHaveTextContent("Todos");
+  });
+
+  it("sin equipos (un jugador, una familia) tampoco hay selector", async () => {
+    mocks.getClubContext.mockResolvedValue(clubContext("player"));
+    mocks.listMyTeams.mockResolvedValue([]);
+
+    render(await renderLayout());
+
+    expect(screen.queryByRole("button", { name: /Cambiar de equipo$/ })).not.toBeInTheDocument();
   });
 });

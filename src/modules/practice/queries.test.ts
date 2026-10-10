@@ -4,6 +4,11 @@ import { clubContext } from "@/modules/tenancy/test-support";
 
 const mocks = vi.hoisted(() => ({ createClient: vi.fn(), logError: vi.fn() }));
 
+// La cookie del equipo activo (`getTeamScope`): sin ella se ven todos «mis equipos».
+const activeTeam = vi.hoisted(() => ({ id: undefined as string | undefined }));
+vi.mock("next/headers", () => ({
+  cookies: async () => ({ get: () => (activeTeam.id === undefined ? undefined : { value: activeTeam.id }) }),
+}));
 vi.mock("@/lib/supabase/server", () => ({ createClient: mocks.createClient }));
 vi.mock("@/lib/log", () => ({ logError: mocks.logError }));
 
@@ -313,6 +318,7 @@ function detailEvent(overrides: Row = {}): Row {
 beforeEach(() => {
   mocks.createClient.mockReset();
   mocks.logError.mockReset();
+  activeTeam.id = undefined;
 });
 
 describe("listManageableTeams", () => {
@@ -366,6 +372,16 @@ describe("listManageableTeams", () => {
 });
 
 describe("getPracticeFormOptions", () => {
+  it("con un equipo activo, lo propone por defecto y sigue ofreciendo todos", async () => {
+    activeTeam.id = TEAM_B;
+    installDatabase({ ...teamStore(), focus_areas: [] });
+
+    const options = await getPracticeFormOptions(COACH);
+
+    expect(options.defaultTeamId).toBe(TEAM_B);
+    expect(options.teams.map((team) => team.id)).toEqual([TEAM_A, TEAM_B]);
+  });
+
   it("devuelve los equipos gestionables y los objetivos del club en su orden", async () => {
     const calls = installDatabase({
       ...teamStore(),
@@ -387,6 +403,7 @@ describe("getPracticeFormOptions", () => {
         { id: uuid(41), name: "Defensa" },
         { id: uuid(42), name: "Tiro" },
       ],
+      defaultTeamId: null,
     });
     const focus = calls.find((entry) => entry.table === "focus_areas");
     expect(focus?.eq).toEqual({ organization_id: ORG });
@@ -455,6 +472,27 @@ describe("listPractices", () => {
       ["empty", 60, 0],
       ["filled", 45, 2],
     ]);
+  });
+
+  it("con un equipo activo, solo las de ese equipo", async () => {
+    activeTeam.id = TEAM_B;
+    const calls = installDatabase(listStore());
+
+    const { practices, teamCount } = await listPractices(ADMIN, "upcoming", NOW);
+
+    expect(teamCount).toBe(1);
+    expect(practices.every((practice) => practice.teamName === "Equipo B")).toBe(true);
+    const events = calls.find((entry) => entry.table === "events");
+    expect(events?.in.team_id).toEqual([TEAM_B]);
+  });
+
+  it("un equipo activo que no es mío se ignora: las de todos mis equipos", async () => {
+    activeTeam.id = TEAM_X;
+    installDatabase(listStore());
+
+    const { teamCount } = await listPractices(ADMIN, "upcoming", NOW);
+
+    expect(teamCount).toBe(3);
   });
 
   it("la dirección ve las de todos los equipos del club, y ninguna de otro club", async () => {

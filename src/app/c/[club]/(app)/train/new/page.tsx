@@ -46,7 +46,8 @@ export default async function NewPracticePage({ params }: PageProps<"/c/[club]/t
           clubSlug={ctx.org.slug}
           options={options}
           initial={{
-            teamId: firstTeam.id,
+            // El equipo activo, si hay uno elegido; si no, el primero.
+            teamId: options.defaultTeamId ?? firstTeam.id,
             title: "",
             date: defaultSessionDate(new Date().toISOString(), ctx.org.timezone, DEFAULT_SESSION_TIME),
             time: DEFAULT_SESSION_TIME,

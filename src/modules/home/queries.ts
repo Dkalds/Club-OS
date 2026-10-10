@@ -1,6 +1,6 @@
 import { throwReadError } from "@/lib/read-error";
 import { createClient } from "@/lib/supabase/server";
-import { listStaffTeams } from "@/modules/team/queries";
+import { getTeamScope } from "@/modules/team/scope";
 import type { ClubContext } from "@/modules/tenancy/queries";
 import { buildHome } from "./build-home";
 import { toHomeEvents } from "./map-rows";
@@ -18,9 +18,30 @@ const EVENT_COLUMNS = `id, team_id, kind, status, starts_at, ends_at, location,
   ),
   games(opponent_name, competition_name, home_away)`;
 
+/** El nombre de pila de la persona, o `""` si su ficha no llega. */
+async function readFirstName(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  orgId: string,
+  personId: string,
+): Promise<string> {
+  const { data, error } = await supabase
+    .from("people")
+    .select("first_name")
+    .eq("organization_id", orgId)
+    .eq("id", personId)
+    .maybeSingle();
+  if (error) throwReadError("home.person", error);
+
+  return data?.first_name ?? "";
+}
+
 /**
  * Los datos de Inicio de quien tiene la sesión: su nombre, sus equipos y los eventos de
  * esos equipos que aún no han terminado.
+ *
+ * «Sus equipos» son los del equipo activo (`getTeamScope`): el elegido o, sin elegir, todos
+ * «mis equipos», que para la dirección son los del club. Es la misma definición que usan
+ * Agenda, Sesiones y Equipo.
  *
  * Lee con la sesión de la persona (todo pasa por RLS) y filtra siempre por club y por
  * equipos: las políticas de RLS ejecutan una función por fila, y una consulta sin filtro
@@ -32,28 +53,18 @@ export async function getHomeData(ctx: ClubContext, nowIso: string): Promise<Hom
   const { personId } = ctx.membership;
   const tz = ctx.org.timezone;
 
-  // Una cuenta sin persona asociada (por ejemplo, quien solo administra) no entrena a nadie.
-  if (!personId) return buildHome({ firstName: "", teams: [], events: [] }, nowIso, tz);
-
   const supabase = await createClient();
   const orgId = ctx.org.id;
 
-  const [person, myTeams] = await Promise.all([
-    supabase
-      .from("people")
-      .select("first_name")
-      .eq("organization_id", orgId)
-      .eq("id", personId)
-      .maybeSingle(),
-    // Los equipos de su cuerpo técnico de esta temporada («mis equipos»).
-    listStaffTeams(orgId, personId),
+  const [firstName, scope] = await Promise.all([
+    // Una cuenta sin persona asociada (por ejemplo, quien solo administra) no tiene nombre
+    // que saludar, pero sí puede tener equipos que ver: los del club, si es dirección.
+    personId ? readFirstName(supabase, orgId, personId) : "",
+    getTeamScope(ctx),
   ]);
-  if (person.error) throwReadError("home.person", person.error);
 
-  const firstName = person.data?.first_name ?? "";
-  const teams = myTeams
-    .map(({ id, name, seasonName }) => ({ id, name, seasonName }))
-    .sort((a, b) => a.name.localeCompare(b.name, "es") || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  // Ya vienen por nombre (`pickScope`).
+  const teams = scope.scoped.map(({ id, name, seasonName }) => ({ id, name, seasonName }));
   if (teams.length === 0) return buildHome({ firstName, teams, events: [] }, nowIso, tz);
 
   // `practice_plans` y `games` cuelgan de `events` por claves compuestas: llegan como lista

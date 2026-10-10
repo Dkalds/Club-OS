@@ -10,6 +10,8 @@ const mocks = vi.hoisted(() => ({
   listMyTeams: vi.fn(),
 }));
 
+// Sin cookie de equipo activo: se ven todos «mis equipos» (`getTeamScope`).
+vi.mock("next/headers", () => ({ cookies: async () => ({ get: () => undefined }) }));
 vi.mock("@/modules/tenancy/queries", () => ({ getClubContext: mocks.getClubContext }));
 vi.mock("@/modules/games/queries", () => ({ listGames: mocks.listGames, getGame: mocks.getGame }));
 vi.mock("@/modules/team/queries", () => ({ listMyTeams: mocks.listMyTeams }));

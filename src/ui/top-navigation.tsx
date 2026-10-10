@@ -2,6 +2,7 @@ import Link from "next/link";
 import { AccountMenu } from "./account-menu";
 import { CTAButton } from "./cta-button";
 import { ChevronLeftIcon } from "./icons";
+import { TeamSwitcher, type TeamSwitcherTeam } from "./team-switcher";
 
 // Lo que comparten las dos variantes: la barra se queda arriba al desplazar la página;
 // `top-nav-line` (globals.css) le pone entonces la línea inferior. Mide como mínimo
@@ -14,6 +15,8 @@ type HomeProps = {
   variant?: "home";
   brand: { displayName: string; wordmarkSub: string | null };
   account?: { name: string; adminHref: string | null };
+  /** «Mis equipos» y el que se está viendo: con más de uno, el selector de equipo activo. */
+  team?: { clubSlug: string; teams: TeamSwitcherTeam[]; activeId: string | null };
 };
 
 type DetailProps = {
@@ -60,9 +63,13 @@ export function TopNavigation(props: HomeProps | DetailProps) {
  * caja y, con interlínea 1, el acento de una mayúscula sobresale; por eso cada línea lleva
  * un relleno vertical que le hace sitio y un margen negativo igual que lo compensa.
  *
+ * Con `team` y más de un equipo, entre la marca y el avatar va el selector del equipo activo
+ * (`TeamSwitcher`). Con uno solo no hay nada que elegir y no se pinta. La marca es la que cede
+ * el sitio: se trunca antes de que el selector o el avatar se salgan.
+ *
  * Se oculta cuando la pantalla trae una cabecera de detalle (ver `TopNavigation`).
  */
-function HomeNavigation({ brand, account }: Omit<HomeProps, "variant">) {
+function HomeNavigation({ brand, account, team }: Omit<HomeProps, "variant">) {
   const sub = brand.wordmarkSub?.trim();
 
   return (
@@ -80,7 +87,12 @@ function HomeNavigation({ brand, account }: Omit<HomeProps, "variant">) {
           </span>
         ) : null}
       </p>
-      {account ? <AccountMenu name={account.name} adminHref={account.adminHref} /> : null}
+      <div className="flex min-w-0 shrink-0 items-center gap-(--space-1) pl-(--space-2)">
+        {team && team.teams.length > 1 ? (
+          <TeamSwitcher clubSlug={team.clubSlug} teams={team.teams} activeId={team.activeId} />
+        ) : null}
+        {account ? <AccountMenu name={account.name} adminHref={account.adminHref} /> : null}
+      </div>
     </header>
   );
 }

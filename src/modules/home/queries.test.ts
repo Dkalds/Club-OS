@@ -4,6 +4,8 @@ import type { ClubContext } from "@/modules/tenancy/queries";
 
 const mocks = vi.hoisted(() => ({ createClient: vi.fn(), logError: vi.fn() }));
 
+// Sin cookie de equipo activo: se ven todos «mis equipos» (`getTeamScope`).
+vi.mock("next/headers", () => ({ cookies: async () => ({ get: () => undefined }) }));
 vi.mock("@/lib/supabase/server", () => ({ createClient: mocks.createClient }));
 vi.mock("@/lib/log", () => ({ logError: mocks.logError }));
 
@@ -121,7 +123,7 @@ class FakeQuery implements PromiseLike<Result> {
   }
 }
 
-type Store = Partial<Record<"people" | "team_staff" | "events", Row[]>>;
+type Store = Partial<Record<"people" | "team_staff" | "teams" | "events", Row[]>>;
 
 function installDatabase(store: Store, failing: Partial<Record<keyof Store, Failure>> = {}) {
   const calls: Call[] = [];
@@ -333,13 +335,35 @@ describe("getHomeData", () => {
     });
   });
 
-  it("una membresía sin persona no consulta nada: nombre vacío y sin equipos", async () => {
+  it("quien entrena sin persona asociada no consulta nada: nombre vacío y sin equipos", async () => {
     const calls = installDatabase(fullStore());
 
-    const home = await getHomeData({ ...CTX, membership: { role: "admin", personId: null } }, NOW);
+    const home = await getHomeData({ ...CTX, membership: { role: "coach", personId: null } }, NOW);
 
     expect(calls).toEqual([]);
     expect(home).toMatchObject({ firstName: "", hasTeams: false, week: [] });
+  });
+
+  it("la dirección ve lo próximo de los equipos del club, aunque no entrene a ninguno", async () => {
+    const store = fullStore();
+    const season = { name: "2026-27", is_current: true };
+    store.teams = [
+      { id: "team-a", organization_id: ORG, name: "Equipo A", categories: { name: "C1" }, seasons: season },
+      { id: "team-b", organization_id: ORG, name: "Equipo B", categories: { name: "C2" }, seasons: season },
+      { id: "team-c", organization_id: OTHER_ORG, name: "Equipo C", categories: { name: "C3" }, seasons: season },
+    ];
+    const calls = installDatabase(store);
+
+    const home = await getHomeData({ ...CTX, membership: { role: "admin", personId: null } }, NOW);
+
+    expect(home.firstName).toBe("");
+    expect(home.hasTeams).toBe(true);
+    expect(home.kicker).toBe("2 equipos · Temporada 2026-27");
+    // El primero de los dos equipos del club, y nada del otro club.
+    expect(home.nextPractice?.eventId).toBe("other-team");
+    expect(calls.some((call) => call.table === "people")).toBe(false);
+    const events = calls.find((call) => call.table === "events");
+    expect(events?.in.team_id).toEqual(["team-a", "team-b"]);
   });
 
   it("si no se lee la persona, el nombre queda vacío y la pantalla sigue", async () => {
