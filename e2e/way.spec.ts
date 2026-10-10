@@ -133,12 +133,17 @@ function title(page: Page) {
   return page.getByRole("heading", { level: 1 });
 }
 
-/** Entra como `email` y abre The Way desde la navegación, como lo haría una persona. */
-async function openWay(page: Page, email: string, tab: string, club: string): Promise<void> {
+/**
+ * Entra como `email` y abre la identidad del club desde Inicio, como lo haría una persona: la
+ * fila «Identidad», que lleva de subtítulo el nombre que el club da a su metodología.
+ */
+async function openWay(page: Page, email: string, wayName: string, club: string): Promise<void> {
   await openAs(page, email);
   await expect(page).toHaveURL(new RegExp(`${club}$`));
 
-  await mainNav(page).getByRole("link", { name: tab }).click();
+  const entry = page.getByRole("main").getByRole("link", { name: /^Identidad/ });
+  await expect(entry).toContainText(wayName);
+  await entry.click();
   await expect(page).toHaveURL(new RegExp(`${club}/way$`));
 }
 
@@ -210,7 +215,7 @@ async function expectClearOfHeader(page: Page, target: Locator): Promise<void> {
 }
 
 test("el entrenador recorre The Way", async ({ page }) => {
-  await openWay(page, ALEX, "The Way", CLUB);
+  await openWay(page, ALEX, "The Arcángel Way", CLUB);
 
   // El Hero: el nombre de la metodología del club y, encima, su lema.
   await expect(title(page)).toHaveCount(1);
@@ -395,9 +400,10 @@ test("dirección tampoco ve los borradores en la app del entrenador", async ({ p
 });
 
 test("cada club ve lo suyo con su terminología", async ({ page, browserErrors }) => {
-  // En Club Demo la pestaña no se llama «The Way».
-  await openWay(page, MARTA, "Nuestra forma", DEMO);
+  // En Club Demo la metodología no se llama como en Arcángel, y ninguna pestaña lleva su nombre.
+  await openWay(page, MARTA, "The Demo Way", DEMO);
   await expect(mainNav(page).getByRole("link", { name: "The Way", exact: true })).toHaveCount(0);
+  await expect(mainNav(page).getByRole("link", { name: "Nuestra forma", exact: true })).toHaveCount(0);
 
   await expect(title(page)).toHaveText("The Demo Way");
   await expect(indexRows(page)).toHaveCount(2);

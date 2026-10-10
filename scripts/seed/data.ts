@@ -1039,6 +1039,9 @@ function addClub(data: SeedData, club: ClubDef, now: Date): void {
         is_template: false,
         status: session.status === "done" ? "done" : "ready",
         actual_minutes: null,
+        // Volver a sembrar deja el directo sin iniciar, lo dejara como lo dejara quien lo usó.
+        live_started_at: null,
+        live_position: null,
       });
 
       session.items.forEach((item, index) => {

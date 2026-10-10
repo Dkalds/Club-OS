@@ -6,6 +6,7 @@ import { seedId } from "../scripts/seed/ids";
 import { restoreSeed, seedNow } from "./helpers/seed";
 import { openAs } from "./helpers/sessions";
 import { expect, test } from "./helpers/test";
+import { hydrated } from "./helpers/train";
 
 // Lo que se escribe en Partidos y en la ficha de un jugador (proyecto `admin`, en serie). Antes y
 // después, `restoreSeed`: borra lo que estos tests crean (partidos, objetivos, notas) y devuelve
@@ -42,13 +43,30 @@ function title(page: Page) {
   return page.getByRole("heading", { level: 1 });
 }
 
-test("Álex crea un partido de su equipo, lo ve en Próximos y lo cancela", async ({ page }) => {
+/** La Agenda con solo los partidos: los próximos o los anteriores. */
+const GAMES = `${CLUB}/agenda?kind=game`;
+const PAST_GAMES = `${CLUB}/agenda?scope=past&kind=game`;
+
+test("Álex crea un partido desde la Agenda, lo ve entre los próximos y lo cancela", async ({ page }) => {
   test.skip(!canWrite(), NEEDS_LOCAL_DB);
   await openAs(page, ALEX);
-  await page.goto(`${CLUB}/games`);
+  await page.goto(`${CLUB}/agenda`);
+  await expect(title(page)).toHaveText("Agenda");
 
-  await page.getByRole("link", { name: "Nuevo partido" }).click();
+  // «Añadir» ofrece una sesión o un partido.
+  const add = page.getByRole("button", { name: "Añadir" });
+  await hydrated(add);
+  await add.click();
+  const sheet = page.getByRole("dialog", { name: "Añadir" });
+  await expect(sheet.getByRole("link", { name: "Sesión de entrenamiento" })).toHaveAttribute("href", `${CLUB}/train/new`);
+  await sheet.getByRole("link", { name: "Partido" }).click();
+  await expect(page).toHaveURL(new RegExp(`${CLUB}/games/new$`));
+
   await expect(title(page)).toHaveText("Nuevo partido");
+  // La pestaña sigue siendo Agenda: los partidos viven en ella.
+  await expect(
+    page.getByRole("navigation", { name: "Principal" }).getByRole("link", { name: "Agenda" }),
+  ).toHaveAttribute("aria-current", "page");
   await page.getByLabel("Rival").fill("CB E2E Rival");
   await page.getByLabel("Local o visitante").selectOption("away");
   await page.getByLabel("Competición").fill("Amistoso");
@@ -58,9 +76,14 @@ test("Álex crea un partido de su equipo, lo ve en Próximos y lo cancela", asyn
   await expect(page.getByText("CB E2E Rival", { exact: true })).toBeVisible();
   // No ha empezado: no hay resultado que apuntar.
   await expect(page.getByRole("button", { name: /resultado/ })).toHaveCount(0);
+  // La vuelta es a la Agenda.
+  await expect(page.getByRole("main").getByRole("link", { name: "Agenda", exact: true })).toHaveAttribute(
+    "href",
+    `${CLUB}/agenda`,
+  );
 
-  await page.goto(`${CLUB}/games`);
-  await expect(page.getByRole("link", { name: /CB E2E Rival/ })).toContainText("Visitante · Amistoso");
+  await page.goto(GAMES);
+  await expect(page.getByRole("link", { name: /CB E2E Rival/ })).toContainText("Partido · Visitante · Amistoso");
 
   await page.getByRole("link", { name: /CB E2E Rival/ }).click();
   await page.getByRole("button", { name: "Cancelar partido" }).click();
@@ -69,16 +92,27 @@ test("Álex crea un partido de su equipo, lo ve en Próximos y lo cancela", asyn
   await expect(page.getByText("Partido cancelado")).toBeVisible();
   await expect(page.getByRole("main").getByRole("button")).toHaveCount(0);
 
-  await page.goto(`${CLUB}/games`);
+  await page.goto(GAMES);
   await expect(page.getByRole("link", { name: /CB E2E Rival/ })).toHaveCount(0);
-  await page.goto(`${CLUB}/games?scope=played`);
+  await page.goto(PAST_GAMES);
   await expect(page.getByRole("link", { name: /CB E2E Rival/ })).toContainText("Cancelado");
 });
 
-test("el partido jugado sale en Jugados con su marcador, y el resultado se corrige", async ({ page }) => {
+test("la antigua lista de partidos lleva a la Agenda, con su filtro", async ({ page }) => {
+  await openAs(page, ALEX);
+
+  await page.goto(`${CLUB}/games`);
+  await expect(page).toHaveURL(new RegExp(`${CLUB}/agenda\\?kind=game$`));
+  await expect(title(page)).toHaveText("Agenda");
+
+  await page.goto(`${CLUB}/games?scope=played`);
+  await expect(page).toHaveURL(new RegExp(`${CLUB}/agenda\\?scope=past&kind=game$`));
+});
+
+test("el partido jugado sale entre los anteriores con su marcador, y el resultado se corrige", async ({ page }) => {
   test.skip(!canWrite(), NEEDS_LOCAL_DB);
   await openAs(page, ALEX);
-  await page.goto(`${CLUB}/games?scope=played`);
+  await page.goto(PAST_GAMES);
 
   const row = page.getByRole("link", { name: /CD Almendros/ });
   await expect(row).toContainText("54–49");
@@ -91,13 +125,18 @@ test("el partido jugado sale en Jugados con su marcador, y el resultado se corri
   await sheet.getByRole("button", { name: "Guardar resultado" }).click();
   await expect(sheet).toHaveCount(0);
   await expect(page.getByText("56 a 49")).toBeAttached();
+
+  // La Agenda enseña el marcador corregido.
+  await page.goto(PAST_GAMES);
+  await expect(page.getByRole("link", { name: /CD Almendros/ })).toContainText("56–49");
 });
 
 test("Nora no ve los partidos de Alevín A ni puede abrirlos", async ({ page, browserErrors }) => {
   browserErrors.allowNotFound(`${CLUB}/games/${PLAYED}`);
   await openAs(page, NORA);
 
-  await page.goto(`${CLUB}/games?scope=played`);
+  await page.goto(PAST_GAMES);
+  await expect(title(page)).toHaveText("Agenda");
   await expect(page.getByRole("link", { name: /CD Almendros/ })).toHaveCount(0);
   await page.goto(`${CLUB}/games/${PLAYED}`);
   await expect(title(page)).toHaveText("No encontramos esta página");
