@@ -90,9 +90,8 @@ describe("InvitesScreen", () => {
     fireEvent.change(screen.getByLabelText("Rol"), { target: { value: "admin" } });
     fireEvent.click(screen.getByRole("button", { name: "Invitar" }));
 
-    await waitFor(() => expect(mocks.createInvitation).toHaveBeenCalled());
+    await waitFor(() => expect(screen.getByText("/invite/abc123")).toBeInTheDocument());
     expect(mocks.createInvitation).toHaveBeenCalledWith("club-a", { email: "admin@club-a.test", role: "admin" });
-    expect(screen.getByText("/invite/abc123")).toBeInTheDocument();
   });
 
   it("crea una invitación de entrenador, con equipo y nombre", async () => {
