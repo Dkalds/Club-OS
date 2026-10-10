@@ -2,6 +2,7 @@ import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import type { Database } from "@/lib/database.types";
 import { logError } from "@/lib/log";
+import { contentSecurityPolicy, generateNonce, securityHeaders } from "@/lib/security-headers";
 import { SESSION_COOKIE_OPTIONS } from "./cookie-options";
 
 type CookieToSet = { name: string; value: string; options: CookieOptions };
@@ -57,6 +58,11 @@ export async function updateSession(request: NextRequest): Promise<NextResponse>
   const cookiesToWrite = new Map<string, CookieToSet>();
   const headersToWrite: Record<string, string> = {};
 
+  // Un nonce por petición (C12): en la cabecera de la petición, para que Next lo aplique a
+  // los scripts que inyecta él mismo (los datos de hidratación), y en la de la respuesta,
+  // para que el navegador la aplique de verdad.
+  const nonce = generateNonce();
+
   let signedIn = false;
   try {
     const supabase = createServerClient<Database>(
@@ -94,6 +100,15 @@ export async function updateSession(request: NextRequest): Promise<NextResponse>
     signedIn = false;
   }
 
+  // Clonada ahora, no antes: tiene que llevar las cookies que acaba de escribir Supabase
+  // (si no, la petición que sigue vería la sesión vieja).
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.set("x-nonce", nonce);
+  requestHeaders.set(
+    "Content-Security-Policy",
+    contentSecurityPolicy(process.env.NEXT_PUBLIC_SUPABASE_URL!, nonce),
+  );
+
   const { pathname } = request.nextUrl;
   let response: NextResponse;
   if (!signedIn && requiresSession(pathname)) {
@@ -102,13 +117,16 @@ export async function updateSession(request: NextRequest): Promise<NextResponse>
     // Solo navegaciones: un POST a /login es una Server Action del formulario.
     response = redirectTo(request, SELECT_CLUB_PATH);
   } else {
-    response = NextResponse.next({ request });
+    response = NextResponse.next({ request: { headers: requestHeaders } });
   }
 
   for (const { name, value, options } of cookiesToWrite.values()) {
     response.cookies.set(name, value, options);
   }
   for (const [name, value] of Object.entries(headersToWrite)) {
+    response.headers.set(name, value);
+  }
+  for (const [name, value] of Object.entries(securityHeaders(process.env.NEXT_PUBLIC_SUPABASE_URL!, nonce))) {
     response.headers.set(name, value);
   }
   return response;
