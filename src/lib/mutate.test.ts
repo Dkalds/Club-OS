@@ -160,6 +160,23 @@ describe("el permiso es el de cada acción", () => {
     }
     expect(mocks.createClient).not.toHaveBeenCalled();
   });
+
+  it.each(["admin", "coach", "player", "guardian"] as const)(
+    "sin permiso configurado, cualquier rol (%s) escribe: decide RLS, no `can`",
+    async (role) => {
+      mocks.requireClub.mockResolvedValue(contextWithRole(role));
+
+      const result = await mutate(
+        { tag: config.tag, routes: config.routes },
+        "club-a",
+        schema,
+        { name: "Uno" },
+        writing(ok(null)),
+      );
+
+      expect(result).toEqual({ ok: true, data: null });
+    },
+  );
 });
 
 describe("tras escribir", () => {

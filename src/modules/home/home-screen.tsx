@@ -43,6 +43,7 @@ export function HomeScreen({
   clubSlug,
   ownShortName,
   canCreatePractice,
+  coverageSummary,
 }: {
   home: HomeData;
   clubSlug: string;
@@ -50,6 +51,8 @@ export function HomeScreen({
   ownShortName: string;
   /** Si quien mira puede crear sesiones: el aviso sin entrenamiento ofrece entonces crear una. */
   canCreatePractice: boolean;
+  /** Solo para dirección (`coverage.view`): el resumen de la cobertura de The Way. */
+  coverageSummary?: { coveredCount: number; totalCount: number } | null;
 }) {
   const base = `/c/${clubSlug}`;
   const practiceHref = (eventId: string) => `${base}/train/${eventId}`;
@@ -71,6 +74,18 @@ export function HomeScreen({
   return (
     <>
       <Hero kicker={home.kicker} title={heroTitle(home.greeting, home.firstName)} />
+
+      {coverageSummary ? (
+        <div className={BLOCK}>
+          <Card>
+            <SectionHeader title="Cobertura de The Way" action={{ label: "Ver", href: `${base}/admin/coverage` }} />
+            <p className="text-ink-2">
+              {coverageSummary.coveredCount} de {coverageSummary.totalCount} combinaciones de equipo y
+              Standard, en las últimas semanas.
+            </p>
+          </Card>
+        </div>
+      ) : null}
 
       {home.hasTeams ? (
         <>

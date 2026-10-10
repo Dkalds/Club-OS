@@ -9,7 +9,7 @@
 -- nacimiento.
 begin;
 
-select plan(74);
+select plan(77);
 
 -- ── Fixtures (como postgres) ─────────────────────────────────────────────────────────
 -- Club A
@@ -181,10 +181,12 @@ select throws_ok(
   'nadie se añade al cuerpo técnico de otro equipo'
 );
 
-select throws_ok(
-  $$update people set last_name = 'Cambiado'$$,
-  '42501', null,
-  'nadie edita personas en esta fase'
+-- Desde Fase 7 Task 11 hay columnas de escritura para dirección (people_admin_write.test.sql
+-- lo cubre a fondo); c1 (coach) tiene el privilegio de columna pero RLS filtra sus filas en
+-- silencio, sin 42501: no administra el club.
+select is_empty(
+  $$update people set last_name = 'Cambiado' returning id$$,
+  'un coach no edita personas: ni una fila'
 );
 
 select throws_ok(
@@ -252,10 +254,12 @@ select results_eq(
   'admin ve a todas las personas de su club y a nadie de B'
 );
 
-select throws_ok(
-  $$update teams set name = 'Otro nombre'$$,
-  '42501', null,
-  'ni el admin escribe en esta fase'
+-- Desde Fase 7 Task 10, dirección edita los equipos de su club (sin where, solo toca los
+-- suyos: RLS filtra en silencio los de B, no hace falta un 42501 para protegerlos).
+select results_eq(
+  $$update teams set name = name || ' (editado)' returning organization_id$$,
+  $$values (current_setting('fx.club_a')::uuid), (current_setting('fx.club_a')::uuid)$$,
+  'admin edita los equipos de su club con un update sin where, y solo los suyos'
 );
 
 -- ── coachB: el aislamiento entre clubes vale en los dos sentidos ─────────────────────
@@ -510,7 +514,8 @@ select throws_ok(
 -- Añadir un dato personal a `people` obliga a tocar este test a propósito.
 select columns_are(
   'public', 'people',
-  array['id', 'organization_id', 'first_name', 'last_name', 'birth_year', 'created_at', 'archived_at'],
+  array['id', 'organization_id', 'first_name', 'last_name', 'birth_year', 'created_at', 'archived_at',
+        'photo_media_id'],
   'people guarda el año de nacimiento, nunca la fecha completa'
 );
 
@@ -540,15 +545,41 @@ select is_empty(
   'anon no tiene ningún privilegio sobre las tablas'
 );
 
+-- seasons, categories y teams tienen insert y update desde Fase 7 Task 10 (dirección), y
+-- people desde Task 11; esas cuatro quedan fuera de aquí y las cubre
+-- club_admin_write.test.sql, people_admin_write.test.sql y posture.test.sql.
 select is_empty(
   $$select c.relname, p.privilege
     from pg_class as c
     cross join unnest(array['insert', 'update', 'delete', 'truncate', 'references', 'trigger'])
       as p (privilege)
     where c.relnamespace = 'public'::regnamespace
-      and c.relname in ('people', 'seasons', 'categories', 'teams', 'team_staff', 'team_players')
+      and c.relname in ('team_staff', 'team_players')
       and has_table_privilege('authenticated', c.oid, p.privilege)$$,
-  'authenticated no tiene privilegios de escritura'
+  'authenticated no tiene privilegios de escritura sobre las tablas que siguen de solo lectura'
+);
+select is_empty(
+  $$select c.relname, p.privilege
+    from pg_class as c
+    cross join unnest(array['delete', 'truncate', 'references', 'trigger'])
+      as p (privilege)
+    where c.relnamespace = 'public'::regnamespace
+      and c.relname in ('seasons', 'categories', 'teams')
+      and has_table_privilege('authenticated', c.oid, p.privilege)$$,
+  'y ni seasons, categories ni teams se borran (sin grant de delete)'
+);
+-- people: insert de tabla entera (el alta, una a una y por CSV); el cambio y el archivado
+-- van por columnas (abajo, en posture.test.sql), nunca update ni delete de tabla entera.
+select is(
+  has_table_privilege('authenticated', 'public.people'::regclass, 'insert'),
+  true,
+  'people sí tiene insert de tabla entera, para el alta'
+);
+select is_empty(
+  $$select p.privilege
+    from unnest(array['update', 'delete', 'truncate', 'references', 'trigger']) as p (privilege)
+    where has_table_privilege('authenticated', 'public.people'::regclass, p.privilege)$$,
+  'people no tiene update ni delete de tabla entera: el cambio va por columnas'
 );
 
 select results_eq(

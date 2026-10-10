@@ -62,6 +62,12 @@ export function adminNavItems(clubSlug: string, terminology: Terminology): Admin
     { label: "Valores", href: `${base}/values` },
     { label: "Principios", href: `${base}/principles` },
     { label: standardsLabel(terminology), href: `${base}/standards` },
+    { label: "Club", href: `${base}/club` },
+    { label: "Equipos", href: `${base}/teams` },
+    { label: "Personas", href: `${base}/people` },
+    { label: "Ejercicios pendientes", href: `${base}/drills` },
+    { label: "Cobertura", href: `${base}/coverage` },
+    { label: "Invitaciones", href: `${base}/invites` },
   ];
 }
 

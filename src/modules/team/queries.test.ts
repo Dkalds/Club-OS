@@ -7,7 +7,7 @@ const mocks = vi.hoisted(() => ({ createClient: vi.fn(), logError: vi.fn() }));
 vi.mock("@/lib/supabase/server", () => ({ createClient: mocks.createClient }));
 vi.mock("@/lib/log", () => ({ logError: mocks.logError }));
 
-import { getTeam, listMyTeams, listStaffTeams } from "./queries";
+import { getTeam, listMyTeams, listStaffTeams, listTeamsForAdmin } from "./queries";
 
 // Un doble mínimo de la base de datos, como el de `practice/queries.test.ts`: aplica de verdad
 // los `eq` (también sobre columnas anidadas, como hace PostgREST con `!inner`) y apunta qué
@@ -115,6 +115,16 @@ function store() {
 beforeEach(() => {
   mocks.createClient.mockReset();
   mocks.logError.mockReset();
+});
+
+describe("listTeamsForAdmin", () => {
+  it("todos los equipos del club de la temporada actual, para un select de Gestión", async () => {
+    installDatabase(store());
+
+    const teams = await listTeamsForAdmin(ADMIN);
+
+    expect(teams.map((t) => t.id)).toEqual([TEAM_A, TEAM_B]);
+  });
 });
 
 describe("listMyTeams", () => {

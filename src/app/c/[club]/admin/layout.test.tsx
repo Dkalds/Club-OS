@@ -5,6 +5,9 @@ import { clubContext } from "@/modules/tenancy/test-support";
 const mocks = vi.hoisted(() => ({ getClubContext: vi.fn() }));
 
 vi.mock("@/modules/tenancy/queries", () => ({ getClubContext: mocks.getClubContext }));
+vi.mock("@/modules/consents/queries", () => ({
+  getConsentStatus: async () => ({ needsTerms: false, pendingGuardianships: [] }),
+}));
 // Como el de verdad: `notFound()` corta el render lanzando.
 vi.mock("next/navigation", () => ({
   notFound: () => {
@@ -36,6 +39,12 @@ describe("layout de Gestión", () => {
       "Valores",
       "Principios",
       "Standards",
+      "Club",
+      "Equipos",
+      "Personas",
+      "Ejercicios pendientes",
+      "Cobertura",
+      "Invitaciones",
     ]);
     expect(within(screen.getByRole("main")).getByRole("heading", { name: "Contenido" })).toBeInTheDocument();
     expect(mocks.getClubContext).toHaveBeenCalledWith("club-a");

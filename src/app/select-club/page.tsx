@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { logError } from "@/lib/log";
 import { createClient } from "@/lib/supabase/server";
+import { acceptPendingInvitations } from "@/modules/invitations/accept";
 import { Avatar } from "@/ui/avatar";
 import { Card } from "@/ui/card";
 import { CTAButton } from "@/ui/cta-button";
@@ -32,6 +33,10 @@ async function listClubs(): Promise<Club[]> {
   if (authError) logError("select-club.session", authError);
   const userId = auth?.claims.sub;
   if (!userId) redirect("/login");
+
+  // Aquí es donde de verdad se acepta una invitación, en el primer login tras ella (Fase 7,
+  // Task 1 y 9): quien entra ve ya su club nuevo abajo. Sin invitaciones, no hace nada.
+  await acceptPendingInvitations();
 
   const { data, error } = await supabase
     .from("memberships")

@@ -13,7 +13,12 @@ export type ActionError =
   | "SECTION_LIMIT"
   | "SESSION_CLOSED"
   | "GOAL_LIMIT"
-  | "GAME_CLOSED";
+  | "GAME_CLOSED"
+  | "INVITE_EXPIRED"
+  | "INVITE_INVALID"
+  | "INVITE_ALREADY_ACCEPTED"
+  | "LAST_ADMIN"
+  | "CONSENT_GRANTOR";
 
 export type ActionResult<T> =
   | { ok: true; data: T }
@@ -30,6 +35,11 @@ export const ACTION_ERROR_COPY: Record<ActionError, string> = {
   GOAL_LIMIT:
     "Este jugador ya tiene 3 objetivos activos. Marca uno como logrado o archívalo para añadir otro.",
   GAME_CLOSED: "Este partido está cancelado y no se puede cambiar.",
+  INVITE_EXPIRED: "Esta invitación ha caducado. Pide una nueva a dirección.",
+  INVITE_INVALID: "Este enlace de invitación no es válido.",
+  INVITE_ALREADY_ACCEPTED: "Esta invitación ya se aceptó.",
+  LAST_ADMIN: "Este club necesita al menos una persona en dirección.",
+  CONSENT_GRANTOR: "Solo el tutor de esta persona puede dar este consentimiento.",
 };
 
 export function ok<T>(data: T): ActionResult<T> {
