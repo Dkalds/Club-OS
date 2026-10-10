@@ -5,7 +5,6 @@ import { clubContext } from "@/modules/tenancy/test-support";
 
 const mocks = vi.hoisted(() => ({
   getClubContext: vi.fn(),
-  listGames: vi.fn(),
   getGame: vi.fn(),
   listMyTeams: vi.fn(),
 }));
@@ -13,12 +12,15 @@ const mocks = vi.hoisted(() => ({
 // Sin cookie de equipo activo: se ven todos «mis equipos» (`getTeamScope`).
 vi.mock("next/headers", () => ({ cookies: async () => ({ get: () => undefined }) }));
 vi.mock("@/modules/tenancy/queries", () => ({ getClubContext: mocks.getClubContext }));
-vi.mock("@/modules/games/queries", () => ({ listGames: mocks.listGames, getGame: mocks.getGame }));
+vi.mock("@/modules/games/queries", () => ({ getGame: mocks.getGame }));
 vi.mock("@/modules/team/queries", () => ({ listMyTeams: mocks.listMyTeams }));
 vi.mock("@/modules/games/actions", () => ({}));
 vi.mock("next/navigation", () => ({
   notFound: () => {
     throw new Error("NOT_FOUND");
+  },
+  redirect: (href: string) => {
+    throw new Error(`REDIRECT ${href}`);
   },
   useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
 }));
@@ -56,26 +58,29 @@ const props = <P extends Record<string, string>>(params: P, search: Record<strin
 beforeEach(() => {
   vi.resetAllMocks();
   mocks.getClubContext.mockResolvedValue(clubContext("coach"));
-  mocks.listGames.mockResolvedValue({ games: [], teamCount: 1, truncated: false });
   mocks.getGame.mockResolvedValue(GAME);
   mocks.listMyTeams.mockResolvedValue([{ id: "t-1", name: "Equipo A", categoryName: "C", seasonName: "2026/27" }]);
 });
 
 describe("/games", () => {
-  it("sin club, 404 sin leer partidos", async () => {
+  it("sin club, 404: no redirige a nadie", async () => {
     mocks.getClubContext.mockResolvedValue(null);
 
     await expect(GamesPage(props({}))).rejects.toThrow("NOT_FOUND");
-    expect(mocks.listGames).not.toHaveBeenCalled();
   });
 
-  it("solo ?scope=played exacto son los jugados; la hora es la del servidor", async () => {
-    render(await GamesPage(props({}, { scope: "played" })));
-    expect(mocks.listGames).toHaveBeenLastCalledWith(expect.anything(), "played", expect.stringMatching(/Z$/));
+  it("la lista de partidos es la de la Agenda, con su filtro puesto", async () => {
+    await expect(GamesPage(props({}))).rejects.toThrow("REDIRECT /c/club-a/agenda?kind=game");
+  });
 
-    render(await GamesPage(props({}, { scope: "otra" })));
-    expect(mocks.listGames).toHaveBeenLastCalledWith(expect.anything(), "upcoming", expect.any(String));
-    expect(screen.getAllByRole("heading", { level: 1, name: "Partidos" })).toHaveLength(2);
+  it("?scope=played, la antigua pestaña de jugados, lleva a los anteriores", async () => {
+    await expect(GamesPage(props({}, { scope: "played" }))).rejects.toThrow(
+      "REDIRECT /c/club-a/agenda?scope=past&kind=game",
+    );
+  });
+
+  it("cualquier otro valor de scope son los próximos", async () => {
+    await expect(GamesPage(props({}, { scope: "otra" }))).rejects.toThrow("REDIRECT /c/club-a/agenda?kind=game");
   });
 });
 

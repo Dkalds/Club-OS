@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import {
   addLocalDays,
+  dayMonth,
   dayChip,
   defaultSessionDate,
   formatDate,
@@ -11,6 +12,7 @@ import {
   localTime,
   nextWeeklySlot,
   startOfLocalDay,
+  startOfLocalWeek,
   zonedDateTimeToIso,
 } from "./time";
 
@@ -566,3 +568,39 @@ describe("formatDate", () => {
   });
 });
 
+
+
+describe("startOfLocalWeek", () => {
+  it("el lunes a las 00:00 del club, sea cual sea el día de la semana", () => {
+    // Miércoles 7 oct y domingo 11 oct, en Madrid (UTC+2): el lunes 5 a las 00:00.
+    expect(startOfLocalWeek("2026-10-07T10:00:00Z", "Europe/Madrid")).toBe("2026-10-04T22:00:00.000Z");
+    expect(startOfLocalWeek("2026-10-11T21:30:00Z", "Europe/Madrid")).toBe("2026-10-04T22:00:00.000Z");
+  });
+
+  it("el propio lunes es el principio de su semana", () => {
+    expect(startOfLocalWeek("2026-10-05T07:00:00Z", "Europe/Madrid")).toBe("2026-10-04T22:00:00.000Z");
+    // Lunes 12 a las 00:30 en Madrid ya es la semana siguiente.
+    expect(startOfLocalWeek("2026-10-11T22:30:00Z", "Europe/Madrid")).toBe("2026-10-11T22:00:00.000Z");
+  });
+
+  it("el mismo instante puede caer en semanas distintas según la zona", () => {
+    // Lunes 12, 01:00 en Madrid; domingo 11, 17:00 en Ciudad de México.
+    const instant = "2026-10-11T23:00:00Z";
+
+    expect(startOfLocalWeek(instant, "Europe/Madrid")).toBe("2026-10-11T22:00:00.000Z");
+    expect(startOfLocalWeek(instant, "America/Mexico_City")).toBe("2026-10-05T06:00:00.000Z");
+  });
+
+  it("la semana del cambio de hora empieza en su lunes, y la siguiente, una hora de reloj después", () => {
+    // Domingo 25 oct 2026: Madrid pasa de UTC+2 a UTC+1.
+    expect(startOfLocalWeek("2026-10-25T17:00:00Z", "Europe/Madrid")).toBe("2026-10-18T22:00:00.000Z");
+    expect(startOfLocalWeek("2026-10-26T08:00:00Z", "Europe/Madrid")).toBe("2026-10-25T23:00:00.000Z");
+  });
+});
+
+describe("dayMonth", () => {
+  it("el día y el mes abreviado, en la zona del club", () => {
+    expect(dayMonth("2026-10-18T22:00:00.000Z", "Europe/Madrid")).toBe("19 oct");
+    expect(dayMonth("2026-10-18T22:00:00.000Z", "America/Mexico_City")).toBe("18 oct");
+  });
+});

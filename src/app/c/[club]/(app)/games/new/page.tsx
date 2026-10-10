@@ -20,12 +20,11 @@ export default async function NewGamePage({ params }: PageProps<"/c/[club]/games
   if (!can(ctx, "game.manage")) notFound();
 
   const { teams, active } = await getTeamScope(ctx);
-  const gamesHref = `/c/${ctx.org.slug}/games`;
   const first = teams[0];
 
   return (
     <div className="flex flex-col gap-(--space-6) px-(--space-4) pt-(--space-6)">
-      <BackLink href={gamesHref} label="Partidos" />
+      <BackLink href={`/c/${ctx.org.slug}/agenda`} label="Agenda" />
       <h1 className="font-display text-display-l uppercase">Nuevo partido</h1>
       {first ? (
         <GameForm

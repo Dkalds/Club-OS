@@ -22,7 +22,7 @@ export default async function GamePage({ params }: PageProps<"/c/[club]/games/[e
 
   return (
     <div className="flex flex-col gap-(--space-6) px-(--space-4) pt-(--space-6)">
-      <BackLink href={`/c/${ctx.org.slug}/games`} label="Partidos" />
+      <BackLink href={`/c/${ctx.org.slug}/agenda`} label="Agenda" />
       <h1 className="sr-only">{`${game.teamName} contra ${game.opponent}`}</h1>
 
       <GameCard
