@@ -13,6 +13,7 @@ const PRACTICE: HomePractice = {
   drillCount: 5,
   focus: ["Transición", "Rebote"],
   location: "Pabellón 2",
+  live: { started: false, position: null },
 };
 
 /** El kicker de la card del entrenamiento: lo fijo y, tras el punto medio, el equipo. */
@@ -211,6 +212,21 @@ describe("HomeScreen con equipos", () => {
 
     const link = screen.getByRole("link", { name: "Iniciar entrenamiento" });
     expect(link).toHaveAttribute("href", "/c/club-a/train/e-1/live");
+  });
+
+  it("sin empezar no dice por dónde va", () => {
+    renderHome(home({ nextPractice: { ...PRACTICE, drillCount: 3 } }));
+
+    expect(screen.queryByText(/^Ejercicio \d+ de \d+$/)).not.toBeInTheDocument();
+  });
+
+  it("con la sesión en curso ofrece «Continuar entrenamiento» y dice por qué ejercicio va", () => {
+    renderHome(home({ nextPractice: { ...PRACTICE, drillCount: 5, live: { started: true, position: 2 } } }));
+
+    const link = screen.getByRole("link", { name: "Continuar entrenamiento" });
+    expect(link).toHaveAttribute("href", "/c/club-a/train/e-1/live");
+    expect(screen.getByText("Ejercicio 3 de 5")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Iniciar entrenamiento" })).not.toBeInTheDocument();
   });
 
   it("sin ejercicios, no ofrece «Iniciar entrenamiento»", () => {

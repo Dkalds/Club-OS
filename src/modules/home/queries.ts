@@ -11,7 +11,7 @@ const EVENT_LIMIT = 30;
 
 const EVENT_COLUMNS = `id, team_id, kind, status, starts_at, ends_at, location,
   practice_plans(
-    title,
+    title, live_started_at, live_position,
     primary_focus:focus_areas!practice_plans_organization_id_primary_focus_id_fkey(name),
     secondary_focus:focus_areas!practice_plans_organization_id_secondary_focus_id_fkey(name),
     practice_items(sort, minutes)

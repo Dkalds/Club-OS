@@ -1,8 +1,16 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { builderMinutes, itemNumber } from "@/modules/practice/format";
+import { builderMinutes, itemNumber, minutesLabel } from "@/modules/practice/format";
 import { CTAButton } from "./cta-button";
-import { ChevronDownIcon, ChevronRightIcon, ChevronUpIcon, MinusIcon, PlusIcon, TrashIcon } from "./icons";
+import {
+  CheckIcon,
+  ChevronDownIcon,
+  ChevronRightIcon,
+  ChevronUpIcon,
+  MinusIcon,
+  PlusIcon,
+  TrashIcon,
+} from "./icons";
 
 // Sin `"use client"`, como `states.tsx`: el archivo no usa hooks. `PracticeItemView` y
 // `PracticeTotal` son piezas de servidor (el detalle de una sesión), y solo `PracticeItem` lleva
@@ -217,6 +225,18 @@ export function PracticeItem({
   );
 }
 
+/** Cómo acabó un ejercicio en el directo: hecho, con lo que duró si se sabe, o sin hacer. */
+function ItemResult({ completed, actualMinutes }: { completed: boolean; actualMinutes: number | null }) {
+  if (!completed) return <span className="block text-body-s text-ink-3">Sin hacer</span>;
+
+  return (
+    <span className="flex items-center gap-(--space-1) text-body-s text-success tabular-nums">
+      <CheckIcon size={16} />
+      {actualMinutes === null ? "Hecho" : `Hecho · ${minutesLabel(actualMinutes)}`}
+    </span>
+  );
+}
+
 /**
  * Un ítem de una sesión ya hecha o solo para leer: su número, la fase y el título, y los
  * minutos a la derecha. Es un `<li>`: va como hijo directo de una lista, por ejemplo
@@ -226,6 +246,11 @@ export function PracticeItem({
  * `ListRow`, y sin precarga: el destino es una ruta dinámica detrás del proxy de sesión. Sin
  * `href`, es texto. El separador es el borde superior del `<li>`, salvo en la primera fila.
  * Pulsada, la fila pasa a `surface-3`.
+ *
+ * `result` es lo que el directo registró de ese ejercicio, y solo se pasa en una sesión ya
+ * hecha: debajo del título dice si se hizo y cuánto duró de verdad («Hecho · 9 min»), o «Sin
+ * hacer». Los minutos de la derecha siguen siendo los previstos. Que se hizo no lo dice solo el
+ * color: lleva su icono y su palabra.
  */
 export function PracticeItemView({
   index,
@@ -233,12 +258,14 @@ export function PracticeItemView({
   phase,
   minutes,
   href,
+  result,
 }: {
   index: number;
   title: string;
   phase: string | null;
   minutes: number;
   href?: string;
+  result?: { completed: boolean; actualMinutes: number | null };
 }) {
   const row = "flex min-h-18 items-center gap-(--space-2) px-(--space-4) py-(--space-2) text-ink";
   const content = (
@@ -246,6 +273,12 @@ export function PracticeItemView({
       <span className={NUMBER}>{itemNumber(index)}</span>
       <span className="min-w-0 flex-1">
         <PhaseAndTitle phase={phase} title={title} />
+        {result ? (
+          <>
+            {" "}
+            <ItemResult {...result} />
+          </>
+        ) : null}
       </span>
       <Minutes minutes={minutes} className={MINUTES} />
       {href !== undefined ? <ChevronRightIcon size={16} className="text-ink-3 group-active:text-ink-2" /> : null}
@@ -277,8 +310,19 @@ export function PracticeItemView({
  *
  * Con `inline` es solo «Total» y la suma, juntos y sin raya ni relleno: para la barra de
  * guardado del constructor, que pone el suyo.
+ *
+ * `label` cambia la palabra: «Real» para lo que duró de verdad una sesión ya hecha, debajo del
+ * total previsto.
  */
-export function PracticeTotal({ minutes, inline = false }: { minutes: number; inline?: boolean }) {
+export function PracticeTotal({
+  minutes,
+  inline = false,
+  label = "Total",
+}: {
+  minutes: number;
+  inline?: boolean;
+  label?: string;
+}) {
   return (
     <div
       className={
@@ -287,7 +331,7 @@ export function PracticeTotal({ minutes, inline = false }: { minutes: number; in
           : "flex items-center justify-between border-t border-line-strong px-(--space-4) py-(--space-3)"
       }
     >
-      <span className="font-display text-title uppercase">Total</span>
+      <span className="font-display text-title uppercase">{label}</span>
       <Minutes minutes={minutes} className="font-display text-numeral tabular-nums" />
     </div>
   );

@@ -48,6 +48,8 @@ function item(n: number, title: string, minutes: number): PracticeDetailItem {
     phase: null,
     minutes,
     notes: null,
+    completed: null,
+    actualMinutes: null,
   };
 }
 
@@ -72,6 +74,8 @@ function practice(overrides: Partial<PracticeDetail> = {}): PracticeDetail {
     standards: [],
     updatedAt: UPDATED_AT,
     canEdit: true,
+    live: { started: false, position: null },
+    actualMinutes: null,
     ...overrides,
   };
 }

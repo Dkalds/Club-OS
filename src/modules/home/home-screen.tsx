@@ -8,12 +8,31 @@ import { DateChip, ListRow } from "@/ui/list-row";
 import { PracticeCard } from "@/ui/practice-card";
 import { SectionHeader } from "@/ui/section-header";
 import { EmptyState } from "@/ui/states";
-import type { HomeData, WeekItem } from "./types";
+import { liveEntry } from "@/modules/live/label";
+import type { HomeData, HomePractice, WeekItem } from "./types";
 
 /** «Buenos días, Ana.»; sin nombre (una cuenta sin persona asociada), «Buenos días.». */
 export function heroTitle(greeting: string, firstName: string): string {
   const name = firstName.trim();
   return name ? `${greeting}, ${name}.` : `${greeting}.`;
+}
+
+/**
+ * La entrada al directo del próximo entrenamiento: «Iniciar entrenamiento» si nunca se ha
+ * empezado, o «Continuar entrenamiento» y, debajo, el ejercicio por el que va. Es lo mismo que
+ * dice la ficha de la sesión (`liveEntry`), y sale de lo que guarda el servidor.
+ */
+function LiveEntryButton({ practice, href }: { practice: HomePractice; href: string }) {
+  const entry = liveEntry(practice.live, practice.drillCount);
+
+  return (
+    <>
+      <CTAButton variant="primary" block href={href}>
+        {entry.label}
+      </CTAButton>
+      {entry.caption ? <p className="text-center text-body-s text-ink-2 tabular-nums">{entry.caption}</p> : null}
+    </>
+  );
 }
 
 // Margen lateral de pantalla (`space-4`). La portada no lo lleva: va a sangre.
@@ -30,8 +49,8 @@ const BLOCK = "px-(--space-4)";
  * ninguno → próximo partido, si lo hay → «Esta semana». Sin equipos, solo el saludo y el
  * aviso. El `<h1>` es el del saludo; lo demás son `<h2>`.
  *
- * Un entrenamiento (la card destacada y su fila de la semana) lleva a su sesión, `/train/{id}`;
- * un partido aún no tiene pantalla y lleva a la pestaña de Partidos. El aviso de que no hay
+ * Un entrenamiento (la card destacada y su fila de la semana) lleva a su sesión, `/train/{id}`,
+ * y un partido, a su ficha. Bajo la card, la entrada a su directo (`LiveEntryButton`). El aviso de que no hay
  * entrenamiento ofrece «Nueva sesión» solo a quien puede gestionarlas (`canCreatePractice`: lo
  * decide la página con `can`; aquí solo muestra u oculta).
  *
@@ -79,9 +98,7 @@ export function HomeScreen({
               <>
                 <PracticeCard practice={home.nextPractice} href={practiceHref(home.nextPractice.eventId)} />
                 {home.nextPractice.drillCount > 0 ? (
-                  <CTAButton variant="primary" block href={`${practiceHref(home.nextPractice.eventId)}/live`}>
-                    Iniciar entrenamiento
-                  </CTAButton>
+                  <LiveEntryButton practice={home.nextPractice} href={`${practiceHref(home.nextPractice.eventId)}/live`} />
                 ) : null}
               </>
             ) : (

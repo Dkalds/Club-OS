@@ -285,6 +285,9 @@ function detailEvent(overrides: Row = {}): Row {
         title: "Transición + rebote defensivo",
         notes: null,
         updated_at: "2026-11-10T09:30:00.123456+00:00",
+        actual_minutes: null,
+        live_started_at: null,
+        live_position: null,
         primary_focus: { id: uuid(40), name: "Defensa" },
         secondary_focus: null,
         practice_items: [
@@ -296,6 +299,8 @@ function detailEvent(overrides: Row = {}): Row {
             title_override: null,
             minutes: 20,
             notes: null,
+            completed: null,
+            actual_minutes: null,
             drills: { title: "Rueda de tiros", drill_standards: [{ standards: STANDARD }] },
           },
         ],
@@ -595,11 +600,15 @@ describe("getPractice", () => {
           phase: "Técnica",
           minutes: 20,
           notes: null,
+          completed: null,
+          actualMinutes: null,
         },
       ],
       standards: [{ id: STANDARD.id, number: 4, title: "COMUNICAR", description: "Se habla." }],
       updatedAt: "2026-11-10T09:30:00.123456+00:00",
       canEdit: true,
+      live: { started: false, position: null },
+      actualMinutes: null,
     });
   });
 

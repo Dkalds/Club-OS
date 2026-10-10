@@ -14,6 +14,7 @@ const PRACTICE: HomePractice = {
   drillCount: 5,
   focus: ["Transición", "Rebote"],
   location: "Pabellón 2",
+  live: { started: false, position: null },
 };
 
 function renderCard(overrides: Partial<HomePractice> = {}) {

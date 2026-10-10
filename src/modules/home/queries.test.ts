@@ -236,6 +236,7 @@ describe("getHomeData", () => {
         drillCount: 2,
         focus: ["Defensa"],
         location: "Pabellón 2",
+        live: { started: false, position: null },
       },
       nextGame: null,
       week: [

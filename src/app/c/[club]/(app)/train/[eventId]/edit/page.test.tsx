@@ -62,11 +62,13 @@ function practice(overrides: Partial<PracticeDetail> = {}): PracticeDetail {
     secondaryFocus: { id: "f-2", name: "Transición" },
     notes: "Llevar los petos azules.",
     items: [
-      { id: "i-1", drillId: null, drillVisible: false, title: "Calentamiento", phase: "Activación", minutes: 10, notes: null },
+      { id: "i-1", drillId: null, drillVisible: false, title: "Calentamiento", phase: "Activación", minutes: 10, notes: null, completed: null, actualMinutes: null },
     ],
     standards: [],
     updatedAt: "2026-10-04T10:00:00.123456+00:00",
     canEdit: true,
+    live: { started: false, position: null },
+    actualMinutes: null,
     ...overrides,
   };
 }

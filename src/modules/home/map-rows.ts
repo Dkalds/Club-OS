@@ -20,6 +20,8 @@ export type EventRow = {
   location: string | null;
   practice_plans: Embedded<{
     title: string;
+    live_started_at?: string | null;
+    live_position?: number | null;
     primary_focus: Embedded<{ name: string }>;
     secondary_focus: Embedded<{ name: string }>;
     practice_items: Array<{ sort: number; minutes: number }> | null;
@@ -70,6 +72,8 @@ export function toHomeEvents(rows: EventRow[]): HomeEvent[] {
             itemMinutes: [...(plan.practice_items ?? [])]
               .sort((a, b) => a.sort - b.sort)
               .map((item) => item.minutes),
+            // Empezada es que tiene inicio: ni `null` ni ausente.
+            live: { started: Boolean(plan.live_started_at), position: plan.live_position ?? null },
           }
         : null,
       game: game
