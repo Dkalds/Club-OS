@@ -23,7 +23,7 @@
 -- datos ni cambia nada.
 begin;
 
-select plan(8);
+select plan(9);
 
 -- ── RLS ──────────────────────────────────────────────────────────────────────────────
 -- Sin RLS, el `grant` de una tabla la abre entera a cualquier club.
@@ -245,6 +245,81 @@ select set_eq(
     ) as t (tabla, privilegio, columnas)
     cross join unnest(t.columnas) as c (columna)$$,
   'los privilegios de columna de authenticated en public son exactamente los de la lista'
+);
+
+-- ── authenticated: qué funciones ejecuta (C27) ───────────────────────────────────────
+-- Lo que quedaba abierto: antes solo se comprobaba que `anon` no ejecuta nada (arriba). Esta
+-- lista, escrita a mano como las dos de tabla y columna, es exactamente qué puede llamar
+-- `authenticated` en `public` y en `private`, de cualquier fase. Una función nueva sin su
+-- `grant` no aparece aquí y no la ejecuta nadie; una de más la delata esta lista.
+select set_eq(
+  $$select n.nspname::text collate "default", p.proname::text collate "default",
+      pg_get_function_identity_arguments(p.oid)::text collate "default"
+    from pg_proc as p
+    join pg_namespace as n on n.oid = p.pronamespace
+    where n.nspname in ('public', 'private')
+      and has_function_privilege('authenticated', p.oid, 'execute')$$,
+  $$values
+    -- Reglas de visibilidad y gestión (Fase 1-6): quien ve o gestiona qué fila.
+    ('private', 'has_org_role', 'org uuid, roles org_role[]'),
+    ('private', 'is_member', 'org uuid'),
+    ('private', 'is_team_staff', 'team uuid'),
+    ('private', 'is_on_roster', 'team uuid, person uuid'),
+    ('private', 'can_see_person', 'person uuid'),
+    ('private', 'can_manage_team', 'team uuid'),
+    ('private', 'can_see_plan', 'plan uuid'),
+    ('private', 'can_edit_plan', 'plan uuid'),
+    ('private', 'can_see_drill', 'drill uuid'),
+    ('private', 'can_edit_drill', 'drill uuid'),
+    ('private', 'is_linkable_standard', 'standard uuid'),
+    ('private', 'can_see_media', 'media uuid'),
+    ('private', 'storage_org_id', 'path text'),
+    ('private', 'can_upload_drill_media', 'path text'),
+    ('private', 'can_see_drill_media', 'path text'),
+    ('private', 'can_see_person_media', 'path text'),
+    ('private', 'check_game_input',
+      'p_starts_at timestamp with time zone, p_ends_at timestamp with time zone, p_opponent text, p_competition text, p_home_away text, p_location text'),
+    ('private', 'f_search_key', 'text'),
+    ('private', 'f_unaccent', 'text'),
+    ('private', 'open_game', 'p_event uuid'),
+    ('private', 'open_session', 'p_event uuid'),
+    -- Auditoría y soporte de plataforma (Fase 7, Task 4): la lee la política de audit_log.
+    ('private', 'is_platform_admin', ''),
+    -- Metodología, biblioteca, sesiones, partidos y desarrollo (Fase 1-6): las escrituras
+    -- que no van por una política directa de tabla.
+    ('public', 'reorder_methodology', 'p_org uuid, p_kind text, p_ids uuid[]'),
+    ('public', 'update_way_section',
+      'p_id uuid, p_expected_updated_at timestamp with time zone, p_title text, p_summary text, p_content_kind text, p_body_md text'),
+    ('public', 'save_game_principle', 'p_id uuid, p_title text, p_summary text, p_points text[]'),
+    ('public', 'save_drill',
+      'p_org uuid, p_drill uuid, p_expected_updated_at timestamp with time zone, p_payload jsonb'),
+    ('public', 'search_drills',
+      'p_org uuid, p_q text, p_focus text, p_principle text, p_age integer, p_players integer, p_minutes integer'),
+    ('public', 'create_practice_session',
+      'p_team uuid, p_starts_at timestamp with time zone, p_ends_at timestamp with time zone, p_title text, p_primary_focus uuid, p_secondary_focus uuid, p_location text'),
+    ('public', 'update_practice_session',
+      'p_event uuid, p_expected_updated_at timestamp with time zone, p_starts_at timestamp with time zone, p_ends_at timestamp with time zone, p_title text, p_primary_focus uuid, p_secondary_focus uuid, p_location text, p_notes text'),
+    ('public', 'duplicate_practice', 'p_event uuid, p_starts_at timestamp with time zone'),
+    ('public', 'save_practice_items',
+      'p_plan uuid, p_expected_updated_at timestamp with time zone, p_items jsonb, p_save_id uuid'),
+    ('public', 'record_live_progress',
+      'p_event uuid, p_items jsonb, p_finished boolean, p_actual_minutes integer'),
+    ('public', 'create_game',
+      'p_team uuid, p_starts_at timestamp with time zone, p_ends_at timestamp with time zone, p_opponent text, p_competition text, p_home_away text, p_location text'),
+    ('public', 'update_game',
+      'p_event uuid, p_starts_at timestamp with time zone, p_ends_at timestamp with time zone, p_opponent text, p_competition text, p_home_away text, p_location text, p_opponent_notes text'),
+    ('public', 'record_game_result', 'p_event uuid, p_score_for integer, p_score_against integer'),
+    ('public', 'cancel_game', 'p_event uuid'),
+    -- Invitaciones y consentimientos (Fase 7, Task 1 y 2): la cuenta de Auth, la aceptación,
+    -- y dar o revocar un consentimiento, siempre por función, nunca por insert/update directo.
+    ('public', 'create_invitation',
+      'p_org uuid, p_email text, p_role org_role, p_token_hash text, p_expires_at timestamp with time zone, p_team uuid, p_staff_role staff_role, p_person uuid, p_first_name text, p_last_name text'),
+    ('public', 'accept_pending_invitations', ''),
+    ('public', 'grant_terms_consent', 'p_org uuid'),
+    ('public', 'grant_image_consent', 'p_person uuid'),
+    ('public', 'revoke_image_consent', 'p_consent uuid')
+  $$,
+  'authenticated ejecuta exactamente estas funciones de public y de private'
 );
 
 select * from finish();
