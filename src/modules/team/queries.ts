@@ -57,6 +57,11 @@ export async function listMyTeams(ctx: ClubContext): Promise<TeamSummary[]> {
   return listStaffTeams(ctx.org.id, personId);
 }
 
+/** Los equipos de la temporada actual del club, para quien administra (listas, selects). */
+export async function listTeamsForAdmin(ctx: ClubContext): Promise<TeamSummary[]> {
+  return clubTeams(ctx.org.id);
+}
+
 /**
  * Un equipo de la temporada actual con su cuerpo técnico y su plantilla. `null` si el id no
  * es válido, no es del club, es de otra temporada o RLS no lo deja ver: la página responde

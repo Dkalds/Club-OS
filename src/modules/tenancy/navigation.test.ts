@@ -90,26 +90,45 @@ describe("navItems", () => {
 });
 
 describe("adminNavItems", () => {
-  it("por defecto: The Way, Valores, Principios y Standards, con rutas bajo /admin", () => {
+  it("por defecto: The Way, Valores, Principios, Standards, Club, Equipos e Invitaciones, con rutas bajo /admin", () => {
     expect(adminNavItems(SLUG, {})).toEqual([
       { label: "The Way", href: "/c/club-a/admin/way" },
       { label: "Valores", href: "/c/club-a/admin/values" },
       { label: "Principios", href: "/c/club-a/admin/principles" },
       { label: "Standards", href: "/c/club-a/admin/standards" },
+      { label: "Club", href: "/c/club-a/admin/club" },
+      { label: "Equipos", href: "/c/club-a/admin/teams" },
+      { label: "Invitaciones", href: "/c/club-a/admin/invites" },
     ]);
   });
 
-  it("la terminología del club cambia la primera y la última", () => {
+  it("la terminología del club cambia la primera y la de Standards", () => {
     const items = adminNavItems(SLUG, { way: "Nuestra forma", standards: "Normas" });
 
-    expect(items.map((item) => item.label)).toEqual(["Nuestra forma", "Valores", "Principios", "Normas"]);
+    expect(items.map((item) => item.label)).toEqual([
+      "Nuestra forma",
+      "Valores",
+      "Principios",
+      "Normas",
+      "Club",
+      "Equipos",
+      "Invitaciones",
+    ]);
     expect(items.map((item) => item.href)).toEqual(adminNavItems(SLUG, {}).map((item) => item.href));
   });
 
   it("un término vacío no deja un apartado sin etiqueta", () => {
     const items = adminNavItems(SLUG, { way: "   ", standards: "" });
 
-    expect(items.map((item) => item.label)).toEqual(["The Way", "Valores", "Principios", "Standards"]);
+    expect(items.map((item) => item.label)).toEqual([
+      "The Way",
+      "Valores",
+      "Principios",
+      "Standards",
+      "Club",
+      "Equipos",
+      "Invitaciones",
+    ]);
   });
 
   it("usa el slug del club en todas las rutas", () => {

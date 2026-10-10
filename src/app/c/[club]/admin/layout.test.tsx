@@ -39,6 +39,9 @@ describe("layout de Gestión", () => {
       "Valores",
       "Principios",
       "Standards",
+      "Club",
+      "Equipos",
+      "Invitaciones",
     ]);
     expect(within(screen.getByRole("main")).getByRole("heading", { name: "Contenido" })).toBeInTheDocument();
     expect(mocks.getClubContext).toHaveBeenCalledWith("club-a");
