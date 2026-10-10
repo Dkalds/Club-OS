@@ -586,6 +586,137 @@ export type Database = {
           },
         ];
       };
+      external_connections: {
+        Row: {
+          capabilities: string[];
+          config: NonNullable<Json>;
+          created_at: string;
+          id: string;
+          organization_id: string;
+          provider: string;
+        };
+        Insert: {
+          capabilities?: string[];
+          config?: NonNullable<Json>;
+          created_at?: string;
+          id?: string;
+          organization_id: string;
+          provider: string;
+        };
+        Update: {
+          capabilities?: string[];
+          config?: NonNullable<Json>;
+          created_at?: string;
+          id?: string;
+          organization_id?: string;
+          provider?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "external_connections_organization_id_fkey";
+            columns: ["organization_id"];
+            isOneToOne: false;
+            referencedRelation: "organizations";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      external_links: {
+        Row: {
+          capability: string;
+          connection_id: string;
+          created_at: string;
+          entity_id: string;
+          entity_table: string;
+          external_id: string;
+          id: string;
+          organization_id: string;
+        };
+        Insert: {
+          capability: string;
+          connection_id: string;
+          created_at?: string;
+          entity_id: string;
+          entity_table: string;
+          external_id: string;
+          id?: string;
+          organization_id: string;
+        };
+        Update: {
+          capability?: string;
+          connection_id?: string;
+          created_at?: string;
+          entity_id?: string;
+          entity_table?: string;
+          external_id?: string;
+          id?: string;
+          organization_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "external_links_organization_id_connection_id_fkey";
+            columns: ["organization_id", "connection_id"];
+            isOneToOne: false;
+            referencedRelation: "external_connections";
+            referencedColumns: ["organization_id", "id"];
+          },
+          {
+            foreignKeyName: "external_links_organization_id_fkey";
+            columns: ["organization_id"];
+            isOneToOne: false;
+            referencedRelation: "organizations";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      external_records: {
+        Row: {
+          capability: string;
+          checksum: string;
+          connection_id: string;
+          external_id: string;
+          fetched_at: string;
+          id: string;
+          organization_id: string;
+          payload: NonNullable<Json>;
+        };
+        Insert: {
+          capability: string;
+          checksum: string;
+          connection_id: string;
+          external_id: string;
+          fetched_at?: string;
+          id?: string;
+          organization_id: string;
+          payload: NonNullable<Json>;
+        };
+        Update: {
+          capability?: string;
+          checksum?: string;
+          connection_id?: string;
+          external_id?: string;
+          fetched_at?: string;
+          id?: string;
+          organization_id?: string;
+          payload?: NonNullable<Json>;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "external_records_organization_id_connection_id_fkey";
+            columns: ["organization_id", "connection_id"];
+            isOneToOne: false;
+            referencedRelation: "external_connections";
+            referencedColumns: ["organization_id", "id"];
+          },
+          {
+            foreignKeyName: "external_records_organization_id_fkey";
+            columns: ["organization_id"];
+            isOneToOne: false;
+            referencedRelation: "organizations";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       focus_areas: {
         Row: {
           id: string;
@@ -1452,6 +1583,57 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "standards_organization_id_fkey";
+            columns: ["organization_id"];
+            isOneToOne: false;
+            referencedRelation: "organizations";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      sync_runs: {
+        Row: {
+          capability: string;
+          connection_id: string;
+          error_message: string | null;
+          finished_at: string | null;
+          id: string;
+          organization_id: string;
+          records_count: number | null;
+          started_at: string;
+          status: string;
+        };
+        Insert: {
+          capability: string;
+          connection_id: string;
+          error_message?: string | null;
+          finished_at?: string | null;
+          id?: string;
+          organization_id: string;
+          records_count?: number | null;
+          started_at?: string;
+          status?: string;
+        };
+        Update: {
+          capability?: string;
+          connection_id?: string;
+          error_message?: string | null;
+          finished_at?: string | null;
+          id?: string;
+          organization_id?: string;
+          records_count?: number | null;
+          started_at?: string;
+          status?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "sync_runs_organization_id_connection_id_fkey";
+            columns: ["organization_id", "connection_id"];
+            isOneToOne: false;
+            referencedRelation: "external_connections";
+            referencedColumns: ["organization_id", "id"];
+          },
+          {
+            foreignKeyName: "sync_runs_organization_id_fkey";
             columns: ["organization_id"];
             isOneToOne: false;
             referencedRelation: "organizations";
