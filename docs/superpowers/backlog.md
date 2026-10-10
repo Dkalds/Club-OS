@@ -100,7 +100,7 @@ Lo de este bloque que venía de antes, resuelto:
 
 Lo que deja la Fase 6:
 
-- **Inicio de dirección.** Sigue contando solo los equipos que la persona entrena: a dirección sin equipos le dice «Aún no estás en ningún equipo». Va con la Inicio de dirección de la Fase 7.
+- **Inicio de dirección.** Resuelto en «Uso diario del entrenador» (más abajo): Inicio usa «mis equipos» del equipo activo. Una Inicio propia de dirección (cobertura) sigue siendo de la Fase 7.
 - **Familias y jugadores.** Las políticas de objetivos y notas no dan lectura a cuentas de jugador ni de familia ([D6]); se añadirá con `guardianships` (Fase 7) y la decisión 13 de la spec.
 - La lista de equipos de dirección no enseña cuántos jugadores tiene cada uno (el plan lo decía); haría falta contar la plantilla en la consulta.
 - `pnpm dev` no arrancaba desde la Fase 5 (Serwist y Turbopack): arreglado (`next dev --webpack`).
@@ -197,6 +197,42 @@ Lo que la Fase 3 dejó para el principio de la Fase 4 y la Fase 4 no recogió: r
 - **`pnpm test:int` falla con un paquete importado en local.** `scripts/seed/seed.int.test.ts` cuenta todos los ejercicios de cada club (21 en Arcángel). Se arregla contando solo los ids del seed; no se hizo porque la entrega no tocaba el seed ni sus tests.
 - **Las pizarras del manual traen su fondo claro y su título dentro de la imagen.** En la ficha, de tema oscuro, se ven con una banda clara arriba y abajo. Se quita regenerándolas sin fondo o recortándolas al campo.
 - **Edad, rango de jugadores y material de los 44** son una propuesta que el propietario aprobó con la especificación: los 4x4 quedan desde U16 y el único 5x5 desde U18. Se corrigen en `pack.json` y se vuelven a cargar con `--update`, o directamente en la app.
+
+## Uso diario del entrenador (pieza 1 de la evolución)
+
+Especificación `docs/superpowers/specs/2026-10-10-uso-diario-design.md`, plan `docs/superpowers/plans/2026-10-10-uso-diario.md`. Es la primera de las diez piezas de la «Propuesta de evolución para CLUB OS» (10 oct 2026); las otras nueve están en la tabla de la especificación.
+
+Lo que esta pieza resuelve de lo que había pendiente:
+
+- **Inicio de dirección** (lo dejó la Fase 6): Inicio usa «mis equipos» como las demás pantallas, así que dirección ve lo próximo del club, o del equipo que elija, en vez de «Aún no estás en ningún equipo».
+- **`getLiveSession` no miraba el error de la lectura** ni la forma del id: ahora lanza con `throwReadError` y descarta lo que no es un uuid.
+- **La pantalla de directo usaba clases que la app no define** (`cos-*`, `p-space-*`): se rehízo con utilidades de token. `Timer` no tenía tamaño (`cos-timer`).
+- **Abrir el directo ya enviaba progreso** antes de «Iniciar» (marcaba los ejercicios como no completados y movía la copia de la sesión).
+- **`safeHref` para el enlace de vídeo**: el del directo pasa por él. El «Ver vídeo» de la ficha de un ejercicio sigue pendiente (Fase 7, «Lo que deja la Fase 3»).
+
+Lo que deja:
+
+- **Migración al remoto.** `20270105000100_live_state` solo está aplicada en local. Va antes de fusionar (README, «Entorno remoto»; producción se despliega sola y comparte Supabase con las previews).
+- **Jugador y familia siguen sin pantallas.** Su barra es Inicio e Identidad. Si entran por URL a Agenda, Sesiones, Biblioteca o Equipo ven lo de antes (estados vacíos: RLS no les da datos). Sus menús completos son la pieza 9.
+- **El menú de dirección de la propuesta** (Temporada, Calendario, Personas y roles, Configuración) y el rol de coordinación: pieza 5.
+- **«Preparar sesión» abre el formulario de siempre.** Los dos caminos (proponer o desde cero) y las plantillas: pieza 2.
+- **La pizarra en directo sigue siendo una imagen.** La ficha dice «Pista sin diagrama» cuando el ejercicio no la tiene, y las instrucciones del ejercicio no salen en el directo: pieza 3.
+- **El tiempo exacto de un ejercicio solo se retoma en el dispositivo que lo cronometró.** En otro se continúa en el ejercicio guardado, con su tiempo entero. Sincronizar el reloj pediría guardar en el servidor el inicio del ítem y las pausas.
+- **`diagram-cache.ts` no está conectado a la pantalla de directo.** Lo dejó la Fase 5: precarga y sirve diagramas sin conexión, pero `LiveScreen` pinta `item.diagramUrl` tal cual. Va con la decisión sobre las URL firmadas que caducan (bloque de la Fase 5).
+- **El enlace de vídeo saca del directo** (otra pestaña) con el reloj en marcha. Un reproductor dentro de la pantalla es de la pieza 3.
+- **`TeamSwitcher`, la hoja de «Añadir» y la fila de Identidad de Inicio no tienen vista previa propia en `design/components/`**: el selector está descrito en `TopNavigation` y la barra por rol en `BottomNavigation`.
+- **E2E de la barra de jugador y de familia**: el seed no tiene cuentas con esos roles; lo cubren los tests de unidad y de componente. Va con la pieza 9.
+- **Coste de la Agenda** (estimado, sin medir): como la lista de Sesiones, la política de `events` ejecuta sus funciones por fila antes de ordenar y cortar, y «Anteriores» no tiene suelo de fecha. Va con «Coste de las políticas con función por fila» (Fase 7).
+
+Decisiones tomadas sin preguntarlas una a una (están también en la especificación):
+
+- Jugador y familia ven solo Inicio e Identidad hasta la pieza 9.
+- El equipo activo por defecto es «Todos mis equipos», también para quien entrena dos.
+- Continuar en otro dispositivo arranca el ejercicio guardado con su tiempo entero y el reloj en marcha.
+- «Empezar de nuevo» solo existe con la sesión en curso; una terminada se duplica.
+- El botón de crear se llama «Preparar sesión» aunque abra el formulario de siempre, y la pantalla del formulario sigue titulándose «Nueva sesión».
+- En el último ejercicio, el control de la derecha es «Terminar entrenamiento» (antes se llamaba «Siguiente ejercicio» también ahí).
+- El copy nuevo no lo ha validado producto. Entre otros: «¿Empezar de nuevo?» / «Se borra el progreso de esta sesión. No se puede deshacer.», «¿Terminar el entrenamiento?» / «La sesión pasa al histórico con los minutos de cada ejercicio. No se puede deshacer.», «Seguir entrenando», «Entrenamiento terminado» / «Ya está en el histórico.», «Hecho · 9 min», «Sin hacer», «Todos mis equipos», «Semana que viene», «Semana del 19 oct», «No hay nada programado», «Aún no hay nada anterior» y «Mostrando los 50 más próximos».
 
 ## Lista para la Task 12 (entorno remoto)
 
