@@ -272,5 +272,6 @@ Desde una base vacía: `supabase db reset`, `pnpm seed`, importar el paquete rea
 - **El manual queda público** en el repositorio (decisión 3).
 - **Dos «3x2 continuo»** donde el paquete conviva con el seed: el de ejemplo y el del manual.
 - **Los e2e en local borran lo importado**: restauran el seed y quitan de sus dos clubes lo que no es suyo. Después de pasarlos hay que importar otra vez. En remoto no ocurre: los e2e nunca siembran un destino remoto.
+- **`pnpm test:int` falla con un paquete importado en local**: el test del seed cuenta los ejercicios del club y el seed no se toca. Se vuelve a una base limpia con `pnpm supabase db reset` y `pnpm seed`.
 - **`--update` pierde lo retocado en la app** en los ejercicios del paquete. Es su propósito, y por eso no es el modo por defecto.
 - **Producción es hoy una demo con acceso público.** Importar allí enseña el contenido a cualquiera que abra la URL; no añade exposición, porque el repositorio ya es público, pero mezcla contenido real con datos de ejemplo.
