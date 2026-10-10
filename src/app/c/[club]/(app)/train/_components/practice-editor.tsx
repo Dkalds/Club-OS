@@ -129,7 +129,9 @@ function Propose({
     if (!auto || started.current) return;
     started.current = true;
     onAutoUsed();
-    window.history.replaceState(window.history.state, "", window.location.pathname);
+    // Con `null` y no con el estado que ya hay: ese lleva la marca del router de Next, que
+    // entonces no se entera del cambio y devolvería `?propose=1` a la URL al siguiente guardado.
+    window.history.replaceState(null, "", window.location.pathname);
     propose();
     // Solo al montarse: `auto` se gasta aquí.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -280,8 +282,11 @@ export function PracticeEditor({
         </div>
       </div>
 
-      {/* Siempre en el árbol: un lector de pantalla solo anuncia lo que cambia en una región que ya existía. */}
-      <div role="status" className="empty:hidden">
+      {/*
+        Siempre en el árbol, también vacía: un lector de pantalla solo anuncia lo que cambia en
+        una región que ya existía. Vacía no ocupa nada: el margen negativo anula su hueco.
+      */}
+      <div role="status" data-proposal-notice className="empty:-mt-(--space-6)">
         {proposed === "loaded" && itemsDirty ? (
           <p className="rounded-md border border-line bg-surface-2 p-(--space-4) text-body text-ink-2">
             Propuesta sin guardar. Revísala, cámbiala y guarda.

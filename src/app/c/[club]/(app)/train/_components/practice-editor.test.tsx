@@ -965,7 +965,7 @@ describe("PracticeEditor · proponer entrenamiento", () => {
   const rowName = (entry: ProposedItem) => `${entry.phase} ${entry.title} ${entry.hint}`;
   /** La región de estado del editor, donde salen los avisos de la propuesta. */
   const noticeRegion = () =>
-    screen.getAllByRole("status").find((region) => region.classList.contains("empty:hidden")) as HTMLElement;
+    screen.getAllByRole("status").find((region) => region.hasAttribute("data-proposal-notice")) as HTMLElement;
   const calls = () => mocks.proposePracticeItems.mock.calls.length;
 
   /**
@@ -1441,10 +1441,11 @@ describe("PracticeEditor · proponer entrenamiento", () => {
       expect(window.location.pathname).toBe(EDIT);
       expect(window.location.search).toBe("");
       expect(window.history.length).toBe(entries);
-      // Lo que el historial guardaba de esa entrada sigue ahí.
-      expect(window.history.state).toEqual({ from: "new" });
+      // Con `null`, y no con el estado que había: ese lleva la marca del router de Next, que
+      // entonces no se enteraría del cambio y devolvería el parámetro al siguiente guardado.
+      // Con `null` el router copia su estado y se queda con la URL nueva.
       expect(replaceState).toHaveBeenCalledTimes(1);
-      expect(replaceState).toHaveBeenCalledWith({ from: "new" }, "", EDIT);
+      expect(replaceState).toHaveBeenCalledWith(null, "", EDIT);
     });
 
     it("una sola vez: volver a pintar el editor no la pide de nuevo", async () => {

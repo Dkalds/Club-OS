@@ -422,6 +422,8 @@ describe("getTeamDefaults", () => {
   const A = { id: TEAM_A, name: "Equipo A" };
   const B = { id: TEAM_B, name: "Equipo B" };
   const C = { id: TEAM_C, name: "Equipo C" };
+  /** Un instante posterior a todas las sesiones de estos tests: todas han empezado ya. */
+  const LATER = "2026-12-31T00:00:00.000Z";
   /** Lo de siempre: lo que lleva un equipo del que no se sabe nada. */
   const USUAL = { time: "18:00", durationMinutes: 75, location: null };
   const MEXICO: ClubContext = { ...COACH, org: { ...COACH.org, timezone: "America/Mexico_City" } };
@@ -437,7 +439,7 @@ describe("getTeamDefaults", () => {
       ],
     });
 
-    const defaults = await getTeamDefaults(COACH, [A, B, C]);
+    const defaults = await getTeamDefaults(COACH, [A, B, C], LATER);
 
     expect(defaults).toEqual({
       [TEAM_A]: { time: "19:30", durationMinutes: 60, location: "Pabellón 3" },
@@ -449,7 +451,7 @@ describe("getTeamDefaults", () => {
   it("todos los equipos pedidos tienen entrada, aunque ninguno tenga sesiones", async () => {
     installDatabase({ events: [] });
 
-    const defaults = await getTeamDefaults(COACH, [A, B, C]);
+    const defaults = await getTeamDefaults(COACH, [A, B, C], LATER);
 
     expect(Object.keys(defaults).sort()).toEqual([TEAM_A, TEAM_B, TEAM_C]);
     expect(defaults).toEqual({ [TEAM_A]: USUAL, [TEAM_B]: USUAL, [TEAM_C]: USUAL });
@@ -460,10 +462,10 @@ describe("getTeamDefaults", () => {
     const events = [eventRow("a-last", TEAM_A, "2026-10-06T16:00:00+00:00", "2026-10-06T17:15:00+00:00")];
 
     installDatabase({ events });
-    expect((await getTeamDefaults(COACH, [A]))[TEAM_A].time).toBe("18:00");
+    expect((await getTeamDefaults(COACH, [A], LATER))[TEAM_A].time).toBe("18:00");
 
     installDatabase({ events });
-    expect((await getTeamDefaults(MEXICO, [A]))[TEAM_A].time).toBe("10:00");
+    expect((await getTeamDefaults(MEXICO, [A], LATER))[TEAM_A].time).toBe("10:00");
   });
 
   it("una sesión que empieza de madrugada en UTC lleva la hora de la noche anterior del club", async () => {
@@ -472,13 +474,13 @@ describe("getTeamDefaults", () => {
       events: [eventRow("a-last", TEAM_A, "2026-10-07T02:30:00+00:00", "2026-10-07T03:45:00+00:00")],
     });
 
-    expect((await getTeamDefaults(MEXICO, [A]))[TEAM_A]).toMatchObject({ time: "20:30", durationMinutes: 75 });
+    expect((await getTeamDefaults(MEXICO, [A], LATER))[TEAM_A]).toMatchObject({ time: "20:30", durationMinutes: 75 });
   });
 
   it("la duración se acota a lo que deja programar el formulario: de 15 a 240 minutos", async () => {
     const duration = async (startsAt: string, endsAt: string) => {
       installDatabase({ events: [eventRow("a-last", TEAM_A, startsAt, endsAt)] });
-      return (await getTeamDefaults(COACH, [A]))[TEAM_A].durationMinutes;
+      return (await getTeamDefaults(COACH, [A], LATER))[TEAM_A].durationMinutes;
     };
 
     // Diez minutos suben a 15, cinco horas bajan a 240 y los extremos se quedan como están.
@@ -491,23 +493,41 @@ describe("getTeamDefaults", () => {
     expect(await duration("2026-10-06T16:00:00+00:00", "2026-10-06T15:00:00+00:00")).toBe(15);
   });
 
-  it("la última es la de inicio más tardío, pasada o futura", async () => {
+  it("la última es la más reciente que ya ha empezado: una programada para más adelante no cuenta", async () => {
     installDatabase({
       events: [
         eventRow("a-past", TEAM_A, "2026-09-29T16:00:00+00:00", "2026-09-29T17:15:00+00:00", { status: "done" }),
-        // Programada para dentro de un mes: es la última aunque no haya llegado.
+        // Una suelta para dentro de un mes, en otra pista: no cambia lo que se propone hoy.
         eventRow("a-future", TEAM_A, "2026-11-03T18:00:00+00:00", "2026-11-03T19:00:00+00:00", {
           location: "Pista exterior",
         }),
-        eventRow("a-soon", TEAM_A, "2026-10-06T16:00:00+00:00", "2026-10-06T17:15:00+00:00"),
+        eventRow("a-last", TEAM_A, "2026-10-06T16:30:00+00:00", "2026-10-06T18:00:00+00:00"),
       ],
     });
 
-    // El 3 de noviembre Madrid ya está en horario de invierno: las 18:00 UTC son las 19:00.
-    expect((await getTeamDefaults(COACH, [A]))[TEAM_A]).toEqual({
-      time: "19:00",
+    expect((await getTeamDefaults(COACH, [A], "2026-10-07T10:00:00.000Z"))[TEAM_A]).toEqual({
+      time: "18:30",
+      durationMinutes: 90,
+      location: "Pabellón 2",
+    });
+  });
+
+  it("un equipo que aún no ha entrenado lleva lo de su sesión programada más próxima", async () => {
+    installDatabase({
+      events: [
+        eventRow("a-far", TEAM_A, "2026-11-03T18:00:00+00:00", "2026-11-03T19:00:00+00:00", {
+          location: "Pista exterior",
+        }),
+        eventRow("a-next", TEAM_A, "2026-10-13T15:00:00+00:00", "2026-10-13T16:00:00+00:00", {
+          location: "Pabellón 1",
+        }),
+      ],
+    });
+
+    expect((await getTeamDefaults(COACH, [A], "2026-10-07T10:00:00.000Z"))[TEAM_A]).toEqual({
+      time: "17:00",
       durationMinutes: 60,
-      location: "Pista exterior",
+      location: "Pabellón 1",
     });
   });
 
@@ -528,7 +548,7 @@ describe("getTeamDefaults", () => {
       ],
     });
 
-    expect(await getTeamDefaults(COACH, [A, B])).toEqual({
+    expect(await getTeamDefaults(COACH, [A, B], LATER)).toEqual({
       [TEAM_A]: { time: "17:30", durationMinutes: 60, location: "Pabellón 1" },
       [TEAM_B]: USUAL,
     });
@@ -542,7 +562,7 @@ describe("getTeamDefaults", () => {
       ],
     });
 
-    expect((await getTeamDefaults(COACH, [A]))[TEAM_A].location).toBeNull();
+    expect((await getTeamDefaults(COACH, [A], LATER))[TEAM_A].location).toBeNull();
   });
 
   it("no mira partidos, sesiones de otro club ni de equipos que no se han pedido", async () => {
@@ -556,7 +576,7 @@ describe("getTeamDefaults", () => {
       ],
     });
 
-    const defaults = await getTeamDefaults(COACH, [A]);
+    const defaults = await getTeamDefaults(COACH, [A], LATER);
 
     expect(defaults).toEqual({ [TEAM_A]: USUAL });
   });
@@ -564,7 +584,7 @@ describe("getTeamDefaults", () => {
   it("filtra por club, por tipo, por no canceladas y por los equipos pedidos, de la más reciente a la más antigua y con tope", async () => {
     const calls = installDatabase({ events: [] });
 
-    await getTeamDefaults(COACH, [A, B]);
+    await getTeamDefaults(COACH, [A, B], LATER);
 
     expect(calls).toHaveLength(1);
     expect(calls[0]?.table).toBe("events");
@@ -581,7 +601,7 @@ describe("getTeamDefaults", () => {
   it("solo pide lo que usa: el equipo, la franja y el lugar", async () => {
     const calls = installDatabase({ events: [] });
 
-    await getTeamDefaults(COACH, [A]);
+    await getTeamDefaults(COACH, [A], LATER);
 
     expect(calls[0]?.select).toBe("team_id, starts_at, ends_at, location");
   });
@@ -589,7 +609,7 @@ describe("getTeamDefaults", () => {
   it("sin equipos no consulta nada, ni crea el cliente", async () => {
     const calls = installDatabase(listStore());
 
-    expect(await getTeamDefaults(COACH, [])).toEqual({});
+    expect(await getTeamDefaults(COACH, [], LATER)).toEqual({});
 
     expect(calls).toEqual([]);
     expect(mocks.createClient).not.toHaveBeenCalled();
@@ -910,7 +930,7 @@ describe("si falla una lectura", () => {
       name: "lo que se propone para cada equipo",
       table: "events",
       tag: "practice.team-defaults",
-      run: () => getTeamDefaults(COACH, [{ id: TEAM_A, name: "Equipo A" }]),
+      run: () => getTeamDefaults(COACH, [{ id: TEAM_A, name: "Equipo A" }], "2026-12-31T00:00:00.000Z"),
     },
   ];
 

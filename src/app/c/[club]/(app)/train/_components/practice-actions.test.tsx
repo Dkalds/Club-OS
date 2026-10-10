@@ -649,6 +649,20 @@ describe("PracticeActions · guardar como plantilla", () => {
       expect(screen.getByRole("status")).toBeEmptyDOMElement();
     });
 
+    it("si la sesión se ha quedado sin ejercicios, lo dice así y no «Revisa los campos marcados.»", async () => {
+      // Otra persona los quitó con esta ficha abierta: la base responde INVALID, sin campo.
+      mocks.savePracticeAsTemplate.mockResolvedValue(fail("INVALID"));
+      renderActions({ status: "scheduled", itemCount: 4 });
+
+      saveTemplate();
+
+      expect(await screen.findByRole("alert")).toHaveTextContent(
+        "Esta sesión ya no tiene ejercicios. Recarga para verla al día.",
+      );
+      expect(screen.queryByText(ACTION_ERROR_COPY.INVALID)).not.toBeInTheDocument();
+      expect(templateButton()).toBeEnabled();
+    });
+
     it("tras un fallo se puede volver a intentar: el aviso se quita y, si va bien, lo dice", async () => {
       mocks.savePracticeAsTemplate.mockResolvedValueOnce(fail("TEMPLATE_LIMIT"));
       renderActions({ status: "scheduled", itemCount: 4 });

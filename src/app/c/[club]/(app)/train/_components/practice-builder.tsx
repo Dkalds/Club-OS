@@ -367,8 +367,9 @@ export function PracticeBuilder({
 
   return (
     // El hueco de abajo es el de la barra de guardado, que es fija: sin él taparía la última
-    // fila y el botón de añadir.
-    <div ref={root} className="flex flex-col gap-(--space-3) pb-[calc(var(--target-min)+var(--space-6))]">
+    // fila y el botón de añadir. Con el aviso de encaje y «Sesión guardada.» la barra lleva
+    // dos líneas más bajo el total.
+    <div ref={root} className="flex flex-col gap-(--space-3) pb-[calc(var(--target-min)+var(--space-12))]">
       {failure ? (
         <FormAlert message={ACTION_ERROR_COPY[failure.error]}>
           {failure.error === "STALE_COPY" ? (

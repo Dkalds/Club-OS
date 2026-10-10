@@ -68,4 +68,4 @@
 
 - [x] E2E: proponer → cambiar → guardar; salir sin guardar deja la sesión vacía; desde cero con el aviso de encaje; plantilla: guardar → usar → borrar; otra entrenadora no la ve.
 - [x] Contratos, backlog, README, `design/components/PracticeItem`.
-- [ ] Suite entera desde base vacía, repaso visual a 375×812, revisión de la rama y una tanda de arreglos.
+- [x] Suite entera desde base vacía, repaso visual a 375×812, revisión de la rama y una tanda de arreglos.

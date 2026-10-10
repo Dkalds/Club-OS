@@ -56,11 +56,20 @@ export default async function NewPracticePage({ params, searchParams }: PageProp
   const [firstTeam] = options.teams;
   // El equipo activo, si hay uno elegido; si no, el primero.
   const teamId = options.defaultTeamId ?? firstTeam?.id;
-  const teamDefaults = await getTeamDefaults(ctx, options.teams);
+  const nowIso = new Date().toISOString();
+  const lastSessions = await getTeamDefaults(ctx, options.teams, nowIso);
+  // A cada equipo, con su hora, el día que le toca: hoy o, si esa hora ya ha pasado, mañana.
+  const teamDefaults = Object.fromEntries(
+    Object.entries(lastSessions).map(([id, last]) => [
+      id,
+      { ...last, date: defaultSessionDate(nowIso, ctx.org.timezone, last.time) },
+    ]),
+  );
   const defaults = (teamId === undefined ? undefined : teamDefaults[teamId]) ?? {
     time: DEFAULT_SESSION_TIME,
     durationMinutes: DEFAULT_SESSION_MINUTES,
     location: null,
+    date: defaultSessionDate(nowIso, ctx.org.timezone, DEFAULT_SESSION_TIME),
   };
   // Una plantilla dura lo que suman sus ejercicios, si cabe en lo que se puede programar.
   const durationMinutes =
@@ -96,7 +105,7 @@ export default async function NewPracticePage({ params, searchParams }: PageProp
           initial={{
             teamId,
             title: template?.title ?? "",
-            date: defaultSessionDate(new Date().toISOString(), ctx.org.timezone, defaults.time),
+            date: defaults.date,
             time: defaults.time,
             durationMinutes: String(durationMinutes),
             primaryFocusId: template?.primaryFocus?.id ?? "",

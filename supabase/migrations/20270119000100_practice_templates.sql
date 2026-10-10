@@ -10,7 +10,9 @@
 --      de alta como plantilla.
 --   2. Políticas y privilegios para dar de alta una plantilla propia con sus ítems y para
 --      borrarla. No se editan: se corrige la sesión y se guarda otra.
---   3. `save_practice_as_template`: copia una sesión (título, objetivos, notas y ejercicios).
+--   3. `save_practice_as_template`: copia una sesión (título, objetivos y ejercicios). Las
+--      notas no viajan: son texto libre de aquel día y de aquel equipo, y una plantilla es
+--      personal y sirve para cualquiera.
 --   4. `create_practice_from_template`: crea una sesión de un equipo con los ejercicios de una
 --      plantilla propia.
 --
@@ -98,9 +100,13 @@ create policy practice_items_insert_template
   );
 
 -- ── 3. public.save_practice_as_template ─────────────────────────────────────────────────
--- Guarda como plantilla la sesión de un entreno: su título, sus objetivos, sus notas y sus
--- ejercicios con fase y minutos. Devuelve el id de la plantilla. Vale una sesión programada,
--- hecha o cancelada: no se escribe en ella.
+-- Guarda como plantilla la sesión de un entreno: su título, sus objetivos y sus ejercicios con
+-- fase y minutos. Devuelve el id de la plantilla. Vale una sesión programada, hecha o cancelada:
+-- no se escribe en ella.
+--
+-- Ni las notas de la sesión ni las de cada ejercicio se copian. Son texto libre, pueden hablar
+-- de jugadores, y la plantilla la conserva su autor aunque deje el cuerpo técnico de ese equipo
+-- (regla 5 de CLAUDE.md; decisión 2 de `20261117000100_practice_integrity.sql`).
 --
 -- Reglas (C26):
 --   1. NOT_FOUND si el evento no es un entreno con plan de un equipo que se gestiona.
@@ -118,11 +124,10 @@ declare
   v_title           text;
   v_primary_focus   uuid;
   v_secondary_focus uuid;
-  v_notes           text;
   v_template        uuid;
 begin
-  select e.organization_id, pp.id, pp.title, pp.primary_focus_id, pp.secondary_focus_id, pp.notes
-  into v_org, v_plan, v_title, v_primary_focus, v_secondary_focus, v_notes
+  select e.organization_id, pp.id, pp.title, pp.primary_focus_id, pp.secondary_focus_id
+  into v_org, v_plan, v_title, v_primary_focus, v_secondary_focus
   from public.events as e
   join public.practice_plans as pp
     on pp.organization_id = e.organization_id
@@ -158,17 +163,16 @@ begin
   -- Con `returning`: la política de lectura mira las columnas de la fila nueva
   -- (`20261201000200_practice_read_policy.sql`), y una plantilla propia la ve su autor.
   insert into public.practice_plans as pp (
-    organization_id, team_id, event_id, title, primary_focus_id, secondary_focus_id, notes,
-    is_template
+    organization_id, team_id, event_id, title, primary_focus_id, secondary_focus_id, is_template
   )
-  values (v_org, null, null, v_title, v_primary_focus, v_secondary_focus, v_notes, true)
+  values (v_org, null, null, v_title, v_primary_focus, v_secondary_focus, true)
   returning pp.id into v_template;
 
   insert into public.practice_items (
-    organization_id, plan_id, sort, phase, drill_id, title_override, minutes, notes
+    organization_id, plan_id, sort, phase, drill_id, title_override, minutes
   )
   select v_org, v_template, (row_number() over (order by pi.sort, pi.id))::int,
-         pi.phase, pi.drill_id, pi.title_override, pi.minutes, pi.notes
+         pi.phase, pi.drill_id, pi.title_override, pi.minutes
   from public.practice_items as pi
   where pi.organization_id = v_org
     and pi.plan_id = v_plan;
@@ -180,7 +184,7 @@ $$;
 -- ── 4. public.create_practice_from_template ─────────────────────────────────────────────
 -- Un entreno programado de un equipo con los ejercicios de una plantilla propia. El título,
 -- los objetivos y el lugar son los que llegan (el formulario los propone desde la plantilla y
--- se pueden cambiar); las notas son las de la plantilla. Devuelve el id del evento.
+-- se pueden cambiar). La sesión nace sin notas. Devuelve el id del evento.
 --
 -- Reglas (C26): NOT_FOUND, sin distinguir, si el equipo no se gestiona, o si la plantilla no
 -- existe, no es una plantilla, no es de quien llama o es de otro club que el equipo.
@@ -201,7 +205,6 @@ set search_path = ''
 as $$
 declare
   v_org   uuid;
-  v_notes text;
   v_event uuid;
   v_plan  uuid;
 begin
@@ -215,16 +218,15 @@ begin
     raise exception 'NOT_FOUND' using errcode = 'P0002';
   end if;
 
-  select pp.notes
-  into v_notes
-  from public.practice_plans as pp
-  where pp.id = p_template
-    and pp.organization_id = v_org
-    and pp.is_template
-    and pp.team_id is null
-    and pp.created_by = (select auth.uid());
-
-  if not found then
+  if not exists (
+    select 1
+    from public.practice_plans as pp
+    where pp.id = p_template
+      and pp.organization_id = v_org
+      and pp.is_template
+      and pp.team_id is null
+      and pp.created_by = (select auth.uid())
+  ) then
     raise exception 'NOT_FOUND' using errcode = 'P0002';
   end if;
 
@@ -233,9 +235,9 @@ begin
   returning e.id into v_event;
 
   insert into public.practice_plans (
-    organization_id, team_id, event_id, title, primary_focus_id, secondary_focus_id, notes
+    organization_id, team_id, event_id, title, primary_focus_id, secondary_focus_id
   )
-  values (v_org, p_team, v_event, p_title, p_primary_focus, p_secondary_focus, v_notes);
+  values (v_org, p_team, v_event, p_title, p_primary_focus, p_secondary_focus);
 
   select pp.id
   into v_plan

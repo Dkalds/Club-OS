@@ -210,7 +210,7 @@ Nada en Storage, en Auth ni en las variables de entorno.
 - [ ] **Comprobar a mano**, en un móvil y con la app desplegada, como entrenador:
   - «Preparar sesión» acaba con «Proponer entrenamiento» y «Empezar desde cero». Proponer abre el constructor con ejercicios de la biblioteca y el aviso «Propuesta sin guardar…»; nada queda guardado hasta «Guardar sesión».
   - En el constructor, el total dice «Te sobran…» o «Te pasas…» cuando lo montado no dura lo que la franja.
-  - En la ficha de una sesión con ejercicios, «Guardar como plantilla»; aparece en Sesiones → «Plantillas»; al usarla, la sesión nace con sus ejercicios; «Borrar plantilla» la quita. Otra persona del club no la ve.
+  - En la ficha de una sesión con ejercicios, «Guardar como plantilla»; aparece en Sesiones → «Plantillas»; al usarla, la sesión nace con sus ejercicios (sin notas: no viajan a la plantilla); «Borrar plantilla» la quita. Otra persona del club no la ve.
 
 ### Despliegue del uso diario (navegación por rol, Agenda y directo)
 

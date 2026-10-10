@@ -283,6 +283,37 @@ describe("buildProposal", () => {
     expect(proposal.uncoveredMinutes).toBe(80);
   });
 
+  it("un ejercicio sin múltiplo de 5 en su rango dura lo más que admite, sin salirse", () => {
+    const proposal = buildProposal(
+      input({
+        minutes: 30,
+        secondaryFocus: null,
+        drills: [drill("tiro-a", { minMinutes: 11, maxMinutes: 14, focus: [TIRO] })],
+      }),
+    );
+
+    expect(proposal.items[0].minutes).toBe(14);
+    expect(proposal.uncoveredMinutes).toBe(16);
+  });
+
+  it("cuando vale cualquier objetivo, sigue prefiriendo lo que cabe y no se ha usado hace poco", () => {
+    const proposal = buildProposal(
+      input({
+        minutes: 30,
+        players: 14,
+        secondaryFocus: null,
+        recentDrillIds: ["a-reciente"],
+        drills: [
+          drill("a-reciente", { maxPlayers: 16, focus: [BOTE] }),
+          drill("b-pocos", { maxPlayers: 8, focus: [BOTE] }),
+          drill("c-vale", { maxPlayers: 16, focus: [BOTE] }),
+        ],
+      }),
+    );
+
+    expect(ids(proposal)[0]).toBe("c-vale");
+  });
+
   it("con la biblioteca vacía devuelve una lista vacía", () => {
     expect(buildProposal(input())).toEqual({ items: [], uncoveredMinutes: 75 });
   });

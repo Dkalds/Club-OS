@@ -85,13 +85,17 @@ const DEFAULTS_SCAN_LIMIT = 200;
 
 /**
  * Con qué hora, duración y lugar se propone una sesión nueva de cada equipo de `teams`: los de
- * su última sesión que no se canceló (pasada o futura), con la hora en la zona del club. Un
- * equipo sin sesiones, o cuya última no entra en las 200 más recientes del conjunto, lleva los
- * de siempre: las 18:00, 75 minutos y sin lugar. Todos los equipos de `teams` tienen entrada.
+ * su última sesión que no se canceló, con la hora en la zona del club. «Última» es la más
+ * reciente que ya ha empezado (`nowIso`); si aún no ha entrenado nunca, la más próxima de las
+ * programadas. Así una sesión suelta puesta para dentro de un mes no cambia lo que se propone
+ * hasta que llega. Un equipo sin sesiones, o cuya última no entra en las 200 más recientes del
+ * conjunto, lleva los de siempre: las 18:00, 75 minutos y sin lugar. Todos los equipos de
+ * `teams` tienen entrada.
  */
 export async function getTeamDefaults(
   ctx: ClubContext,
   teams: readonly TeamOption[],
+  nowIso: string,
 ): Promise<Record<string, TeamDefaults>> {
   const defaults: Record<string, TeamDefaults> = {};
   for (const team of teams) {
@@ -116,10 +120,13 @@ export async function getTeamDefaults(
     .limit(DEFAULTS_SCAN_LIMIT);
   if (error) throwReadError("practice.team-defaults", error);
 
-  const seen = new Set<string>();
+  // Llegan de la más lejana en el futuro a la más antigua: de cada equipo vale la primera que
+  // ya ha empezado y, mientras no aparezca, la última futura vista (la más próxima).
+  const now = Date.parse(nowIso);
+  const settled = new Set<string>();
   for (const row of data) {
-    if (seen.has(row.team_id) || !Object.hasOwn(defaults, row.team_id)) continue;
-    seen.add(row.team_id);
+    if (settled.has(row.team_id) || !Object.hasOwn(defaults, row.team_id)) continue;
+    if (Date.parse(row.starts_at) <= now) settled.add(row.team_id);
 
     const minutes = Math.round((Date.parse(row.ends_at) - Date.parse(row.starts_at)) / 60_000);
     defaults[row.team_id] = {

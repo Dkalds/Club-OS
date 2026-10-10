@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useId, useState, type FormEvent } from "react";
 import { ACTION_ERROR_COPY } from "@/lib/action-result";
@@ -41,7 +42,7 @@ import { CheckIcon } from "@/ui/icons";
  * en ese rato crearía otra copia.
  *
  * «Guardar como plantilla» (`secondary`), con la sesión en cualquier estado mientras tenga
- * ejercicios: copia su título, sus objetivos, sus notas y sus ejercicios a una plantilla de quien
+ * ejercicios: copia su título, sus objetivos y sus ejercicios (no sus notas) a una plantilla de quien
  * la guarda (`savePracticeAsTemplate`). Al guardarla lo dice, con el enlace a «Plantillas», y el
  * botón se queda parado: otro toque guardaría otra igual.
  *
@@ -53,6 +54,9 @@ import { CheckIcon } from "@/ui/icons";
  *
  * Los avisos de fallo son de cada acción: uno fallado no tapa ni borra a los otros.
  */
+/** Lo que se dice si la sesión ya no tiene ejercicios al guardarla como plantilla (otra persona los quitó). */
+const NO_ITEMS_TO_TEMPLATE = "Esta sesión ya no tiene ejercicios. Recarga para verla al día.";
+
 /** Una sesión que nunca se ha iniciado: lo que vale mientras quien lo monta no diga otra cosa. */
 const NOT_STARTED: LiveProgress = { started: false, position: null };
 
@@ -241,19 +245,33 @@ export function PracticeActions({
           >
             Guardar como plantilla
           </CTAButton>
-          {templating.failure ? <FormAlert message={ACTION_ERROR_COPY[templating.failure.error]} /> : null}
-          {/* Siempre en el árbol: un lector de pantalla solo anuncia lo que cambia en una región que ya existía. */}
-          <div role="status" className="empty:hidden">
+          {templating.failure ? (
+            <FormAlert
+              message={
+                // Sin campo que señalar: la sesión se ha quedado sin ejercicios desde que se abrió.
+                templating.failure.error === "INVALID"
+                  ? NO_ITEMS_TO_TEMPLATE
+                  : ACTION_ERROR_COPY[templating.failure.error]
+              }
+            />
+          ) : null}
+          {/*
+            Siempre en el árbol, también vacía: un lector de pantalla solo anuncia lo que cambia
+            en una región que ya existía. Vacía no ocupa nada: el margen negativo anula su hueco.
+          */}
+          <div role="status" className="empty:-mt-(--space-3)">
             {templateSaved ? (
               <p className="flex flex-wrap items-center gap-(--space-2) text-body-strong text-success">
                 <CheckIcon size={16} />
                 Plantilla guardada.
-                <a
+                <Link
                   href={`/c/${clubSlug}/train?scope=templates`}
+                  // Sin prefetch: el destino es una ruta dinámica detrás del proxy de sesión.
+                  prefetch={false}
                   className="inline-flex min-h-(--target-min) items-center text-brand-accent underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
                 >
                   Ver plantillas
-                </a>
+                </Link>
               </p>
             ) : null}
           </div>

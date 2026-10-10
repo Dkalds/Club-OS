@@ -165,7 +165,8 @@ function comparatorFor(kind: SlotKind): (a: ProposalDrill, b: ProposalDrill) => 
 
 /**
  * El ejercicio de un hueco, relajando por este orden: se admite lo usado hace poco, se deja de
- * mirar el número de jugadores y, por último, vale cualquier objetivo. `null` si ni así.
+ * mirar el número de jugadores y, por último, vale cualquier objetivo. Con cualquier objetivo
+ * se vuelve a preferir lo que cabe y no se ha usado hace poco. `null` si ni así.
  */
 function pick(
   slot: Slot,
@@ -182,6 +183,8 @@ function pick(
     (drill) => onFocus(drill) && fits(drill) && fresh(drill),
     (drill) => onFocus(drill) && fits(drill),
     onFocus,
+    (drill) => fits(drill) && fresh(drill),
+    fits,
     () => true,
   ];
   const compare = comparatorFor(slot.kind);
@@ -193,11 +196,16 @@ function pick(
   return null;
 }
 
-/** El rango de minutos de un ejercicio en pasos de cinco. Nunca vacío: `low` manda. */
+/**
+ * El rango de minutos de un ejercicio en pasos de cinco. Si su rango no contiene ningún
+ * múltiplo de cinco (de 11 a 14), dura lo más que admite: nunca sale de su rango.
+ */
 function bounds(drill: ProposalDrill): { low: number; high: number } {
-  const low = Math.max(MINUTES_STEP, Math.ceil(drill.minMinutes / MINUTES_STEP) * MINUTES_STEP);
-  const high = Math.floor(Math.min(drill.maxMinutes, MAX_MINUTES) / MINUTES_STEP) * MINUTES_STEP;
-  return { low, high: Math.max(low, high) };
+  const max = Math.min(drill.maxMinutes, MAX_MINUTES);
+  const low = Math.ceil(drill.minMinutes / MINUTES_STEP) * MINUTES_STEP;
+  const high = Math.floor(max / MINUTES_STEP) * MINUTES_STEP;
+  if (low > high) return { low: max, high: max };
+  return { low, high };
 }
 
 /**

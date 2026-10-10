@@ -644,8 +644,8 @@ async function findTemplate(
 }
 
 /**
- * «Guardar como plantilla»: copia la sesión del entreno `eventId` (título, objetivos, notas y
- * ejercicios con su fase y sus minutos) a una plantilla de quien llama, con
+ * «Guardar como plantilla»: copia la sesión del entreno `eventId` (título, objetivos y
+ * ejercicios con su fase y sus minutos; las notas no viajan) a una plantilla de quien llama, con
  * `save_practice_as_template`. Vale una sesión programada, hecha o cancelada. Antes comprueba
  * que el entreno es de este club: si no, `NOT_FOUND` sin llamar a la función. Una sesión sin
  * ejercicios es `INVALID`; con 50 plantillas propias en el club, `TEMPLATE_LIMIT`. Devuelve el
@@ -679,7 +679,7 @@ export async function savePracticeAsTemplate(
 /**
  * Un entreno programado en un equipo con los ejercicios de una plantilla propia, ya guardados,
  * con `create_practice_from_template`. Los datos son los del formulario, como en
- * `createPractice`; las notas, las de la plantilla. Antes comprueba que el equipo y la plantilla
+ * `createPractice`; la sesión nace sin notas. Antes comprueba que el equipo y la plantilla
  * son de este club: si no, `NOT_FOUND` sin llamar a la función, que es la que comprueba que el
  * equipo se gestiona y que la plantilla es de quien llama. Devuelve el id del entreno nuevo.
  */

@@ -59,8 +59,8 @@ Con eso, `buildProposal` (pura) arma la lista:
 - **Qué ejercicios valen.** La edad del equipo cabe en el rango del ejercicio y, si se conoce el tamaño de la plantilla, cabe en su rango de jugadores. Ninguno se repite dentro de la propuesta. Se prefieren los que no se han usado en las tres últimas sesiones. Entre los que quedan, por título: con los mismos datos, la misma propuesta.
 El motor no conoce los objetivos de ningún club (regla 3): recibe los de la sesión y los de cada ejercicio, y solo los compara.
 
-- **Si no hay candidato para un hueco**, se relaja por este orden: se admite lo usado hace poco, se deja de mirar el número de jugadores y, por último, vale cualquier objetivo. La edad no se relaja nunca. Si ni así hay ejercicio, ese hueco se queda sin cubrir.
-- **Minutos.** Cada bloque recibe su parte en pasos de 5 minutos, dentro del rango del ejercicio. Lo que falte o sobre para llegar a la duración de la sesión se reparte entre los bloques que aún admiten, del principal hacia fuera. Si ni con los mínimos caben todos (una sesión de 15 min), se quitan huecos: el secundario, la competición, el segundo del principal y la activación, por ese orden.
+- **Si no hay candidato para un hueco**, se relaja por este orden: se admite lo usado hace poco, se deja de mirar el número de jugadores y, por último, vale cualquier objetivo (y entre esos se vuelve a preferir lo que cabe y no se ha usado hace poco). La edad no se relaja nunca. Si ni así hay ejercicio, ese hueco se queda sin cubrir.
+- **Minutos.** Cada bloque recibe su parte en pasos de 5 minutos, dentro del rango del ejercicio (uno cuyo rango no contiene ningún múltiplo de 5 dura lo más que admite). Lo que falte o sobre para llegar a la duración de la sesión se reparte entre los bloques que aún admiten, del principal hacia fuera. Si ni con los mínimos caben todos (una sesión de 15 min), se quitan huecos: el secundario, la competición, el segundo del principal y la activación, por ese orden.
 - **Si los huecos no llenan la franja.** Los ejercicios de una biblioteca tienen rangos estrechos (10–15 min), y cinco no siempre dan 75. Mientras quede tiempo para otro, se añade uno más del principal y uno del secundario, por turnos, hasta ocho ejercicios.
 - **Lo que devuelve.** Los ítems (ejercicio, título, fase, minutos) con, para cada uno, por qué está ahí: sus objetivos, cuántos puntos de corrección clave tiene y cuántas variantes. Y los minutos que no ha podido cubrir. Con la biblioteca vacía, una lista vacía.
 
@@ -77,7 +77,7 @@ El constructor es el de hoy, con dos añadidos:
 
 Una plantilla es un plan sin equipo ni evento, con `is_template`, de su autor.
 
-- **Guardar.** En la ficha de una sesión (programada, hecha o cancelada) con ejercicios, «Guardar como plantilla». Copia el título, los objetivos, las notas y los ejercicios con sus fases y minutos. Tope de 50 plantillas por persona y club.
+- **Guardar.** En la ficha de una sesión (programada, hecha o cancelada) con ejercicios, «Guardar como plantilla». Copia el título, los objetivos y los ejercicios con sus fases y minutos. Las notas, de la sesión y de cada ejercicio, no se copian: son texto libre de aquel día y de aquel equipo, pueden hablar de jugadores, y la plantilla es personal. Tope de 50 plantillas por persona y club.
 - **Ver.** Tercera pestaña en Sesiones, «Plantillas» (`?scope=templates`): las mías, por título, con lo que duran, cuántos ejercicios tienen y sus objetivos.
 - **Usar.** Una plantilla abre `/train/new?template={id}`: el mismo formulario, con su título y sus objetivos puestos, un aviso de qué plantilla es y un solo botón, «Crear sesión», que la crea con los ejercicios de la plantilla ya guardados y abre su ficha.
 - **Borrar.** En esa misma pantalla, «Borrar plantilla», con confirmación. Las sesiones creadas con ella no cambian.
@@ -92,13 +92,13 @@ Una migración, sin tablas nuevas:
 - Con `is_template` concedida, dos cierres: un `check` (una plantilla no tiene evento) y la política de alta de un plan de equipo, que rechaza el que venga marcado como plantilla.
 - Política nueva en `practice_items`: alta de ítems en una plantilla propia. Borrarlos va con el plan (`on delete cascade`).
 - `save_practice_as_template(p_event uuid) returns uuid`: `NOT_FOUND` si el evento no es un entreno con plan de un equipo que se gestiona; `INVALID` si no tiene ejercicios; `TEMPLATE_LIMIT` con 50.
-- `create_practice_from_template(p_template uuid, p_team uuid, p_starts_at timestamptz, p_ends_at timestamptz, p_title text, p_primary_focus uuid default null, p_secondary_focus uuid default null, p_location text default null) returns uuid`: `NOT_FOUND` si la plantilla no es mía o es de otro club que el equipo, o si no gestiono el equipo. Crea evento, plan e ítems en una transacción; las notas son las de la plantilla y se cambian después, en la sesión.
+- `create_practice_from_template(p_template uuid, p_team uuid, p_starts_at timestamptz, p_ends_at timestamptz, p_title text, p_primary_focus uuid default null, p_secondary_focus uuid default null, p_location text default null) returns uuid`: `NOT_FOUND` si la plantilla no es mía o es de otro club que el equipo, o si no gestiono el equipo. Crea evento, plan e ítems en una transacción; la sesión nace sin notas.
 - Las dos, `security invoker`, con `execute` solo para `authenticated`, y el orden de comprobaciones de C26.
 - `posture.test.sql` al día y pgTAP propio: aislamiento por club, por autor (otro entrenador del mismo club no ve ni usa ni borra mi plantilla) y por equipo.
 
 ## Valores por defecto del equipo
 
-El formulario de una sesión nueva propone la hora, la duración y el lugar de la última sesión de ese equipo (las 18:00, 75 minutos y sin lugar si no tiene ninguna). Al cambiar de equipo en el formulario, los tres se ponen al día mientras no se hayan tocado.
+El formulario de una sesión nueva propone la hora, la duración y el lugar de la última sesión de ese equipo (las 18:00, 75 minutos y sin lugar si no tiene ninguna). «Última» es la más reciente que ya ha empezado; si el equipo aún no ha entrenado, la más próxima de las programadas. Al cambiar de equipo en el formulario, los tres se ponen al día mientras no se hayan tocado, y con la hora, el día que le toca (hoy, o mañana si esa hora ya ha pasado).
 
 ## Qué no cambia
 
@@ -126,4 +126,5 @@ El formulario de una sesión nueva propone la hora, la duración y el lugar de l
 - El reparto por fases (15 / 45 / 20 / 20) y las relajaciones, en ese orden.
 - «Reciente» son las tres últimas sesiones del equipo.
 - Una plantilla no se edita ni se renombra: se guarda otra. Tope de 50.
+- Las notas no viajan a la plantilla.
 - Dirección puede leer en la base las plantillas de cualquiera de su club (ya era así para los planes sin equipo); la pantalla solo enseña las propias.

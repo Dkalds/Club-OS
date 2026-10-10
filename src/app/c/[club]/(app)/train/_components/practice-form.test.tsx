@@ -442,6 +442,30 @@ describe("PracticeForm · lo que trae cada equipo", () => {
     expect(screen.getByLabelText("Hora")).toHaveValue("17:30");
   });
 
+  it("con la hora cambia el día que le toca, mientras no se haya tocado ni la fecha ni la hora", () => {
+    const withDates = {
+      [TEAM_A]: { ...teamDefaults[TEAM_A], date: "2026-10-06" },
+      [TEAM_B]: { ...teamDefaults[TEAM_B], date: "2026-10-07" },
+    };
+    const first = renderForm({ options, teamDefaults: withDates });
+    change("Equipo", TEAM_B);
+    expect(screen.getByLabelText("Fecha")).toHaveValue("2026-10-07");
+    first.unmount();
+
+    // Con la fecha elegida a mano, se queda.
+    const second = renderForm({ options, teamDefaults: withDates });
+    change("Fecha", "2026-10-20");
+    change("Equipo", TEAM_B);
+    expect(screen.getByLabelText("Fecha")).toHaveValue("2026-10-20");
+    second.unmount();
+
+    // Y con la hora elegida a mano, también: el día que traía era el de esa hora.
+    renderForm({ options, teamDefaults: withDates });
+    change("Hora", "19:15");
+    change("Equipo", TEAM_B);
+    expect(screen.getByLabelText("Fecha")).toHaveValue("2026-10-06");
+  });
+
   it("sin datos de ese equipo no toca nada", () => {
     renderForm({ options, teamDefaults: { [TEAM_A]: teamDefaults[TEAM_A] } });
 

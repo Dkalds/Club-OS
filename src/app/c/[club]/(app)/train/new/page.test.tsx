@@ -42,6 +42,7 @@ const NO_HISTORY = {
   "t-1": { time: "18:00", durationMinutes: 75, location: null },
   "t-2": { time: "18:00", durationMinutes: 75, location: null },
 };
+const ISO_NOW = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
 const TEMPLATE_ID = "00000000-0000-4000-8000-0000000000c1";
 const TEMPLATE = {
   id: TEMPLATE_ID,
@@ -177,7 +178,7 @@ describe("/train/new, lo que trae el equipo", () => {
 
     render(await NewPracticePage(props()));
 
-    expect(mocks.getTeamDefaults).toHaveBeenCalledWith(clubContext("coach"), TEAMS);
+    expect(mocks.getTeamDefaults).toHaveBeenCalledWith(clubContext("coach"), TEAMS, expect.stringMatching(ISO_NOW));
     expect(formProps().initial).toMatchObject({
       teamId: "t-1",
       time: "17:30",
@@ -198,10 +199,21 @@ describe("/train/new, lo que trae el equipo", () => {
     expect(formProps().initial).toMatchObject({ teamId: "t-2", time: "19:00", durationMinutes: "60", location: "" });
   });
 
-  it("le da al formulario lo de todos los equipos, para cuando se cambie", async () => {
+  it("le da al formulario lo de todos los equipos, para cuando se cambie, con el día que le toca a su hora", async () => {
+    // Las 19:00 en Madrid: las 18:00 ya han pasado (mañana) y las 20:30 no (hoy).
+    vi.useFakeTimers({ now: new Date("2026-10-06T17:00:00Z") });
+    mocks.getTeamDefaults.mockResolvedValue({
+      "t-1": { time: "18:00", durationMinutes: 75, location: null },
+      "t-2": { time: "20:30", durationMinutes: 60, location: "Pabellón 2" },
+    });
+
     render(await NewPracticePage(props()));
 
-    expect(formProps().teamDefaults).toEqual(NO_HISTORY);
+    expect(formProps().teamDefaults).toEqual({
+      "t-1": { time: "18:00", durationMinutes: 75, location: null, date: "2026-10-07" },
+      "t-2": { time: "20:30", durationMinutes: 60, location: "Pabellón 2", date: "2026-10-06" },
+    });
+    expect(formProps().initial.date).toBe("2026-10-07");
   });
 });
 

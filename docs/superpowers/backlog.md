@@ -219,6 +219,9 @@ Lo que deja:
 - **Una plantilla no se renombra ni se edita.** Se corrige la sesión y se guarda otra; la vieja se borra.
 - **Dirección lee en la base las plantillas de cualquiera de su club** (la política de lectura de un plan sin equipo ya era así). Ninguna pantalla las enseña. Si se quiere cerrar, es un cambio de `practice_plans_select_visible`.
 - **La línea de «por qué está» solo dura hasta recargar**: no se guarda. Un ejercicio añadido a mano no la lleva.
+- **Los topes de las plantillas viven en la función, no en la base.** Por la API directa una persona puede pasar de 50 plantillas propias, guardar una vacía o añadir ítems a una suya (más de 30); dos «Guardar como plantilla» a la vez con 49 pasan las dos. Solo afecta a sus propios datos. Con más de 50, la lista enseña 50; una sesión creada con más de 30 ejercicios no se guarda sin recortar. Cerrarlo es un trigger con el recuento.
+- **La línea de «por qué está» no nombra el Standard del ejercicio** (regla 8): dice objetivos, puntos clave y variantes. El constructor tampoco lo enseñaba antes; es el sitio natural para hacerlo. Decisión de producto.
+- **Un equipo de menos de 8 años no recibe propuesta**: los ejercicios empiezan en 8 y la edad no se relaja. La pantalla lo dice y se monta a mano.
 - **«Proponer» solo con la lista vacía.** Completar una sesión a medias («propón lo que falta») no está.
 - **IA**: fuera, por decisión del propietario (10 oct 2026). La propuesta son reglas.
 
@@ -228,6 +231,8 @@ Decisiones tomadas sin preguntarlas una a una (están también en la especificac
 - El reparto por fases (15 / 45 / 20 / 20), las relajaciones en su orden, y que se añadan ejercicios (hasta ocho) cuando los cinco huecos no llenan la franja.
 - «Reciente» son las tres últimas sesiones del equipo.
 - Tope de 50 plantillas por persona y club.
+- Las notas de la sesión y de sus ejercicios no se copian a la plantilla, y la sesión creada con ella nace sin notas.
+- La hora, la duración y el lugar que se proponen son los de la última sesión que ya ha empezado, no los de una programada para más adelante.
 - Una sesión creada con una plantilla abre su ficha, no el constructor: ya tiene sus ejercicios.
 - El copy nuevo no lo ha validado producto.
 

@@ -71,7 +71,9 @@ function sameValues(a: PracticeFormValues, b: PracticeFormValues): boolean {
  *
  * `teamDefaults` es, por equipo, la hora, la duración y el lugar de su última sesión. Al cambiar
  * de equipo, los tres se ponen al día mientras no se hayan tocado; con una plantilla la duración
- * no, que es la de la plantilla.
+ * no, que es la de la plantilla. Con la hora cambia el día que le toca (`date`: hoy, o mañana si
+ * esa hora ya ha pasado; lo calcula la página, en la zona del club), mientras no se haya tocado
+ * ni la fecha ni la hora.
  *
  * Con `edit` son los datos de una sesión que ya existe (los del constructor): no pregunta por
  * el equipo, que no se cambia, y añade las notas. Su botón es `secondary`, porque lo principal
@@ -109,7 +111,7 @@ export function PracticeForm({
   options: { teams: TeamOption[]; focusAreas: FocusOption[] };
   initial: PracticeFormValues;
   template?: { id: string };
-  teamDefaults?: Record<string, TeamDefaults>;
+  teamDefaults?: Record<string, TeamDefaults & { date?: string }>;
   edit?: {
     eventId: string;
     expectedUpdatedAt: string;
@@ -172,6 +174,9 @@ export function PracticeForm({
         for (const key of TEAM_DEFAULT_FIELDS) {
           const keep = touched.has(key) || (template !== undefined && key === "durationMinutes");
           if (!keep) next[key] = fromTeam[key];
+        }
+        if (defaults.date !== undefined && !touched.has("date") && !touched.has("time")) {
+          next.date = defaults.date;
         }
       }
       setValues(next);
