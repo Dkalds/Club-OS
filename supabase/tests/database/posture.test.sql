@@ -153,7 +153,11 @@ select set_eq(
       -- Desarrollo (20261215000100): el alta y el cambio van por columnas, abajo. Los
       -- objetivos no se borran (se archivan); las notas sí, de verdad.
       ('player_goals', array['select']),
-      ('coach_notes', array['select', 'delete'])
+      ('coach_notes', array['select', 'delete']),
+      -- Invitaciones (20270112000100): la cuenta de Auth y la aceptación van por
+      -- create_invitation y accept_pending_invitations, security definer. Cancelar y
+      -- reenviar son update directos (por columnas, abajo); nunca insert ni delete.
+      ('invitations', array['select'])
     ) as t (tabla, privilegios)
     cross join unnest(t.privilegios) as p (privilegio)$$,
   'los privilegios de tabla de authenticated en public son exactamente los de la lista'
@@ -225,7 +229,10 @@ select set_eq(
         array['title', 'description', 'focus_area_id', 'standard_id', 'status']),
       ('coach_notes', 'insert',
         array['organization_id', 'person_id', 'team_id', 'body', 'visibility']),
-      ('coach_notes', 'update', array['body', 'visibility'])
+      ('coach_notes', 'update', array['body', 'visibility']),
+      -- Invitaciones (20270112000100): cancelar pone cancelled_at; reenviar, un token y una
+      -- caducidad nuevos. Ninguna otra columna, y RLS exige que siga pendiente para las dos.
+      ('invitations', 'update', array['cancelled_at', 'token_hash', 'expires_at'])
     ) as t (tabla, privilegio, columnas)
     cross join unnest(t.columnas) as c (columna)$$,
   'los privilegios de columna de authenticated en public son exactamente los de la lista'

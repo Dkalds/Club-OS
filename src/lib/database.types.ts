@@ -354,6 +354,37 @@ isOneToOne: false
       referencedColumns: ["id"]
     }
                   ]
+                },"invitations": {
+                  Row: {
+                    "accepted_at": string | null,"cancelled_at": string | null,"created_at": string,"email": string,"expires_at": string,"first_name": string | null,"id": string,"invited_by": string | null,"last_name": string | null,"organization_id": string,"person_id": string | null,"role": Database["public"]['Enums']["org_role"],"staff_role": Database["public"]['Enums']["staff_role"] | null,"team_id": string | null,"token_hash": string
+                  }
+                  Insert: {
+                    "accepted_at"?: string | null,"cancelled_at"?: string | null,"created_at"?: string,"email": string,"expires_at": string,"first_name"?: string | null,"id"?: string,"invited_by"?: string | null,"last_name"?: string | null,"organization_id": string,"person_id"?: string | null,"role": Database["public"]['Enums']["org_role"],"staff_role"?: Database["public"]['Enums']["staff_role"] | null,"team_id"?: string | null,"token_hash": string
+                  }
+                  Update: {
+                    "accepted_at"?: string | null,"cancelled_at"?: string | null,"created_at"?: string,"email"?: string,"expires_at"?: string,"first_name"?: string | null,"id"?: string,"invited_by"?: string | null,"last_name"?: string | null,"organization_id"?: string,"person_id"?: string | null,"role"?: Database["public"]['Enums']["org_role"],"staff_role"?: Database["public"]['Enums']["staff_role"] | null,"team_id"?: string | null,"token_hash"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "invitations_organization_id_fkey"
+      columns: ["organization_id"]
+isOneToOne: false
+      referencedRelation: "organizations"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "invitations_organization_id_person_id_fkey"
+      columns: ["organization_id","person_id"]
+isOneToOne: false
+      referencedRelation: "people"
+      referencedColumns: ["organization_id","id"]
+    },{
+      foreignKeyName: "invitations_organization_id_team_id_fkey"
+      columns: ["organization_id","team_id"]
+isOneToOne: false
+      referencedRelation: "teams"
+      referencedColumns: ["organization_id","id"]
+    }
+                  ]
                 },"media_assets": {
                   Row: {
                     "bucket": string,"bytes": number,"contains_minor": boolean,"created_at": string,"created_by": string | null,"id": string,"kind": string,"mime": string,"organization_id": string,"path": string
@@ -760,11 +791,17 @@ isOneToOne: false
             [_ in never]: never
           }
           Functions: {
-            "cancel_game":
+            "accept_pending_invitations":
+{ Args: Record<PropertyKey, never>; Returns: (string)[]
+                           },
+"cancel_game":
 { Args: { "p_event": string }; Returns: undefined
                            },
 "create_game":
 { Args: { "p_competition"?: string,"p_ends_at": string,"p_home_away"?: string,"p_location"?: string,"p_opponent": string,"p_starts_at": string,"p_team": string }; Returns: string
+                           },
+"create_invitation":
+{ Args: { "p_email": string,"p_expires_at": string,"p_first_name"?: string,"p_last_name"?: string,"p_org": string,"p_person"?: string,"p_role": Database["public"]['Enums']["org_role"],"p_staff_role"?: Database["public"]['Enums']["staff_role"],"p_team"?: string,"p_token_hash": string }; Returns: string
                            },
 "create_practice_session":
 { Args: { "p_ends_at": string,"p_location"?: string,"p_primary_focus"?: string,"p_secondary_focus"?: string,"p_starts_at": string,"p_team": string,"p_title": string }; Returns: string
