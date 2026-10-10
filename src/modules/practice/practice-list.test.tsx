@@ -197,35 +197,35 @@ describe("PracticeList, pestañas", () => {
   });
 });
 
-describe("PracticeList, «Nueva sesión»", () => {
+describe("PracticeList, «Preparar sesión»", () => {
   it("quien puede crear y tiene equipos la ve arriba, antes de las pestañas y de la lista", () => {
     renderList({ canCreate: true });
 
-    const create = screen.getByRole("link", { name: "Nueva sesión" });
+    const create = screen.getByRole("link", { name: "Preparar sesión" });
     expect(create).toHaveAttribute("href", "/c/club-a/train/new");
     expect(comesBefore(create, sessionTabs())).toBe(true);
     expect(comesBefore(create, screen.getByRole("list"))).toBe(true);
   });
 
-  it("sin permiso para crear no hay «Nueva sesión» en ninguna parte", () => {
+  it("sin permiso para crear no hay «Preparar sesión» en ninguna parte", () => {
     renderList({ canCreate: false });
-    expect(screen.queryByRole("link", { name: "Nueva sesión" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Preparar sesión" })).not.toBeInTheDocument();
   });
 
   it("sin permiso para crear no la hay tampoco con la lista vacía", () => {
     renderList({ canCreate: false, practices: [] });
-    expect(screen.queryByRole("link", { name: "Nueva sesión" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Preparar sesión" })).not.toBeInTheDocument();
   });
 
   it("sin equipos no hay donde crear una sesión, aunque haya permiso", () => {
     renderList({ canCreate: true, teamCount: 0, practices: [] });
-    expect(screen.queryByRole("link", { name: "Nueva sesión" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Preparar sesión" })).not.toBeInTheDocument();
   });
 
   it("en el histórico vacío sigue arriba, porque su salida es otra", () => {
     renderList({ scope: "history", practices: [], canCreate: true });
 
-    expect(screen.getByRole("link", { name: "Nueva sesión" })).toHaveAttribute("href", "/c/club-a/train/new");
+    expect(screen.getByRole("link", { name: "Preparar sesión" })).toHaveAttribute("href", "/c/club-a/train/new");
   });
 });
 
@@ -252,9 +252,9 @@ describe("PracticeList vacía", () => {
     renderList({ practices: [], canCreate: true });
 
     expect(screen.getByRole("heading", { level: 2, name: "No hay sesiones programadas" })).toBeInTheDocument();
-    expect(screen.getByText("Crea la próxima sesión de tu equipo.")).toBeInTheDocument();
+    expect(screen.getByText("Prepara la próxima sesión de tu equipo.")).toBeInTheDocument();
     // La salida del vacío es la misma acción que el botón de arriba: una sola, no dos iguales.
-    const create = screen.getAllByRole("link", { name: "Nueva sesión" });
+    const create = screen.getAllByRole("link", { name: "Preparar sesión" });
     expect(create).toHaveLength(1);
     expect(create[0]).toHaveAttribute("href", "/c/club-a/train/new");
     expect(screen.queryByRole("list")).not.toBeInTheDocument();
@@ -265,7 +265,7 @@ describe("PracticeList vacía", () => {
 
     expect(screen.getByRole("heading", { level: 2, name: "No hay sesiones programadas" })).toBeInTheDocument();
     expect(screen.getByText("Cuando haya una sesión en el calendario, la verás aquí.")).toBeInTheDocument();
-    expect(screen.queryByText("Crea la próxima sesión de tu equipo.")).not.toBeInTheDocument();
+    expect(screen.queryByText("Prepara la próxima sesión de tu equipo.")).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Ver histórico" })).toHaveAttribute(
       "href",
       "/c/club-a/train?scope=history",

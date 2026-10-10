@@ -37,7 +37,7 @@ export default async function NewPracticePage({ params }: PageProps<"/c/[club]/t
 
   return (
     <div className="flex flex-col gap-(--space-6) px-(--space-4) pt-(--space-2)">
-      <BackLink href={trainHref} label="Entrenar" />
+      <BackLink href={trainHref} label="Sesiones" />
 
       <h1 className="font-display text-display-l uppercase">Nueva sesión</h1>
 
@@ -46,7 +46,8 @@ export default async function NewPracticePage({ params }: PageProps<"/c/[club]/t
           clubSlug={ctx.org.slug}
           options={options}
           initial={{
-            teamId: firstTeam.id,
+            // El equipo activo, si hay uno elegido; si no, el primero.
+            teamId: options.defaultTeamId ?? firstTeam.id,
             title: "",
             date: defaultSessionDate(new Date().toISOString(), ctx.org.timezone, DEFAULT_SESSION_TIME),
             time: DEFAULT_SESSION_TIME,

@@ -23,6 +23,7 @@ import {
   createPractice,
   duplicatePractice,
   findDrills,
+  resetLiveProgress,
   savePracticeItems,
   updatePracticeMeta,
 } from "./actions";
@@ -252,7 +253,7 @@ const duplicate = { eventId: EVENT, date: "2026-11-24", time: "18:00" };
 const addDrill = { eventId: EVENT, drillId: DRILL };
 
 /**
- * Las seis acciones que escriben, cada una con una entrada válida. `findDrills` solo lee y
+ * Las siete acciones que escriben, cada una con una entrada válida. `findDrills` solo lee y
  * tiene su propio bloque más abajo.
  */
 const ACTIONS: Array<[string, () => Promise<ActionResult<unknown>>]> = [
@@ -262,6 +263,7 @@ const ACTIONS: Array<[string, () => Promise<ActionResult<unknown>>]> = [
   ["duplicatePractice", () => duplicatePractice("club-a", duplicate)],
   ["cancelPractice", () => cancelPractice("club-a", { eventId: EVENT })],
   ["addDrillToPractice", () => addDrillToPractice("club-a", addDrill)],
+  ["resetLiveProgress", () => resetLiveProgress("club-a", { eventId: EVENT })],
 ];
 
 // ── Quién gestiona y qué pasa después ────────────────────────────────────────────────────
@@ -335,6 +337,7 @@ describe("tras escribir", () => {
     ["duplicatePractice", [ownEvent, reply(NEW_EVENT)], ACTIONS[3][1]],
     ["cancelPractice", [reply([{ id: EVENT }])], ACTIONS[4][1]],
     ["addDrillToPractice", [planWith([]), publishedDrill, reply(NEXT_STAMP)], ACTIONS[5][1]],
+    ["resetLiveProgress", [ownEvent, reply(NEXT_STAMP)], ACTIONS[6][1]],
   ];
 
   it.each(WRITES)(
@@ -1835,6 +1838,72 @@ describe("addDrillToPractice", () => {
       ok: false,
       error: "INVALID",
       fieldErrors: { eventId: "No encontramos este contenido.", drillId: "No encontramos este contenido." },
+    });
+    expect(mocks.requireClub).not.toHaveBeenCalled();
+    expect(mocks.createClient).not.toHaveBeenCalled();
+  });
+});
+
+// ── resetLiveProgress ────────────────────────────────────────────────────────────────────
+
+describe("resetLiveProgress", () => {
+  it("reinicia el directo de la sesión y devuelve su copia nueva", async () => {
+    const db = useDb(ownEvent, reply(NEXT_STAMP));
+
+    const result = await resetLiveProgress("club-a", { eventId: EVENT });
+
+    expect(result).toEqual({ ok: true, data: { updatedAt: NEXT_STAMP } });
+    expect(db.rpcs).toEqual([{ name: "reset_live_progress", args: { p_event: EVENT } }]);
+    expect(mocks.revalidatePath).toHaveBeenCalledWith("/c/[club]/(app)", "layout");
+  });
+
+  it("antes de llamar a la función comprueba que el entreno es de este club", async () => {
+    const db = useDb(ownEvent, reply(NEXT_STAMP));
+
+    await resetLiveProgress("club-a", { eventId: EVENT });
+
+    expect(db.queries[0].table).toBe("events");
+    expect(db.queries[0].filters).toEqual([
+      ["organization_id", ORG],
+      ["id", EVENT],
+      ["kind", "practice"],
+    ]);
+  });
+
+  it("un entreno de otro club es NOT_FOUND sin llamar a la función", async () => {
+    const db = useDb(noEvent);
+
+    const result = await resetLiveProgress("club-a", { eventId: EVENT });
+
+    expect(result).toEqual({ ok: false, error: "NOT_FOUND" });
+    expect(db.rpcs).toEqual([]);
+    expect(mocks.revalidatePath).not.toHaveBeenCalled();
+  });
+
+  it("una sesión ya hecha o cancelada es SESSION_CLOSED", async () => {
+    useDb(ownEvent, dbError("P0001", "SESSION_CLOSED"));
+
+    const result = await resetLiveProgress("club-a", { eventId: EVENT });
+
+    expect(result).toEqual({ ok: false, error: "SESSION_CLOSED" });
+    expect(mocks.revalidatePath).not.toHaveBeenCalled();
+  });
+
+  it("un equipo que no se gestiona es NOT_FOUND", async () => {
+    useDb(ownEvent, dbError("P0002", "NOT_FOUND"));
+
+    const result = await resetLiveProgress("club-a", { eventId: EVENT });
+
+    expect(result).toEqual({ ok: false, error: "NOT_FOUND" });
+  });
+
+  it("un id que no es un uuid no llega a la base de datos", async () => {
+    const result = await resetLiveProgress("club-a", { eventId: "no-es-un-uuid" });
+
+    expect(result).toEqual({
+      ok: false,
+      error: "INVALID",
+      fieldErrors: { eventId: "No encontramos este contenido." },
     });
     expect(mocks.requireClub).not.toHaveBeenCalled();
     expect(mocks.createClient).not.toHaveBeenCalled();

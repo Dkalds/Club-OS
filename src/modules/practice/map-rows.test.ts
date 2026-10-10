@@ -50,6 +50,8 @@ const ITEM_FREE = {
   title_override: "Bloque libre",
   minutes: 15,
   notes: null,
+  completed: null,
+  actual_minutes: null,
   drills: null,
 };
 const ITEM_FIRST = {
@@ -60,6 +62,8 @@ const ITEM_FIRST = {
   title_override: null,
   minutes: 20,
   notes: "Por parejas",
+  completed: null,
+  actual_minutes: null,
   drills: DRILL_A,
 };
 const ITEM_SECOND = {
@@ -70,6 +74,8 @@ const ITEM_SECOND = {
   title_override: "Título propio",
   minutes: 25,
   notes: null,
+  completed: null,
+  actual_minutes: null,
   drills: DRILL_B,
 };
 
@@ -78,6 +84,9 @@ const PLAN: PracticePlanRow = {
   title: "Transición + rebote defensivo",
   notes: "Llevar petos",
   updated_at: "2026-11-10T09:30:00.123456+00:00",
+  actual_minutes: null,
+  live_started_at: null,
+  live_position: null,
   primary_focus: { id: "focus-1", name: "Defensa" },
   secondary_focus: { id: "focus-2", name: "Rebote" },
   practice_items: [ITEM_FREE, ITEM_FIRST, ITEM_SECOND],
@@ -129,6 +138,8 @@ describe("toPracticeDetail", () => {
           phase: "Técnica",
           minutes: 20,
           notes: "Por parejas",
+          completed: null,
+          actualMinutes: null,
         },
         {
           id: "item-b",
@@ -138,6 +149,8 @@ describe("toPracticeDetail", () => {
           phase: null,
           minutes: 25,
           notes: null,
+          completed: null,
+          actualMinutes: null,
         },
         {
           id: "item-c",
@@ -147,12 +160,44 @@ describe("toPracticeDetail", () => {
           phase: "Táctica",
           minutes: 15,
           notes: null,
+          completed: null,
+          actualMinutes: null,
         },
       ],
       standards: [SHOWN_1, SHOWN_2],
       updatedAt: "2026-11-10T09:30:00.123456+00:00",
       canEdit: true,
+      live: { started: false, position: null },
+      actualMinutes: null,
     });
+  });
+
+  it("una sesión en curso dice que está empezada y por qué ejercicio va", () => {
+    const detail = toPracticeDetail(
+      withPlan({ live_started_at: "2026-11-17T17:02:00+00:00", live_position: 1 }),
+      MADRID,
+    );
+
+    expect(detail?.live).toEqual({ started: true, position: 1 });
+  });
+
+  it("lo que el directo registró de cada ejercicio y lo que duró la sesión", () => {
+    const detail = toPracticeDetail(
+      withPlan({
+        actual_minutes: 52,
+        practice_items: [
+          { ...ITEM_FIRST, completed: true, actual_minutes: 18 },
+          { ...ITEM_SECOND, completed: false, actual_minutes: null },
+        ],
+      }),
+      MADRID,
+    );
+
+    expect(detail?.actualMinutes).toBe(52);
+    expect(detail?.items.map(({ completed, actualMinutes }) => ({ completed, actualMinutes }))).toEqual([
+      { completed: true, actualMinutes: 18 },
+      { completed: false, actualMinutes: null },
+    ]);
   });
 
   it("el título del ítem es el propio y, sin él, el del ejercicio; sin ninguno, «Ejercicio»", () => {

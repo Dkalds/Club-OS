@@ -1,12 +1,23 @@
 import { describe, expect, it } from "vitest";
-import { activeNavKey, adminNavItems, navItems, standardsLabel, wayLabel } from "./navigation";
+import {
+  activeNavKey,
+  adminNavItems,
+  hasIdentityTab,
+  IDENTITY_LABEL,
+  identityHref,
+  navItems,
+  standardsLabel,
+  wayLabel,
+  type NavKey,
+} from "./navigation";
 
 // Slug neutro: los tests de `src/` no pueden nombrar a ningún club (pnpm check:guards).
 const SLUG = "club-a";
 
 describe("wayLabel", () => {
-  it("sin término, «The Way»", () => {
-    expect(wayLabel({})).toBe("The Way");
+  it("sin término, «Identidad»", () => {
+    expect(wayLabel({})).toBe("Identidad");
+    expect(IDENTITY_LABEL).toBe("Identidad");
   });
 
   it("con término, el del club", () => {
@@ -14,12 +25,12 @@ describe("wayLabel", () => {
   });
 
   it("un término vacío o en blanco no deja la etiqueta vacía", () => {
-    expect(wayLabel({ way: "" })).toBe("The Way");
-    expect(wayLabel({ way: "   " })).toBe("The Way");
+    expect(wayLabel({ way: "" })).toBe("Identidad");
+    expect(wayLabel({ way: "   " })).toBe("Identidad");
   });
 
   it("el término de Standards no la cambia", () => {
-    expect(wayLabel({ standards: "Normas del club" })).toBe("The Way");
+    expect(wayLabel({ standards: "Normas del club" })).toBe("Identidad");
   });
 });
 
@@ -43,56 +54,56 @@ describe("standardsLabel", () => {
 });
 
 describe("navItems", () => {
-  it("etiquetas por defecto", () => {
-    const items = navItems(SLUG, {});
-
-    expect(items).toHaveLength(5);
-    expect(items.map((item) => item.key)).toEqual(["home", "way", "train", "games", "team"]);
-    expect(items.map((item) => item.label)).toEqual([
-      "Inicio",
-      "The Way",
-      "Entrenar",
-      "Partidos",
-      "Equipo",
+  it.each(["coach", "admin"] as const)("%s: Inicio, Agenda, Sesiones, Biblioteca y Equipo", (role) => {
+    expect(navItems(SLUG, role)).toEqual([
+      { key: "home", label: "Inicio", href: "/c/club-a" },
+      { key: "agenda", label: "Agenda", href: "/c/club-a/agenda" },
+      { key: "sessions", label: "Sesiones", href: "/c/club-a/train" },
+      { key: "library", label: "Biblioteca", href: "/c/club-a/drills" },
+      { key: "team", label: "Equipo", href: "/c/club-a/team" },
     ]);
   });
 
-  it("la terminología del club cambia la etiqueta", () => {
-    const items = navItems(SLUG, { way: "Nuestro estilo" });
-
-    expect(items.map((item) => item.label)).toEqual([
-      "Inicio",
-      "Nuestro estilo",
-      "Entrenar",
-      "Partidos",
-      "Equipo",
+  it.each(["player", "guardian"] as const)("%s: solo Inicio e Identidad, lo que puede usar", (role) => {
+    expect(navItems(SLUG, role)).toEqual([
+      { key: "home", label: "Inicio", href: "/c/club-a" },
+      { key: "identity", label: "Identidad", href: "/c/club-a/way" },
     ]);
   });
 
-  it("rutas con el slug", () => {
-    expect(navItems(SLUG, {}).map((item) => item.href)).toEqual([
-      "/c/club-a",
-      "/c/club-a/way",
-      "/c/club-a/train",
-      "/c/club-a/games",
-      "/c/club-a/team",
-    ]);
+  it("nadie ve una pestaña de partidos ni de «The Way»: viven en Agenda y en Identidad", () => {
+    for (const role of ["admin", "coach", "player", "guardian"] as const) {
+      const labels = navItems(SLUG, role).map((item) => item.label);
+      expect(labels).not.toContain("Partidos");
+      expect(labels).not.toContain("The Way");
+      expect(labels).not.toContain("Entrenar");
+    }
   });
 
-  it("un término vacío no deja la pestaña sin etiqueta", () => {
-    expect(navItems(SLUG, { way: "   " })[1].label).toBe("The Way");
-    expect(navItems(SLUG, { way: "" })[1].label).toBe("The Way");
+  it("usa el slug del club en todas las rutas", () => {
+    for (const item of navItems("club-b", "coach")) {
+      expect(item.href === "/c/club-b" || item.href.startsWith("/c/club-b/")).toBe(true);
+    }
+  });
+});
+
+describe("la identidad del club", () => {
+  it("es una pestaña para jugador y familia; para quien entrena y la dirección, no", () => {
+    expect(hasIdentityTab("player")).toBe(true);
+    expect(hasIdentityTab("guardian")).toBe(true);
+    expect(hasIdentityTab("coach")).toBe(false);
+    expect(hasIdentityTab("admin")).toBe(false);
   });
 
-  it("el término de Standards no cambia ninguna pestaña", () => {
-    expect(navItems(SLUG, { standards: "Normas del club" })).toEqual(navItems(SLUG, {}));
+  it("su entrada es la ruta de siempre", () => {
+    expect(identityHref(SLUG)).toBe("/c/club-a/way");
   });
 });
 
 describe("adminNavItems", () => {
-  it("por defecto: The Way, Valores, Principios y Standards, con rutas bajo /admin", () => {
+  it("por defecto: Identidad, Valores, Principios y Standards, con rutas bajo /admin", () => {
     expect(adminNavItems(SLUG, {})).toEqual([
-      { label: "The Way", href: "/c/club-a/admin/way" },
+      { label: "Identidad", href: "/c/club-a/admin/way" },
       { label: "Valores", href: "/c/club-a/admin/values" },
       { label: "Principios", href: "/c/club-a/admin/principles" },
       { label: "Standards", href: "/c/club-a/admin/standards" },
@@ -109,7 +120,7 @@ describe("adminNavItems", () => {
   it("un término vacío no deja un apartado sin etiqueta", () => {
     const items = adminNavItems(SLUG, { way: "   ", standards: "" });
 
-    expect(items.map((item) => item.label)).toEqual(["The Way", "Valores", "Principios", "Standards"]);
+    expect(items.map((item) => item.label)).toEqual(["Identidad", "Valores", "Principios", "Standards"]);
   });
 
   it("usa el slug del club en todas las rutas", () => {
@@ -120,83 +131,68 @@ describe("adminNavItems", () => {
 });
 
 describe("activeNavKey", () => {
-  it("activeNavKey('/c/club-a/train/abc', 'club-a') === 'train'", () => {
-    expect(activeNavKey("/c/club-a/train/abc", SLUG)).toBe("train");
+  const STAFF: NavKey[] = ["home", "agenda", "sessions", "library", "team"];
+  const MEMBER: NavKey[] = ["home", "identity"];
+  const staff = (pathname: string) => activeNavKey(pathname, SLUG, STAFF);
+
+  it("la raíz del club es Inicio", () => {
+    expect(staff("/c/club-a")).toBe("home");
+    expect(staff("/c/club-a/")).toBe("home");
   });
 
-  it("activeNavKey('/c/club-a', 'club-a') === 'home'", () => {
-    expect(activeNavKey("/c/club-a", SLUG)).toBe("home");
+  it("cada sección y lo que cuelga de ella, su pestaña", () => {
+    expect(staff("/c/club-a/agenda")).toBe("agenda");
+    expect(staff("/c/club-a/train")).toBe("sessions");
+    expect(staff("/c/club-a/train/abc/edit")).toBe("sessions");
+    expect(staff("/c/club-a/drills")).toBe("library");
+    expect(staff("/c/club-a/drills/abc")).toBe("library");
+    expect(staff("/c/club-a/team/abc/players/def")).toBe("team");
   });
 
-  it.each([
-    ["/c/club-a/", "home"],
-    ["/c/club-a/way", "way"],
-    ["/c/club-a/way/", "way"],
-    ["/c/club-a/way/valores", "way"],
-    ["/c/club-a/train", "train"],
-    ["/c/club-a/games", "games"],
-    ["/c/club-a/games/4b0c6c0e-5d0a-4a57-9f5e-0c3b3f1d2a10", "games"],
-    ["/c/club-a/team", "team"],
-  ] as const)("%s → %s", (pathname, key) => {
-    expect(activeNavKey(pathname, SLUG)).toBe(key);
+  it("los partidos no tienen pestaña: su ficha, su alta y su edición son Agenda", () => {
+    expect(staff("/c/club-a/games")).toBe("agenda");
+    expect(staff("/c/club-a/games/new")).toBe("agenda");
+    expect(staff("/c/club-a/games/abc/edit")).toBe("agenda");
   });
 
-  it("activeNavKey('/c/club-a/drills/abc', 'club-a') === 'train'", () => {
-    expect(activeNavKey("/c/club-a/drills/abc", SLUG)).toBe("train");
+  it("la identidad es su pestaña para quien la tiene", () => {
+    expect(activeNavKey("/c/club-a/way", SLUG, MEMBER)).toBe("identity");
+    expect(activeNavKey("/c/club-a/way/standards", SLUG, MEMBER)).toBe("identity");
   });
 
-  it.each([
-    "/c/club-a/drills",
-    "/c/club-a/drills/",
-    "/c/club-a/drills/new",
-    "/c/club-a/drills/4b0c6c0e-5d0a-4a57-9f5e-0c3b3f1d2a10",
-    "/c/club-a/drills/4b0c6c0e-5d0a-4a57-9f5e-0c3b3f1d2a10/edit",
-  ])("la biblioteca de ejercicios cuelga de Entrenar: %s → train", (pathname) => {
-    expect(activeNavKey(pathname, SLUG)).toBe("train");
+  it("quien no tiene la pestaña de la ruta en la que está ve marcado Inicio, nunca ninguna", () => {
+    // Quien entrena llega a la identidad desde Inicio.
+    expect(staff("/c/club-a/way")).toBe("home");
+    expect(staff("/c/club-a/way/standards")).toBe("home");
+    // Un jugador que entra por URL a una pantalla que su barra no ofrece.
+    expect(activeNavKey("/c/club-a/train", SLUG, MEMBER)).toBe("home");
+    expect(activeNavKey("/c/club-a/agenda", SLUG, MEMBER)).toBe("home");
   });
 
-  it("la biblioteca no es una pestaña: no aparece entre las de la navegación", () => {
-    expect(navItems(SLUG, {}).map((item) => item.href)).not.toContain("/c/club-a/drills");
+  it("el segmento cuenta entero: uno que solo empieza igual no es esa sección", () => {
+    expect(staff("/c/club-a/training")).toBe("home");
+    expect(staff("/c/club-a/teams")).toBe("home");
+    expect(staff("/c/club-a/agenda-2")).toBe("home");
   });
 
-  it("solo cuenta el segmento entero, no un prefijo", () => {
-    expect(activeNavKey("/c/club-a/trainers", SLUG)).toBe("home");
-    expect(activeNavKey("/c/club-a/teams", SLUG)).toBe("home");
-    expect(activeNavKey("/c/club-a/wayfinder", SLUG)).toBe("home");
-    expect(activeNavKey("/c/club-a/drillsx", SLUG)).toBe("home");
-    expect(activeNavKey("/c/club-a/drill", SLUG)).toBe("home");
+  it("una sección desconocida, Gestión o un nombre de propiedad heredada son Inicio", () => {
+    expect(staff("/c/club-a/admin")).toBe("home");
+    expect(staff("/c/club-a/otra")).toBe("home");
+    expect(staff("/c/club-a/constructor")).toBe("home");
+    expect(staff("/c/club-a/toString")).toBe("home");
   });
 
-  it("«drills» solo cuenta justo tras el club, no más adentro", () => {
-    expect(activeNavKey("/c/club-a/admin/drills", SLUG)).toBe("home");
-    expect(activeNavKey("/c/club-a/way/drills", SLUG)).toBe("way");
+  it("una ruta de otro club o de fuera de un club es Inicio", () => {
+    expect(staff("/c/club-b/train")).toBe("home");
+    expect(staff("/select-club")).toBe("home");
+    expect(staff("/")).toBe("home");
+    expect(staff("")).toBe("home");
   });
 
-  it("un segmento con el nombre de una propiedad de Object no se cuela", () => {
-    expect(activeNavKey("/c/club-a/constructor", SLUG)).toBe("home");
-    expect(activeNavKey("/c/club-a/__proto__", SLUG)).toBe("home");
-    expect(activeNavKey("/c/club-a/toString", SLUG)).toBe("home");
-  });
-
-  it("una sección que no es una pestaña cae en Inicio", () => {
-    expect(activeNavKey("/c/club-a/admin", SLUG)).toBe("home");
-    expect(activeNavKey("/c/club-a/home", SLUG)).toBe("home");
-  });
-
-  it("fuera del club cae en Inicio", () => {
-    expect(activeNavKey("/select-club", SLUG)).toBe("home");
-    expect(activeNavKey("/", SLUG)).toBe("home");
-    expect(activeNavKey("", SLUG)).toBe("home");
-  });
-
-  it("no confunde un club con otro cuyo slug empieza igual", () => {
-    expect(activeNavKey("/c/club-ab/train", SLUG)).toBe("home");
-    expect(activeNavKey("/c/club-a-b/train", SLUG)).toBe("home");
-    expect(activeNavKey("/c/club-b/train", SLUG)).toBe("home");
-  });
-
-  it("la biblioteca de otro club no activa Entrenar en este", () => {
-    expect(activeNavKey("/c/club-b/drills", SLUG)).toBe("home");
-    expect(activeNavKey("/c/club-ab/drills/abc", SLUG)).toBe("home");
+  it("devuelve siempre una de las pestañas que se le pasan", () => {
+    for (const pathname of ["/c/club-a", "/c/club-a/way", "/c/club-a/games/x", "/c/club-a/drills", "/x"]) {
+      expect(STAFF).toContain(staff(pathname));
+      expect(MEMBER).toContain(activeNavKey(pathname, SLUG, MEMBER));
+    }
   });
 });

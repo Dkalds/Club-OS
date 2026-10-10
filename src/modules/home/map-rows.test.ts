@@ -71,6 +71,7 @@ describe("toHomeEvents", () => {
       title: "Transición + rebote defensivo",
       focus: ["Defensa", "Rebote"],
       itemMinutes: [10, 20, 15],
+      live: { started: false, position: null },
     });
     expect(asObjects[0]?.game).toEqual({
       opponent: "Rival C",
@@ -194,5 +195,16 @@ describe("toHomeEvents", () => {
   it("sin filas no hay eventos", () => {
     expect(toHomeEvents([])).toEqual([]);
   });
-});
 
+  it("el directo del plan: sin inicio no está empezado; con inicio, sí, y con su posición", () => {
+    const [idle, running] = toHomeEvents([
+      eventRow({ practice_plans: { ...PLAN, live_started_at: null, live_position: null } }),
+      eventRow({
+        practice_plans: { ...PLAN, live_started_at: "2026-10-06T16:02:00+00:00", live_position: 2 },
+      }),
+    ]);
+
+    expect(idle?.plan?.live).toEqual({ started: false, position: null });
+    expect(running?.plan?.live).toEqual({ started: true, position: 2 });
+  });
+});

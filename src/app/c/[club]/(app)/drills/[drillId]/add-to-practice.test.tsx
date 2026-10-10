@@ -323,13 +323,13 @@ describe("AddToPractice · cuando falla", () => {
 });
 
 describe("AddToPractice · sin sesiones", () => {
-  it("dice que no hay sesiones programadas y ofrece «Nueva sesión», que lleva al formulario", async () => {
+  it("dice que no hay sesiones programadas y ofrece «Preparar sesión», que lleva al formulario", async () => {
     renderAdd({ practices: [] });
 
     await openSheet();
 
     expect(within(sheet()).getByRole("heading", { name: "No hay sesiones programadas" })).toBeInTheDocument();
-    expect(within(sheet()).getByRole("link", { name: "Nueva sesión" })).toHaveAttribute("href", "/c/club-a/train/new");
+    expect(within(sheet()).getByRole("link", { name: "Preparar sesión" })).toHaveAttribute("href", "/c/club-a/train/new");
     expect(mocks.addDrillToPractice).not.toHaveBeenCalled();
   });
 

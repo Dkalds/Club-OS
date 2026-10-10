@@ -19,6 +19,7 @@ import {
   createPracticeSchema,
   duplicatePracticeSchema,
   findDrillsSchema,
+  resetLiveProgressSchema,
   savePracticeItemsSchema,
   updatePracticeMetaSchema,
   type AddDrillToPracticeInput,
@@ -26,6 +27,7 @@ import {
   type CreatePracticeInput,
   type DuplicatePracticeInput,
   type FindDrillsInput,
+  type ResetLiveProgressInput,
   type SavePracticeItemsInput,
   type UpdatePracticeMetaInput,
 } from "./schema";
@@ -537,6 +539,36 @@ export async function cancelPractice(
       if (error) return fromDb(error);
 
       return rows.length === 0 ? fail("NOT_FOUND") : ok(null);
+    },
+  );
+}
+
+// ── Empezar de nuevo ────────────────────────────────────────────────────────────────────
+
+/**
+ * «Empezar de nuevo»: deja una sesión programada como si el directo nunca se hubiera iniciado,
+ * con `reset_live_progress` (borra el inicio, la posición y lo registrado en cada ejercicio).
+ * Devuelve la copia nueva de la sesión. Antes comprueba que el entreno es de este club (C25):
+ * si no, `NOT_FOUND` sin llamar a la función. Una sesión hecha o cancelada no se reinicia:
+ * `SESSION_CLOSED`. Lo que el dispositivo guardaba lo borra quien llama, que es de cliente.
+ */
+export async function resetLiveProgress(
+  clubSlug: string,
+  input: ResetLiveProgressInput,
+): Promise<ActionResult<{ updatedAt: string }>> {
+  return mutate(
+    "reset-live-progress",
+    clubSlug,
+    resetLiveProgressSchema,
+    input,
+    async ({ db, ctx, data, fromDb }) => {
+      const found = await findPractice({ db, ctx, fromDb }, data.eventId);
+      if (!found.ok) return found;
+
+      const { data: updatedAt, error } = await db.rpc("reset_live_progress", { p_event: data.eventId });
+      if (error) return fromDb(error);
+
+      return ok({ updatedAt });
     },
   );
 }

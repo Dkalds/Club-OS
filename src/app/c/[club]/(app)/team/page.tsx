@@ -1,7 +1,8 @@
 import { notFound } from "next/navigation";
 import { requireClub } from "@/lib/guards";
 import { noTeamsState } from "@/modules/team/no-teams";
-import { getTeam, listMyTeams } from "@/modules/team/queries";
+import { getTeam } from "@/modules/team/queries";
+import { getTeamScope } from "@/modules/team/scope";
 import { Card } from "@/ui/card";
 import { TeamIcon } from "@/ui/icons";
 import { ListRow } from "@/ui/list-row";
@@ -9,9 +10,10 @@ import { EmptyState } from "@/ui/states";
 import { TeamRoster } from "./_components/team-roster";
 
 /**
- * Equipo: «mis equipos» de esta temporada. Con uno solo (lo normal en quien entrena), su
- * plantilla aquí mismo; con varios (dirección), la lista, y cada uno lleva a la suya. Sin
- * ninguno, lo dice según quién lo lee.
+ * Equipo: «mis equipos» de esta temporada, o el equipo activo si hay uno elegido en la
+ * cabecera (`getTeamScope`). Con uno solo (lo normal en quien entrena, o tras elegir uno), su
+ * plantilla aquí mismo; con varios (dirección, sin elegir), la lista, y cada uno lleva a la
+ * suya. Sin ninguno, lo dice según quién lo lee.
  *
  * La página pide el contexto ella misma, antes de leer nada: un layout no protege a sus
  * páginas. Si algo no se puede leer, la consulta lanza y lo recoge `error.tsx`.
@@ -21,7 +23,7 @@ export default async function TeamPage({ params }: PageProps<"/c/[club]/team">) 
   const ctx = await requireClub(club);
   const slug = ctx.org.slug;
 
-  const teams = await listMyTeams(ctx);
+  const { scoped: teams } = await getTeamScope(ctx);
 
   if (teams.length === 0) {
     return (

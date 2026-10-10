@@ -214,3 +214,61 @@ export function DraftIcon(props: IconProps) {
     </Icon>
   );
 }
+
+/** Biblioteca: un libro abierto. */
+export function LibraryIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M12 6.5C10.2 5.2 7.6 4.5 4 4.5v13c3.6 0 6.2.7 8 2 1.8-1.3 4.4-2 8-2v-13c-3.6 0-6.2.7-8 2z" />
+      <path d="M12 6.5v13" />
+    </Icon>
+  );
+}
+
+/** Pausa: dos barras. */
+export function PauseIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M9 5v14M15 5v14" />
+    </Icon>
+  );
+}
+
+/** Reanudar o reproducir: un triángulo. */
+export function PlayIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M5 3l14 9-14 9z" />
+    </Icon>
+  );
+}
+
+/** Ejercicio anterior: triángulo a la izquierda contra una barra. */
+export function PreviousIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="m18 5-9 7 9 7z" />
+      <path d="M6 5v14" />
+    </Icon>
+  );
+}
+
+/** Ejercicio siguiente: triángulo a la derecha contra una barra. */
+export function NextIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="m6 5 9 7-9 7z" />
+      <path d="M18 5v14" />
+    </Icon>
+  );
+}
+
+/** Vídeo: una pantalla con su triángulo, siempre junto a la palabra «Vídeo». */
+export function VideoIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <rect x="3" y="5" width="18" height="14" rx="2" />
+      <path d="m10 9 5 3-5 3z" />
+    </Icon>
+  );
+}

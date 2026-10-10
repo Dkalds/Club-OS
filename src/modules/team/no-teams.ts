@@ -13,6 +13,7 @@ const THEN = {
   "new-session": "podrás crear sus sesiones.",
   roster: "aquí verás su plantilla.",
   games: "aquí verás sus partidos.",
+  agenda: "aquí verás su agenda.",
 } as const;
 
 /**
@@ -23,7 +24,7 @@ const THEN = {
 export function noTeamsState(
   role: Role,
   clubSlug: string,
-  where: "sessions" | "new-session" | "roster" | "games",
+  where: keyof typeof THEN,
 ): NoTeamsState {
   const then = THEN[where];
 
@@ -40,7 +41,7 @@ export function noTeamsState(
     body: `Cuando dirección te asigne un equipo, ${then}`,
     action:
       where === "new-session"
-        ? { label: "Volver a Entrenar", href: `/c/${clubSlug}/train` }
+        ? { label: "Volver a Sesiones", href: `/c/${clubSlug}/train` }
         : { label: "Volver a Inicio", href: `/c/${clubSlug}` },
   };
 }

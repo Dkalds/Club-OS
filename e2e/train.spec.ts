@@ -55,7 +55,7 @@ function tab(page: Page, name: "Próximas" | "Histórico") {
 }
 
 /**
- * Las filas de la lista: los enlaces a una sesión (`/train/{id}`). «Nueva sesión» también
+ * Las filas de la lista: los enlaces a una sesión (`/train/{id}`). «Preparar sesión» también
  * cuelga de `/train/`, pero lleva a `/new`, que no es una sesión.
  */
 function rows(page: Page, club = CLUB) {
@@ -71,12 +71,12 @@ function title(page: Page) {
   return page.getByRole("heading", { level: 1 });
 }
 
-/** Entra y espera a que Entrenar esté pintado. */
+/** Entra y espera a que Sesiones esté pintado. */
 async function openTrain(page: Page, email: string, club = CLUB, search = ""): Promise<void> {
   await openAs(page, email);
   await page.goto(`${club}/train${search}`);
   await expect(title(page)).toHaveCount(1);
-  await expect(title(page)).toHaveText("Entrenar");
+  await expect(title(page)).toHaveText("Sesiones");
 }
 
 /**
@@ -151,12 +151,13 @@ test("Álex ve sus próximas sesiones", async ({ page }) => {
   await expect(main).not.toContainText("Alevín A ·");
 
   // Quien entrena puede crear; el botón lleva a la pantalla de crear (no se abre aquí).
-  await expect(page.getByRole("link", { name: "Nueva sesión" })).toHaveAttribute("href", `${CLUB}/train/new`);
-  // La biblioteca sigue debajo de las sesiones.
-  const library = page.getByRole("link", { name: "Biblioteca de ejercicios" });
-  await expect(library).toHaveAttribute("href", `${CLUB}/drills`);
-  const [lastRow, libraryBox] = await Promise.all([rows(page).last().boundingBox(), library.boundingBox()]);
-  expect(libraryBox?.y).toBeGreaterThan(lastRow?.y ?? Number.POSITIVE_INFINITY);
+  await expect(page.getByRole("link", { name: "Preparar sesión" })).toHaveAttribute("href", `${CLUB}/train/new`);
+  // La biblioteca ya no cuelga de aquí: es otro espacio, con su pestaña.
+  await expect(main.locator(`a[href^="${CLUB}/drills"]`)).toHaveCount(0);
+  await expect(page.getByRole("navigation", { name: "Principal" }).getByRole("link", { name: "Biblioteca" })).toHaveAttribute(
+    "href",
+    `${CLUB}/drills`,
+  );
 });
 
 test("el histórico: las hechas con «Hecho» y la cancelada con «Cancelada»", async ({ page }) => {
@@ -167,7 +168,7 @@ test("el histórico: las hechas con «Hecho» y la cancelada con «Cancelada»",
   await openTrain(page, ALEX);
   await tab(page, "Histórico").click();
   await expect(page).toHaveURL(new RegExp(`${CLUB}/train\\?scope=history$`));
-  await expect(title(page)).toHaveText("Entrenar");
+  await expect(title(page)).toHaveText("Sesiones");
 
   await expect(tab(page, "Histórico")).toHaveAttribute("aria-current", "page");
   await expect(tab(page, "Próximas")).not.toHaveAttribute("aria-current");
@@ -249,7 +250,7 @@ test.describe("cada uno lo suyo", () => {
       await expect(row(page, "Bote y control")).toContainText(`Benjamín A · ${BENJAMIN_META}`);
     }
     // Quien dirige puede crear, aunque no tenga equipo propio.
-    await expect(page.getByRole("link", { name: "Nueva sesión" })).toHaveAttribute("href", `${CLUB}/train/new`);
+    await expect(page.getByRole("link", { name: "Preparar sesión" })).toHaveAttribute("href", `${CLUB}/train/new`);
   });
 
   test("Marta ve la sesión de su club y nada de Arcángel", async ({ page }) => {
@@ -281,7 +282,7 @@ test("cabe en el móvil, con áreas táctiles de 44 px y sin errores de consola"
   await expectFitsMobile(page);
   await expectTouchTargets(rows(page));
   await expectTouchTargets(sessionTabs(page).getByRole("link"));
-  await expectTouchTargets(page.getByRole("link", { name: "Nueva sesión" }));
+  await expectTouchTargets(page.getByRole("link", { name: "Preparar sesión" }));
   await expect(page.getByRole("navigation", { name: "Principal" })).toBeInViewport();
   await page.screenshot({ path: "test-results/train-375.png" });
 
@@ -330,7 +331,7 @@ test.describe("el detalle de una sesión", () => {
     await expect(main).toContainText(formatEventSlot(slot.startsAt, slot.endsAt, TZ));
     await expect(main).toContainText(meta);
     await expect(main.getByRole("list", { name: "Objetivos" }).getByRole("listitem")).toHaveText(objectives);
-    await expect(main.getByRole("link", { name: "Entrenar", exact: true })).toHaveAttribute("href", `${CLUB}/train`);
+    await expect(main.getByRole("link", { name: "Sesiones", exact: true })).toHaveAttribute("href", `${CLUB}/train`);
 
     // Los ejercicios, en bloques de fase, numerados de 01 a n a lo largo de toda la sesión.
     for (const { phase } of items) {

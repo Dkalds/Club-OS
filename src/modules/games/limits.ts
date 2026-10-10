@@ -10,6 +10,3 @@ export const SCORE_MAX = 300;
 export const DEFAULT_GAME_MINUTES = 90;
 export const MIN_GAME_MINUTES = 30;
 export const MAX_GAME_MINUTES = 240;
-
-/** Partidos que como mucho enseña cada pestaña; si hay más, la lista lo dice. */
-export const LIST_LIMIT = 50;

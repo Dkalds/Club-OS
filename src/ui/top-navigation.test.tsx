@@ -1,5 +1,13 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+// El selector de equipo es de cliente y llama a una acción: aquí solo importa si se monta.
+vi.mock("@/modules/team/actions", () => ({ setActiveTeam: vi.fn() }));
+vi.mock("next/navigation", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("next/navigation")>()),
+  useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
+}));
+
 import { TopNavigation } from "./top-navigation";
 
 // Datos neutros: los tests de `src/` no pueden nombrar a ningún club (pnpm check:guards).
@@ -37,7 +45,7 @@ describe("TopNavigation", () => {
     render(
       <TopNavigation
         brand={{ displayName: "Club B", wordmarkSub: null }}
-        account={{ name: "Ana Ruiz", adminHref: "/c/club-b/admin" }}
+        account={{ name: "Ana Ruiz", links: [{ label: "Gestión", href: "/c/club-b/admin" }] }}
       />,
     );
 
@@ -54,11 +62,11 @@ describe("TopNavigation", () => {
     expect(within(header).getByRole("button", { name: "Salir" })).toBeInTheDocument();
   });
 
-  it("con cuenta sin adminHref el menú solo ofrece Salir", () => {
+  it("con cuenta sin enlaces el menú solo ofrece Salir", () => {
     render(
       <TopNavigation
         brand={{ displayName: "Club B", wordmarkSub: null }}
-        account={{ name: "Ana Ruiz", adminHref: null }}
+        account={{ name: "Ana Ruiz", links: [] }}
       />,
     );
 
@@ -98,6 +106,47 @@ describe("TopNavigation", () => {
 });
 
 describe("TopNavigation · cabecera de inicio y su coexistencia con la de detalle", () => {
+  describe("selector de equipo", () => {
+    const BRAND = { displayName: "Club A", wordmarkSub: null };
+    const TEAM_A = { id: "00000000-0000-4000-8000-0000000000a1", name: "Equipo A" };
+    const TEAM_B = { id: "00000000-0000-4000-8000-0000000000b1", name: "Equipo B" };
+    const switcher = () => screen.queryByRole("button", { name: /Cambiar de equipo$/ });
+
+    it("sin `team` no hay selector", () => {
+      render(<TopNavigation brand={BRAND} />);
+
+      expect(switcher()).not.toBeInTheDocument();
+    });
+
+    it("con un solo equipo no hay nada que elegir: no se pinta", () => {
+      render(<TopNavigation brand={BRAND} team={{ clubSlug: "club-a", teams: [TEAM_A], activeId: null }} />);
+
+      expect(switcher()).not.toBeInTheDocument();
+    });
+
+    it("con varios, va en la cabecera, antes del menú de cuenta, con el equipo que se está viendo", () => {
+      render(
+        <TopNavigation
+          brand={BRAND}
+          account={{ name: "Ana Ruiz", links: [] }}
+          team={{ clubSlug: "club-a", teams: [TEAM_A, TEAM_B], activeId: TEAM_B.id }}
+        />,
+      );
+
+      const buttons = within(screen.getByRole("banner")).getAllByRole("button");
+      expect(buttons.map((button) => button.getAttribute("aria-label"))).toEqual([
+        "Equipo B. Cambiar de equipo",
+        "Abrir menú de cuenta",
+      ]);
+    });
+
+    it("sin equipo elegido dice «Todos»", () => {
+      render(<TopNavigation brand={BRAND} team={{ clubSlug: "club-a", teams: [TEAM_A, TEAM_B], activeId: null }} />);
+
+      expect(switcher()).toHaveTextContent("Todos");
+    });
+  });
+
   it("variant «home» es lo mismo que no decir nada", () => {
     render(<TopNavigation variant="home" brand={{ displayName: "Club A", wordmarkSub: "Baloncesto" }} />);
 

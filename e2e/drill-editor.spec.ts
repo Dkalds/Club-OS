@@ -335,9 +335,9 @@ test("crea un borrador", async ({ page, browserErrors }) => {
   titles.push(name);
   await openAs(page, ALEX);
 
-  // Se llega desde la biblioteca, con «Nuevo» de su cabecera.
+  // Se llega desde la biblioteca, con «Nuevo ejercicio», junto a su título.
   await page.goto(LIBRARY);
-  await detailHeader(page).getByRole("link", { name: "Nuevo" }).click();
+  await page.getByRole("link", { name: "Nuevo ejercicio" }).click();
   await expect(page).toHaveURL(new RegExp(`${LIBRARY}/new$`));
 
   // Un solo <h1>; la cabecera de detalle sustituye a la de marca y vuelve a la biblioteca.

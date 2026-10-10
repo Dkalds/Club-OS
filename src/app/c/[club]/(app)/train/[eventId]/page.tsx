@@ -39,7 +39,11 @@ const STANDARDS_SHOWN = 3;
  * sesión» de las acciones, y si no, volver a Entrenar. En la cabecera, una sesión sin ejercicios
  * dura su franja (`sessionMinutes`), no 0 min.
  *
- * Las acciones (editar, duplicar, cancelar) las ve quien gestiona sesiones; `can` solo muestra u
+ * Una sesión ya hecha es su propio resumen: cada ejercicio dice si se hizo y cuánto duró de
+ * verdad (lo que registró el directo), y bajo el total previsto va el real. De un ejercicio sin
+ * registro no dice nada.
+ *
+ * Las acciones (dirigir, editar, duplicar, cancelar) las ve quien gestiona sesiones; `can` solo muestra u
  * oculta: lo que protege es RLS y cada acción. La fecha que propone «Duplicar» se calcula aquí,
  * en el servidor y en el reloj del club: la misma hora del club la semana siguiente, aunque
  * entre medias cambie la hora.
@@ -58,10 +62,12 @@ export default async function PracticePage({ params }: PageProps<"/c/[club]/trai
   const shownStandards = practice.standards.slice(0, STANDARDS_SHOWN);
   const moreStandards = practice.standards.length - shownStandards.length;
   const notes = practice.notes?.trim();
+  // Una sesión hecha se revisa: cada ejercicio dice si se hizo y cuánto duró de verdad.
+  const reviewed = practice.status === "done";
 
   return (
     <div className="flex flex-col gap-(--space-6) px-(--space-4) pt-(--space-2)">
-      <BackLink href={trainHref} label="Entrenar" />
+      <BackLink href={trainHref} label="Sesiones" />
 
       <PracticeSummary
         practice={{
@@ -117,6 +123,13 @@ export default async function PracticePage({ params }: PageProps<"/c/[club]/trai
                     phase={null}
                     minutes={item.minutes}
                     href={item.drillVisible ? `/c/${ctx.org.slug}/drills/${item.drillId}` : undefined}
+                    // Solo si el directo dejó registro de ese ejercicio: una sesión que se dio por
+                    // hecha sin dirigirla desde la app no tiene ninguno, y «Sin hacer» sería mentira.
+                    result={
+                      reviewed && item.completed !== null
+                        ? { completed: item.completed, actualMinutes: item.actualMinutes }
+                        : undefined
+                    }
                   />
                 ))}
               </Card>
@@ -124,6 +137,9 @@ export default async function PracticePage({ params }: PageProps<"/c/[club]/trai
           ))}
           <Card variant="flush">
             <PracticeTotal minutes={itemsMinutes} />
+            {reviewed && practice.actualMinutes !== null ? (
+              <PracticeTotal minutes={practice.actualMinutes} label="Real" />
+            ) : null}
           </Card>
         </div>
       ) : practice.canEdit ? (
@@ -139,7 +155,7 @@ export default async function PracticePage({ params }: PageProps<"/c/[club]/trai
           icon={<TrainIcon size={28} />}
           title="Sesión sin ejercicios"
           body="No se añadieron ejercicios a esta sesión."
-          action={{ label: "Volver a Entrenar", href: trainHref }}
+          action={{ label: "Volver a Sesiones", href: trainHref }}
         />
       )}
 
@@ -152,7 +168,8 @@ export default async function PracticePage({ params }: PageProps<"/c/[club]/trai
           eventId={practice.eventId}
           canEdit={practice.canEdit}
           status={practice.status}
-          hasItems={practice.items.length > 0}
+          itemCount={practice.items.length}
+          live={practice.live}
           duplicateDefaults={isoToLocalInputs(
             nextWeeklySlot(practice.startsAt, new Date().toISOString(), ctx.org.timezone),
             ctx.org.timezone,

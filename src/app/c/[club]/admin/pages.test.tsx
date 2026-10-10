@@ -89,7 +89,7 @@ describe("páginas de Gestión", () => {
   });
 
   it.each([
-    [AdminWayPage, "The Way"],
+    [AdminWayPage, "Identidad"],
     [AdminValuesPage, "Valores"],
     [AdminPrinciplesPage, "Principios"],
     [AdminStandardsPage, "Standards"],

@@ -8,6 +8,7 @@ import {
   sanitizeBrandColors,
   type Branding,
 } from "./branding";
+import { IDENTITY_LABEL } from "./navigation";
 
 export type ClubContext = {
   org: { id: string; slug: string; name: string; timezone: string };
@@ -48,7 +49,7 @@ function toBranding(orgName: string, row: BrandingRow | null): Branding {
       displayName: orgName,
       wordmarkSub: null,
       shortName: orgName.replace(/\s+/g, "").slice(0, 3).toUpperCase(),
-      wayName: "The Way",
+      wayName: IDENTITY_LABEL,
       tagline: null,
       colors: { ...PLATFORM_BRAND_COLORS },
       terminology: {},

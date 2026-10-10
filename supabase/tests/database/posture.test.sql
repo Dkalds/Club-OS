@@ -188,7 +188,7 @@ select set_eq(
               'secondary_focus_id', 'notes']),
       ('practice_plans', 'update',
         array['title', 'primary_focus_id', 'secondary_focus_id', 'notes', 'status',
-              'last_save_id', 'actual_minutes']),
+              'last_save_id', 'actual_minutes', 'live_started_at', 'live_position']),
       ('practice_items', 'insert',
         array['organization_id', 'plan_id', 'sort', 'phase', 'drill_id', 'title_override',
               'minutes', 'notes']),

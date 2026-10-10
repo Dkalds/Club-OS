@@ -5,7 +5,9 @@ import { ACTION_ERROR_COPY, fail, ok, type ActionResult } from "@/lib/action-res
 const mocks = vi.hoisted(() => ({
   duplicatePractice: vi.fn(),
   cancelPractice: vi.fn(),
-  loadLiveState: vi.fn(() => null as import("@/modules/live/types").LiveState | null),
+  resetLiveProgress: vi.fn(),
+  clearLiveState: vi.fn(),
+  cancelLiveSync: vi.fn(),
   push: vi.fn(),
   refresh: vi.fn(),
 }));
@@ -13,10 +15,12 @@ const mocks = vi.hoisted(() => ({
 vi.mock("@/modules/practice/actions", () => ({
   duplicatePractice: mocks.duplicatePractice,
   cancelPractice: mocks.cancelPractice,
+  resetLiveProgress: mocks.resetLiveProgress,
 }));
 vi.mock("@/modules/live/storage", () => ({
-  loadLiveState: mocks.loadLiveState,
+  clearLiveState: mocks.clearLiveState,
 }));
+vi.mock("@/modules/live/sync", () => ({ cancelLiveSync: mocks.cancelLiveSync }));
 // Solo el router es de pega: `useAction` usa el `unstable_rethrow` de verdad.
 vi.mock("next/navigation", async (importOriginal) => ({
   ...(await importOriginal<typeof import("next/navigation")>()),
@@ -65,6 +69,7 @@ beforeEach(() => {
   vi.resetAllMocks();
   mocks.duplicatePractice.mockResolvedValue(ok({ eventId: COPY_EVENT }));
   mocks.cancelPractice.mockResolvedValue(ok(null));
+  mocks.resetLiveProgress.mockResolvedValue(ok({ updatedAt: "2026-10-04T10:05:00.654321+00:00" }));
 });
 
 describe("PracticeActions · qué ofrece", () => {
@@ -380,22 +385,18 @@ describe("PracticeActions · cancelar", () => {
 });
 
 describe("PracticeActions · iniciar entrenamiento", () => {
-  beforeEach(() => {
-    mocks.loadLiveState.mockReturnValue(null);
-  });
-
   it("no aparece si la sesión no es scheduled", () => {
-    renderActions({ status: "done", hasItems: true });
+    renderActions({ status: "done", itemCount: 4 });
     expect(screen.queryByRole("link", { name: /iniciar|continuar/i })).not.toBeInTheDocument();
   });
 
   it("no aparece si la sesión no tiene ítems", () => {
-    renderActions({ status: "scheduled", hasItems: false });
+    renderActions({ status: "scheduled", itemCount: 0 });
     expect(screen.queryByRole("link", { name: /iniciar|continuar/i })).not.toBeInTheDocument();
   });
 
   it("aparece «Iniciar entrenamiento» como enlace primary, y «Editar sesión» pasa a secondary", () => {
-    renderActions({ status: "scheduled", hasItems: true });
+    renderActions({ status: "scheduled", itemCount: 4 });
 
     const iniciar = screen.getByRole("link", { name: "Iniciar entrenamiento" });
     expect(iniciar).toHaveClass("bg-brand-accent", "w-full");
@@ -406,12 +407,83 @@ describe("PracticeActions · iniciar entrenamiento", () => {
     expect(editLink).not.toHaveClass("bg-brand-accent");
   });
 
-  it("si hay estado guardado, el enlace dice «Continuar entrenamiento»", () => {
-    mocks.loadLiveState.mockReturnValue({ version: 1 as const, eventId: EVENT, index: 0, startedAt: 1000, itemStartedAt: 1000, pausedAt: null, pausedMs: 0, progress: {}, finishedAt: null });
+  it("sin empezar no dice por dónde va ni ofrece empezar de nuevo", () => {
+    renderActions({ status: "scheduled", itemCount: 4 });
 
-    renderActions({ status: "scheduled", hasItems: true });
+    expect(screen.queryByText(/^Ejercicio \d+ de \d+$/)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Empezar de nuevo" })).not.toBeInTheDocument();
+  });
+});
 
-    expect(screen.getByRole("link", { name: "Continuar entrenamiento" })).toBeInTheDocument();
+describe("PracticeActions · continuar entrenamiento", () => {
+  const inProgress = { status: "scheduled", itemCount: 5, live: { started: true, position: 2 } } as const;
+
+  it("con la sesión en curso el enlace dice «Continuar entrenamiento» y por qué ejercicio va", () => {
+    renderActions(inProgress);
+
+    const continuar = screen.getByRole("link", { name: "Continuar entrenamiento" });
+    expect(continuar).toHaveAttribute("href", `/c/club-a/train/${EVENT}/live`);
+    expect(screen.getByText("Ejercicio 3 de 5")).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Iniciar entrenamiento" })).not.toBeInTheDocument();
+  });
+
+  it("no mira lo que guarda el dispositivo: lo decide lo que dice el servidor", () => {
+    renderActions({ status: "scheduled", itemCount: 5, live: { started: false, position: null } });
+
+    expect(screen.getByRole("link", { name: "Iniciar entrenamiento" })).toBeInTheDocument();
+  });
+
+  it("«Empezar de nuevo» pregunta antes y no borra nada hasta confirmar", async () => {
+    renderActions(inProgress);
+
+    fireEvent.click(screen.getByRole("button", { name: "Empezar de nuevo" }));
+
+    const restart = await screen.findByRole("alertdialog", { name: "¿Empezar de nuevo?" });
+    expect(restart).toHaveTextContent("Se borra el progreso de esta sesión. No se puede deshacer.");
+    expect(mocks.resetLiveProgress).not.toHaveBeenCalled();
+
+    fireEvent.click(within(restart).getByRole("button", { name: "Volver" }));
+
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument());
+    expect(mocks.resetLiveProgress).not.toHaveBeenCalled();
+    expect(mocks.clearLiveState).not.toHaveBeenCalled();
+  });
+
+  it("al confirmar reinicia en el servidor, borra lo del dispositivo y vuelve a pedir la página", async () => {
+    renderActions(inProgress);
+
+    fireEvent.click(screen.getByRole("button", { name: "Empezar de nuevo" }));
+    const restart = await screen.findByRole("alertdialog", { name: "¿Empezar de nuevo?" });
+    fireEvent.click(within(restart).getByRole("button", { name: "Empezar de nuevo" }));
+
+    await waitFor(() => expect(mocks.refresh).toHaveBeenCalled());
+    expect(mocks.resetLiveProgress).toHaveBeenCalledWith("club-a", { eventId: EVENT });
+    expect(mocks.clearLiveState).toHaveBeenCalledWith(EVENT);
+    // Un envío del directo que siguiera reintentándose se cancela ANTES de reiniciar: si
+    // llegara después, dejaría la sesión otra vez empezada.
+    expect(mocks.cancelLiveSync).toHaveBeenCalledWith(EVENT);
+    expect(mocks.cancelLiveSync.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.resetLiveProgress.mock.invocationCallOrder[0] ?? 0,
+    );
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+  });
+
+  it("si reiniciar falla, lo dice y no borra lo del dispositivo", async () => {
+    mocks.resetLiveProgress.mockResolvedValue(fail("SESSION_CLOSED"));
+    renderActions(inProgress);
+
+    fireEvent.click(screen.getByRole("button", { name: "Empezar de nuevo" }));
+    const restart = await screen.findByRole("alertdialog", { name: "¿Empezar de nuevo?" });
+    fireEvent.click(within(restart).getByRole("button", { name: "Empezar de nuevo" }));
+
+    expect(await screen.findByText(ACTION_ERROR_COPY.SESSION_CLOSED)).toBeInTheDocument();
+    expect(mocks.clearLiveState).not.toHaveBeenCalled();
+    expect(mocks.refresh).not.toHaveBeenCalled();
+  });
+
+  it("una sesión hecha no ofrece empezar de nuevo", () => {
+    renderActions({ status: "done", canEdit: false, itemCount: 5, live: { started: true, position: 4 } });
+
+    expect(screen.queryByRole("button", { name: "Empezar de nuevo" })).not.toBeInTheDocument();
   });
 });

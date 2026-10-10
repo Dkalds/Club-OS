@@ -4,7 +4,7 @@ import { can } from "@/lib/permissions";
 import { defaultSessionDate } from "@/lib/time";
 import { DEFAULT_GAME_MINUTES } from "@/modules/games/limits";
 import { noTeamsState } from "@/modules/team/no-teams";
-import { listMyTeams } from "@/modules/team/queries";
+import { getTeamScope } from "@/modules/team/scope";
 import { BackLink } from "@/ui/back-link";
 import { TeamIcon } from "@/ui/icons";
 import { EmptyState } from "@/ui/states";
@@ -19,20 +19,20 @@ export default async function NewGamePage({ params }: PageProps<"/c/[club]/games
   const ctx = await requireClub(club);
   if (!can(ctx, "game.manage")) notFound();
 
-  const teams = await listMyTeams(ctx);
-  const gamesHref = `/c/${ctx.org.slug}/games`;
+  const { teams, active } = await getTeamScope(ctx);
   const first = teams[0];
 
   return (
     <div className="flex flex-col gap-(--space-6) px-(--space-4) pt-(--space-6)">
-      <BackLink href={gamesHref} label="Partidos" />
+      <BackLink href={`/c/${ctx.org.slug}/agenda`} label="Agenda" />
       <h1 className="font-display text-display-l uppercase">Nuevo partido</h1>
       {first ? (
         <GameForm
           clubSlug={ctx.org.slug}
           teams={teams}
           initial={{
-            teamId: first.id,
+            // El equipo activo, si hay uno elegido; si no, el primero.
+            teamId: (active ?? first).id,
             opponent: "",
             date: defaultSessionDate(new Date().toISOString(), ctx.org.timezone, DEFAULT_GAME_TIME),
             time: DEFAULT_GAME_TIME,

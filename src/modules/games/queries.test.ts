@@ -7,7 +7,7 @@ vi.mock("@/lib/supabase/server", () => ({ createClient: mocks.createClient }));
 vi.mock("@/lib/log", () => ({ logError: mocks.logError }));
 vi.mock("@/modules/team/queries", () => ({ listMyTeams: mocks.listMyTeams }));
 
-import { getGame, listGames } from "./queries";
+import { getGame } from "./queries";
 
 // Un doble que apunta los filtros de la consulta y devuelve las filas que se le den, cortadas
 // por `limit`. Qué filas cumple cada filtro lo prueba la integración; aquí, que se piden bien.
@@ -66,58 +66,6 @@ const gameRow = (n: number) => ({
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.listMyTeams.mockResolvedValue([TEAM]);
-});
-
-describe("listGames", () => {
-  it("próximos: partidos programados de mis equipos que no han terminado, del más cercano", async () => {
-    const calls = installDatabase([gameRow(1)]);
-
-    const list = await listGames(CTX, "upcoming", NOW);
-
-    expect(list).toMatchObject({ truncated: false, teamCount: 1 });
-    expect(list.games.map((g) => g.opponent)).toEqual(["Rival 1"]);
-    expect(calls[0]).toMatchObject({
-      table: "events",
-      eq: { organization_id: ORG, kind: "game", status: "scheduled" },
-      in: { team_id: [uuid(1)] },
-      gt: { ends_at: NOW },
-      order: [["starts_at", true], ["id", true]],
-      limit: 51,
-    });
-  });
-
-  it("jugados: lo que no está programado o ya terminó, del más reciente", async () => {
-    const calls = installDatabase([]);
-
-    await listGames(CTX, "played", NOW);
-
-    expect(calls[0]?.or).toBe(`status.neq.scheduled,ends_at.lte.${NOW}`);
-    expect(calls[0]?.order[0]).toEqual(["starts_at", false]);
-  });
-
-  it("con más de 50, enseña 50 y lo dice", async () => {
-    installDatabase(Array.from({ length: 51 }, (_, i) => gameRow(i)));
-
-    const list = await listGames(CTX, "upcoming", NOW);
-
-    expect(list.games).toHaveLength(50);
-    expect(list.truncated).toBe(true);
-  });
-
-  it("sin equipos no consulta los partidos", async () => {
-    mocks.listMyTeams.mockResolvedValue([]);
-    const calls = installDatabase([gameRow(1)]);
-
-    expect(await listGames(CTX, "upcoming", NOW)).toEqual({ games: [], truncated: false, teamCount: 0 });
-    expect(calls).toEqual([]);
-  });
-
-  it("un error de lectura se registra y lanza", async () => {
-    installDatabase([], { code: "XX000", message: "boom" });
-
-    await expect(listGames(CTX, "upcoming", NOW)).rejects.toThrow("games.list");
-    expect(mocks.logError).toHaveBeenCalledTimes(1);
-  });
 });
 
 describe("getGame", () => {

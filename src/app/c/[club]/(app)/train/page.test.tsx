@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { PracticeListItem } from "@/modules/practice/types";
 import { clubContext } from "@/modules/tenancy/test-support";
@@ -93,17 +93,14 @@ describe("/train, acceso y lectura", () => {
 });
 
 describe("/train, pantalla", () => {
-  it("el único <h1> es «Entrenar», y va antes que las sesiones y la biblioteca", async () => {
+  it("el único <h1> es «Sesiones», y va antes que las sesiones", async () => {
     render(await TrainPage(params()));
 
     expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
-    const title = screen.getByRole("heading", { level: 1, name: "Entrenar" });
+    const title = screen.getByRole("heading", { level: 1, name: "Sesiones" });
     expect(title.compareDocumentPosition(screen.getByRole("navigation", { name: "Sesiones" }))).toBe(
       Node.DOCUMENT_POSITION_FOLLOWING,
     );
-    expect(
-      title.compareDocumentPosition(screen.getByRole("heading", { level: 2, name: "Biblioteca" })),
-    ).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
   });
 
   it("pinta las sesiones que lee, con el enlace de cada una a su pantalla", async () => {
@@ -114,18 +111,18 @@ describe("/train, pantalla", () => {
     expect(row).toHaveTextContent("75 min · 5 ejercicios · Pabellón 2");
   });
 
-  it("quien gestiona sesiones y tiene equipos ve «Nueva sesión»", async () => {
+  it("quien gestiona sesiones y tiene equipos ve «Preparar sesión»", async () => {
     render(await TrainPage(params()));
 
-    expect(screen.getByRole("link", { name: "Nueva sesión" })).toHaveAttribute("href", "/c/club-a/train/new");
+    expect(screen.getByRole("link", { name: "Preparar sesión" })).toHaveAttribute("href", "/c/club-a/train/new");
   });
 
-  it.each(["player", "guardian"] as const)("un %s no ve «Nueva sesión»", async (role) => {
+  it.each(["player", "guardian"] as const)("un %s no ve «Preparar sesión»", async (role) => {
     mocks.getClubContext.mockResolvedValue(clubContext(role));
 
     render(await TrainPage(params()));
 
-    expect(screen.queryByRole("link", { name: "Nueva sesión" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Preparar sesión" })).not.toBeInTheDocument();
   });
 
   it("la dirección también puede crear", async () => {
@@ -133,16 +130,16 @@ describe("/train, pantalla", () => {
 
     render(await TrainPage(params()));
 
-    expect(screen.getByRole("link", { name: "Nueva sesión" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Preparar sesión" })).toBeInTheDocument();
   });
 
-  it("sin equipos, el aviso de que aún no está en ninguno, sin «Nueva sesión»", async () => {
+  it("sin equipos, el aviso de que aún no está en ninguno, sin «Preparar sesión»", async () => {
     mocks.listPractices.mockResolvedValue({ practices: [], teamCount: 0 });
 
     render(await TrainPage(params()));
 
     expect(screen.getByRole("heading", { level: 2, name: "Aún no estás en ningún equipo" })).toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: "Nueva sesión" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Preparar sesión" })).not.toBeInTheDocument();
   });
 
   it("con varios equipos, cada fila dice el suyo", async () => {
@@ -162,27 +159,8 @@ describe("/train, pantalla", () => {
   });
 });
 
-describe("/train, biblioteca", () => {
-  it("sigue la entrada «Biblioteca de ejercicios» bajo el encabezado «Biblioteca»", async () => {
-    render(await TrainPage(params()));
-
-    expect(screen.getByRole("heading", { level: 2, name: "Biblioteca" })).toBeInTheDocument();
-    const row = screen.getByRole("link", { name: /Biblioteca de ejercicios/ });
-    expect(row).toHaveAttribute("href", "/c/club-a/drills");
-    expect(row).toHaveTextContent("Busca por objetivo, edad y duración");
-  });
-
-  it("la fila está en una card sin padding, como las demás listas", async () => {
-    render(await TrainPage(params()));
-
-    // La fila es un `<li>` y la card, su lista: `ListRow` va como hija directa de `Card as="ul"`.
-    const row = screen.getByRole("link", { name: /Biblioteca de ejercicios/ });
-    const list = row.closest("ul");
-    expect(row.parentElement?.parentElement).toBe(list);
-    expect(list).toHaveClass("overflow-hidden", "rounded-lg");
-  });
-
-  it("va debajo de las sesiones, también cuando no hay ninguna", async () => {
+describe("/train, la biblioteca es otro espacio", () => {
+  it("no enlaza a la biblioteca ni lleva su encabezado: tiene su propia pestaña", async () => {
     for (const result of [
       { practices: [PRACTICE], teamCount: 1 },
       { practices: [], teamCount: 1 },
@@ -191,12 +169,10 @@ describe("/train, biblioteca", () => {
       mocks.listPractices.mockResolvedValue(result);
       const { unmount } = render(await TrainPage(params()));
 
-      const entry = screen.getByRole("link", { name: /Biblioteca de ejercicios/ });
-      const sessions =
-        screen.queryByRole("navigation", { name: "Sesiones" }) ??
-        screen.getByRole("heading", { level: 2, name: "Aún no estás en ningún equipo" });
-      expect(sessions.compareDocumentPosition(entry) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-      expect(within(entry.closest("ul")!).getAllByRole("listitem")).toHaveLength(1);
+      expect(screen.queryByRole("heading", { name: "Biblioteca" })).not.toBeInTheDocument();
+      for (const link of screen.queryAllByRole("link")) {
+        expect(link.getAttribute("href")).not.toMatch(/\/drills(\/|$)/);
+      }
       unmount();
     }
   });

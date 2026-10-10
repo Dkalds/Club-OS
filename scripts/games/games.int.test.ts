@@ -6,7 +6,7 @@
 // Deja la base como estaba (borra con la clave de servicio lo que crea).
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { LIST_COLUMNS } from "@/modules/games/map-rows";
+import { AGENDA_COLUMNS } from "@/modules/schedule/map-rows";
 import { createAdminClient } from "../lib/admin-client";
 import { signInAs } from "../lib/user-client";
 import { ARCANGEL, seedId } from "../seed/data";
@@ -65,7 +65,8 @@ describe("partidos con sesiones de verdad", () => {
     const nowIso = new Date().toISOString();
     const { data, error } = await irene
       .from("events")
-      .select(LIST_COLUMNS)
+      // La lista de partidos es la de la Agenda, filtrada por tipo.
+      .select(AGENDA_COLUMNS)
       .eq("organization_id", ORG)
       .eq("kind", "game")
       .in("team_id", [ALEVIN_A])

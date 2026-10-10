@@ -59,22 +59,52 @@ describe("Inicio del club", () => {
     );
   });
 
-  // Sin próximo entrenamiento, el aviso ofrece crear la sesión solo a quien puede gestionarlas.
-  it.each(["coach", "admin"] as const)("sin entrenamiento a la vista, un %s ve «Nueva sesión»", async (role) => {
+  it.each(["coach", "admin"] as const)(
+    "un %s, que no tiene la identidad en la barra, la encuentra en Inicio con el nombre que le da el club",
+    async (role) => {
+      mocks.getClubContext.mockResolvedValue(clubContext(role));
+
+      render(await ClubHomePage(PARAMS));
+
+      const row = screen.getByRole("link", { name: /^Identidad/ });
+      expect(row).toHaveAttribute("href", "/c/club-a/way");
+      expect(row).toHaveTextContent("El camino del Club A");
+    },
+  );
+
+  it.each(["player", "guardian"] as const)("un %s ya la tiene como pestaña: Inicio no la repite", async (role) => {
     mocks.getClubContext.mockResolvedValue(clubContext(role));
-    mocks.getHomeData.mockResolvedValue({ ...HOME, hasTeams: true });
 
     render(await ClubHomePage(PARAMS));
 
-    expect(screen.getByRole("link", { name: "Nueva sesión" })).toHaveAttribute("href", "/c/club-a/train/new");
+    expect(screen.queryByRole("link", { name: /^Identidad/ })).not.toBeInTheDocument();
   });
 
-  it.each(["player", "guardian"] as const)("sin entrenamiento a la vista, un %s no ve «Nueva sesión»", async (role) => {
+  it("si el club no ha puesto nombre a su metodología, la fila no repite «Identidad» de subtítulo", async () => {
+    const ctx = clubContext("coach");
+    mocks.getClubContext.mockResolvedValue({ ...ctx, branding: { ...ctx.branding, wayName: "Identidad" } });
+
+    render(await ClubHomePage(PARAMS));
+
+    expect(screen.getByRole("link", { name: "Identidad" }).textContent).toBe("Identidad");
+  });
+
+  // Sin próximo entrenamiento, el aviso ofrece crear la sesión solo a quien puede gestionarlas.
+  it.each(["coach", "admin"] as const)("sin entrenamiento a la vista, un %s ve «Preparar sesión»", async (role) => {
     mocks.getClubContext.mockResolvedValue(clubContext(role));
     mocks.getHomeData.mockResolvedValue({ ...HOME, hasTeams: true });
 
     render(await ClubHomePage(PARAMS));
 
-    expect(screen.queryByRole("link", { name: "Nueva sesión" })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Preparar sesión" })).toHaveAttribute("href", "/c/club-a/train/new");
+  });
+
+  it.each(["player", "guardian"] as const)("sin entrenamiento a la vista, un %s no ve «Preparar sesión»", async (role) => {
+    mocks.getClubContext.mockResolvedValue(clubContext(role));
+    mocks.getHomeData.mockResolvedValue({ ...HOME, hasTeams: true });
+
+    render(await ClubHomePage(PARAMS));
+
+    expect(screen.queryByRole("link", { name: "Preparar sesión" })).not.toBeInTheDocument();
   });
 });

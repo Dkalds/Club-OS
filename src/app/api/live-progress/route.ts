@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "INVALID" }, { status: 422 });
   }
 
-  const { clubSlug, eventId, items, finished, actualMinutes } = parsed.data;
+  const { clubSlug, eventId, items, finished, actualMinutes, startedAt, position } = parsed.data;
 
   const { data: event } = await supabase
     .from("events")
@@ -55,6 +55,9 @@ export async function POST(request: NextRequest) {
     })),
     p_finished: finished,
     p_actual_minutes: actualMinutes,
+    // Lo ausente se omite, nunca `null` (C15): la función conserva entonces lo que tenía.
+    ...(startedAt !== undefined ? { p_started_at: startedAt } : {}),
+    ...(position !== undefined ? { p_position: position } : {}),
   });
 
   if (error) {

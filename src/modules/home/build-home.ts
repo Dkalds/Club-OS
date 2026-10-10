@@ -43,6 +43,7 @@ function toPractice(item: Upcoming, teamName: string, tz: string): HomePractice 
     drillCount: plan ? plan.itemMinutes.length : 0,
     focus: plan ? [...plan.focus] : [],
     location: event.location,
+    live: plan ? { ...plan.live } : { started: false, position: null },
   };
 }
 

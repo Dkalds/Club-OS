@@ -11,7 +11,18 @@ const ITEM_A = "00000000-0000-4000-8000-0000000000a1";
 const ITEM_B = "00000000-0000-4000-8000-0000000000a2";
 
 function item(id: string, minutes = 10): LiveItem {
-  return { id, title: "Ejercicio", phase: null, minutes, diagramUrl: null, keyPoints: [], standards: [] };
+  return {
+    id,
+    title: "Ejercicio",
+    phase: null,
+    minutes,
+    diagramUrl: null,
+    videoUrl: null,
+    keyPoints: [],
+    standards: [],
+    completed: null,
+    actualMinutes: null,
+  };
 }
 
 const SESSION: LiveSession = {
@@ -20,11 +31,12 @@ const SESSION: LiveSession = {
   title: "Sesión",
   startsAt: "2026-11-17T18:00:00+01:00",
   items: [item(ITEM_A, 10), item(ITEM_B, 5)],
+  live: { startedAt: null, position: null, updatedAt: "2026-11-17T17:20:00.250000+00:00" },
 };
 
 function initial(): LiveState {
   return {
-    version: 1,
+    version: 2,
     eventId: EVENT,
     index: 0,
     startedAt: null,
@@ -156,6 +168,33 @@ describe("previous", () => {
 });
 
 describe("finish", () => {
+  it("registra el ejercicio en curso: el último no tiene «siguiente» que lo haga", () => {
+    const s0 = reduce(initial(), { type: "start" }, T0);
+    const s1 = reduce(s0, { type: "next" }, T0 + 10 * MIN);
+    const s2 = reduce(s1, { type: "finish" }, T0 + 14 * MIN);
+
+    expect(s2.progress[ITEM_B]).toEqual({ completed: true, actualMs: 4 * MIN });
+    expect(toProgressPayload(s2, SESSION).items).toEqual([
+      { id: ITEM_A, completed: true, actualMinutes: 10 },
+      { id: ITEM_B, completed: true, actualMinutes: 4 },
+    ]);
+  });
+
+  it("terminar en pausa no cuenta el tiempo parado", () => {
+    const s0 = reduce(initial(), { type: "start" }, T0);
+    const s1 = reduce(s0, { type: "pause" }, T0 + 3 * MIN);
+    const s2 = reduce(s1, { type: "finish" }, T0 + 9 * MIN);
+
+    expect(s2.progress[ITEM_A]).toEqual({ completed: true, actualMs: 3 * MIN });
+  });
+
+  it("terminar nada más llegar a un ejercicio lo deja sin hacer (0 min, D5)", () => {
+    const s0 = reduce(initial(), { type: "start" }, T0);
+    const s1 = reduce(s0, { type: "finish" }, T0);
+
+    expect(s1.progress[ITEM_A]).toEqual({ completed: false, actualMs: 0 });
+  });
+
   it("fija finishedAt", () => {
     const s0 = reduce(initial(), { type: "start" }, T0);
     const s1 = reduce(s0, { type: "finish" }, T0 + 15 * MIN);
@@ -198,5 +237,39 @@ describe("toProgressPayload", () => {
     const s0 = reduce(initial(), { type: "start" }, T0);
     const s1 = reduce(s0, { type: "finish" }, T0 + 15 * MIN);
     expect(toProgressPayload(s1, SESSION).finished).toBe(true);
+  });
+
+  it("sin empezar no manda inicio ni posición", () => {
+    const payload = toProgressPayload(initial(), SESSION);
+    expect(payload).not.toHaveProperty("startedAt");
+    expect(payload).not.toHaveProperty("position");
+  });
+
+  it("empezada: manda cuándo se inició, en ISO, y el ejercicio en curso", () => {
+    const s0 = reduce(initial(), { type: "start" }, T0);
+    expect(toProgressPayload(s0, SESSION)).toMatchObject({
+      startedAt: new Date(T0).toISOString(),
+      position: 0,
+    });
+
+    const s1 = reduce(s0, { type: "next" }, T0 + 3 * MIN);
+    expect(toProgressPayload(s1, SESSION)).toMatchObject({
+      startedAt: new Date(T0).toISOString(),
+      position: 1,
+    });
+  });
+
+  it("volver al ejercicio anterior mueve la posición", () => {
+    const s0 = reduce(initial(), { type: "start" }, T0);
+    const s1 = reduce(s0, { type: "next" }, T0 + 3 * MIN);
+    const s2 = reduce(s1, { type: "previous" }, T0 + 4 * MIN);
+    expect(toProgressPayload(s2, SESSION).position).toBe(0);
+  });
+
+  it("un ejercicio que se alarga más de lo que admite el servidor se envía con el tope, no se rechaza", () => {
+    const s0 = reduce(initial(), { type: "start" }, T0);
+    const s1 = reduce(s0, { type: "next" }, T0 + 200 * MIN);
+
+    expect(toProgressPayload(s1, SESSION).items[0]).toEqual({ id: ITEM_A, completed: true, actualMinutes: 180 });
   });
 });

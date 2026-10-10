@@ -61,7 +61,8 @@ export default async function DrillPage({ params }: PageProps<"/c/[club]/drills/
   const setup = drill.setupMd?.trim();
   const upcoming =
     can(ctx, "practice.manage") && drill.status === "published"
-      ? await listPractices(ctx, "upcoming", new Date().toISOString())
+      ? // Las de todos sus equipos, aunque tenga uno elegido: aquí no hay selector a la vista.
+        await listPractices(ctx, "upcoming", new Date().toISOString(), { allTeams: true })
       : null;
 
   return (

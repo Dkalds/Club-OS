@@ -1,10 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
-
-const params = vi.hoisted(() => ({ club: "club-a" }));
-
-vi.mock("next/navigation", () => ({ useParams: () => ({ club: params.club }) }));
-
+import { describe, expect, it, vi } from "vitest";
 import DrillsError from "./error";
 
 // Lo que Next le pasa a un `error.tsx`. El mensaje y el `digest` llevan a propósito algo
@@ -20,10 +15,6 @@ function renderError(retry = vi.fn(), reset = vi.fn()) {
   return { ...view, retry, reset };
 }
 
-beforeEach(() => {
-  params.club = "club-a";
-});
-
 describe("error de la biblioteca (src/app/c/[club]/(app)/drills/error.tsx)", () => {
   it("dice que no se pudo cargar la biblioteca, como alerta y con un único <h1>", () => {
     renderError();
@@ -36,20 +27,11 @@ describe("error de la biblioteca (src/app/c/[club]/(app)/drills/error.tsx)", () 
     expect(screen.getAllByRole("heading")).toHaveLength(1);
   });
 
-  it("conserva la cabecera de detalle de la página, con su vuelta a Entrenar", () => {
+  it("es el inicio de una sección, como la página: sin cabecera de detalle ni enlace de vuelta", () => {
     const { container } = renderError();
 
-    expect(container.firstElementChild).toHaveAttribute("data-topnav", "detail");
-    expect(container.firstElementChild).toHaveTextContent("Biblioteca");
-    expect(screen.getByRole("link", { name: "Volver" })).toHaveAttribute("href", "/c/club-a/train");
-  });
-
-  it("vuelve a Entrenar del club de la URL", () => {
-    params.club = "club-b";
-
-    renderError();
-
-    expect(screen.getByRole("link", { name: "Volver" })).toHaveAttribute("href", "/c/club-b/train");
+    expect(container.querySelector("[data-topnav]")).toBeNull();
+    expect(screen.queryByRole("link")).not.toBeInTheDocument();
   });
 
   it("«Reintentar» vuelve a pedir la página al servidor (retry), no solo repinta (reset)", () => {

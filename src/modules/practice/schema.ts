@@ -186,6 +186,8 @@ export const duplicatePracticeSchema = z.object({ eventId: id, date, time });
 
 export const cancelPracticeSchema = z.object({ eventId: id });
 
+export const resetLiveProgressSchema = z.object({ eventId: id });
+
 // Lo que reciben las acciones: la entrada tal cual la manda un formulario, antes de Zod.
 export type CreatePracticeInput = z.input<typeof createPracticeSchema>;
 export type UpdatePracticeMetaInput = z.input<typeof updatePracticeMetaSchema>;
@@ -194,3 +196,4 @@ export type FindDrillsInput = z.input<typeof findDrillsSchema>;
 export type AddDrillToPracticeInput = z.input<typeof addDrillToPracticeSchema>;
 export type DuplicatePracticeInput = z.input<typeof duplicatePracticeSchema>;
 export type CancelPracticeInput = z.input<typeof cancelPracticeSchema>;
+export type ResetLiveProgressInput = z.input<typeof resetLiveProgressSchema>;

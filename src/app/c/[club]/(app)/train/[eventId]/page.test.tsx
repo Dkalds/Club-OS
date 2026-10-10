@@ -22,7 +22,7 @@ import PracticePage from "./page";
 
 // Datos neutros: los tests de `src/` no pueden nombrar a ningún club (pnpm check:guards).
 function item(n: number, phase: string | null, title: string, minutes: number): PracticeDetailItem {
-  return { id: `i-${n}`, drillId: null, drillVisible: false, title, phase, minutes, notes: null };
+  return { id: `i-${n}`, drillId: null, drillVisible: false, title, phase, minutes, notes: null, completed: null, actualMinutes: null };
 }
 
 // Activación · Técnica ×2 · (sin fase) · Técnica: cuatro bloques, el segundo con dos ítems.
@@ -57,6 +57,8 @@ function practice(overrides: Partial<PracticeDetail> = {}): PracticeDetail {
     standards: [],
     updatedAt: "2026-10-04T10:00:00.123456+00:00",
     canEdit: true,
+    live: { started: false, position: null },
+    actualMinutes: null,
     ...overrides,
   };
 }
@@ -134,10 +136,10 @@ describe("/train/[eventId], acceso y lectura", () => {
 });
 
 describe("/train/[eventId], cabecera", () => {
-  it("vuelve a Entrenar y el único <h1> es el título de la sesión", async () => {
+  it("vuelve a Sesiones y el único <h1> es el título de la sesión", async () => {
     await renderPage();
 
-    const back = screen.getByRole("link", { name: "Entrenar" });
+    const back = screen.getByRole("link", { name: "Sesiones" });
     expect(back).toHaveAttribute("href", "/c/club-a/train");
     expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
     const title = screen.getByRole("heading", { level: 1, name: "Salida de presión" });
@@ -369,14 +371,14 @@ describe("/train/[eventId], ejercicios", () => {
       expect(itemRows()).toHaveLength(0);
     });
 
-    it("una sesión cerrada dice «Sesión sin ejercicios», que no se añadieron, y ofrece volver a Entrenar", async () => {
+    it("una sesión cerrada dice «Sesión sin ejercicios», que no se añadieron, y ofrece volver a Sesiones", async () => {
       await renderPage({ items: [], canEdit: false, status: "done" });
 
       expect(screen.getByRole("heading", { level: 2, name: "Sesión sin ejercicios" })).toBeInTheDocument();
       expect(screen.getByText("No se añadieron ejercicios a esta sesión.")).toBeInTheDocument();
       expect(screen.queryByText("Añade ejercicios para prepararla.")).not.toBeInTheDocument();
       expect(screen.queryByText("Esta sesión aún no tiene ejercicios")).not.toBeInTheDocument();
-      expect(screen.getByRole("link", { name: "Volver a Entrenar" })).toHaveAttribute("href", "/c/club-a/train");
+      expect(screen.getByRole("link", { name: "Volver a Sesiones" })).toHaveAttribute("href", "/c/club-a/train");
       expect(screen.queryByRole("link", { name: "Editar sesión" })).not.toBeInTheDocument();
     });
 
@@ -387,7 +389,7 @@ describe("/train/[eventId], ejercicios", () => {
 
       expect(screen.getByRole("heading", { level: 2, name: "Sesión sin ejercicios" })).toBeInTheDocument();
       expect(screen.getByText("No se añadieron ejercicios a esta sesión.")).toBeInTheDocument();
-      expect(screen.getByRole("link", { name: "Volver a Entrenar" })).toBeInTheDocument();
+      expect(screen.getByRole("link", { name: "Volver a Sesiones" })).toBeInTheDocument();
       expect(screen.queryByRole("link", { name: "Editar sesión" })).not.toBeInTheDocument();
       expect(screen.queryByTestId("actions")).not.toBeInTheDocument();
     });
@@ -399,6 +401,12 @@ describe("/train/[eventId], acciones", () => {
     await renderPage();
 
     expect(actionsProps()).toMatchObject({ clubSlug: "club-a", eventId: "e-1", canEdit: true });
+  });
+
+  it("les pasa cuántos ejercicios tiene y lo que el servidor sabe del directo", async () => {
+    await renderPage({ live: { started: true, position: 2 } });
+
+    expect(actionsProps()).toMatchObject({ itemCount: 5, live: { started: true, position: 2 } });
   });
 
   it("una sesión cerrada llega a las acciones sin poder editarse, para que solo se duplique", async () => {
@@ -443,5 +451,48 @@ describe("/train/[eventId], acciones", () => {
     await renderPage({ status: "done", canEdit: false });
 
     expect(actionsProps().duplicateDefaults).toEqual({ date: "2026-10-27", time: "18:00" });
+  });
+});
+
+describe("/train/[eventId], revisar una sesión hecha", () => {
+  const DONE_ITEMS = [
+    { ...item(1, "Activación", "Calentamiento", 10), completed: true, actualMinutes: 12 },
+    { ...item(2, "Técnica", "Bote en movimiento", 15), completed: false, actualMinutes: null },
+  ];
+
+  it("cada ejercicio dice si se hizo y cuánto duró de verdad", async () => {
+    await renderPage({ status: "done", canEdit: false, items: DONE_ITEMS, actualMinutes: 12 });
+
+    const [first, second] = itemRows();
+    expect(first).toHaveTextContent("Hecho · 12 min");
+    expect(second).toHaveTextContent("Sin hacer");
+  });
+
+  it("de un ejercicio sin registro no dice nada: ni «Hecho» ni «Sin hacer»", async () => {
+    // Una sesión que se dio por hecha sin dirigirla desde la app.
+    await renderPage({ status: "done", canEdit: false, items: ITEMS, actualMinutes: null });
+
+    expect(screen.queryByText(/Hecho ·|Sin hacer/)).not.toBeInTheDocument();
+    expect(itemRows()).toHaveLength(ITEMS.length);
+  });
+
+  it("bajo el total previsto va el real", async () => {
+    await renderPage({ status: "done", canEdit: false, items: DONE_ITEMS, actualMinutes: 12 });
+
+    expect(screen.getByText("Total").parentElement).toHaveTextContent("25 minutos");
+    expect(screen.getByText("Real").parentElement).toHaveTextContent("12 minutos");
+  });
+
+  it("sin duración registrada no hay fila «Real»", async () => {
+    await renderPage({ status: "done", canEdit: false, items: DONE_ITEMS, actualMinutes: null });
+
+    expect(screen.queryByText("Real")).not.toBeInTheDocument();
+  });
+
+  it("una sesión programada no dice nada de cómo acabó, aunque esté en curso", async () => {
+    await renderPage({ items: DONE_ITEMS, live: { started: true, position: 1 } });
+
+    expect(screen.queryByText(/Hecho|Sin hacer/)).not.toBeInTheDocument();
+    expect(screen.queryByText("Real")).not.toBeInTheDocument();
   });
 });

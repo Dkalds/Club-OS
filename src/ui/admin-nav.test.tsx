@@ -28,7 +28,7 @@ describe("AdminNav", () => {
 
     const nav = screen.getByRole("navigation", { name: "Gestión" });
     expect(within(nav).getAllByRole("link").map((link) => link.textContent)).toEqual([
-      "The Way",
+      "Identidad",
       "Valores",
       "Principios",
       "Standards",
@@ -48,9 +48,9 @@ describe("AdminNav", () => {
   });
 
   it.each([
-    ["/c/club-a/admin/way", "The Way"],
-    ["/c/club-a/admin/way/", "The Way"],
-    ["/c/club-a/admin/way/2f0c7a9e", "The Way"],
+    ["/c/club-a/admin/way", "Identidad"],
+    ["/c/club-a/admin/way/", "Identidad"],
+    ["/c/club-a/admin/way/2f0c7a9e", "Identidad"],
     ["/c/club-a/admin/values", "Valores"],
     ["/c/club-a/admin/principles", "Principios"],
   ])("%s marca «%s»", (pathname, label) => {

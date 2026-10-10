@@ -296,7 +296,7 @@ test("cancelar", async ({ page }) => {
 
   // Sale de Próximas y está en el histórico, como cancelada.
   await page.goto(`${CLUB}/train`);
-  await expect(page.getByRole("link", { name: "Nueva sesión" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Preparar sesión" })).toBeVisible();
   await expect(row(page, name)).toHaveCount(0);
   await page.goto(`${CLUB}/train?scope=history`);
   await expect(row(page, name)).toHaveCount(1);

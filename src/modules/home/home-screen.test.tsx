@@ -13,6 +13,7 @@ const PRACTICE: HomePractice = {
   drillCount: 5,
   focus: ["Transición", "Rebote"],
   location: "Pabellón 2",
+  live: { started: false, position: null },
 };
 
 /** El kicker de la card del entrenamiento: lo fijo y, tras el punto medio, el equipo. */
@@ -183,27 +184,27 @@ describe("HomeScreen con equipos", () => {
     expect(screen.getByText("Cuando haya una sesión en el calendario, la verás aquí.")).toBeInTheDocument();
     expect(screen.queryByText(ANY_PRACTICE_KICKER)).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Abrir entrenamiento" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: "Nueva sesión" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Preparar sesión" })).not.toBeInTheDocument();
     // Ocupa el sitio del entrenamiento: antes del partido y de la semana.
     expect(comesBefore(screen.getByRole("heading", { level: 1 }), title)).toBe(true);
     expect(comesBefore(title, screen.getByText("Próximo partido"))).toBe(true);
     expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
   });
 
-  it("sin entrenamiento a la vista y con permiso para crear, el aviso ofrece «Nueva sesión»", () => {
+  it("sin entrenamiento a la vista y con permiso para crear, el aviso ofrece «Preparar sesión»", () => {
     renderHome(home({ nextPractice: null }), { clubSlug: "club-b", ownShortName: "CLB" }, true);
 
     const title = screen.getByRole("heading", { level: 2, name: "No hay entrenamientos programados" });
-    const create = screen.getByRole("link", { name: "Nueva sesión" });
+    const create = screen.getByRole("link", { name: "Preparar sesión" });
     expect(create).toHaveAttribute("href", "/c/club-b/train/new");
     // La acción es del aviso: va dentro de su card, no suelta por la pantalla.
     expect(title.parentElement).toContainElement(create);
   });
 
-  it("con entrenamiento a la vista no ofrece «Nueva sesión» aunque pueda crear: el CTA es el del entrenamiento", () => {
+  it("con entrenamiento a la vista no ofrece «Preparar sesión» aunque pueda crear: el CTA es el del entrenamiento", () => {
     renderHome(home(), { clubSlug: "club-a", ownShortName: "CLA" }, true);
 
-    expect(screen.queryByRole("link", { name: "Nueva sesión" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Preparar sesión" })).not.toBeInTheDocument();
   });
 
   it("con ejercicios, ofrece «Iniciar entrenamiento» que lleva al live de esa sesión", () => {
@@ -211,6 +212,21 @@ describe("HomeScreen con equipos", () => {
 
     const link = screen.getByRole("link", { name: "Iniciar entrenamiento" });
     expect(link).toHaveAttribute("href", "/c/club-a/train/e-1/live");
+  });
+
+  it("sin empezar no dice por dónde va", () => {
+    renderHome(home({ nextPractice: { ...PRACTICE, drillCount: 3 } }));
+
+    expect(screen.queryByText(/^Ejercicio \d+ de \d+$/)).not.toBeInTheDocument();
+  });
+
+  it("con la sesión en curso ofrece «Continuar entrenamiento» y dice por qué ejercicio va", () => {
+    renderHome(home({ nextPractice: { ...PRACTICE, drillCount: 5, live: { started: true, position: 2 } } }));
+
+    const link = screen.getByRole("link", { name: "Continuar entrenamiento" });
+    expect(link).toHaveAttribute("href", "/c/club-a/train/e-1/live");
+    expect(screen.getByText("Ejercicio 3 de 5")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Iniciar entrenamiento" })).not.toBeInTheDocument();
   });
 
   it("sin ejercicios, no ofrece «Iniciar entrenamiento»", () => {
@@ -274,5 +290,53 @@ describe("HomeScreen sin equipos", () => {
     renderHome({ ...WITHOUT_TEAMS, firstName: "" });
 
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(/^Buenos días\.$/);
+  });
+});
+
+describe("HomeScreen · la entrada a la identidad del club", () => {
+  const IDENTITY = { href: "/c/club-a/way", subtitle: "El camino del Club A" };
+
+  function renderWithIdentity(data: HomeData, identity: { href: string; subtitle?: string } | null) {
+    return render(
+      <HomeScreen home={data} clubSlug="club-a" ownShortName="CLA" canCreatePractice={false} identity={identity} />,
+    );
+  }
+
+  it("es una fila «Identidad» con el nombre que el club le da, y lleva a ella", () => {
+    renderWithIdentity(home(), IDENTITY);
+
+    const row = screen.getByRole("link", { name: /^Identidad/ });
+    expect(row).toHaveAttribute("href", "/c/club-a/way");
+    expect(row).toHaveTextContent("El camino del Club A");
+  });
+
+  it("va al final, después de «Esta semana»", () => {
+    renderWithIdentity(home(), IDENTITY);
+
+    expect(comesBefore(weekSection(), screen.getByRole("link", { name: /^Identidad/ }))).toBe(true);
+  });
+
+  it("sin equipos sigue estando: la identidad no depende de entrenar a nadie", () => {
+    renderWithIdentity(home({ hasTeams: false, nextPractice: null, nextGame: null, week: [] }), IDENTITY);
+
+    expect(screen.getByRole("link", { name: /^Identidad/ })).toBeInTheDocument();
+  });
+
+  it("sin nombre propio del club, la fila es solo «Identidad»", () => {
+    renderWithIdentity(home(), { href: "/c/club-a/way" });
+
+    expect(screen.getByRole("link", { name: "Identidad" })).toBeInTheDocument();
+  });
+
+  it("quien ya la tiene como pestaña no la ve repetida aquí", () => {
+    renderWithIdentity(home(), null);
+
+    expect(screen.queryByRole("link", { name: /^Identidad/ })).not.toBeInTheDocument();
+  });
+
+  it("sin decir nada, no se pinta", () => {
+    renderHome(home());
+
+    expect(screen.queryByRole("link", { name: /^Identidad/ })).not.toBeInTheDocument();
   });
 });

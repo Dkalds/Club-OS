@@ -163,10 +163,13 @@ body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--f
 .cos-topnav { display: flex; align-items: center; justify-content: space-between; min-height: 56px; padding: 0 var(--space-2) 0 var(--space-4); background: var(--bg); }
 .cos-topnav--detail { padding: 0 var(--space-2); }
 .cos-topnav__title { flex: 1; text-align: center; }
+.cos-teamswitch { max-width: 160px; color: var(--ink); cursor: pointer; }
+.cos-teamswitch span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cos-teamswitch .cos-ico { color: var(--ink-2); }
 .cos-wordmark { font-family: var(--font-display); text-transform: uppercase; line-height: 1; }
 .cos-wordmark b { display: block; font-size: 24px; font-weight: 700; letter-spacing: .02em; }
 .cos-wordmark span { display: block; font-size: 11px; font-weight: 600; letter-spacing: .32em; color: var(--ink-2); margin-top: 2px; }
-.cos-nav { display: grid; grid-template-columns: repeat(5, 1fr); height: var(--nav-height); background: var(--surface-1); border-top: 1px solid var(--line); }
+.cos-nav { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; height: var(--nav-height); background: var(--surface-1); border-top: 1px solid var(--line); }
 .cos-nav__item { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; color: var(--ink-3); font-size: 11px; line-height: 14px; font-weight: 500; text-decoration: none; }
 .cos-nav__item[aria-current="page"] { color: var(--brand-accent); font-weight: 600; }
 .cos-nav__item[aria-current="page"] .cos-ico { stroke-width: 2.25; }

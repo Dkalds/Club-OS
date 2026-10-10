@@ -50,7 +50,7 @@ function trailOf(practice: PracticeListItem): ReactNode {
  * está escrito aquí: el slug llega por props.
  *
  * Una fila lleva al detalle de la sesión. Con un solo equipo no repite su nombre en cada fila;
- * con varios, abre el subtítulo. «Nueva sesión» solo sale con permiso y con algún equipo donde
+ * con varios, abre el subtítulo. «Preparar sesión» solo sale con permiso y con algún equipo donde
  * crearla. En las próximas vacías la salida del aviso ya es esa misma acción, y no se repite
  * arriba: una pantalla, un solo botón principal.
  *
@@ -89,7 +89,7 @@ export function PracticeList({
     <div className="flex flex-col gap-(--space-3)">
       {canCreate && !createInEmptyState ? (
         <CTAButton variant="primary" block href={newHref} icon={<PlusIcon size={20} />}>
-          Nueva sesión
+          Preparar sesión
         </CTAButton>
       ) : null}
 
@@ -149,8 +149,8 @@ export function PracticeList({
         <EmptyState
           icon={<TrainIcon size={28} />}
           title="No hay sesiones programadas"
-          body="Crea la próxima sesión de tu equipo."
-          action={{ label: "Nueva sesión", href: newHref }}
+          body="Prepara la próxima sesión de tu equipo."
+          action={{ label: "Preparar sesión", href: newHref }}
         />
       ) : (
         <EmptyState
