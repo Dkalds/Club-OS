@@ -98,6 +98,31 @@ isOneToOne: false
       referencedColumns: ["organization_id","id"]
     }
                   ]
+                },"consents": {
+                  Row: {
+                    "body_snapshot": string,"granted_at": string,"granted_by": string,"id": string,"kind": string,"organization_id": string,"person_id": string | null,"revoked_at": string | null
+                  }
+                  Insert: {
+                    "body_snapshot": string,"granted_at"?: string,"granted_by": string,"id"?: string,"kind": string,"organization_id": string,"person_id"?: string | null,"revoked_at"?: string | null
+                  }
+                  Update: {
+                    "body_snapshot"?: string,"granted_at"?: string,"granted_by"?: string,"id"?: string,"kind"?: string,"organization_id"?: string,"person_id"?: string | null,"revoked_at"?: string | null
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "consents_organization_id_fkey"
+      columns: ["organization_id"]
+isOneToOne: false
+      referencedRelation: "organizations"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "consents_organization_id_person_id_fkey"
+      columns: ["organization_id","person_id"]
+isOneToOne: false
+      referencedRelation: "people"
+      referencedColumns: ["organization_id","id"]
+    }
+                  ]
                 },"drill_coaching_points": {
                   Row: {
                     "drill_id": string,"id": string,"is_key": boolean,"organization_id": string,"sort": number,"text": string
@@ -354,6 +379,37 @@ isOneToOne: false
       referencedColumns: ["id"]
     }
                   ]
+                },"guardianships": {
+                  Row: {
+                    "child_person_id": string,"created_at": string,"guardian_person_id": string,"organization_id": string
+                  }
+                  Insert: {
+                    "child_person_id": string,"created_at"?: string,"guardian_person_id": string,"organization_id": string
+                  }
+                  Update: {
+                    "child_person_id"?: string,"created_at"?: string,"guardian_person_id"?: string,"organization_id"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "guardianships_organization_id_child_person_id_fkey"
+      columns: ["organization_id","child_person_id"]
+isOneToOne: false
+      referencedRelation: "people"
+      referencedColumns: ["organization_id","id"]
+    },{
+      foreignKeyName: "guardianships_organization_id_fkey"
+      columns: ["organization_id"]
+isOneToOne: false
+      referencedRelation: "organizations"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "guardianships_organization_id_guardian_person_id_fkey"
+      columns: ["organization_id","guardian_person_id"]
+isOneToOne: false
+      referencedRelation: "people"
+      referencedColumns: ["organization_id","id"]
+    }
+                  ]
                 },"invitations": {
                   Row: {
                     "accepted_at": string | null,"cancelled_at": string | null,"created_at": string,"email": string,"expires_at": string,"first_name": string | null,"id": string,"invited_by": string | null,"last_name": string | null,"organization_id": string,"person_id": string | null,"role": Database["public"]['Enums']["org_role"],"staff_role": Database["public"]['Enums']["staff_role"] | null,"team_id": string | null,"token_hash": string
@@ -431,13 +487,13 @@ isOneToOne: false
                   ]
                 },"organization_branding": {
                   Row: {
-                    "color_accent": string,"color_accent_pressed": string,"color_accent_soft": string,"color_on_accent": string,"display_name": string,"organization_id": string,"short_name": string,"tagline": string | null,"terminology": NonNullable<Json>,"updated_at": string,"way_name": string,"wordmark_sub": string | null
+                    "color_accent": string,"color_accent_pressed": string,"color_accent_soft": string,"color_on_accent": string,"display_name": string,"image_consent_text": string,"organization_id": string,"short_name": string,"tagline": string | null,"terminology": NonNullable<Json>,"terms_text": string,"updated_at": string,"way_name": string,"wordmark_sub": string | null
                   }
                   Insert: {
-                    "color_accent": string,"color_accent_pressed": string,"color_accent_soft": string,"color_on_accent": string,"display_name": string,"organization_id": string,"short_name": string,"tagline"?: string | null,"terminology"?: NonNullable<Json>,"updated_at"?: string,"way_name": string,"wordmark_sub"?: string | null
+                    "color_accent": string,"color_accent_pressed": string,"color_accent_soft": string,"color_on_accent": string,"display_name": string,"image_consent_text"?: string,"organization_id": string,"short_name": string,"tagline"?: string | null,"terminology"?: NonNullable<Json>,"terms_text"?: string,"updated_at"?: string,"way_name": string,"wordmark_sub"?: string | null
                   }
                   Update: {
-                    "color_accent"?: string,"color_accent_pressed"?: string,"color_accent_soft"?: string,"color_on_accent"?: string,"display_name"?: string,"organization_id"?: string,"short_name"?: string,"tagline"?: string | null,"terminology"?: NonNullable<Json>,"updated_at"?: string,"way_name"?: string,"wordmark_sub"?: string | null
+                    "color_accent"?: string,"color_accent_pressed"?: string,"color_accent_soft"?: string,"color_on_accent"?: string,"display_name"?: string,"image_consent_text"?: string,"organization_id"?: string,"short_name"?: string,"tagline"?: string | null,"terminology"?: NonNullable<Json>,"terms_text"?: string,"updated_at"?: string,"way_name"?: string,"wordmark_sub"?: string | null
                   }
                   Relationships: [
                     {
@@ -809,6 +865,12 @@ isOneToOne: false
 "duplicate_practice":
 { Args: { "p_event": string,"p_starts_at": string }; Returns: string
                            },
+"grant_image_consent":
+{ Args: { "p_person": string }; Returns: string
+                           },
+"grant_terms_consent":
+{ Args: { "p_org": string }; Returns: string
+                           },
 "record_game_result":
 { Args: { "p_event": string,"p_score_against": number,"p_score_for": number }; Returns: undefined
                            },
@@ -817,6 +879,9 @@ isOneToOne: false
                            },
 "reorder_methodology":
 { Args: { "p_ids": (string)[],"p_kind": string,"p_org": string }; Returns: undefined
+                           },
+"revoke_image_consent":
+{ Args: { "p_consent": string }; Returns: undefined
                            },
 "save_drill":
 { Args: { "p_drill"?: string,"p_expected_updated_at"?: string,"p_org": string,"p_payload"?: Json }; Returns: {

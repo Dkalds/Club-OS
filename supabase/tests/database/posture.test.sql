@@ -157,7 +157,11 @@ select set_eq(
       -- Invitaciones (20270112000100): la cuenta de Auth y la aceptación van por
       -- create_invitation y accept_pending_invitations, security definer. Cancelar y
       -- reenviar son update directos (por columnas, abajo); nunca insert ni delete.
-      ('invitations', array['select'])
+      ('invitations', array['select']),
+      -- Consentimientos (20270112000200): dar y revocar van por funciones, security
+      -- definer; las tutelas las da de alta solo dirección, por columnas, abajo.
+      ('consents', array['select']),
+      ('guardianships', array['select', 'insert', 'delete'])
     ) as t (tabla, privilegios)
     cross join unnest(t.privilegios) as p (privilegio)$$,
   'los privilegios de tabla de authenticated en public son exactamente los de la lista'
