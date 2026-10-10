@@ -6,6 +6,7 @@ import { ACTION_ERROR_COPY } from "@/lib/action-result";
 import { useAction } from "@/lib/use-action";
 import { liveEntry, type LiveProgress } from "@/modules/live/label";
 import { clearLiveState } from "@/modules/live/storage";
+import { cancelLiveSync } from "@/modules/live/sync";
 import { cancelPractice, duplicatePractice, resetLiveProgress } from "@/modules/practice/actions";
 import type { PracticeStatus } from "@/modules/practice/types";
 import { Card } from "@/ui/card";
@@ -106,6 +107,9 @@ export function PracticeActions({
   }
 
   function confirmRestart() {
+    // Un envío del directo que siguiera reintentándose (sin red al salir) llegaría después del
+    // reinicio y dejaría la sesión otra vez empezada: se cancela antes.
+    cancelLiveSync(eventId);
     restarting.run(
       async () => {
         try {

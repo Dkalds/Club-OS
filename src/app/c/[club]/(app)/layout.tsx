@@ -1,11 +1,23 @@
 import { requireClub } from "@/lib/guards";
 import { can } from "@/lib/permissions";
-import { getTeamScope } from "@/modules/team/scope";
+import { unstable_rethrow } from "next/navigation";
+import { getTeamScope, type TeamScope } from "@/modules/team/scope";
 import { hasIdentityTab, IDENTITY_LABEL, identityHref, navItems } from "@/modules/tenancy/navigation";
 import { getViewerName } from "@/modules/tenancy/queries";
 import type { AccountLink } from "@/ui/account-menu";
 import { AppShell } from "@/ui/app-shell";
 import { TopNavigation } from "@/ui/top-navigation";
+
+/** «Mis equipos» y el activo, o `null` si no se pueden leer (el fallo ya queda registrado al leer). */
+async function readTeamScope(ctx: Parameters<typeof getTeamScope>[0]): Promise<TeamScope | null> {
+  try {
+    return await getTeamScope(ctx);
+  } catch (error) {
+    // Lo que Next lanza para dirigir el flujo (un `notFound()`, el aviso de `cookies()`) sigue su camino.
+    unstable_rethrow(error);
+    return null;
+  }
+}
 
 /**
  * Marco de la app móvil del club: cabecera con la marca y el menú de cuenta, y navegación
@@ -17,7 +29,9 @@ import { TopNavigation } from "@/ui/top-navigation";
  *
  * La cabecera lleva el selector del equipo activo cuando quien entra tiene más de un equipo
  * (`getTeamScope`: «mis equipos» y el elegido; con `cache()`, la página que lo pide después no
- * vuelve a leerlos). Si «mis equipos» no se pueden leer, lanza y lo recoge `error.tsx`.
+ * vuelve a leerlos). Si «mis equipos» no se pueden leer, el marco se pinta sin selector: lo
+ * que lance un layout no lo recoge el `error.tsx` de su mismo segmento, y Biblioteca o
+ * Identidad no necesitan equipos. La pantalla que sí los necesite fallará en su propio límite.
  *
  * El menú de cuenta ofrece «Identidad» a quien no la tiene como pestaña (quien entrena y la
  * dirección) y «Gestión» solo a quien puede entrar (`can` solo muestra u oculta: el 404 de
@@ -29,7 +43,7 @@ export default async function AppLayout({ children, params }: LayoutProps<"/c/[c
   const ctx = await requireClub(club);
   const { org } = ctx;
   const { role } = ctx.membership;
-  const [name, scope] = await Promise.all([getViewerName(ctx), getTeamScope(ctx)]);
+  const [name, scope] = await Promise.all([getViewerName(ctx), readTeamScope(ctx)]);
 
   const links: AccountLink[] = [];
   if (!hasIdentityTab(role)) links.push({ label: IDENTITY_LABEL, href: identityHref(org.slug) });
@@ -43,8 +57,8 @@ export default async function AppLayout({ children, params }: LayoutProps<"/c/[c
           account={{ name, links }}
           team={{
             clubSlug: org.slug,
-            teams: scope.teams.map(({ id, name: teamName }) => ({ id, name: teamName })),
-            activeId: scope.active?.id ?? null,
+            teams: (scope?.teams ?? []).map(({ id, name: teamName }) => ({ id, name: teamName })),
+            activeId: scope?.active?.id ?? null,
           }}
         />
       }

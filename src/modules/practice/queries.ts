@@ -76,13 +76,18 @@ export async function getPracticeFormOptions(
  * ninguno, el estado vacío ni consulta los eventos.
  *
  * `nowIso` es el instante actual del servidor en ISO. Las horas salen en la zona del club.
+ *
+ * Con `allTeams`, las de todos «mis equipos» aunque haya uno elegido: para elegir a qué sesión
+ * se añade un ejercicio, donde no hay selector de equipo a la vista.
  */
 export async function listPractices(
   ctx: ClubContext,
   scope: "upcoming" | "history",
   nowIso: string,
+  { allTeams = false }: { allTeams?: boolean } = {},
 ): Promise<{ practices: PracticeListItem[]; teamCount: number; truncated: boolean }> {
-  const teams = toOptions((await getTeamScope(ctx)).scoped);
+  const teamScope = await getTeamScope(ctx);
+  const teams = toOptions(allTeams ? teamScope.teams : teamScope.scoped);
   if (teams.length === 0) return { practices: [], teamCount: 0, truncated: false };
 
   const supabase = await createClient();

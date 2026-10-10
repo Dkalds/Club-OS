@@ -20,6 +20,8 @@ vi.mock("next/navigation", () => ({
   },
   usePathname: () => "/c/club-a",
   useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
+  // Aquí nada lanza un error de control de flujo de Next: no hay nada que relanzar.
+  unstable_rethrow: () => {},
 }));
 
 import AppLayout from "./layout";
@@ -173,6 +175,17 @@ describe("layout de la app móvil del club", () => {
 
     render(await renderLayout());
 
+    expect(screen.queryByRole("button", { name: /Cambiar de equipo$/ })).not.toBeInTheDocument();
+  });
+
+  it("si «mis equipos» no se pueden leer, el marco se pinta igual, sin selector", async () => {
+    mocks.getClubContext.mockResolvedValue(clubContext("admin"));
+    mocks.listMyTeams.mockRejectedValue(new Error("team.club-teams: no se pudo leer de la base de datos"));
+
+    render(await renderLayout());
+
+    expect(screen.getByRole("banner")).toHaveTextContent("Club A");
+    expect(screen.getByRole("navigation", { name: "Principal" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Cambiar de equipo$/ })).not.toBeInTheDocument();
   });
 });

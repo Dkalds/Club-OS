@@ -38,13 +38,14 @@ function session(overrides: Partial<LiveSession> = {}): LiveSession {
       item(ITEM_A, { title: "Rueda de pases", phase: "Activación", minutes: 10, keyPoints: ["Pies activos"] }),
       item(ITEM_B, { title: "Tres contra dos", phase: "Juego", minutes: 5 }),
     ],
-    live: { startedAt: null, position: null },
+    live: { startedAt: null, position: null, updatedAt: "2026-11-17T17:20:00.250000+00:00" },
     ...overrides,
   };
 }
 
-const STARTED = { startedAt: "2026-11-17T17:02:00.000Z", position: 0 };
+const STARTED = { startedAt: "2026-11-17T17:02:00.000Z", position: 0, updatedAt: "2026-11-17T17:20:00.250000+00:00" };
 const fetchMock = vi.fn();
+const savedReply = { ok: true, status: 200, json: async () => ({ applied: 1, updated_at: "2026-11-17T17:21:00.500000+00:00" }) };
 
 function show(live: LiveSession = session()) {
   return render(<LiveScreen session={live} clubSlug="club-a" />);
@@ -52,7 +53,7 @@ function show(live: LiveSession = session()) {
 
 beforeEach(() => {
   localStorage.clear();
-  fetchMock.mockResolvedValue({ ok: true, status: 200 });
+  fetchMock.mockResolvedValue(savedReply);
   vi.stubGlobal("fetch", fetchMock);
 });
 
@@ -88,7 +89,7 @@ describe("sin iniciar", () => {
 
 describe("en curso", () => {
   it("retoma el ejercicio que guarda el servidor, sin pasar por «Iniciar»", () => {
-    show(session({ live: { startedAt: STARTED.startedAt, position: 1 } }));
+    show(session({ live: { ...STARTED, position: 1 } }));
 
     expect(screen.getByText("2 / 2")).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 1, name: "Tres contra dos" })).toBeInTheDocument();
@@ -149,7 +150,7 @@ describe("en curso", () => {
 });
 
 describe("terminar", () => {
-  const onLast = () => session({ live: { startedAt: STARTED.startedAt, position: 1 } });
+  const onLast = () => session({ live: { ...STARTED, position: 1 } });
 
   it("en el último, el control de la derecha pregunta antes de terminar", async () => {
     show(onLast());
@@ -171,6 +172,21 @@ describe("terminar", () => {
     await waitFor(() => expect(mocks.push).toHaveBeenCalledWith(DETAIL));
     const last = fetchMock.mock.calls.at(-1);
     expect(JSON.parse((last?.[1] as RequestInit).body as string)).toMatchObject({ finished: true });
+  });
+});
+
+describe("cuando el servidor rechaza el fin", () => {
+  it("se queda en la pantalla y lo dice, en vez de volver a una ficha que aún ofrecería continuar", async () => {
+    fetchMock.mockResolvedValue({ ok: false, status: 409 });
+    show(session({ live: { ...STARTED, position: 1 } }));
+
+    fireEvent.click(screen.getByRole("button", { name: "Terminar entrenamiento" }));
+    const dialog = await screen.findByRole("alertdialog");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Terminar" }));
+
+    expect(await screen.findByText(/No se pudo guardar el final/)).toBeInTheDocument();
+    expect(mocks.push).not.toHaveBeenCalled();
+    expect(screen.getByRole("link", { name: "Ver la sesión" })).toHaveAttribute("href", DETAIL);
   });
 });
 

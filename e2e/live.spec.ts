@@ -287,13 +287,15 @@ test("terminar → confirmación → la ficha es el resumen y la sesión está e
   await page.getByRole("button", { name: "Iniciar" }).click();
   await expect(page.getByText("1 / 4")).toBeVisible();
 
-  // El primero dura 2 min de reloj; los demás se pasan sin tiempo (no cuentan como hechos, D5).
+  // El primero dura 2 min de reloj; el segundo y el tercero se pasan sin tiempo (no cuentan como
+  // hechos, D5); el último dura 3 min, y es terminar lo que lo registra: no tiene «siguiente».
   await page.clock.fastForward("02:00");
   await page.getByRole("button", { name: "Siguiente ejercicio" }).click();
   await page.getByRole("button", { name: "Siguiente ejercicio" }).click();
   await page.getByRole("button", { name: "Siguiente ejercicio" }).click();
   await expect(page.getByText("4 / 4")).toBeVisible();
   await expect(page.getByText("Último ejercicio")).toBeVisible();
+  await page.clock.fastForward("03:00");
 
   // En el último, el control de la derecha ya no pasa al siguiente: termina, y pregunta antes.
   await expect(page.getByRole("button", { name: "Siguiente ejercicio" })).toHaveCount(0);
@@ -315,8 +317,10 @@ test("terminar → confirmación → la ficha es el resumen y la sesión está e
   // La ficha es su resumen: cada ejercicio dice si se hizo y cuánto duró, y hay un total real.
   const main = page.getByRole("main");
   await expect(main.getByText("Hecho · 2 min")).toHaveCount(1);
-  await expect(main.getByText("Sin hacer")).toHaveCount(3);
-  await expect(main.getByText("Real", { exact: true })).toBeVisible();
+  await expect(main.getByText("Hecho · 3 min")).toHaveCount(1);
+  await expect(main.getByText("Sin hacer")).toHaveCount(2);
+  // El total real suma los dos que se hicieron.
+  await expect(main.getByText("Real", { exact: true }).locator("..")).toContainText("5 minutos");
 
   // El directo de una sesión hecha lleva a su ficha, no a un 404.
   await page.goto(LIVE_URL);

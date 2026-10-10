@@ -20,6 +20,7 @@ const SYNC_LABELS: Record<string, string> = {
   "saved-local": "Guardado en el móvil",
   saved: "Guardado",
   offline: "Sin conexión: se enviará al volver",
+  failed: "No se pudo guardar",
   idle: "",
 };
 
@@ -70,7 +71,11 @@ function LiveScreenContent({ session, clubSlug }: LiveScreenProps) {
       <div className={CENTERED}>
         <h1 className={TITLE}>Entrenamiento terminado</h1>
         <p className="text-body text-ink-2" aria-live="polite">
-          {syncStatus === "offline" ? "Sin conexión: el resumen se enviará al volver." : "Ya está en el histórico."}
+          {syncStatus === "failed"
+            ? "No se pudo guardar el final. Abre la sesión para ver cómo ha quedado."
+            : syncStatus === "offline"
+              ? "Sin conexión: el resumen se enviará al volver."
+              : "Ya está en el histórico."}
         </p>
         <CTAButton variant="primary" block href={detailHref}>
           Ver la sesión
@@ -109,9 +114,11 @@ function LiveScreenContent({ session, clubSlug }: LiveScreenProps) {
 
   async function handleFinish() {
     setFinishing(true);
-    // A la ficha solo cuando el fin está registrado: si no, aún ofrecería «Continuar».
-    await finish();
-    router.push(detailHref);
+    // A la ficha cuando el fin está registrado (o pendiente de enviarse sin red): si no, aún
+    // ofrecería «Continuar». Si el servidor lo rechaza, se queda aquí y lo dice.
+    const result = await finish();
+    setConfirmingFinish(false);
+    if (result !== "failed") router.push(detailHref);
   }
 
   return (

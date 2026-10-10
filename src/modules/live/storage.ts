@@ -9,13 +9,17 @@ export function LIVE_STATE_KEY(eventId: string): string {
 
 /**
  * Guarda el estado del directo en el dispositivo. `synced` dice si ese mismo estado ya llegó
- * al servidor: mientras sea `false`, al volver a abrir manda el dispositivo (`reconcile`).
+ * al servidor, y `serverUpdatedAt`, la copia de la sesión que devolvió el último envío que
+ * salió bien: con los dos, al volver a abrir se sabe quién manda (`reconcile`).
  */
-export function saveLiveState(state: LiveState, synced: boolean): void {
+export function saveLiveState(
+  state: LiveState,
+  { synced, serverUpdatedAt }: { synced: boolean; serverUpdatedAt: string | null },
+): void {
   try {
     localStorage.setItem(
       LIVE_STATE_KEY(state.eventId),
-      JSON.stringify({ version: STORAGE_VERSION, synced, state }),
+      JSON.stringify({ version: STORAGE_VERSION, synced, serverUpdatedAt, state }),
     );
   } catch {
     // localStorage no disponible o lleno: Live sigue en memoria
@@ -37,10 +41,14 @@ export function loadLiveState(eventId: string): StoredLive | null {
     const parsed: unknown = JSON.parse(raw);
     if (!isRecord(parsed) || parsed.version !== STORAGE_VERSION) return null;
 
-    const { state, synced } = parsed;
+    const { state, synced, serverUpdatedAt } = parsed;
     if (!isRecord(state) || state.version !== STORAGE_VERSION || state.eventId !== eventId) return null;
 
-    return { state: state as LiveState, synced: synced === true };
+    return {
+      state: state as LiveState,
+      synced: synced === true,
+      serverUpdatedAt: typeof serverUpdatedAt === "string" ? serverUpdatedAt : null,
+    };
   } catch {
     return null;
   }

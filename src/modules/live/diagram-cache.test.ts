@@ -24,7 +24,7 @@ const session: LiveSession = {
       actualMinutes: null,
     },
   ],
-  live: { startedAt: null, position: null },
+  live: { startedAt: null, position: null, updatedAt: "2026-11-17T17:20:00.250000+00:00" },
 };
 
 function makeFakeCache() {

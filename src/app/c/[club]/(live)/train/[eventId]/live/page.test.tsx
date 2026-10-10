@@ -40,7 +40,7 @@ const SESSION: LiveSession = {
       actualMinutes: null,
     },
   ],
-  live: { startedAt: null, position: null },
+  live: { startedAt: null, position: null, updatedAt: "2026-11-17T17:20:00.250000+00:00" },
 };
 
 const open = () => LivePage({ params: Promise.resolve({ club: "club-a", eventId: EVENT }) });

@@ -36,6 +36,7 @@ const eventRow = {
     {
       id: PLAN,
       title: "Sesión de hoy",
+      updated_at: "2026-11-17T17:20:00.250000+00:00",
       live_started_at: null,
       live_position: null,
       practice_items: [
@@ -187,7 +188,7 @@ it("sin empezar: el servidor no tiene inicio ni posición", async () => {
   mocks.signedUrl.mockResolvedValue(null);
   useDb(ok(eventRow));
   const session = await openSession();
-  expect(session.live).toEqual({ startedAt: null, position: null });
+  expect(session.live).toEqual({ startedAt: null, position: null, updatedAt: "2026-11-17T17:20:00.250000+00:00" });
 });
 
 it("en curso: cuándo se inició y por qué ejercicio va", async () => {
@@ -200,5 +201,5 @@ it("en curso: cuándo se inició y por qué ejercicio va", async () => {
     }),
   );
   const session = await openSession();
-  expect(session.live).toEqual({ startedAt: "2026-11-17T17:02:00+00:00", position: 1 });
+  expect(session.live).toEqual({ startedAt: "2026-11-17T17:02:00+00:00", position: 1, updatedAt: "2026-11-17T17:20:00.250000+00:00" });
 });

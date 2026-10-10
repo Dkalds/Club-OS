@@ -130,17 +130,19 @@ Lo dicen igual la card de Inicio y la ficha de la sesión, en cualquier disposit
 
 ### Reconciliar el móvil con el servidor
 
-El estado del dispositivo pasa a la versión 2 y guarda, además, si lo último se envió (`synced`). Los estados de la versión 1 se descartan. Al abrir el directo:
+El estado del dispositivo pasa a la versión 2 y guarda, además, si lo último se envió (`synced`) y la copia de la sesión que devolvió ese envío (`serverUpdatedAt`: el `updated_at` del plan). Los estados de la versión 1 se descartan. La página trae, con lo que el servidor sabe del directo, la copia de la que sale (`live.updatedAt`). Al abrir:
 
 1. Si el móvil tiene progreso **sin enviar**, manda el móvil (pabellón sin cobertura).
-2. Si no, manda el servidor:
-   - sin empezar → estado nuevo, ejercicio 1, aunque el móvil guardara otra cosa;
-   - en curso y el móvil está en el mismo ejercicio → el estado del móvil, con su tiempo exacto;
-   - en curso y el móvil no tiene estado o va por otro ejercicio → el ejercicio del servidor, con su tiempo entero y el reloj en marcha.
+2. Si lo suyo ya está enviado, se comparan las dos copias:
+   - la página trae **la misma o una anterior** → manda el móvil, con su tiempo exacto. Una anterior es una página vieja (la caché del service worker con mala cobertura, o el botón «atrás»): fiarse de ella reabriría por el ejercicio 1 una sesión que va por el tercero.
+   - la página trae **una posterior** → algo cambió en el servidor después (otro dispositivo avanzó, alguien pulsó «Empezar de nuevo», se editó la sesión): manda el servidor.
+3. Sin nada guardado en el móvil, manda el servidor.
+
+Cuando manda el servidor: sin empezar, estado nuevo en el ejercicio 1; en curso, su ejercicio con el tiempo entero y el reloj en marcha, y lo que ya tenía registrado de los demás.
 
 El tiempo exacto de un ejercicio solo se retoma en el dispositivo que lo cronometró.
 
-No se envía nada al servidor antes de «Iniciar».
+No se envía nada al servidor antes de «Iniciar», ni al abrir un directo en curso sin tocar nada: solo lo que el móvil tuviera sin enviar. Un envío que el servidor rechaza no se da por guardado: la pantalla dice «No se pudo guardar» y el estado sigue marcado como sin enviar. Terminar registra también el ejercicio en curso (el último no tiene «siguiente» que lo haga).
 
 ### Empezar de nuevo y revisar
 

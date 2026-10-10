@@ -41,14 +41,22 @@ describe("localStorage disponible", () => {
 
   it("guardar y leer devuelve el mismo estado", () => {
     const s = state({ startedAt: 1_700_000_000_000 });
-    saveLiveState(s, false);
-    expect(loadLiveState(EVENT)).toEqual({ state: s, synced: false });
+    saveLiveState(s, { synced: false, serverUpdatedAt: null });
+    expect(loadLiveState(EVENT)).toEqual({ state: s, synced: false, serverUpdatedAt: null });
   });
 
-  it("recuerda si el estado ya se envió", () => {
+  it("recuerda si el estado ya se envió, y la copia de la sesión que devolvió ese envío", () => {
     const s = state({ startedAt: 1_700_000_000_000 });
-    saveLiveState(s, true);
-    expect(loadLiveState(EVENT)?.synced).toBe(true);
+    saveLiveState(s, { synced: true, serverUpdatedAt: "2026-11-17T17:20:00.250000+00:00" });
+    expect(loadLiveState(EVENT)).toMatchObject({ synced: true, serverUpdatedAt: "2026-11-17T17:20:00.250000+00:00" });
+  });
+
+  it("una copia que no es texto cuenta como desconocida", () => {
+    ls.setItem(
+      LIVE_STATE_KEY(EVENT),
+      JSON.stringify({ version: 2, synced: true, serverUpdatedAt: 12345, state: state() }),
+    );
+    expect(loadLiveState(EVENT)?.serverUpdatedAt).toBeNull();
   });
 
   it("loadLiveState devuelve null si no hay nada guardado", () => {
@@ -56,7 +64,7 @@ describe("localStorage disponible", () => {
   });
 
   it("la clave incluye el eventId", () => {
-    saveLiveState(state(), false);
+    saveLiveState(state(), { synced: false, serverUpdatedAt: null });
     expect(ls.getItem(LIVE_STATE_KEY(EVENT))).not.toBeNull();
   });
 
@@ -90,7 +98,7 @@ describe("localStorage disponible", () => {
   });
 
   it("clearLiveState borra lo guardado para ese evento", () => {
-    saveLiveState(state(), true);
+    saveLiveState(state(), { synced: true, serverUpdatedAt: "2026-11-17T17:20:00.250000+00:00" });
     clearLiveState(EVENT);
     expect(loadLiveState(EVENT)).toBeNull();
   });
@@ -107,7 +115,7 @@ describe("localStorage que lanza", () => {
   afterEach(() => vi.unstubAllGlobals());
 
   it("saveLiveState no lanza si localStorage falla", () => {
-    expect(() => saveLiveState(state(), false)).not.toThrow();
+    expect(() => saveLiveState(state(), { synced: false, serverUpdatedAt: null })).not.toThrow();
   });
 
   it("loadLiveState devuelve null si localStorage falla", () => {

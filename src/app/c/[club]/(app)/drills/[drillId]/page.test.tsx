@@ -357,7 +357,10 @@ describe("«Añadir a sesión»", () => {
     await renderPage();
 
     expect(mocks.listPractices).toHaveBeenCalledTimes(1);
-    expect(mocks.listPractices).toHaveBeenCalledWith(clubContext("coach"), "upcoming", "2026-10-04T10:00:00.000Z");
+    // Las de todos sus equipos, aunque haya uno elegido en la cabecera: aquí no hay selector.
+    expect(mocks.listPractices).toHaveBeenCalledWith(clubContext("coach"), "upcoming", "2026-10-04T10:00:00.000Z", {
+      allTeams: true,
+    });
   });
 
   it.each(["draft", "archived"] as const)(

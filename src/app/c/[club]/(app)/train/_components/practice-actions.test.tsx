@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   cancelPractice: vi.fn(),
   resetLiveProgress: vi.fn(),
   clearLiveState: vi.fn(),
+  cancelLiveSync: vi.fn(),
   push: vi.fn(),
   refresh: vi.fn(),
 }));
@@ -19,6 +20,7 @@ vi.mock("@/modules/practice/actions", () => ({
 vi.mock("@/modules/live/storage", () => ({
   clearLiveState: mocks.clearLiveState,
 }));
+vi.mock("@/modules/live/sync", () => ({ cancelLiveSync: mocks.cancelLiveSync }));
 // Solo el router es de pega: `useAction` usa el `unstable_rethrow` de verdad.
 vi.mock("next/navigation", async (importOriginal) => ({
   ...(await importOriginal<typeof import("next/navigation")>()),
@@ -457,6 +459,12 @@ describe("PracticeActions · continuar entrenamiento", () => {
     await waitFor(() => expect(mocks.refresh).toHaveBeenCalled());
     expect(mocks.resetLiveProgress).toHaveBeenCalledWith("club-a", { eventId: EVENT });
     expect(mocks.clearLiveState).toHaveBeenCalledWith(EVENT);
+    // Un envío del directo que siguiera reintentándose se cancela ANTES de reiniciar: si
+    // llegara después, dejaría la sesión otra vez empezada.
+    expect(mocks.cancelLiveSync).toHaveBeenCalledWith(EVENT);
+    expect(mocks.cancelLiveSync.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.resetLiveProgress.mock.invocationCallOrder[0] ?? 0,
+    );
     expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
   });
 

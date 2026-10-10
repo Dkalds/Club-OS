@@ -17,7 +17,7 @@ const ITEM_COLUMNS = `
 
 const EVENT_COLUMNS = `
   id, organization_id, status, starts_at, ends_at,
-  practice_plans ( id, title, live_started_at, live_position, practice_items ( ${ITEM_COLUMNS} ) )
+  practice_plans ( id, title, updated_at, live_started_at, live_position, practice_items ( ${ITEM_COLUMNS} ) )
 `;
 
 const MS_10_MIN = 10 * 60;
@@ -132,7 +132,7 @@ export async function getLiveSession(ctx: ClubContext, eventId: string): Promise
       title: plan.title,
       startsAt: event.starts_at,
       items,
-      live: { startedAt: plan.live_started_at, position: plan.live_position },
+      live: { startedAt: plan.live_started_at, position: plan.live_position, updatedAt: plan.updated_at },
     },
   };
 }

@@ -13,8 +13,11 @@ export type LiveItem = {
   actualMinutes: number | null;
 };
 
-/** Lo que el servidor sabe del directo: cuándo se inició y por qué ejercicio va (desde 0). */
-export type ServerLive = { startedAt: string | null; position: number | null };
+/**
+ * Lo que el servidor sabe del directo: cuándo se inició, por qué ejercicio va (desde 0) y la
+ * copia de la sesión de la que sale ese dato (`practice_plans.updated_at`, tal cual, en texto).
+ */
+export type ServerLive = { startedAt: string | null; position: number | null; updatedAt: string };
 
 export type LiveSession = {
   eventId: string;
@@ -42,8 +45,11 @@ export type LiveState = {
   finishedAt: number | null;
 };
 
-/** Lo que guarda el dispositivo: el estado y si lo último ya llegó al servidor. */
-export type StoredLive = { state: LiveState; synced: boolean };
+/**
+ * Lo que guarda el dispositivo: el estado, si lo último ya llegó al servidor y la copia de la
+ * sesión que devolvió el último envío que salió bien (`null` si aún ninguno).
+ */
+export type StoredLive = { state: LiveState; synced: boolean; serverUpdatedAt: string | null };
 
 export type LiveAction =
   | { type: "start" }

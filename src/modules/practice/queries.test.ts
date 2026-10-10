@@ -486,6 +486,17 @@ describe("listPractices", () => {
     expect(events?.in.team_id).toEqual([TEAM_B]);
   });
 
+  it("con `allTeams`, las de todos mis equipos aunque haya uno activo", async () => {
+    activeTeam.id = TEAM_B;
+    const calls = installDatabase(listStore());
+
+    const { teamCount } = await listPractices(ADMIN, "upcoming", NOW, { allTeams: true });
+
+    expect(teamCount).toBe(3);
+    const events = calls.find((entry) => entry.table === "events");
+    expect(events?.in.team_id).toHaveLength(3);
+  });
+
   it("un equipo activo que no es mío se ignora: las de todos mis equipos", async () => {
     activeTeam.id = TEAM_X;
     installDatabase(listStore());
