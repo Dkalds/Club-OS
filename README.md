@@ -197,6 +197,19 @@ Lista, en este orden:
   - Como la entrenadora de otro equipo (`nora@arcangel.test`) y como `marta@demo.test`: la URL de esa ficha da «No encontramos esta página».
   - Partidos (Agenda → «Añadir» → «Partido»): crear uno, cancelarlo, y corregir el resultado del jugado.
 
+### Despliegue de la pizarra visual
+
+Va encima de «Preparar sesión»: primero sus dos migraciones (abajo) y después esta, `20270202000100_drill_board`. Añade una columna a `drills`, `board` (la pizarra de un ejercicio como datos), con su `check`. No toca permisos, ni Storage, ni Auth, ni variables de entorno. Tiene que estar aplicada **antes de usar la preview del PR** y **antes de fusionar**: sin ella, la biblioteca, la ficha de un ejercicio, la de una sesión y el directo fallan (piden esa columna).
+
+- [ ] **Ver qué falta por aplicar**: `pnpm supabase migration list`.
+- [ ] **Entre aplicarla y desplegar**, la app antigua no nota nada: no pide la columna.
+- [ ] **Aplicar la migración** con `pnpm supabase db push`.
+- [ ] **Las pizarras de ejemplo son del seed.** La columna nace vacía: hasta que exista el editor de jugadas, un entorno solo tiene pizarras si se siembra (`pnpm seed`; contra el remoto, solo con `ALLOW_REMOTE_SEED=true` y mientras producción siga siendo una demo).
+- [ ] **Comprobar a mano**, en un móvil y con la app desplegada, como entrenador:
+  - En la biblioteca, «Pase y corte» enseña su miniatura. Su ficha, la pizarra con «Paso 1 de 4»: reproducir la recorre hasta «Final», y los pasos se pueden pasar a mano.
+  - Un ejercicio sin pizarra no enseña una pista vacía.
+  - En el directo, un ejercicio con pizarra la enseña, también sin conexión, y «Cómo se organiza» se despliega.
+
 ### Despliegue de «Preparar sesión» (propuesta y plantillas)
 
 Va encima del uso diario: primero su migración (abajo) y después esta, `20270119000100_practice_templates`. No crea tablas: añade un `check` a `practice_plans` (una plantilla no tiene evento), concede `insert (is_template)` y `delete` sobre ella, cambia la política de alta de un plan de equipo (rechaza el que venga marcado como plantilla), crea tres políticas y dos funciones (`save_practice_as_template` y `create_practice_from_template`). Tiene que estar aplicada **antes de usar la preview del PR** y **antes de fusionar**: sin ella, «Guardar como plantilla» y crear una sesión con una plantilla fallan. La propuesta de entrenamiento no depende de ella.

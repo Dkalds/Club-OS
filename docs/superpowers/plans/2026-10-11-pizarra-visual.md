@@ -32,37 +32,37 @@
 
 ### 2. La pizarra como dato
 
-- [ ] `src/modules/board/types.ts`: `Board`, `BoardToken`, `BoardMove`, `BoardStep`, `BoardPoint`, `BoardFrame = Record<tokenId, BoardPoint>`.
-- [ ] `src/modules/board/limits.ts`: `MAX_TOKENS = 24`, `MAX_STEPS = 12`, `MAX_MOVES = 12`, `NOTE_MAX = 140`, `LABEL_MAX = 2`, `BALL_REACH = 6` (a qué distancia el balón está «pegado» a quien bota).
-- [ ] `src/modules/board/schema.ts`: `parseBoard(value: unknown): Board | null` (Zod; ids únicos; movimientos de fichas que existen; `pass` solo de un balón y los demás solo de un jugador).
-- [ ] `src/modules/board/frames.ts`: `boardFrames(board): BoardFrame[]` (uno más que pasos) y `boardLabel(title, step, total)`.
+- [x] `src/modules/board/types.ts`: `Board`, `BoardToken`, `BoardMove`, `BoardStep`, `BoardPoint`, `BoardFrame = Record<tokenId, BoardPoint>`.
+- [x] `src/modules/board/limits.ts`: `MAX_TOKENS = 24`, `MAX_STEPS = 12`, `MAX_MOVES = 12`, `NOTE_MAX = 140`, `LABEL_MAX = 2`, `BALL_REACH = 6` (a qué distancia el balón está «pegado» a quien bota).
+- [x] `src/modules/board/schema.ts`: `parseBoard(value: unknown): Board | null` (Zod; ids únicos; movimientos de fichas que existen; `pass` solo de un balón y los demás solo de un jugador).
+- [x] `src/modules/board/frames.ts`: `boardFrames(board): BoardFrame[]` (uno más que pasos) y `boardLabel(title, step, total)`.
 
 ### 3. Dibujarla
 
-- [ ] `src/ui/board-drawing.tsx` (pura): la pista (`half` 4:3, `full` apaisada), las fichas y los movimientos, y el paso de unidades de pista a la caja.
-- [ ] `src/ui/board-thumb.tsx` (pura): `BoardThumb({ board, size })`, primer fotograma.
-- [ ] `src/ui/board.tsx` (cliente): `Board({ board, title })` con reproducir/pausar, paso anterior y siguiente, reiniciar, «Paso N de M» y la nota. Temporizadores limpios al desmontar; `prefers-reduced-motion`.
-- [ ] `design/components/Board/` (vista previa y reglas) y `design/README.md`.
+- [x] `src/ui/board-drawing.tsx` (pura): la pista (`half` 4:3, `full` apaisada), las fichas y los movimientos, y el paso de unidades de pista a la caja.
+- [x] `src/ui/board-thumb.tsx` (pura): `BoardThumb({ board, size })`, primer fotograma.
+- [x] `src/ui/board.tsx` (cliente): `Board({ board, title })` con reproducir/pausar, paso anterior y siguiente, reiniciar, «Paso N de M» y la nota. Temporizadores limpios al desmontar; `prefers-reduced-motion`.
+- [x] `design/components/Board/` (vista previa y reglas) y `design/README.md`.
 
 ### 4. Leerla
 
-- [ ] `DrillSummary.board: Board | null` (la tarjeta) y, con ella, `DrillDetail`; `SUMMARY_COLUMNS` y `DETAIL_COLUMNS` piden `board`.
-- [ ] `PracticeDetailItem.board: Board | null` (`DETAIL_COLUMNS` de sesiones pide `drills(board)`).
-- [ ] `LiveItem.board: Board | null` y `LiveItem.setup: string | null`.
+- [x] `DrillSummary.board: Board | null` (la tarjeta) y, con ella, `DrillDetail`; `SUMMARY_COLUMNS` y `DETAIL_COLUMNS` piden `board`.
+- [x] `PracticeDetailItem.board: Board | null` (`DETAIL_COLUMNS` de sesiones pide `drills(board)`).
+- [x] `LiveItem.board: Board | null` y `LiveItem.setup: string | null`.
 
 ### 5. Enseñarla
 
-- [ ] Ficha de un ejercicio: pizarra, o imagen, o nada.
-- [ ] `DrillCard`: miniatura de la pizarra si la hay.
-- [ ] Ficha de una sesión: miniatura en la fila (`PracticeItemView` acepta `thumb`).
-- [ ] Directo: pizarra, o imagen, o nada; «Cómo se organiza», plegado.
+- [x] Ficha de un ejercicio: pizarra, o imagen, o nada.
+- [x] `DrillCard`: miniatura de la pizarra si la hay.
+- [x] Ficha de una sesión: miniatura en la fila (`PracticeItemView` acepta `thumb`).
+- [x] Directo: pizarra, o imagen, o nada; «Cómo se organiza», plegado.
 
 ### 6. Seed
 
-- [ ] `scripts/seed/boards.ts`: nueve pizarras ficticias (ocho de Arcángel, una de Club Demo) y su validación con `parseBoard` en un test.
+- [x] `scripts/seed/boards.ts`: nueve pizarras ficticias (ocho de Arcángel, una de Club Demo) y su validación con `parseBoard` en un test.
 
 ### 7. Cierre
 
-- [ ] E2E (`boards.spec.ts`, en `mobile`: solo lee): ficha con pasos, ficha sin pizarra, miniaturas, directo con pizarra y sin conexión.
-- [ ] Contratos, backlog y README.
+- [x] E2E (`boards.spec.ts`, en `mobile`: solo lee): ficha con pasos, ficha sin pizarra, miniaturas, directo con pizarra y sin conexión.
+- [x] Contratos, backlog y README.
 - [ ] Suite entera desde base vacía, repaso visual a 375×812, revisión de la rama y una tanda de arreglos.

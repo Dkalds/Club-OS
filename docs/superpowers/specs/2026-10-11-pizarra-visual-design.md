@@ -55,16 +55,17 @@ Un componente, `Board`, que pinta la pizarra en SVG con el dibujo del producto:
 - Líneas de pista en `ink-3`. Media pista en la caja 4:3 de siempre; pista completa apaisada.
 - Atacantes: círculos en `ink` con su etiqueta. Defensores: X en `brand-accent` con su etiqueta. Balón: punto relleno en `ink`. Conos: triángulos en `ink-3`.
 - Movimientos en `brand-accent`, con punta de flecha: continuo el corte, ondulado el bote, discontinuo el pase y continuo acabado en una barra el bloqueo.
-- En cada paso se ven las fichas donde están al empezarlo y los movimientos de ese paso.
+- En cada paso se ven las fichas donde están al empezarlo y los movimientos de ese paso. Tras el último queda el final: cada ficha donde acaba, sin movimientos.
+- El balón que lleva un jugador se pinta pegado a él, abajo a la derecha, para no taparle el número.
 
 Con más de un fotograma lleva controles, de 44 px:
 
 - **Reproducir / Pausar.** Reproduce desde el paso en el que está: las fichas se desplazan a su sitio siguiente (unos 900 ms), hay una pausa corta y sigue. Al llegar al final se para; reproducir otra vez empieza desde el principio.
 - **Paso anterior** y **paso siguiente**, sin animación.
 - **Reiniciar.** Vuelve al primer paso y para.
-- «Paso 2 de 4» y, debajo, la nota del paso.
+- «Paso 2 de 4» (o «Final») y, debajo, la nota del paso.
 
-Con «reducir movimiento», reproducir avanza de paso en paso sin desplazamiento. La pizarra tiene nombre para quien no la ve («Pizarra de 3 calles, paso 2 de 4») y la nota del paso se anuncia al cambiar.
+Con «reducir movimiento», reproducir avanza de paso en paso sin desplazamiento. La pizarra tiene nombre para quien no la ve («Pizarra de 3 calles, paso 2 de 4»; al acabar, «…, final») y la nota del paso se anuncia al cambiar.
 
 `BoardThumb` es la misma pizarra en miniatura: el primer fotograma, sin etiquetas, controles ni movimientos.
 
