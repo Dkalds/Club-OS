@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-> **Estado: BORRADOR para revisión del propietario.** No se ejecuta hasta que el propietario confirme las decisiones de «Decisiones que este plan toma y hay que confirmar». Hasta entonces, la rama `claude/fase-7` solo lleva este fichero.
+> **Estado: APROBADO por el propietario el 10 oct 2026**, con [D1]–[D14] tal como están.
 
 **Goal:** Dirección da de alta personas y las invita por email; quien recibe la invitación abre el enlace, entra con un código y, antes de ver nada del club, acepta las condiciones de la plataforma (y, si es tutor, el consentimiento de imagen de su hijo o hija). Dirección gestiona club, equipos, personas (una por una o por CSV), invitaciones y la cola de ejercicios pendientes de revisión, y ve en Inicio y en una pantalla propia qué Standards y principios ha trabajado cada equipo. Se cierra la revisión de seguridad del MVP: matriz RLS completa, cabeceras, límite de intentos de login y accesibilidad.
 
