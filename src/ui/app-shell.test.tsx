@@ -11,7 +11,7 @@ const SLUG = "club-a";
 
 function renderShell() {
   return render(
-    <AppShell header={<header>Cabecera</header>} nav={navItems(SLUG, {})} clubSlug={SLUG}>
+    <AppShell header={<header>Cabecera</header>} nav={navItems(SLUG, "coach")} clubSlug={SLUG}>
       <h1>Contenido</h1>
     </AppShell>,
   );

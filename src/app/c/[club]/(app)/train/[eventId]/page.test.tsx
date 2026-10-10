@@ -136,10 +136,10 @@ describe("/train/[eventId], acceso y lectura", () => {
 });
 
 describe("/train/[eventId], cabecera", () => {
-  it("vuelve a Entrenar y el único <h1> es el título de la sesión", async () => {
+  it("vuelve a Sesiones y el único <h1> es el título de la sesión", async () => {
     await renderPage();
 
-    const back = screen.getByRole("link", { name: "Entrenar" });
+    const back = screen.getByRole("link", { name: "Sesiones" });
     expect(back).toHaveAttribute("href", "/c/club-a/train");
     expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
     const title = screen.getByRole("heading", { level: 1, name: "Salida de presión" });
@@ -371,14 +371,14 @@ describe("/train/[eventId], ejercicios", () => {
       expect(itemRows()).toHaveLength(0);
     });
 
-    it("una sesión cerrada dice «Sesión sin ejercicios», que no se añadieron, y ofrece volver a Entrenar", async () => {
+    it("una sesión cerrada dice «Sesión sin ejercicios», que no se añadieron, y ofrece volver a Sesiones", async () => {
       await renderPage({ items: [], canEdit: false, status: "done" });
 
       expect(screen.getByRole("heading", { level: 2, name: "Sesión sin ejercicios" })).toBeInTheDocument();
       expect(screen.getByText("No se añadieron ejercicios a esta sesión.")).toBeInTheDocument();
       expect(screen.queryByText("Añade ejercicios para prepararla.")).not.toBeInTheDocument();
       expect(screen.queryByText("Esta sesión aún no tiene ejercicios")).not.toBeInTheDocument();
-      expect(screen.getByRole("link", { name: "Volver a Entrenar" })).toHaveAttribute("href", "/c/club-a/train");
+      expect(screen.getByRole("link", { name: "Volver a Sesiones" })).toHaveAttribute("href", "/c/club-a/train");
       expect(screen.queryByRole("link", { name: "Editar sesión" })).not.toBeInTheDocument();
     });
 
@@ -389,7 +389,7 @@ describe("/train/[eventId], ejercicios", () => {
 
       expect(screen.getByRole("heading", { level: 2, name: "Sesión sin ejercicios" })).toBeInTheDocument();
       expect(screen.getByText("No se añadieron ejercicios a esta sesión.")).toBeInTheDocument();
-      expect(screen.getByRole("link", { name: "Volver a Entrenar" })).toBeInTheDocument();
+      expect(screen.getByRole("link", { name: "Volver a Sesiones" })).toBeInTheDocument();
       expect(screen.queryByRole("link", { name: "Editar sesión" })).not.toBeInTheDocument();
       expect(screen.queryByTestId("actions")).not.toBeInTheDocument();
     });

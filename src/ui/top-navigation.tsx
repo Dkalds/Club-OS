@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { AccountMenu } from "./account-menu";
+import { AccountMenu, type AccountLink } from "./account-menu";
 import { CTAButton } from "./cta-button";
 import { ChevronLeftIcon } from "./icons";
 import { TeamSwitcher, type TeamSwitcherTeam } from "./team-switcher";
@@ -14,7 +14,7 @@ const BAR =
 type HomeProps = {
   variant?: "home";
   brand: { displayName: string; wordmarkSub: string | null };
-  account?: { name: string; adminHref: string | null };
+  account?: { name: string; links: AccountLink[] };
   /** «Mis equipos» y el que se está viendo: con más de uno, el selector de equipo activo. */
   team?: { clubSlug: string; teams: TeamSwitcherTeam[]; activeId: string | null };
 };
@@ -53,8 +53,8 @@ export function TopNavigation(props: HomeProps | DetailProps) {
  * de cuenta cuando se le pasa `account`.
  *
  * El nombre y el subtítulo vienen de `organization_branding`, nunca del código. Mientras
- * el club no tenga logo, la marca es su nombre en `font-display`. `account.adminHref` es el
- * enlace a Gestión, o `null` si quien entra no administra (ver `AccountMenu`). Las medidas de
+ * el club no tenga logo, la marca es su nombre en `font-display`. `account.links` son los
+ * enlaces del menú de cuenta, que decide quien lo monta según el rol (ver `AccountMenu`). Las medidas de
  * la marca (24px, 11px y sus interletrados) son las de `design/components/bundle.css`: no hay
  * estilo de texto en los tokens para ellas.
  *
@@ -91,7 +91,7 @@ function HomeNavigation({ brand, account, team }: Omit<HomeProps, "variant">) {
         {team && team.teams.length > 1 ? (
           <TeamSwitcher clubSlug={team.clubSlug} teams={team.teams} activeId={team.activeId} />
         ) : null}
-        {account ? <AccountMenu name={account.name} adminHref={account.adminHref} /> : null}
+        {account ? <AccountMenu name={account.name} links={account.links} /> : null}
       </div>
     </header>
   );

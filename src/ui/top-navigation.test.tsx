@@ -45,7 +45,7 @@ describe("TopNavigation", () => {
     render(
       <TopNavigation
         brand={{ displayName: "Club B", wordmarkSub: null }}
-        account={{ name: "Ana Ruiz", adminHref: "/c/club-b/admin" }}
+        account={{ name: "Ana Ruiz", links: [{ label: "Gestión", href: "/c/club-b/admin" }] }}
       />,
     );
 
@@ -62,11 +62,11 @@ describe("TopNavigation", () => {
     expect(within(header).getByRole("button", { name: "Salir" })).toBeInTheDocument();
   });
 
-  it("con cuenta sin adminHref el menú solo ofrece Salir", () => {
+  it("con cuenta sin enlaces el menú solo ofrece Salir", () => {
     render(
       <TopNavigation
         brand={{ displayName: "Club B", wordmarkSub: null }}
-        account={{ name: "Ana Ruiz", adminHref: null }}
+        account={{ name: "Ana Ruiz", links: [] }}
       />,
     );
 
@@ -128,7 +128,7 @@ describe("TopNavigation · cabecera de inicio y su coexistencia con la de detall
       render(
         <TopNavigation
           brand={BRAND}
-          account={{ name: "Ana Ruiz", adminHref: null }}
+          account={{ name: "Ana Ruiz", links: [] }}
           team={{ clubSlug: "club-a", teams: [TEAM_A, TEAM_B], activeId: TEAM_B.id }}
         />,
       );

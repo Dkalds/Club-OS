@@ -22,7 +22,7 @@ describe("noTeamsState", () => {
     expect(noTeamsState("coach", "club-a", "new-session")).toEqual({
       title: "Aún no estás en ningún equipo",
       body: "Cuando dirección te asigne un equipo, podrás crear sus sesiones.",
-      action: { label: "Volver a Entrenar", href: "/c/club-a/train" },
+      action: { label: "Volver a Sesiones", href: "/c/club-a/train" },
     });
   });
 

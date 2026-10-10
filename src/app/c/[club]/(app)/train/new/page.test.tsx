@@ -82,12 +82,12 @@ describe("/train/new, acceso y lectura", () => {
 });
 
 describe("/train/new, pantalla", () => {
-  it("el único <h1> es «Nueva sesión», y va después de la vuelta a Entrenar", async () => {
+  it("el único <h1> es «Nueva sesión», y va después de la vuelta a Sesiones", async () => {
     render(await NewPracticePage(props()));
 
     expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
     const title = screen.getByRole("heading", { level: 1, name: "Nueva sesión" });
-    const back = screen.getByRole("link", { name: "Entrenar" });
+    const back = screen.getByRole("link", { name: "Sesiones" });
     expect(back).toHaveAttribute("href", "/c/club-a/train");
     expect(back.compareDocumentPosition(title)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
     expect(title.compareDocumentPosition(screen.getByTestId("form"))).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
@@ -144,20 +144,20 @@ describe("/train/new, sin equipos", () => {
     mocks.getPracticeFormOptions.mockResolvedValue({ teams: [], focusAreas: FOCUS_AREAS });
   });
 
-  it("dice que aún no está en ningún equipo y ofrece volver a Entrenar, sin formulario", async () => {
+  it("dice que aún no está en ningún equipo y ofrece volver a Sesiones, sin formulario", async () => {
     render(await NewPracticePage(props()));
 
     expect(screen.getByRole("heading", { level: 2, name: "Aún no estás en ningún equipo" })).toBeInTheDocument();
     expect(screen.getByText("Cuando dirección te asigne un equipo, podrás crear sus sesiones.")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Volver a Entrenar" })).toHaveAttribute("href", "/c/club-a/train");
+    expect(screen.getByRole("link", { name: "Volver a Sesiones" })).toHaveAttribute("href", "/c/club-a/train");
     expect(screen.queryByTestId("form")).not.toBeInTheDocument();
   });
 
-  it("sigue teniendo un solo <h1>, «Nueva sesión», con su vuelta a Entrenar", async () => {
+  it("sigue teniendo un solo <h1>, «Nueva sesión», con su vuelta a Sesiones", async () => {
     render(await NewPracticePage(props()));
 
     expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
     expect(screen.getByRole("heading", { level: 1, name: "Nueva sesión" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Entrenar" })).toHaveAttribute("href", "/c/club-a/train");
+    expect(screen.getByRole("link", { name: "Sesiones" })).toHaveAttribute("href", "/c/club-a/train");
   });
 });

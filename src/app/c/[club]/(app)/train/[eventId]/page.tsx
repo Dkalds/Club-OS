@@ -66,7 +66,7 @@ export default async function PracticePage({ params }: PageProps<"/c/[club]/trai
 
   return (
     <div className="flex flex-col gap-(--space-6) px-(--space-4) pt-(--space-2)">
-      <BackLink href={trainHref} label="Entrenar" />
+      <BackLink href={trainHref} label="Sesiones" />
 
       <PracticeSummary
         practice={{
@@ -152,7 +152,7 @@ export default async function PracticePage({ params }: PageProps<"/c/[club]/trai
           icon={<TrainIcon size={28} />}
           title="Sesión sin ejercicios"
           body="No se añadieron ejercicios a esta sesión."
-          action={{ label: "Volver a Entrenar", href: trainHref }}
+          action={{ label: "Volver a Sesiones", href: trainHref }}
         />
       )}
 

@@ -41,7 +41,7 @@ export function noTeamsState(
     body: `Cuando dirección te asigne un equipo, ${then}`,
     action:
       where === "new-session"
-        ? { label: "Volver a Entrenar", href: `/c/${clubSlug}/train` }
+        ? { label: "Volver a Sesiones", href: `/c/${clubSlug}/train` }
         : { label: "Volver a Inicio", href: `/c/${clubSlug}` },
   };
 }

@@ -1,15 +1,6 @@
 import { render, screen } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
-
-const params = vi.hoisted(() => ({ club: "club-a" }));
-
-vi.mock("next/navigation", () => ({ useParams: () => ({ club: params.club }) }));
-
+import { describe, expect, it } from "vitest";
 import DrillsLoading from "./loading";
-
-beforeEach(() => {
-  params.club = "club-a";
-});
 
 describe("carga de la biblioteca (src/app/c/[club]/(app)/drills/loading.tsx)", () => {
   it("pinta el esqueleto de seis filas, como contenedor ocupado", () => {
@@ -20,22 +11,11 @@ describe("carga de la biblioteca (src/app/c/[club]/(app)/drills/loading.tsx)", (
     expect(loading.querySelectorAll("li")).toHaveLength(6);
   });
 
-  it("pinta la misma cabecera de detalle que la página, para que no cambie al llegar", () => {
+  it("es el inicio de una sección, como la página: sin cabecera de detalle ni enlace de vuelta", () => {
     const { container } = render(<DrillsLoading />);
 
-    // Lo primero del contenido, igual que en la página: así el marco oculta la cabecera de marca.
-    const header = container.firstElementChild;
-    expect(header).toHaveAttribute("data-topnav", "detail");
-    expect(header).toHaveTextContent("Biblioteca");
-    expect(screen.getByRole("link", { name: "Volver" })).toHaveAttribute("href", "/c/club-a/train");
-  });
-
-  it("vuelve a Entrenar del club de la URL", () => {
-    params.club = "club-b";
-
-    render(<DrillsLoading />);
-
-    expect(screen.getByRole("link", { name: "Volver" })).toHaveAttribute("href", "/c/club-b/train");
+    expect(container.querySelector("[data-topnav]")).toBeNull();
+    expect(screen.queryByRole("link")).not.toBeInTheDocument();
   });
 
   it("no pone su propio <h1> ni <main>: la pantalla aún no es nada", () => {

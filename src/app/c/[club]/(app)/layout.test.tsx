@@ -51,11 +51,12 @@ describe("layout de la app móvil del club", () => {
     expect(screen.getByRole("banner")).toHaveTextContent("Club A");
     expect(within(screen.getByRole("main")).getByRole("heading", { name: "Contenido" })).toBeInTheDocument();
     const nav = screen.getByRole("navigation", { name: "Principal" });
+    // El nombre que el club da a su metodología no es una pestaña: la barra sale del rol.
     expect(within(nav).getAllByRole("link").map((link) => link.textContent)).toEqual([
       "Inicio",
-      "Nuestra forma",
-      "Entrenar",
-      "Partidos",
+      "Agenda",
+      "Sesiones",
+      "Biblioteca",
       "Equipo",
     ]);
   });
@@ -81,7 +82,7 @@ describe("layout de la app móvil del club", () => {
   });
 
   it.each(["coach", "player", "guardian"] as const)(
-    "un miembro con el rol %s solo ve Salir",
+    "un miembro con el rol %s no ve Gestión",
     async (role) => {
       mocks.getClubContext.mockResolvedValue(clubContext(role));
 
@@ -92,6 +93,52 @@ describe("layout de la app móvil del club", () => {
       expect(screen.getByRole("button", { name: "Salir" })).toBeInTheDocument();
     },
   );
+
+  it.each(["coach", "admin"] as const)(
+    "%s no tiene la identidad en la barra: la encuentra en el menú de cuenta",
+    async (role) => {
+      mocks.getClubContext.mockResolvedValue(clubContext(role));
+
+      render(await renderLayout());
+
+      const nav = screen.getByRole("navigation", { name: "Principal" });
+      expect(within(nav).queryByRole("link", { name: "Identidad" })).not.toBeInTheDocument();
+
+      openAccountMenu();
+      const banner = screen.getByRole("banner");
+      expect(within(banner).getByRole("link", { name: "Identidad" })).toHaveAttribute("href", "/c/club-a/way");
+    },
+  );
+
+  it.each(["player", "guardian"] as const)(
+    "%s ve dos pestañas, Inicio e Identidad, y el menú de cuenta solo ofrece Salir",
+    async (role) => {
+      mocks.getClubContext.mockResolvedValue(clubContext(role));
+      mocks.listMyTeams.mockResolvedValue([]);
+
+      render(await renderLayout());
+
+      const nav = screen.getByRole("navigation", { name: "Principal" });
+      expect(within(nav).getAllByRole("link").map((link) => [link.textContent, link.getAttribute("href")])).toEqual([
+        ["Inicio", "/c/club-a"],
+        ["Identidad", "/c/club-a/way"],
+      ]);
+
+      openAccountMenu();
+      expect(within(screen.getByRole("banner")).queryAllByRole("link")).toHaveLength(0);
+      expect(screen.getByRole("button", { name: "Salir" })).toBeInTheDocument();
+    },
+  );
+
+  it("dirección ve en el menú Identidad y después Gestión", async () => {
+    mocks.getClubContext.mockResolvedValue(clubContext("admin"));
+
+    render(await renderLayout());
+    openAccountMenu();
+
+    const links = within(screen.getByRole("banner")).getAllByRole("link");
+    expect(links.map((link) => link.textContent)).toEqual(["Identidad", "Gestión"]);
+  });
 
   it("sin club responde con el 404", async () => {
     mocks.getClubContext.mockResolvedValue(null);
