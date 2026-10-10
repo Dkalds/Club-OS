@@ -23,6 +23,44 @@ export type Database = {
   };
   public: {
     Tables: {
+      audit_log: {
+        Row: {
+          action: string;
+          actor_id: string;
+          created_at: string;
+          entity_id: string;
+          entity_table: string;
+          id: string;
+          organization_id: string;
+        };
+        Insert: {
+          action: string;
+          actor_id: string;
+          created_at?: string;
+          entity_id: string;
+          entity_table: string;
+          id?: string;
+          organization_id: string;
+        };
+        Update: {
+          action?: string;
+          actor_id?: string;
+          created_at?: string;
+          entity_id?: string;
+          entity_table?: string;
+          id?: string;
+          organization_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "audit_log_organization_id_fkey";
+            columns: ["organization_id"];
+            isOneToOne: false;
+            referencedRelation: "organizations";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       categories: {
         Row: {
           age_band: string;
@@ -1022,6 +1060,21 @@ export type Database = {
             referencedColumns: ["organization_id", "id"];
           },
         ];
+      };
+      platform_admins: {
+        Row: {
+          granted_at: string;
+          user_id: string;
+        };
+        Insert: {
+          granted_at?: string;
+          user_id: string;
+        };
+        Update: {
+          granted_at?: string;
+          user_id?: string;
+        };
+        Relationships: [];
       };
       player_goals: {
         Row: {

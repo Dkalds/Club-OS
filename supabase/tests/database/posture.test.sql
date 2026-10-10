@@ -161,7 +161,12 @@ select set_eq(
       -- Consentimientos (20270112000200): dar y revocar van por funciones, security
       -- definer; las tutelas las da de alta solo dirección, por columnas, abajo.
       ('consents', array['select']),
-      ('guardianships', array['select', 'insert', 'delete'])
+      ('guardianships', array['select', 'insert', 'delete']),
+      -- Auditoría y soporte de plataforma (20270112000400): el alta de `audit_log` va por
+      -- `record_audit`, security definer, sin grant a authenticated. `platform_admins` no
+      -- tiene ninguna política de insert ni update para authenticated ([D14]).
+      ('audit_log', array['select']),
+      ('platform_admins', array['select'])
     ) as t (tabla, privilegios)
     cross join unnest(t.privilegios) as p (privilegio)$$,
   'los privilegios de tabla de authenticated en public son exactamente los de la lista'
