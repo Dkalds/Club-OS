@@ -18,6 +18,24 @@ afterEach(() => {
 });
 
 describe("LoginPage", () => {
+  it("el título es el <h1> y la pizarra, que va delante, es decorativa", () => {
+    const { container } = render(<LoginPage />);
+
+    const title = screen.getByRole("heading", { level: 1, name: "Entra en tu club" });
+    const board = container.querySelector("svg");
+    expect(board).toHaveAttribute("aria-hidden", "true");
+    expect(board?.compareDocumentPosition(title)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(screen.queryByRole("img")).toBeNull();
+  });
+
+  it("la pizarra y el formulario comparten ámbito: la jugada sigue al paso del acceso", () => {
+    const { container } = render(<LoginPage />);
+
+    const scope = container.querySelector("[data-court-scope]");
+    expect(scope).toContainElement(container.querySelector("svg"));
+    expect(scope).toContainElement(screen.getByRole("button", { name: "Enviar código" }));
+  });
+
   it("sin variables de demo solo ofrece el acceso por código", () => {
     vi.stubEnv("DEMO_LOGIN_COACH_EMAIL", undefined);
     vi.stubEnv("DEMO_LOGIN_ADMIN_EMAIL", undefined);

@@ -113,7 +113,14 @@ function CodeStep({
   const describedBy = [info ? infoId : null, error ? errorId : null].filter(Boolean).join(" ");
 
   return (
-    <form action={verifyAction} noValidate className={formClass}>
+    // `data-court-stage`: la jugada de la pizarra (`CourtPlay`) sigue a este paso. Al llegar
+    // aquí sale el pase; mientras se comprueba el código, la canasta.
+    <form
+      action={verifyAction}
+      noValidate
+      data-court-stage={pending ? "score" : "pass"}
+      className={formClass}
+    >
       <div className={fieldClass}>
         {info ? (
           <p id={infoId} className="text-ink-2">

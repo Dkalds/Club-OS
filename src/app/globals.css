@@ -71,6 +71,71 @@
 }
 
 /*
+ * La pizarra (`CourtPlay`, design/components/CourtPlay): una jugada que se dibuja sola.
+ *
+ * Al cargar, una sola vez: `court-draw` traza una línea de principio a fin, `court-pop` hace
+ * aparecer una marca y `court-delay-N` las retrasa N ms. El trazo pide `pathLength="1"` en el
+ * elemento, para que el guion mida la línea entera. Se usan con `motion-safe:`: quien pide
+ * menos movimiento ve la jugada ya dibujada. Una línea sin trazar empieza un poco antes de su
+ * principio (1.05, con un hueco de 2): justo en el borde entre guion y hueco queda un punto.
+ *
+ * Después, la jugada sigue al paso en curso sin JavaScript: quien contiene la pizarra lleva
+ * `data-court-scope` y el paso, `data-court-stage`. Con cualquier fase (`pass`, `score`) se
+ * traza el pase (`court-on-pass`, en su máscara); con `score` se enciende el aro
+ * (`court-on-score`). Donde el navegador no tiene `:has()`, la jugada se queda como al cargar.
+ */
+@utility court-draw {
+  stroke-dasharray: 1 2;
+  animation: court-draw 800ms cubic-bezier(0.65, 0, 0.35, 1) both;
+}
+
+@utility court-pop {
+  animation: court-pop 240ms ease-out both;
+}
+
+@utility court-delay-* {
+  animation-delay: calc(--value(integer) * 1ms);
+}
+
+@utility court-on-pass {
+  stroke-dasharray: 1 2;
+  stroke-dashoffset: 1.05;
+
+  @media (prefers-reduced-motion: no-preference) {
+    transition: stroke-dashoffset 500ms cubic-bezier(0.65, 0, 0.35, 1);
+  }
+
+  [data-court-scope]:has([data-court-stage]) & {
+    stroke-dashoffset: 0;
+  }
+}
+
+@utility court-on-score {
+  @media (prefers-reduced-motion: no-preference) {
+    transition:
+      stroke 200ms ease-out,
+      stroke-width 200ms ease-out;
+  }
+
+  [data-court-scope]:has([data-court-stage="score"]) & {
+    stroke: var(--ink);
+    stroke-width: 2;
+  }
+}
+
+@keyframes court-draw {
+  from {
+    stroke-dashoffset: 1.05;
+  }
+}
+
+@keyframes court-pop {
+  from {
+    opacity: 0;
+  }
+}
+
+/*
  * Destino de un ancla (`#standard-03`, `#principle-defensa`): al saltar a él, la cabecera
  * fija (`TopNavigation`) no lo tapa. Deja libre la altura de la cabecera (`header-height`),
  * el área segura del dispositivo y un margen de `space-4`.
