@@ -32,21 +32,21 @@
 
 ### 2. El reductor
 
-- [ ] `src/modules/board/editor.ts` (+ test): `EditorState = { board; view; selected; history: { past; future } }`, `initialEditor(board | null)`, `editorReducer(state, action)`, `toSavable(board): Board | null`. Acciones: `add-token`, `move-token`, `remove-token`, `set-move`, `clear-move`, `add-step`, `duplicate-step`, `remove-step`, `set-note`, `set-court`, `select`, `view`, `undo`, `redo`.
-- [ ] `src/modules/board/limits.ts`: `HISTORY_MAX = 50`, `MAX_LABEL_NUMBER = 9`.
+- [x] `src/modules/board/editor.ts` (+ test): `EditorState = { board; view; selected; history: { past; future } }`, `initialEditor(board | null)`, `editorReducer(state, action)`, `toSavable(board): Board | null`. Acciones: `add-token`, `move-token`, `remove-token`, `set-move`, `clear-move`, `add-step`, `duplicate-step`, `remove-step`, `set-note`, `set-court`, `select`, `view`, `undo`, `redo`.
+- [x] `src/modules/board/limits.ts`: `HISTORY_MAX = 50`, `MAX_LABEL_NUMBER = 9`.
 
 ### 3. Guardar
 
-- [ ] `saveDrillBoard(clubSlug, { drillId, expectedUpdatedAt, board }) → { updatedAt }` en `src/modules/drills/actions.ts` y su esquema; `removeDrillBoard` es la misma acción con `board: null`.
+- [x] `saveDrillBoard(clubSlug, { drillId, expectedUpdatedAt, board }) → { updatedAt }` en `src/modules/drills/actions.ts` y su esquema; `removeDrillBoard` es la misma acción con `board: null`.
 
 ### 4. La pantalla
 
-- [ ] `src/ui/board-drawing.tsx`: `fromBox(court, point)`, el inverso de `toBox`, acotado a la pista.
-- [ ] `src/app/c/[club]/(app)/drills/[drillId]/board/{page,loading,error}.tsx` y `_components/board-editor.tsx`.
-- [ ] Entradas: «Dibujar pizarra» / «Editar pizarra» en la ficha; enlace en el campo «Diagrama» del formulario.
+- [x] `src/ui/board-drawing.tsx`: `fromBox(court, point)`, el inverso de `toBox`, acotado a la pista.
+- [x] `src/app/c/[club]/(app)/drills/[drillId]/board/{page,loading,error}.tsx` y `_components/board-editor.tsx`.
+- [x] Entradas: «Dibujar pizarra» / «Editar pizarra» en la ficha; enlace en el campo «Diagrama» del formulario.
 
 ### 5. Cierre
 
-- [ ] E2E (`board-editor.spec.ts`, en `admin`).
-- [ ] Contratos, backlog, README y `design/components/Board`.
+- [x] E2E (`board-editor.spec.ts`, en `admin`).
+- [x] Contratos, backlog, README y `design/components/Board`.
 - [ ] Suite entera desde base vacía, repaso visual a 375×812, revisión de la rama y una tanda de arreglos.

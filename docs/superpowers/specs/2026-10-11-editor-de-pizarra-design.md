@@ -30,10 +30,10 @@ La pantalla es la pista (la del visor, con el mismo dibujo) y, debajo, lo que se
 
 - **Los pasos.** Una fila con «Inicio», «Paso 1», «Paso 2»… e «+ Paso». «Inicio» es dónde empieza cada ficha. Un paso enseña las fichas donde están al empezarlo y los movimientos de ese paso.
 - **Colocar fichas** (solo en «Inicio»). Cuatro botones: «Atacante», «Defensor», «Balón» y «Cono». La ficha nueva aparece en un sitio libre y se arrastra a su sitio. Los atacantes y los defensores se numeran solos (el menor número libre, del 1 al 9).
-- **Mover una ficha** (solo en «Inicio»). Se arrastra con el dedo. Con teclado: se elige la ficha y se mueve con las flechas.
+- **Mover una ficha** (solo en «Inicio»). Se arrastra con el dedo. Sin arrastrar: se elige la ficha y se mueve con cuatro botones de flecha.
 - **Tocar una ficha** la elige y enseña lo que puede hacer:
-  - Un jugador, en un paso: «Cortar», «Botar» y «Bloquear». El balón: «Pasar».
-  - Elegida la acción, se toca la pista donde acaba: ahí queda dibujado el movimiento. Con teclado, un destino que se mueve con las flechas y «Confirmar».
+  - Un jugador, en un paso: «Cortar», «Botar» y «Bloquear». El balón: «Pasar». A quien lleva el balón también se le ofrece «Pasar» (el movimiento es del balón), y tocar a un jugador como destino del pase le deja el balón a él.
+  - Elegida la acción, se toca la pista donde acaba: ahí queda dibujado el movimiento. Sin tocar la pista, el destino se mueve con los botones de flecha y «Confirmar».
   - Si la ficha ya se mueve en ese paso: «Quitar movimiento». Elegir otra acción lo sustituye.
   - En «Inicio»: «Quitar ficha» (y con ella sus movimientos).
 - **Pasos.** «+ Paso» añade uno detrás del que se ve; «Duplicar paso» lo copia detrás; «Quitar paso» lo quita. Cada paso tiene su nota (140 caracteres). Un paso sin movimientos no se guarda: al guardar se descartan los vacíos.

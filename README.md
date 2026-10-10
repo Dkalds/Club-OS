@@ -197,6 +197,18 @@ Lista, en este orden:
   - Como la entrenadora de otro equipo (`nora@arcangel.test`) y como `marta@demo.test`: la URL de esa ficha da «No encontramos esta página».
   - Partidos (Agenda → «Añadir» → «Partido»): crear uno, cancelarlo, y corregir el resultado del jugado.
 
+### Despliegue del editor de pizarra
+
+Va encima de la pizarra visual: primero su migración (abajo) y después esta, `20270216000100_save_drill_board`. Concede `update (board)` sobre `drills` a `authenticated` y crea `save_drill_board`. No añade columnas, ni toca Storage, Auth o variables de entorno. Tiene que estar aplicada **antes de usar la preview del PR** y **antes de fusionar**: sin ella, guardar una pizarra falla (el resto de la app no la necesita).
+
+- [ ] **Ver qué falta por aplicar**: `pnpm supabase migration list`.
+- [ ] **Entre aplicarla y desplegar**, la app antigua no nota nada.
+- [ ] **Aplicar la migración** con `pnpm supabase db push`.
+- [ ] **Comprobar a mano**, en un móvil y con la app desplegada:
+  - Como entrenador, en un borrador propio: «Dibujar pizarra» abre el editor. Añadir dos atacantes y un balón, arrastrarlos, añadir un paso, tocar a quien lleva el balón, «Pasar» y tocar al otro; «Vista previa» la reproduce; «Guardar pizarra» vuelve a la ficha con ella.
+  - En un ejercicio publicado, el entrenador no ve «Editar pizarra»; la dirección sí.
+  - «Quitar pizarra» la borra tras confirmar.
+
 ### Despliegue de la pizarra visual
 
 Va encima de «Preparar sesión»: primero sus dos migraciones (abajo) y después esta, `20270202000100_drill_board`. Añade una columna a `drills`, `board` (la pizarra de un ejercicio como datos), con su `check`. No toca permisos, ni Storage, ni Auth, ni variables de entorno. Tiene que estar aplicada **antes de usar la preview del PR** y **antes de fusionar**: sin ella, la biblioteca, la ficha de un ejercicio, la de una sesión y el directo fallan (piden esa columna).
