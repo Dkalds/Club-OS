@@ -38,9 +38,11 @@ export type MutateConfig = {
   tag: string;
   /**
    * El permiso que exige la acción. Sin él, `NOT_FOUND` sin tocar la base de datos: RLS
-   * decide de verdad quién escribe, `can` solo evita llegar hasta ella.
+   * decide de verdad quién escribe, `can` solo evita llegar hasta ella. Ausente para una
+   * acción de cualquier miembro del club, sin distinguir rol (aceptar los términos, dar o
+   * revocar un consentimiento): ahí decide solo RLS o la función `security definer`.
    */
-  permission: Action;
+  permission?: Action;
   /**
    * Las rutas que se revalidan tras escribir. Son patrones de ruta, no URLs: las carpetas de
    * `src/app/c/[club]/` tal cual, con el segmento dinámico `[club]` y el grupo `(app)`. Así lo
@@ -99,7 +101,7 @@ export async function mutate<D, T>(
 
   // Fuera de todo try/catch: `notFound()` funciona lanzando, y un catch se tragaría el 404.
   const ctx = await requireClub(clubSlug);
-  if (!can(ctx, permission)) return fail("NOT_FOUND");
+  if (permission !== undefined && !can(ctx, permission)) return fail("NOT_FOUND");
 
   const fromDb = (error: DbError, unique?: UniqueField): ActionResult<never> => {
     const result = fromDbError(error, unique);
