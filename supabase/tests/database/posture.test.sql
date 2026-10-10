@@ -120,7 +120,8 @@ select set_eq(
       ('organization_branding', array['select']),
       ('profiles', array['select']),
       ('memberships', array['select']),
-      ('people', array['select']),
+      -- El cambio y el archivado van por columnas, abajo (20270112000700, Fase 7 Task 11).
+      ('people', array['select', 'insert']),
       -- Temporadas, categorías y equipos (20270112000500): el alta y el cambio son de
       -- dirección; no se borran.
       ('seasons', array['select', 'insert', 'update']),
@@ -251,7 +252,9 @@ select set_eq(
       ('organization_branding', 'update',
         array['display_name', 'wordmark_sub', 'short_name', 'way_name', 'tagline',
               'color_accent', 'color_accent_pressed', 'color_on_accent', 'color_accent_soft',
-              'terminology', 'terms_text', 'image_consent_text'])
+              'terminology', 'terms_text', 'image_consent_text']),
+      -- Personas (20270112000700, Fase 7 Task 11): editar y archivar, nunca el club ni el id.
+      ('people', 'update', array['first_name', 'last_name', 'birth_year', 'archived_at'])
     ) as t (tabla, privilegio, columnas)
     cross join unnest(t.columnas) as c (columna)$$,
   'los privilegios de columna de authenticated en public son exactamente los de la lista'
