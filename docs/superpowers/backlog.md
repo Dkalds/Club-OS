@@ -198,6 +198,41 @@ Lo que la Fase 3 dejó para el principio de la Fase 4 y la Fase 4 no recogió: r
 - **Las pizarras del manual traen su fondo claro y su título dentro de la imagen.** En la ficha, de tema oscuro, se ven con una banda clara arriba y abajo. Se quita regenerándolas sin fondo o recortándolas al campo.
 - **Edad, rango de jugadores y material de los 44** son una propuesta que el propietario aprobó con la especificación: los 4x4 quedan desde U16 y el único 5x5 desde U18. Se corrigen en `pack.json` y se vuelven a cargar con `--update`, o directamente en la app.
 
+## Estructura del club (pieza 5 de la evolución)
+
+Especificación `docs/superpowers/specs/2026-10-11-estructura-del-club-design.md`, plan `docs/superpowers/plans/2026-10-11-estructura-del-club.md`. Va encima de la pieza 4. Alcance decidido con el propietario el 11 oct 2026: temporada, equipos y personas.
+
+Lo que esta pieza resuelve de lo que había pendiente:
+
+- **La estructura de un club solo existía si alguien la sembraba.** La dirección crea y mantiene temporadas, categorías, equipos, cuerpos técnicos, plantillas y personas desde Gestión.
+- **«Duplicar estructura a la nueva temporada»** (especificación, tabla de decisiones): una temporada nueva puede nacer con los equipos de otra.
+- **El aviso «Aún no hay equipos esta temporada»** de la dirección lleva ya a donde se crean.
+
+Lo que queda:
+
+- **Migración al remoto.** `20270302000100_club_structure` solo está aplicada en local. Va después de la de la pieza 4 y antes de fusionar (README, «Despliegue de la estructura del club»).
+- **Invitaciones (5b).** Dar de alta a una persona no le da acceso: su cuenta sigue naciendo con el seed o a mano. Invitar por email, dar y quitar acceso y cambiar roles necesitan una función de servidor fuera de `src/` (la clave de servicio no entra ahí). La ficha de una persona solo dice si tiene acceso y con qué rol.
+- **Familias (5b)**: vincular a un jugador con sus tutores. Y los roles de coordinación y tesorería.
+- **Importar personas y equipos desde un fichero** (pieza 10). Hoy una plantilla de quince se da de alta de una en una.
+- **Pasar jugadores de una temporada a la siguiente en bloque.** Copiar equipos copia nombre y categoría, no plantillas ni cuerpos técnicos.
+- **La lista de personas viaja entera con la página** (hasta 1000) y se filtra en el navegador. Un club mayor necesitará paginar y buscar en el servidor.
+- **Sin copia esperada.** Dos personas de la dirección editando lo mismo: gana la última que guarda, sin aviso. Las filas son pequeñas y de pocos campos; si molesta, `updated_at` y `STALE_COPY` como en la metodología.
+- **Un equipo con actividad no se borra ni se archiva**: se queda en su temporada. Un equipo creado por error y con una sesión ya dentro obliga a borrar antes la sesión, y las sesiones no se borran.
+- **Archivar a una persona no toca sus equipos de temporadas pasadas**, ni su cuenta: quien tiene acceso lo conserva hasta que existan las invitaciones. Si una temporada ya acabada vuelve a marcarse como actual, quien se archivó estando en uno de sus equipos sale en esa plantilla.
+- **`pnpm seed` sobre un club cuya estructura cambió la dirección** no falla, pero tampoco borra: la temporada del seed vuelve a ser la actual, y lo creado a mano que choca con el seed conserva todo salvo el nombre (gana una marca con su id) o el dorsal (se queda vacío). Dos equipos del seed con los nombres cruzados, o dos dorsales, vuelven cada uno al suyo. Los e2e de Gestión limpian lo suyo (lo que lleva «E2E»); `restoreSeed` sigue sin conocer estas tablas.
+- **La demo pública y Gestión.** Producción es una demo con acceso público: si quien entra dirige el club de ejemplo, puede cambiar su estructura (renombrar equipos, archivar personas, marcar otra temporada como actual). Se recupera sembrando. A decidir antes de fusionar: dejarlo así, o que el acceso de demo no entre como dirección.
+- **Una persona puede estar a la vez en el cuerpo técnico y en la plantilla de un equipo**, y en varios equipos: la base no lo impide y Gestión tampoco.
+- **Posición es texto libre.** Sin lista cerrada por club.
+- **Pistas, instalaciones y horarios recurrentes**: pieza 6. **Marca y terminología** («Configuración»): sin pieza asignada.
+
+Decisiones tomadas sin preguntarlas una a una (están también en la especificación):
+
+- La plantilla y el cuerpo técnico los monta solo la dirección; quien entrena los lee.
+- No se archiva a quien sigue en un equipo de la temporada actual o de una que no ha acabado, y a quien está archivado no se le añade a ningún equipo.
+- La raíz de Gestión lleva a Temporada, no a la metodología.
+- Cuál es la temporada actual no se cambia por la API directa: solo con «Marcar como actual».
+- El copy nuevo no lo ha validado producto.
+
 ## Editor de pizarra (pieza 4 de la evolución)
 
 Especificación `docs/superpowers/specs/2026-10-11-editor-de-pizarra-design.md`, plan `docs/superpowers/plans/2026-10-11-editor-de-pizarra.md`. Va encima de la pieza 3.

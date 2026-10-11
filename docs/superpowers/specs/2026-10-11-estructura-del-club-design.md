@@ -61,7 +61,7 @@ Quien se añade se elige en un buscador sobre las personas sin archivar del club
 - **La lista.** Apellidos y nombre, año de nacimiento si lo tiene y en qué equipos de la temporada actual está. Un buscador filtra por nombre (sin distinguir tildes ni mayúsculas) y un conmutador enseña las archivadas.
 - **Nueva persona.** Nombre, apellidos y año de nacimiento (opcional; entre 1900 y el año en curso). Nunca la fecha completa.
 - **Una persona.** Editar sus datos; ver sus equipos (de cualquier temporada, la actual primero) y si tiene acceso a la app y con qué rol; archivarla o recuperarla.
-- **Archivar** es decir que ya no está en el club: sale de la lista y de los buscadores, y no se borra nada. No se archiva a quien sigue en un equipo de la temporada actual: antes se la quita de él.
+- **Archivar** es decir que ya no está en el club: sale de la lista y de los buscadores, y no se borra nada. No se archiva a quien sigue en un equipo de la temporada actual o de una que no ha acabado: antes se la quita de ese equipo. Y a quien está archivado no se le añade a ningún equipo.
 
 Quién tiene cuenta y con qué rol se lee, no se cambia: las invitaciones son la entrega siguiente.
 
@@ -69,9 +69,9 @@ Quién tiene cuenta y con qué rol se lee, no se cambia: las invitaciones son la
 
 Una migración, `20270302000100_club_structure.sql`. Las tablas ya existen (`people`, `seasons`, `categories`, `teams`, `team_staff`, `team_players`), con RLS, `organization_id` y claves compuestas; hasta ahora solo se leían.
 
-- **Escritura para la dirección.** En cada una de las seis tablas, políticas de alta, cambio y borrado con `private.has_org_role(organization_id, array['admin'])`, y los `grant` por columnas de lo que la app escribe (C17, C27). `people` no se borra: se archiva (`archived_at`).
-- **Lo que la base garantiza.** `seasons`: el fin después del inicio. Nombres sin repetir, sin distinguir mayúsculas: temporadas y categorías por club, equipos por temporada. Nombres y apellidos de 1 a 60 caracteres; posición, hasta 30.
-- **Funciones** (`security invoker`), para lo que toca varias filas a la vez:
+- **Escritura para la dirección.** En cada una de las seis tablas, políticas de alta, cambio y borrado con `private.has_org_role(organization_id, array['admin'])`, y los `grant` por columnas de lo que la app escribe (C17, C27). `people` no se borra: se archiva (`archived_at`). `seasons.is_current` no se concede: cuál es la temporada actual solo lo deciden `create_season` y `set_current_season`, para que un club no se quede sin ella por la API directa.
+- **Lo que la base garantiza.** `seasons`: el fin después del inicio. Nombres sin repetir, sin distinguir mayúsculas: temporadas y categorías por club, equipos por temporada. Nombres y apellidos con algo escrito y de 60 caracteres como mucho; posición, hasta 30. La temporada actual no se borra. Un sitio en una plantilla o en un cuerpo técnico solo lo ocupa una persona sin archivar, del club del equipo (`private.seat_is_valid`, en las políticas de alta); y archivar a quien sigue en un equipo de una temporada actual o sin acabar lo impide un trigger (`people_guard_archive`).
+- **Funciones**, para lo que toca varias filas a la vez. Las dos de la temporada actual son `security definer` (escriben una columna que nadie tiene concedida) y comprueban ellas que quien llama dirige el club; las otras dos, `security invoker`:
   - `create_season(p_org, p_name, p_starts_on, p_ends_on, p_copy_teams_from default null) returns uuid`: la temporada, actual si el club no tenía ninguna, y la copia de equipos si se pide (`NOT_FOUND` si esa temporada no es del club).
   - `set_current_season(p_season) returns void`: quita la marca a la anterior y se la pone a esta, en una transacción. `NOT_FOUND` si no es de un club que el usuario dirige.
   - `delete_team(p_team) returns void`: quita cuerpo técnico, plantilla y equipo; `IN_USE` si algo lo referencia. `NOT_FOUND` como arriba.
@@ -108,7 +108,7 @@ Lo que leen quien entrena y los jugadores no cambia: «mis equipos» sigue siend
 
 - Copiar equipos a una temporada nueva copia nombre y categoría, no cuerpos técnicos ni plantillas.
 - La plantilla y el cuerpo técnico los monta solo la dirección; quien entrena los lee.
-- No se archiva a quien sigue en un equipo de la temporada actual.
+- No se archiva a quien sigue en un equipo de la temporada actual o de una que no ha acabado.
 - Un equipo con actividad no se borra; tampoco se archiva: se queda en su temporada.
 - La raíz de Gestión lleva a Temporada, no a la metodología.
 - El copy nuevo no lo ha validado producto.

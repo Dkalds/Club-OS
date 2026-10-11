@@ -61,9 +61,9 @@ Restricciones: `seasons_dates_check (ends_on > starts_on)`; índices únicos `se
 
 `grant` a `authenticated`: `people` insert `(organization_id, first_name, last_name, birth_year)`, update `(first_name, last_name, birth_year, archived_at)`; `seasons` insert `(organization_id, name, starts_on, ends_on, is_current)`, update `(name, starts_on, ends_on, is_current)`, delete; `categories` insert `(organization_id, name, age_band, sort)`, update `(name, age_band, sort)`, delete; `teams` insert `(organization_id, season_id, category_id, name)`, update `(name, category_id)`, delete; `team_staff` insert (las cuatro), update `(staff_role)`, delete; `team_players` insert (las cinco), update `(jersey_number, position)`, delete.
 
-- [ ] pgTAP que falla (`club_structure.test.sql`): escritura por tabla y rol, restricciones, funciones, orden de errores, club ajeno.
-- [ ] Migración; `pnpm test:db` en verde; `posture.test.sql`; `pnpm db:types`; `supabase db lint`.
-- [ ] Commit.
+- [x] pgTAP que falla (`club_structure.test.sql`): escritura por tabla y rol, restricciones, funciones, orden de errores, club ajeno.
+- [x] Migración; `pnpm test:db` en verde; `posture.test.sql`; `pnpm db:types`; `supabase db lint`.
+- [x] Commit.
 
 ### 2. Módulo `structure`
 
@@ -73,22 +73,22 @@ Restricciones: `seasons_dates_check (ends_on > starts_on)`; índices únicos `se
 
 Lecturas: `listSeasons(ctx)`, `getSeason(ctx, id | null)` (con sus equipos y el número de jugadores), `listCategories(ctx)` (con `inUse`), `getAdminTeam(ctx, id)`, `listPeople(ctx)` (todas, con archivadas y sus equipos de la temporada actual), `getPerson(ctx, id)`.
 
-- [ ] Tests de esquemas y de `format`; código.
-- [ ] Tests de acciones (permiso, club, validación, `23505` por campo, `23503` como `IN_USE`, `NOT_FOUND`); código.
-- [ ] Lecturas con sus tests.
-- [ ] Commit.
+- [x] Tests de esquemas y de `format`; código.
+- [x] Tests de acciones (permiso, club, validación, `23505` por campo, `23503` como `IN_USE`, `NOT_FOUND`); código.
+- [x] Lecturas con sus tests.
+- [x] Commit.
 
 ### 3. Pantallas
 
-- [ ] Navegación de Gestión y redirección de la raíz; `noTeamsState` lleva a Temporada.
-- [ ] Temporada (`season`, `season/[seasonId]`, `season/categories`).
-- [ ] Equipo (`teams/[teamId]`), con `PersonPicker`.
-- [ ] Personas (`people`, `people/[personId]`).
-- [ ] Tests de páginas y componentes.
-- [ ] Commit.
+- [x] Navegación de Gestión y redirección de la raíz; `noTeamsState` lleva a Temporada.
+- [x] Temporada (`season`, `season/[seasonId]`, `season/categories`).
+- [x] Equipo (`teams/[teamId]`), con `PersonPicker`.
+- [x] Personas (`people`, `people/[personId]`).
+- [x] Tests de páginas y componentes.
+- [x] Commit.
 
 ### 4. E2E y cierre
 
-- [ ] `e2e/club-structure.spec.ts` en `ADMIN_SPECS`.
-- [ ] Contratos, backlog y README («Despliegue de la estructura del club»).
-- [ ] Suite entera desde base vacía, repaso visual a 375×812, revisión de la rama y una tanda de arreglos.
+- [x] `e2e/club-structure.spec.ts` en `ADMIN_SPECS`.
+- [x] Contratos, backlog y README («Despliegue de la estructura del club»).
+- [x] Suite entera desde base vacía, repaso visual a 375×812, revisión de la rama y una tanda de arreglos.
