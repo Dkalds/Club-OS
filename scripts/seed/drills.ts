@@ -2,10 +2,12 @@
 // `DEMO_DRILLS`) y los constructores PUROS que lo convierten en filas. Sin base de datos ni
 // red: `data.ts` los llama dentro de `buildSeedData` y `run.ts` solo escribe lo que sale.
 //
-// Todo es ficticio y genérico. Los ejercicios no llevan diagrama: `diagram_media_id` se
-// queda a null, porque un diagrama tiene que estar en la carpeta de Storage de su ejercicio.
+// Todo es ficticio y genérico. Los ejercicios no llevan diagrama como imagen: `diagram_media_id`
+// se queda a null, porque esa imagen tiene que estar en la carpeta de Storage de su ejercicio.
+// Algunos llevan pizarra (`boards.ts`), que es un dato del propio ejercicio.
 
 import type { TablesInsert } from "@/lib/database.types";
+import { seedBoard } from "./boards";
 import type { FocusSlug, WithId } from "./data";
 import { seedId, slugify } from "./ids";
 
@@ -650,6 +652,8 @@ export function buildDrillRows(drills: SeedDrill[], refs: DrillRefs): DrillRows 
       max_age: drill.age[1],
       equipment: drill.equipment,
       diagram_media_id: null,
+      // La pizarra de ejemplo, si este ejercicio tiene una (`boards.ts`); si no, sin pizarra.
+      board: seedBoard(orgSlug, drill.title),
       video_url: null,
       status: drill.status,
       author_email: drill.author,

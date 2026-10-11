@@ -7,6 +7,7 @@ import { getDrill } from "@/modules/drills/queries";
 import { listPractices } from "@/modules/practice/queries";
 import { standardsLabel } from "@/modules/tenancy/navigation";
 import { CoachingPointsList } from "@/ui/coaching-points-list";
+import { Board } from "@/ui/board";
 import { CourtDiagram } from "@/ui/court";
 import { MarkdownBody } from "@/ui/markdown-body";
 import { TopNavigation } from "@/ui/top-navigation";
@@ -89,7 +90,15 @@ export default async function DrillPage({ params }: PageProps<"/c/[club]/drills/
           <MetaPills header={drillHeader(drill)} />
         </div>
 
-        <CourtDiagram src={drill.diagramUrl} alt={`Diagrama de ${drill.title}`} />
+        {/*
+          La pizarra, si la tiene; si no, la imagen subida; y sin ninguna de las dos, nada: una
+          pista vacía no es una pizarra.
+        */}
+        {drill.board ? (
+          <Board board={drill.board} title={drill.title} />
+        ) : drill.diagramUrl ? (
+          <CourtDiagram src={drill.diagramUrl} alt={`Diagrama de ${drill.title}`} />
+        ) : null}
 
         {objective ? (
           <Section title="Objetivo">

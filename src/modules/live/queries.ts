@@ -1,6 +1,8 @@
 import { throwReadError } from "@/lib/read-error";
 import { createClient } from "@/lib/supabase/server";
+import type { Json } from "@/lib/database.types";
 import { UUID_RE } from "@/lib/uuid";
+import { parseBoard } from "@/modules/board/schema";
 import { signedUrl } from "@/modules/media/storage";
 import type { ClubContext } from "@/modules/tenancy/queries";
 import type { LiveItem, LiveSession } from "./types";
@@ -8,7 +10,7 @@ import type { LiveItem, LiveSession } from "./types";
 const ITEM_COLUMNS = `
   id, sort, phase, minutes, title_override, drill_id, completed, actual_minutes,
   drills (
-    title, diagram_media_id, video_url,
+    title, diagram_media_id, video_url, board, setup_md,
     media_assets ( path ),
     drill_coaching_points ( is_key, sort, text ),
     drill_standards ( standards ( number, title ) )
@@ -33,6 +35,8 @@ type DrillRow = {
   title: string;
   diagram_media_id: string | null;
   video_url: string | null;
+  board?: Json | null;
+  setup_md?: string | null;
   media_assets: { path: string } | null;
   drill_coaching_points: { is_key: boolean; sort: number; text: string }[];
   drill_standards: { standards: { number: number; title: string } | null }[];
@@ -54,8 +58,12 @@ async function mapItem(item: ItemRow, endsAt: string): Promise<LiveItem> {
   const drill = item.drills;
   const title = item.title_override ?? drill?.title ?? "Ejercicio";
 
+  // Con pizarra no hace falta la imagen: manda la pizarra, y no se firma una URL que no se usa.
+  const board = parseBoard(drill?.board);
+  const setup = drill?.setup_md?.trim();
+
   let diagramUrl: string | null = null;
-  if (drill?.media_assets?.path) {
+  if (!board && drill?.media_assets?.path) {
     diagramUrl = await signedUrl(drill.media_assets.path, expiresIn(endsAt));
   }
 
@@ -78,6 +86,8 @@ async function mapItem(item: ItemRow, endsAt: string): Promise<LiveItem> {
     title,
     phase: item.phase,
     minutes: item.minutes,
+    ...(board ? { board } : {}),
+    ...(setup ? { setup } : {}),
     diagramUrl,
     videoUrl: drill?.video_url ?? null,
     keyPoints,

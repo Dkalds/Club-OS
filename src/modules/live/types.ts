@@ -1,8 +1,14 @@
+import type { Board } from "@/modules/board/types";
+
 export type LiveItem = {
   id: string;
   title: string;
   phase: string | null;
   minutes: number;
+  /** La pizarra del ejercicio, si la tiene: viaja con la sesión y se ve sin conexión. */
+  board?: Board;
+  /** Cómo se organiza el ejercicio (`setup_md`), si lo dice. */
+  setup?: string;
   diagramUrl: string | null;
   /** El enlace al vídeo del ejercicio (YouTube o Vimeo), si lo tiene. */
   videoUrl: string | null;

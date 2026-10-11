@@ -456,6 +456,87 @@ describe("PracticeItemView", () => {
 
     expect(screen.getByRole("link")).toHaveClass("min-h-18");
   });
+
+  describe("la miniatura (`thumb`)", () => {
+    // Un nodo cualquiera en el sitio de la miniatura: qué se pinta dentro es cosa de quien la pasa.
+    const THUMB = <svg aria-hidden="true" data-testid="thumb" />;
+
+    /** Lo que hay en la fila, en orden: la etiqueta o, si lo tiene, el `data-testid` de cada hijo. */
+    function parts(row: Element): string[] {
+      return Array.from(row.children).map((child) => child.getAttribute("data-testid") ?? child.tagName.toLowerCase());
+    }
+
+    it("sin href, va en la fila entre el número y el título", () => {
+      renderView({ thumb: THUMB });
+
+      const thumb = screen.getByTestId("thumb");
+      const row = thumb.parentElement as HTMLElement;
+      expect(screen.getByRole("listitem")).toContainElement(thumb);
+      expect(screen.queryByRole("link")).not.toBeInTheDocument();
+      // Número, miniatura, fase y título, minutos.
+      expect(parts(row)).toEqual(["span", "thumb", "span", "span"]);
+      expect(thumb.previousElementSibling).toBe(screen.getByText("03"));
+      expect(thumb.nextElementSibling).toContainElement(screen.getByText(TITLE));
+    });
+
+    it("con href, va dentro del enlace, entre el número y el título", () => {
+      renderView({ href: "/c/club-a/drills/d1", thumb: THUMB });
+
+      const link = screen.getByRole("link");
+      const thumb = screen.getByTestId("thumb");
+      // Hija directa del enlace: tocarla abre la ficha, como el resto de la fila.
+      expect(thumb.parentElement).toBe(link);
+      expect(thumb.previousElementSibling).toBe(within(link).getByText("03"));
+      expect(thumb.nextElementSibling).toContainElement(within(link).getByText(TITLE));
+      // Número, miniatura, fase y título, minutos y el chevron.
+      expect(parts(link)).toEqual(["span", "thumb", "span", "span", "svg"]);
+    });
+
+    it("se pinta una sola vez", () => {
+      renderView({ href: "/c/club-a/drills/d1", thumb: THUMB });
+
+      expect(screen.getAllByTestId("thumb")).toHaveLength(1);
+    });
+
+    it("una miniatura decorativa no cambia el nombre del enlace", () => {
+      const { unmount } = renderView({ href: "/c/club-a/drills/d1" });
+      const name = screen.getByRole("link").textContent;
+      unmount();
+
+      renderView({ href: "/c/club-a/drills/d1", thumb: THUMB });
+
+      expect(screen.getByRole("link").textContent).toBe(name);
+      expect(screen.getByRole("link", { name: /Técnica Movilidad \+ rueda de pases/ })).toBeInTheDocument();
+    });
+
+    it("convive con el resultado de una sesión hecha: la miniatura, y bajo el título cómo acabó", () => {
+      renderView({ thumb: THUMB, result: { completed: true, actualMinutes: 9 } });
+
+      const thumb = screen.getByTestId("thumb");
+      expect(thumb.nextElementSibling).toHaveTextContent("Hecho · 9 min");
+      expect(thumb.nextElementSibling).toHaveTextContent(TITLE);
+    });
+
+    it("sin `thumb` la fila no cambia: número, fase y título, y minutos; con href, además el chevron", () => {
+      const { unmount } = renderView();
+      const row = screen.getByText("03").parentElement as HTMLElement;
+      expect(parts(row)).toEqual(["span", "span", "span"]);
+      expect(row.querySelector("svg")).toBeNull();
+      unmount();
+
+      renderView({ href: "/c/club-a/drills/d1" });
+      expect(parts(screen.getByRole("link"))).toEqual(["span", "span", "span", "svg"]);
+    });
+
+    it("un `thumb` sin nada que pintar (undefined o null) es como no pasarlo", () => {
+      const { unmount } = renderView({ thumb: undefined });
+      expect(parts(screen.getByText("03").parentElement as HTMLElement)).toEqual(["span", "span", "span"]);
+      unmount();
+
+      renderView({ thumb: null });
+      expect(parts(screen.getByText("03").parentElement as HTMLElement)).toEqual(["span", "span", "span"]);
+    });
+  });
 });
 
 describe("PracticeTotal", () => {

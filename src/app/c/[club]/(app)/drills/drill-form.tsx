@@ -334,6 +334,7 @@ export function DrillForm({ clubSlug, mode, drill, options, standardsLabel }: Pr
           drillId={loaded.id}
           mediaId={state.diagramMediaId}
           initialPreviewUrl={loaded.diagramUrl}
+          hasBoard={loaded.board !== undefined}
           upload={upload}
           disabled={save.pending || navigating}
           onMediaChange={set("diagramMediaId")}

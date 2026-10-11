@@ -266,8 +266,9 @@ test("ficha completa", async ({ page }) => {
     await expect(page.getByText(pill, { exact: true })).toBeVisible();
   }
 
-  // Sin diagrama sale la pista vacía.
-  await expect(page.getByRole("img", { name: "Pista sin diagrama" })).toBeVisible();
+  // Su pizarra, por pasos: no una pista vacía ni una imagen.
+  await expect(page.getByRole("img", { name: "Pizarra de Rebote + outlet, paso 1 de 2" })).toBeVisible();
+  await expect(page.getByRole("img", { name: "Pista sin diagrama" })).toHaveCount(0);
 
   // Las secciones, en su orden, con el nombre que el club da a sus Standards. No hay vídeo.
   await expect(page.getByRole("heading", { level: 2 })).toHaveText([

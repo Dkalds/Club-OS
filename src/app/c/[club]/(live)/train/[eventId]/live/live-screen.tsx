@@ -9,10 +9,12 @@ import type { LiveSession } from "@/modules/live/types";
 import { useLive } from "@/modules/live/use-live";
 import { useWakeLock } from "@/modules/live/use-wake-lock";
 import { itemsLabel, minutesLabel } from "@/modules/practice/format";
+import { Board } from "@/ui/board";
 import { ConfirmDialog } from "@/ui/confirm-dialog";
 import { CourtDiagram } from "@/ui/court-diagram";
 import { CTAButton } from "@/ui/cta-button";
-import { CheckIcon, CloseIcon, VideoIcon } from "@/ui/icons";
+import { CheckIcon, ChevronDownIcon, CloseIcon, VideoIcon } from "@/ui/icons";
+import { MarkdownBody } from "@/ui/markdown-body";
 import { LiveControls } from "@/ui/live-controls";
 import { Timer } from "@/ui/timer";
 
@@ -149,7 +151,17 @@ function LiveScreenContent({ session, clubSlug }: LiveScreenProps) {
 
         <Timer remainingMs={remaining} paused={state.pausedAt !== null} overtime={remaining < 0} />
 
-        <CourtDiagram src={item.diagramUrl} alt={`Diagrama: ${item.title}`} />
+        {/*
+          La pizarra viaja con la sesión: se ve también sin conexión. Con la clave del ejercicio,
+          cada uno empieza la suya de cero. Sin pizarra, la imagen subida; sin ninguna, nada.
+        */}
+        {item.board ? (
+          <div className="w-full text-left">
+            <Board key={item.id} board={item.board} title={item.title} />
+          </div>
+        ) : item.diagramUrl ? (
+          <CourtDiagram src={item.diagramUrl} alt={`Diagrama: ${item.title}`} />
+        ) : null}
 
         {videoHref ? (
           <CTAButton
@@ -173,6 +185,20 @@ function LiveScreenContent({ session, clubSlug }: LiveScreenProps) {
               </li>
             ))}
           </ul>
+        ) : null}
+
+        {item.setup ? (
+          // Plegado: en pista se mira la pizarra y los puntos clave; cómo se monta, cuando hace falta.
+          <details key={item.id} className="group w-full text-left">
+            <summary className="flex min-h-(--target-min) cursor-pointer list-none items-center gap-(--space-2) text-body-strong text-ink-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring [&::-webkit-details-marker]:hidden">
+              <ChevronDownIcon
+                size={16}
+                className="-rotate-90 transition-transform group-open:rotate-0 motion-reduce:transition-none"
+              />
+              Cómo se organiza
+            </summary>
+            <MarkdownBody markdown={item.setup} />
+          </details>
         ) : null}
 
         {item.standards.length > 0 ? (

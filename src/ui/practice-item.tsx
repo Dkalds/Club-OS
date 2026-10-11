@@ -262,6 +262,9 @@ function ItemResult({ completed, actualMinutes }: { completed: boolean; actualMi
  * hecha: debajo del título dice si se hizo y cuánto duró de verdad («Hecho · 9 min»), o «Sin
  * hacer». Los minutos de la derecha siguen siendo los previstos. Que se hizo no lo dice solo el
  * color: lleva su icono y su palabra.
+ *
+ * `thumb` es la miniatura de la pizarra del ejercicio, si la tiene: va entre el número y el
+ * título. Es decorativa (el título ya dice qué es) y la pone quien monta la fila.
  */
 export function PracticeItemView({
   index,
@@ -270,6 +273,7 @@ export function PracticeItemView({
   minutes,
   href,
   result,
+  thumb,
 }: {
   index: number;
   title: string;
@@ -277,11 +281,13 @@ export function PracticeItemView({
   minutes: number;
   href?: string;
   result?: { completed: boolean; actualMinutes: number | null };
+  thumb?: ReactNode;
 }) {
   const row = "flex min-h-18 items-center gap-(--space-2) px-(--space-4) py-(--space-2) text-ink";
   const content = (
     <>
       <span className={NUMBER}>{itemNumber(index)}</span>
+      {thumb}
       <span className="min-w-0 flex-1">
         <PhaseAndTitle phase={phase} title={title} />
         {result ? (

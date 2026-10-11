@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
+import type { Board } from "@/modules/board/types";
 import {
+  DETAIL_COLUMNS,
   toPracticeDetail,
   toPracticeListItems,
   type PracticeDetailRow,
@@ -244,6 +246,117 @@ describe("toPracticeDetail", () => {
       const detail = toPracticeDetail(withPlan({ practice_items: [hidden] }), MADRID);
 
       expect(detail?.items[0]).toMatchObject({ drillId: "drill-x", drillVisible: false, title: "Ejercicio" });
+    });
+  });
+
+  describe("board: la pizarra del ejercicio de un ítem, para la miniatura de su fila", () => {
+    /** Una pizarra válida y pequeña: el 1 pasa al 2 y corta. */
+    const BOARD: Board = {
+      version: 1,
+      court: "half",
+      tokens: [
+        { id: "a1", kind: "attacker", label: "1", at: { x: 50, y: 80 } },
+        { id: "a2", kind: "attacker", label: "2", at: { x: 20, y: 60 } },
+        { id: "ball", kind: "ball", at: { x: 53, y: 80 } },
+      ],
+      steps: [
+        {
+          note: "El 1 pasa al 2 y corta",
+          moves: [
+            { token: "ball", kind: "pass", to: { x: 23, y: 60 } },
+            { token: "a1", kind: "cut", to: { x: 50, y: 30 } },
+          ],
+        },
+      ],
+    };
+
+    const itemsOf = (items: PracticePlanRow["practice_items"]) =>
+      toPracticeDetail(withPlan({ practice_items: items }), MADRID)?.items ?? [];
+
+    it("pide la pizarra con el ejercicio de cada ítem", () => {
+      expect(DETAIL_COLUMNS).toMatch(/drills\(\s*title,\s*board\b/);
+    });
+
+    it("el ítem cuyo ejercicio tiene pizarra la lleva; los demás no llevan la clave", () => {
+      const items = itemsOf([
+        { ...ITEM_FIRST, drills: { ...DRILL_A, board: BOARD } },
+        ITEM_SECOND,
+        ITEM_FREE,
+      ]);
+
+      expect(items[0]?.board).toEqual(BOARD);
+      expect(items[1]).not.toHaveProperty("board");
+      expect(items[2]).not.toHaveProperty("board");
+    });
+
+    it("llega ya validada: lo que la forma no conoce no viaja", () => {
+      const [item] = itemsOf([{ ...ITEM_FIRST, drills: { ...DRILL_A, board: { ...BOARD, autor: "alguien" } } }]);
+
+      expect(item?.board).toEqual(BOARD);
+      expect(item?.board).not.toHaveProperty("autor");
+    });
+
+    it("lee la pizarra igual con el ejercicio como objeto que como lista de uno", () => {
+      const [item] = itemsOf([{ ...ITEM_FIRST, drills: [{ ...DRILL_A_AS_LISTS, board: BOARD }] }]);
+
+      expect(item?.board).toEqual(BOARD);
+    });
+
+    it("la lleva también el ítem con título propio: la pizarra es del ejercicio, no del título", () => {
+      const [item] = itemsOf([{ ...ITEM_SECOND, drills: { ...DRILL_B, board: BOARD } }]);
+
+      expect(item).toMatchObject({ title: "Título propio", drillVisible: true });
+      expect(item?.board).toEqual(BOARD);
+    });
+
+    it("un ejercicio sin pizarra (null, o sin la columna) no lleva la clave", () => {
+      const items = itemsOf([
+        { ...ITEM_FIRST, drills: { ...DRILL_A, board: null } },
+        { ...ITEM_SECOND, drills: DRILL_B },
+      ]);
+
+      // Ni `undefined` ni `null`: la clave no viaja.
+      expect(items[0]).not.toHaveProperty("board");
+      expect(items[1]).not.toHaveProperty("board");
+    });
+
+    it("un bloque libre no lleva la clave: no tiene ejercicio", () => {
+      const items = itemsOf([ITEM_FREE, { ...ITEM_FREE, id: "item-f", sort: 3, drills: [] }]);
+
+      expect(items).toHaveLength(2);
+      for (const item of items) expect(item).not.toHaveProperty("board");
+    });
+
+    it("un ejercicio que RLS esconde (la relación llega vacía) no lleva la clave", () => {
+      const items = itemsOf([
+        { ...ITEM_FIRST, drill_id: "drill-x", drills: null },
+        { ...ITEM_SECOND, drill_id: "drill-y", drills: [] },
+      ]);
+
+      expect(items.map((item) => item.drillVisible)).toEqual([false, false]);
+      for (const item of items) expect(item).not.toHaveProperty("board");
+    });
+
+    it.each([
+      ["otra versión", { ...BOARD, version: 2 }],
+      ["sin fichas", { ...BOARD, tokens: [] }],
+      ["una pista que no existe", { ...BOARD, court: "tres cuartos" }],
+      ["un objeto de la versión 1 sin nada más", { version: 1 }],
+      ["un texto", "una pizarra"],
+    ])("una pizarra rota (%s) no lleva la clave, y el ítem sale igual, enlazado a su ficha", (_name, board) => {
+      const [item] = itemsOf([{ ...ITEM_FIRST, drills: { ...DRILL_A, board } }]);
+
+      expect(item).not.toHaveProperty("board");
+      expect(item).toMatchObject({ id: "item-a", drillId: "drill-a", drillVisible: true, title: "Rueda de tiros" });
+    });
+
+    it("una pizarra rota no se lleva por delante los Standards del ejercicio", () => {
+      const detail = toPracticeDetail(
+        withPlan({ practice_items: [{ ...ITEM_FIRST, drills: { ...DRILL_A, board: { version: 2 } } }] }),
+        MADRID,
+      );
+
+      expect(detail?.standards).toEqual([SHOWN_1, SHOWN_2]);
     });
   });
 

@@ -1,0 +1,83 @@
+<!-- @dsCard group="Training" height=560 subtitle="Adición: la pizarra de un ejercicio, por pasos, y su miniatura" -->
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Board — preview</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600;700&display=swap">
+</head>
+<body>
+<div class="cos-stage">
+  <div class="cos-col">
+    <p class="cos-label">Un paso, con sus controles</p>
+    <div class="cos-board">
+      <svg class="cos-board__court" viewBox="0 0 100 75" role="img" aria-label="Pizarra de Pase y corte, paso 1 de 4">
+        <g class="cos-board__lines">
+          <rect x="5" y="5" width="90" height="65" rx="2.5"/>
+          <rect x="37.5" y="5" width="25" height="27.5"/>
+          <circle cx="50" cy="32.5" r="10"/>
+          <path d="M12.5 5v15a37.5 37.5 0 0 0 75 0V5"/>
+          <circle cx="50" cy="11.25" r="2.5"/>
+        </g>
+        <g class="cos-board__move">
+          <path d="M49.9 55.1L26.9 40" stroke-dasharray="3 2.5"/>
+          <path d="M29.7 39.9L26.9 40L28.1 42.4"/>
+        </g>
+        <g transform="translate(21.2 37.5)"><circle class="cos-board__attacker" r="3.6"/><text class="cos-board__label" text-anchor="middle" dominant-baseline="central">2</text></g>
+        <g transform="translate(78.8 37.5)"><circle class="cos-board__attacker" r="3.6"/><text class="cos-board__label" text-anchor="middle" dominant-baseline="central">3</text></g>
+        <g transform="translate(50 54.4)"><circle class="cos-board__attacker" r="3.6"/><text class="cos-board__label" text-anchor="middle" dominant-baseline="central">1</text></g>
+        <g transform="translate(53.75 58.15)"><circle class="cos-board__ball" r="1.7"/></g>
+      </svg>
+      <div class="cos-board__controls">
+        <button class="cos-iconbtn" aria-label="Reiniciar la pizarra" disabled><svg class="cos-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4v5h5"/><path d="M4.6 9A8 8 0 1 1 4 12"/></svg></button>
+        <button class="cos-iconbtn" aria-label="Paso anterior" disabled><svg class="cos-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="m18 5-9 7 9 7z"/><path d="M6 5v14"/></svg></button>
+        <button class="cos-iconbtn" aria-label="Reproducir la pizarra"><svg class="cos-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3l14 9-14 9z"/></svg></button>
+        <button class="cos-iconbtn" aria-label="Paso siguiente"><svg class="cos-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 5 9 7-9 7z"/><path d="M18 5v14"/></svg></button>
+        <span class="cos-board__step">Paso 1 de 4</span>
+      </div>
+      <p class="cos-board__note">El 1 pasa al 2.</p>
+    </div>
+  </div>
+  <div class="cos-col">
+    <p class="cos-label">Con defensores y un bloqueo</p>
+    <div class="cos-board">
+      <svg class="cos-board__court" viewBox="0 0 100 75" role="img" aria-label="Pizarra de 3x3 a 5 puntos, paso 1 de 2">
+        <g class="cos-board__lines">
+          <rect x="5" y="5" width="90" height="65" rx="2.5"/>
+          <rect x="37.5" y="5" width="25" height="27.5"/>
+          <circle cx="50" cy="32.5" r="10"/>
+          <path d="M12.5 5v15a37.5 37.5 0 0 0 75 0V5"/>
+          <circle cx="50" cy="11.25" r="2.5"/>
+        </g>
+        <g class="cos-board__move">
+          <path d="M60.1 35.3L58.2 46.3"/>
+          <path d="M55.8 45.9L60.6 46.7"/>
+        </g>
+        <g transform="translate(23 37.5)"><circle class="cos-board__attacker" r="3.6"/><text class="cos-board__label" text-anchor="middle" dominant-baseline="central">2</text></g>
+        <g transform="translate(60.8 31)"><circle class="cos-board__attacker" r="3.6"/><text class="cos-board__label" text-anchor="middle" dominant-baseline="central">5</text></g>
+        <g transform="translate(50 54.4)"><circle class="cos-board__attacker" r="3.6"/><text class="cos-board__label" text-anchor="middle" dominant-baseline="central">1</text></g>
+        <g transform="translate(50 46.6)"><path class="cos-board__defender" d="M-2.6 -2.6L2.6 2.6M2.6 -2.6L-2.6 2.6"/><text class="cos-board__label cos-board__label--defender" x="3.8" y="-2.6">1</text></g>
+        <g transform="translate(30.2 33.6)"><path class="cos-board__defender" d="M-2.6 -2.6L2.6 2.6M2.6 -2.6L-2.6 2.6"/><text class="cos-board__label cos-board__label--defender" x="3.8" y="-2.6">2</text></g>
+        <g transform="translate(64.4 24.5)"><path class="cos-board__defender" d="M-2.6 -2.6L2.6 2.6M2.6 -2.6L-2.6 2.6"/><text class="cos-board__label cos-board__label--defender" x="3.8" y="-2.6">5</text></g>
+        <g transform="translate(53.75 58.15)"><circle class="cos-board__ball" r="1.7"/></g>
+      </svg>
+    </div>
+    <p class="cos-label">Miniatura</p>
+    <svg class="cos-board__thumb" viewBox="0 0 100 75" aria-hidden="true">
+      <g class="cos-board__lines">
+        <rect x="5" y="5" width="90" height="65" rx="2.5"/>
+        <rect x="37.5" y="5" width="25" height="27.5"/>
+        <circle cx="50" cy="32.5" r="10"/>
+        <path d="M12.5 5v15a37.5 37.5 0 0 0 75 0V5"/>
+        <circle cx="50" cy="11.25" r="2.5"/>
+      </g>
+      <g transform="translate(21.2 37.5)"><circle class="cos-board__attacker" r="3.6"/></g>
+      <g transform="translate(78.8 37.5)"><circle class="cos-board__attacker" r="3.6"/></g>
+      <g transform="translate(50 54.4)"><circle class="cos-board__attacker" r="3.6"/></g>
+      <g transform="translate(53.75 58.15)"><circle class="cos-board__ball" r="1.7"/></g>
+    </svg>
+  </div>
+</div>
+</body>
+</html>

@@ -68,7 +68,8 @@ Principio de producto: *Everyone knows what's next. Everyone knows why.* El QUÉ
 
 - El diagrama de pista es el dibujo propio del producto: líneas de pista en `ink-3`, jugadores atacantes como círculos en `ink`, defensores como X en `brand-accent`, movimientos en `brand-accent` (continuo = jugador, discontinuo = pase).
 - Fondo `surface-2` en miniatura (80×60, `radius-sm`) y `surface-1` a tamaño completo.
-- La pizarra (`CourtPlay`) es ese mismo dibujo como portada del acceso: una jugada que se traza sola al cargar, una vez, y avanza con cada paso. Es el único movimiento decorativo del producto, y se queda quieto con «reducir movimiento».
+- La pizarra de un ejercicio (`Board`) es ese dibujo con contenido: jugadores con su número, balón, conos y movimientos (continuo el corte, en onda el bote, discontinuo el pase, acabado en una barra el bloqueo), por pasos y con sus controles. Su miniatura (`BoardThumb`) ocupa el sitio de la pista vacía. Un ejercicio sin pizarra no enseña una pista vacía a tamaño completo.
+- La pizarra del acceso (`CourtPlay`) es ese mismo dibujo como portada: una jugada que se traza sola al cargar, una vez, y avanza con cada paso. Es el único movimiento decorativo del producto, y se queda quieto con «reducir movimiento». El de `Board` al reproducir no es decorativo: explica la acción, y con «reducir movimiento» las fichas saltan a su sitio.
 
 ## Iconografía
 

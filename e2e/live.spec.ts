@@ -33,6 +33,8 @@ const TODAY_LIVE_ID = seedId(ARCANGEL.slug, "event:alevin-a:today-live");
 const TODAY_LIVE_PLAN_ID = seedId(ARCANGEL.slug, "plan:alevin-a:today-live");
 const LIVE_URL = `${CLUB}/train/${TODAY_LIVE_ID}/live`;
 const DETAIL_URL = `${CLUB}/train/${TODAY_LIVE_ID}`;
+/** La próxima sesión de Alevín A: tres de sus cinco ejercicios tienen pizarra. */
+const BOARD_SESSION_ID = seedId(ARCANGEL.slug, "event:alevin-a:upcoming-0");
 
 const NEEDS_LOCAL_DB =
   "Escribe en la base de datos (avanza en Live, termina sesión): solo con un Supabase local.";
@@ -281,6 +283,49 @@ test("sin conexión avanza, la BD lo recibe al volver la red", async ({ page, br
   expect((await liveStateInDb()).live_position).toBe(1);
 
   await resetTodayLive();
+});
+
+test("el directo enseña la pizarra de cada ejercicio, también sin conexión", async ({ page, browserErrors }) => {
+  test.skip(!canWrite(), NEEDS_LOCAL_DB);
+  browserErrors.allowOffline();
+  await resetLive(BOARD_SESSION_ID);
+
+  await openAs(page, ALEX);
+  await page.goto(`${CLUB}/train/${BOARD_SESSION_ID}/live`);
+  await page.getByRole("button", { name: "Iniciar" }).click();
+  await expect(page.getByText("1 / 5")).toBeVisible();
+
+  // El primero no tiene pizarra: ni dibujo ni pista vacía.
+  await expect(page.getByRole("heading", { level: 1, name: "Movilidad + rueda de pases" })).toBeVisible();
+  await expect(page.getByRole("img", { name: /^Pizarra de/ })).toHaveCount(0);
+  await expect(page.getByRole("img", { name: "Pista sin diagrama" })).toHaveCount(0);
+
+  // Sin red: la pizarra viaja con la sesión, no hay nada que descargar.
+  await page.context().setOffline(true);
+  await page.getByRole("button", { name: "Siguiente ejercicio" }).click();
+  await expect(page.getByRole("heading", { level: 1, name: "3 calles" })).toBeVisible();
+  await expect(page.getByRole("img", { name: "Pizarra de 3 calles, paso 1 de 3" })).toBeVisible();
+
+  // Se recorre como en la ficha.
+  await page.getByRole("button", { name: "Paso siguiente", exact: true }).click();
+  await expect(page.getByRole("img", { name: "Pizarra de 3 calles, paso 2 de 3" })).toBeVisible();
+
+  // Al cambiar de ejercicio, la pizarra es la del nuevo y empieza en su primer paso.
+  await page.getByRole("button", { name: "Siguiente ejercicio" }).click();
+  await expect(page.getByRole("heading", { level: 1, name: "Rebote + outlet" })).toBeVisible();
+  await expect(page.getByRole("img", { name: "Pizarra de Rebote + outlet, paso 1 de 2" })).toBeVisible();
+
+  // Cómo se organiza, plegado: se abre cuando hace falta.
+  const setup = page.getByText("Cómo se organiza", { exact: true });
+  await expect(setup).toBeVisible();
+  await expect(page.getByText(/^Tirador en la esquina/)).toBeHidden();
+  await setup.click();
+  await expect(page.getByText(/^Tirador en la esquina/)).toBeVisible();
+
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(375);
+
+  await page.context().setOffline(false);
+  await resetLive(BOARD_SESSION_ID);
 });
 
 test("terminar → confirmación → la ficha es el resumen y la sesión está en Histórico", async ({ page }) => {

@@ -198,6 +198,40 @@ Lo que la Fase 3 dejó para el principio de la Fase 4 y la Fase 4 no recogió: r
 - **Las pizarras del manual traen su fondo claro y su título dentro de la imagen.** En la ficha, de tema oscuro, se ven con una banda clara arriba y abajo. Se quita regenerándolas sin fondo o recortándolas al campo.
 - **Edad, rango de jugadores y material de los 44** son una propuesta que el propietario aprobó con la especificación: los 4x4 quedan desde U16 y el único 5x5 desde U18. Se corrigen en `pack.json` y se vuelven a cargar con `--update`, o directamente en la app.
 
+## Pizarra visual (pieza 3 de la evolución)
+
+Especificación `docs/superpowers/specs/2026-10-11-pizarra-visual-design.md`, plan `docs/superpowers/plans/2026-10-11-pizarra-visual.md`. Va encima de la pieza 2.
+
+Lo que esta pieza resuelve de lo que había pendiente:
+
+- **La pizarra en directo era una imagen** que no estaba disponible sin conexión (lo dejó la pieza 1): una pizarra viaja con la sesión y se ve sin red. `diagram-cache.ts` sigue sin conectar, pero ya solo importa para las imágenes subidas.
+- **La ficha decía «Pista sin diagrama»** con una pista vacía a tamaño completo: sin pizarra ni imagen ya no enseña nada en ese hueco.
+- **Las instrucciones del ejercicio no salían en el directo**: «Cómo se organiza», plegado.
+
+Lo que deja:
+
+- **Migración al remoto.** `20270202000100_drill_board` solo está aplicada en local. Va después de las de las piezas 1 y 2 y antes de fusionar (README, «Despliegue de la pizarra visual»).
+- **Nadie puede dibujar una pizarra todavía.** Solo existen las del seed. El editor (colocar, mover, dibujar, deshacer, duplicar) es la pieza 4, y con él llegan el `grant update (board)`, `save_drill` y las jugadas propias.
+- **Por la API directa, un borrador nuevo puede nacer con pizarra**: el alta de `drills` está concedida sobre la tabla entera desde la Fase 3. Es su propio borrador, pasa por el `check` y la app la valida al leer. Cerrarlo es cambiar ese `grant` por columnas.
+- **Metadatos de un ejercicio que pide la propuesta y no existen**: nivel, fase, reglas, progresión y errores frecuentes.
+- **Un movimiento muy corto no se dibuja** (menos de unas 7 unidades a lo ancho): la ficha se desplaza al reproducir, pero sin flecha. Un test vigila que las del seed se dibujan todas; el editor tendrá que avisar.
+- **La miniatura viaja con cada fila de la biblioteca** (hasta 100 pizarras de 32 kB como mucho por búsqueda; las del seed pesan menos de 1 kB). Si una biblioteca crece con pizarras grandes, pedir para la lista solo el primer fotograma.
+- **El directo no enseña vídeo dentro de la pantalla**, ni la pizarra a pantalla completa o en horizontal.
+- **En el directo conviven dos filas de controles con los mismos iconos**: los de la pizarra (anterior, reproducir, siguiente) y los de la sesión. Sus nombres los distinguen para quien escucha; a la vista, solo el tamaño y el sitio. A mirar con usuarios.
+- **Una ficha pegada al borde se recorta un poco**: el número de un defensor con `x` por encima de 93 en media pista, o el balón de un jugador en la línea de fondo contraria. Ninguna del seed llega; el editor tendrá que dejar margen.
+- **Las tarjetas de «ejercicios relacionados» de la metodología no llevan miniatura**: esa lectura recorre hasta mil filas. Si se quiere, pedir la pizarra solo de las que se pintan.
+- **Un ejercicio con pizarra no puede quitársela ni cambiarla** desde la app, y su formulario solo avisa de que la imagen subida no se verá. Llega con el editor.
+- **Sin notas de voz, recorrido de un jugador ni exportar a PDF o vídeo** (la propuesta los deja para una segunda fase).
+
+Decisiones tomadas sin preguntarlas una a una (están también en la especificación):
+
+- Cuatro movimientos (corte, bote, pase, bloqueo) y cuatro fichas (atacante, defensor, balón, cono) en la versión 1.
+- La pista completa se dibuja apaisada, con el aro de ataque a la izquierda.
+- El balón que lleva un jugador se pinta pegado a él, no encima.
+- Sin pizarra ni imagen, la ficha y el directo no enseñan nada en ese hueco; con las dos, manda la pizarra.
+- En el directo, cómo se organiza el ejercicio va plegado.
+- El copy nuevo («Paso 2 de 4», «Final», «Cómo se organiza», las notas de las pizarras de ejemplo) no lo ha validado producto.
+
 ## Preparar sesión (pieza 2 de la evolución)
 
 Especificación `docs/superpowers/specs/2026-10-10-preparar-sesion-design.md`, plan `docs/superpowers/plans/2026-10-10-preparar-sesion.md`. Va encima de la pieza 1.

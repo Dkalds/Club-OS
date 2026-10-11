@@ -263,6 +263,16 @@ export function NextIcon(props: IconProps) {
   );
 }
 
+/** Reiniciar: una flecha que da la vuelta. */
+export function RestartIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M4 4v5h5" />
+      <path d="M4.6 9A8 8 0 1 1 4 12" />
+    </Icon>
+  );
+}
+
 /** Vídeo: una pantalla con su triángulo, siempre junto a la palabra «Vídeo». */
 export function VideoIcon(props: IconProps) {
   return (
