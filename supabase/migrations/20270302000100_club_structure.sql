@@ -75,6 +75,83 @@ grant insert (organization_id, team_id, person_id, jersey_number, position)
 grant update (jersey_number, position) on table public.team_players to authenticated;
 grant delete on table public.team_players to authenticated;
 
+-- ── Un sitio en un equipo ────────────────────────────────────────────────────────────────
+-- ¿Puede esta persona ocupar un sitio (en la plantilla o en el cuerpo técnico) de este equipo,
+-- en una fila de este club? Sí si el equipo y la persona son del club y la persona no está
+-- archivada. Lo usan las políticas de alta de `team_staff` y `team_players`.
+--
+-- Las claves compuestas ya impiden apuntar a otro club, pero se comprueban después que los
+-- únicos de esas tablas (`(team_id, person_id)`, `(team_id, jersey_number)`), que no llevan
+-- club: sin esto, el error de un alta contra un equipo ajeno diría si un dorsal está cogido
+-- allí. La política se evalúa antes que cualquier índice.
+--
+-- `security definer` para leer `teams` y `people` sin pasar por RLS; solo responde sí o no.
+create function private.seat_is_valid(org uuid, team uuid, person uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select exists (
+    select 1
+    from public.teams as t
+    where t.id = seat_is_valid.team
+      and t.organization_id = seat_is_valid.org
+  )
+  and exists (
+    select 1
+    from public.people as p
+    where p.id = seat_is_valid.person
+      and p.organization_id = seat_is_valid.org
+      and p.archived_at is null
+  );
+$$;
+
+revoke all on function private.seat_is_valid(uuid, uuid, uuid) from public, anon;
+grant execute on function private.seat_is_valid(uuid, uuid, uuid) to authenticated;
+
+-- ── Archivar a una persona ───────────────────────────────────────────────────────────────
+-- No se archiva a quien sigue en un equipo de la temporada actual o de una que no ha acabado:
+-- seguiría saliendo en la plantilla que ve quien entrena, sin poder elegirse en ningún sitio.
+-- La acción lo comprueba antes para decirlo bien; esto es lo que lo garantiza.
+create function private.guard_person_archive()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if new.archived_at is not null and old.archived_at is null and exists (
+    select 1
+    from public.teams as t
+    join public.seasons as s
+      on s.id = t.season_id
+    where (s.is_current or s.ends_on >= current_date)
+      and (
+        exists (
+          select 1 from public.team_players as tp
+          where tp.team_id = t.id and tp.person_id = new.id
+        )
+        or exists (
+          select 1 from public.team_staff as ts
+          where ts.team_id = t.id and ts.person_id = new.id
+        )
+      )
+  ) then
+    raise exception 'STILL_IN_TEAM' using errcode = '23514';
+  end if;
+
+  return new;
+end;
+$$;
+
+revoke all on function private.guard_person_archive() from public, anon, authenticated;
+
+create trigger people_guard_archive
+  before update of archived_at on public.people
+  for each row execute function private.guard_person_archive();
+
 -- ── Políticas ────────────────────────────────────────────────────────────────────────────
 -- En todas, la dirección del club de la fila. Las claves compuestas impiden además que una
 -- fila apunte a otro club.
@@ -168,7 +245,10 @@ create policy team_staff_insert_admin
   on public.team_staff
   for insert
   to authenticated
-  with check (private.has_org_role(organization_id, array['admin']::public.org_role[]));
+  with check (
+    private.has_org_role(organization_id, array['admin']::public.org_role[])
+    and private.seat_is_valid(organization_id, team_id, person_id)
+  );
 
 create policy team_staff_update_admin
   on public.team_staff
@@ -187,7 +267,10 @@ create policy team_players_insert_admin
   on public.team_players
   for insert
   to authenticated
-  with check (private.has_org_role(organization_id, array['admin']::public.org_role[]));
+  with check (
+    private.has_org_role(organization_id, array['admin']::public.org_role[])
+    and private.seat_is_valid(organization_id, team_id, person_id)
+  );
 
 create policy team_players_update_admin
   on public.team_players

@@ -233,7 +233,7 @@ select set_eq(
       -- Estructura del club (20270302000100). Los ids los pone la base. El club se escribe al
       -- nacer la fila y no se cambia; tampoco la temporada de un equipo, ni el equipo o la
       -- persona de un sitio en una plantilla o en un cuerpo técnico. `is_current` la mueven
-      -- `create_season` y `set_current_season`, que son `security invoker`.
+      -- `create_season` y `set_current_season`, que son `security definer`.
       ('people', 'insert', array['organization_id', 'first_name', 'last_name', 'birth_year']),
       ('people', 'update', array['first_name', 'last_name', 'birth_year', 'archived_at']),
       -- `is_current` no: solo la mueven `create_season` y `set_current_season`.

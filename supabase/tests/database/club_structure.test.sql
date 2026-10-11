@@ -25,7 +25,7 @@
 -- datos son ficticios y solo de este test; de las personas solo hay año de nacimiento.
 begin;
 
-select plan(144);
+select plan(152);
 
 -- ── Ayudas (solo existen en esta transacción) ────────────────────────────────────────
 -- Ejecuta una sentencia como quien llama y devuelve cómo acabó: «ok N» con las filas que tocó
@@ -761,7 +761,7 @@ select throws_ok(
   $$insert into team_staff (organization_id, team_id, person_id, staff_role)
     values (current_setting('fx.club_a')::uuid, current_setting('fx.t1')::uuid,
             current_setting('fx.p_cb')::uuid, 'assistant')$$,
-  '23503', null,
+  '42501', null,
   'una persona de B no entra en un cuerpo técnico de A'
 );
 
@@ -769,7 +769,7 @@ select throws_ok(
   $$insert into team_staff (organization_id, team_id, person_id, staff_role)
     values (current_setting('fx.club_a')::uuid, current_setting('fx.tb')::uuid,
             current_setting('fx.p_free')::uuid, 'assistant')$$,
-  '23503', null,
+  '42501', null,
   'una persona de A no entra en el cuerpo técnico de un equipo de B'
 );
 
@@ -777,7 +777,7 @@ select throws_ok(
   $$insert into team_players (organization_id, team_id, person_id, jersey_number)
     values (current_setting('fx.club_a')::uuid, current_setting('fx.t1')::uuid,
             current_setting('fx.p_pb')::uuid, 12)$$,
-  '23503', null,
+  '42501', null,
   'una persona de B no entra en una plantilla de A'
 );
 
@@ -785,7 +785,7 @@ select throws_ok(
   $$insert into team_players (organization_id, team_id, person_id, jersey_number)
     values (current_setting('fx.club_a')::uuid, current_setting('fx.tb')::uuid,
             current_setting('fx.p_free')::uuid, 12)$$,
-  '23503', null,
+  '42501', null,
   'una persona de A no entra en la plantilla de un equipo de B'
 );
 
@@ -1519,6 +1519,124 @@ select results_eq(
     where organization_id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' and is_current$$,
   array[1],
   'el club sigue con una temporada actual, y solo una'
+);
+
+-- ── Un sitio en un equipo: del club, y de alguien sin archivar ───────────────────────
+-- Lo que usan estos tests lo crea la propia dirección de A, con lo que tiene concedido: una
+-- persona en activo y otra archivada, un equipo en la temporada actual, otro en una temporada
+-- que aún no ha empezado y otro en una que ya acabó.
+do $$
+declare
+  club_a constant uuid := 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+  v_cat    uuid;
+  v_now    uuid;
+  v_future uuid;
+  v_ended  uuid;
+  v_person uuid;
+  v_gone   uuid;
+  v_team   uuid;
+begin
+  select id into v_cat from categories where organization_id = club_a order by sort limit 1;
+  select id into v_now from seasons where organization_id = club_a and is_current;
+  v_future := public.create_season(club_a, 'Por venir', '2098-09-01', '2099-06-30');
+  v_ended  := public.create_season(club_a, 'Ya acabada', '2001-09-01', '2002-06-30');
+
+  insert into people (organization_id, first_name, last_name, birth_year)
+  values (club_a, 'Activa', 'Ficticia', 2014) returning id into v_person;
+  insert into people (organization_id, first_name, last_name, birth_year)
+  values (club_a, 'Archivada', 'Ficticia', 2014) returning id into v_gone;
+  update people set archived_at = now() where id = v_gone;
+
+  insert into teams (organization_id, season_id, category_id, name)
+  values (club_a, v_now, v_cat, 'Sitios ahora') returning id into v_team;
+  perform set_config('fx.g_now', v_team::text, true);
+  insert into teams (organization_id, season_id, category_id, name)
+  values (club_a, v_future, v_cat, 'Sitios después') returning id into v_team;
+  perform set_config('fx.g_future', v_team::text, true);
+  insert into teams (organization_id, season_id, category_id, name)
+  values (club_a, v_ended, v_cat, 'Sitios antes') returning id into v_team;
+  perform set_config('fx.g_ended', v_team::text, true);
+
+  perform set_config('fx.g_person', v_person::text, true);
+  perform set_config('fx.g_gone', v_gone::text, true);
+end
+$$;
+
+-- El dorsal 7 está cogido en el equipo de B, y `cb` está en su cuerpo técnico: los únicos de
+-- esas tablas no llevan club. La política responde antes que ellos, y no dice ni una cosa ni
+-- la otra (sería un 23505 si chocara y un 23503 si no).
+select throws_ok(
+  $$insert into team_players (organization_id, team_id, person_id, jersey_number)
+    values ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', current_setting('fx.tb')::uuid,
+            current_setting('fx.g_person')::uuid, 7)$$,
+  '42501', null,
+  'un alta contra un equipo de otro club no dice si el dorsal está cogido allí'
+);
+
+select throws_ok(
+  $$insert into team_staff (organization_id, team_id, person_id, staff_role)
+    values ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', current_setting('fx.tb')::uuid,
+            current_setting('fx.p_cb')::uuid, 'assistant')$$,
+  '42501', null,
+  'ni si alguien está en su cuerpo técnico'
+);
+
+select throws_ok(
+  $$insert into team_players (organization_id, team_id, person_id)
+    values ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', current_setting('fx.g_now')::uuid,
+            current_setting('fx.g_gone')::uuid)$$,
+  '42501', null,
+  'una persona archivada no entra en una plantilla'
+);
+
+select throws_ok(
+  $$insert into team_staff (organization_id, team_id, person_id, staff_role)
+    values ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', current_setting('fx.g_now')::uuid,
+            current_setting('fx.g_gone')::uuid, 'assistant')$$,
+  '42501', null,
+  'ni en un cuerpo técnico'
+);
+
+-- ── Archivar: no a quien sigue en un equipo de una temporada que no ha acabado ───────
+insert into team_players (organization_id, team_id, person_id)
+values ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', current_setting('fx.g_now')::uuid,
+        current_setting('fx.g_person')::uuid);
+
+select throws_ok(
+  $$update people set archived_at = now() where id = current_setting('fx.g_person')::uuid$$,
+  '23514', 'STILL_IN_TEAM',
+  'no se archiva a quien está en la plantilla de un equipo de la temporada actual'
+);
+
+delete from team_players
+where team_id = current_setting('fx.g_now')::uuid and person_id = current_setting('fx.g_person')::uuid;
+
+insert into team_staff (organization_id, team_id, person_id, staff_role)
+values ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', current_setting('fx.g_future')::uuid,
+        current_setting('fx.g_person')::uuid, 'assistant');
+
+select throws_ok(
+  $$update people set archived_at = now() where id = current_setting('fx.g_person')::uuid$$,
+  '23514', 'STILL_IN_TEAM',
+  'ni a quien está en el cuerpo técnico de un equipo de una temporada que aún no ha acabado'
+);
+
+delete from team_staff
+where team_id = current_setting('fx.g_future')::uuid and person_id = current_setting('fx.g_person')::uuid;
+
+insert into team_players (organization_id, team_id, person_id)
+values ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', current_setting('fx.g_ended')::uuid,
+        current_setting('fx.g_person')::uuid);
+
+select lives_ok(
+  $$update people set archived_at = now() where id = current_setting('fx.g_person')::uuid$$,
+  'sí a quien solo está en un equipo de una temporada pasada que ya acabó'
+);
+
+select isnt(
+  (select archived_at from people where id = current_setting('fx.g_person')::uuid),
+  null,
+  'y queda archivada, con su sitio en aquel equipo'
 );
 
 select * from finish();
