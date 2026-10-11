@@ -198,6 +198,21 @@ Lista, en este orden:
   - Como la entrenadora de otro equipo (`nora@arcangel.test`) y como `marta@demo.test`: la URL de esa ficha da «No encontramos esta página».
   - Partidos (Agenda → «Añadir» → «Partido»): crear uno, cancelarlo, y corregir el resultado del jugado.
 
+### Despliegue del calendario
+
+Va encima de la estructura del club: primero su migración (abajo) y después esta, `20270316000100_calendar`. Crea `venues`, `team_schedules` y `event_changes`, añade `venue_id` y `schedule_id` a `events` con sus triggers, y tres funciones para los horarios. No toca Storage, Auth ni variables de entorno. Tiene que estar aplicada **antes de usar la preview del PR** y **antes de fusionar**: sin ella fallan Inicio, la Agenda, las fichas de sesión y de partido y sus formularios, que ya leen las pistas y los cambios.
+
+- [ ] **Ver qué falta por aplicar**: `pnpm supabase migration list`.
+- [ ] **Entre aplicarla y desplegar**, la app antigua no nota nada: las columnas nuevas de `events` las pone la base, y el registro de cambios empieza vacío.
+- [ ] **Aplicar la migración** con `pnpm supabase db push`.
+- [ ] **Las pistas de ejemplo** solo llegan si se siembra. Al crear una pista, los eventos del club que ya tenían ese lugar quedan vinculados a ella.
+- [ ] **Comprobar a mano**, en un móvil y con la app desplegada:
+  - Como dirección, en Gestión → Calendario: crear una pista. En la página de un equipo, añadir un horario semanal: dice cuántos entrenamientos ha creado, y quien entrena ese equipo los ve en su Agenda.
+  - Cambiar la hora del horario: Inicio y la Agenda de quien entrena enseñan «Cambios recientes», y la ficha de la sesión, lo que había antes.
+  - Como entrenador, cancelar una sesión: sigue en «Próximos» de la Agenda, como cancelada.
+  - Quitar el horario: se borran los entrenamientos que nadie ha preparado; los preparados se quedan. **No probarlo sobre un horario con sesiones que alguien necesite.**
+  - Como entrenador, `/admin/calendar` da el 404 de siempre.
+
 ### Despliegue de la estructura del club
 
 Va encima del editor de pizarra: primero su migración (abajo) y después esta, `20270302000100_club_structure`. Da a la dirección la escritura sobre `people`, `seasons`, `categories`, `teams`, `team_staff` y `team_players` (políticas y `grant` por columnas), añade restricciones a esas tablas y crea cuatro funciones. No añade tablas ni columnas, ni toca Storage, Auth o variables de entorno. Tiene que estar aplicada **antes de usar la preview del PR** y **antes de fusionar**: sin ella, en Gestión se ven la temporada y las personas, pero nada se guarda.

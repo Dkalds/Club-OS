@@ -31,7 +31,7 @@
 | Fichero | Responsabilidad |
 |---|---|
 | `supabase/migrations/20270316000100_calendar.sql` | Tablas, columnas, triggers, políticas, `grant` y funciones |
-| `supabase/tests/database/calendar.test.sql` | pgTAP |
+| `supabase/tests/database/team_schedules.test.sql` | pgTAP |
 | `src/modules/calendar/{types,schema,format,map-rows,queries,actions}.ts` | Pistas y horarios en Gestión |
 | `src/modules/schedule/changes.ts` (+ `changes-queries.ts`) | El registro de cambios: tipos, texto de cada cambio y lecturas |
 | `src/ui/event-changes.tsx` | `RecentChanges` (Inicio, Agenda) y `ChangeLog` (ficha) |
@@ -58,10 +58,10 @@ delete_team_schedule(p_schedule uuid) returns integer
 
 Tablas `venues`, `team_schedules`, `event_changes`; `events.venue_id`, `events.schedule_id`; triggers `events_link_venue` (antes de insertar o cambiar `location`), `events_log_change` (después de cambiar) y `venues_rename_events`.
 
-- [ ] pgTAP que falla (`calendar.test.sql`).
-- [ ] Migración; `pnpm test:db` en verde; `posture.test.sql`; `pnpm db:types`; `supabase db lint`.
-- [ ] Seed: las pistas de los clubes de ejemplo, con sus tests.
-- [ ] Commit.
+- [x] pgTAP que falla (`team_schedules.test.sql`).
+- [x] Migración; `pnpm test:db` en verde; `posture.test.sql`; `pnpm db:types`; `supabase db lint`.
+- [x] Seed: las pistas de los clubes de ejemplo, con sus tests.
+- [x] Commit.
 
 ### 2. Módulo `calendar` y registro de cambios
 
@@ -70,20 +70,20 @@ Tablas `venues`, `team_schedules`, `event_changes`; `events.venue_id`, `events.s
 - `src/modules/calendar/`: `Venue`, `TeamSchedule`, `WEEKDAYS`, `scheduleLabel(schedule)`; `listVenues(ctx)`, `listTeamSchedules(ctx, teamId)`, `listSeasonSchedules(ctx)`; acciones `createVenue`, `renameVenue`, `deleteVenue`, `createTeamSchedule`, `updateTeamSchedule`, `deleteTeamSchedule` (permiso `club.manage`).
 - `src/modules/schedule/changes.ts`: `EventChange`, `changeText(change, tz)`; `listRecentChanges(ctx, nowIso, limit)`, `listEventChanges(ctx, eventId)`.
 
-- [ ] Tests de esquemas, formato y acciones; código.
-- [ ] Lecturas con sus tests.
-- [ ] Commit.
+- [x] Tests de esquemas, formato y acciones; código.
+- [x] Lecturas con sus tests.
+- [x] Commit.
 
 ### 3. Pantallas
 
-- [ ] Gestión → Calendario y «Horario semanal» en la página del equipo.
-- [ ] `RecentChanges` en Inicio y Agenda; `ChangeLog` y «quién lo puede cambiar» en las fichas; los cancelados que no han pasado, en «Próximos».
-- [ ] Sugerencias de «Lugar» en los formularios de sesión y de partido.
-- [ ] Tests de páginas y componentes.
-- [ ] Commit.
+- [x] Gestión → Calendario y «Horario semanal» en la página del equipo.
+- [x] `RecentChanges` en Inicio y Agenda; `ChangeLog` y «quién lo puede cambiar» en las fichas; los cancelados que no han pasado, en «Próximos».
+- [x] Sugerencias de «Lugar» en los formularios de sesión y de partido.
+- [x] Tests de páginas y componentes.
+- [x] Commit.
 
 ### 4. E2E y cierre
 
-- [ ] `e2e/calendar.spec.ts` en `ADMIN_SPECS`.
-- [ ] Contratos, backlog y README («Despliegue del calendario»).
-- [ ] Suite entera desde base vacía, repaso visual a 375×812, revisión de la rama y una tanda de arreglos.
+- [x] `e2e/calendar.spec.ts` en `ADMIN_SPECS`.
+- [x] Contratos, backlog y README («Despliegue del calendario»).
+- [x] Suite entera desde base vacía, repaso visual a 375×812, revisión de la rama y una tanda de arreglos.

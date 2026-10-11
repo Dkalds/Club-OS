@@ -198,6 +198,44 @@ Lo que la Fase 3 dejó para el principio de la Fase 4 y la Fase 4 no recogió: r
 - **Las pizarras del manual traen su fondo claro y su título dentro de la imagen.** En la ficha, de tema oscuro, se ven con una banda clara arriba y abajo. Se quita regenerándolas sin fondo o recortándolas al campo.
 - **Edad, rango de jugadores y material de los 44** son una propuesta que el propietario aprobó con la especificación: los 4x4 quedan desde U16 y el único 5x5 desde U18. Se corrigen en `pack.json` y se vuelven a cargar con `--update`, o directamente en la app.
 
+## Calendario (pieza 6 de la evolución)
+
+Especificación `docs/superpowers/specs/2026-10-11-calendario-design.md`, plan `docs/superpowers/plans/2026-10-11-calendario.md`. Va encima de la pieza 5. Alcance decidido con el propietario el 11 oct 2026: horarios semanales, pistas y registro de cambios, gestionados solo por la dirección.
+
+Lo que esta pieza resuelve de lo que había pendiente:
+
+- **Cada entrenamiento se creaba a mano.** Un horario semanal crea los de toda la temporada.
+- **El lugar era solo un texto.** El club tiene sus pistas; un evento cuyo lugar es una de ellas queda vinculado, y «Lugar» las sugiere.
+- **Un cambio de hora o una cancelación no dejaban rastro** (y cancelar sacaba el evento de lo que viene): quedan registrados y se enseñan en Inicio, en la Agenda y en la ficha; un cancelado sigue en «Próximos» hasta que pasa su fecha.
+
+Lo que queda:
+
+- **Migración al remoto.** `20270316000100_calendar` solo está aplicada en local. Va después de la de la pieza 5 y antes de fusionar (README, «Despliegue del calendario»).
+- **Importar el calendario de competición desde un fichero**, con revisión antes de publicar: pieza 10.
+- **El rol de coordinación** (5b): hoy los horarios y las pistas son de la dirección.
+- **Avisos fuera de la app** (correo, notificaciones) y marcar un cambio como visto. Hoy «Cambios recientes» enseña lo de los últimos 7 días a todo el que ve el equipo, lo haya visto o no.
+- **No se registra quién hizo cada cambio**, solo qué y cuándo.
+- **Cambiar un horario llena «Cambios recientes» de filas iguales** (una por entrenamiento movido: «Cambio de hora» tres veces en Inicio y «Ver 34 más»). Agruparlas en una sola («El horario de los jueves pasa a las 17:30») pide guardar que el cambio vino del horario.
+- **Ocupación de pistas**: nada avisa de que dos equipos coinciden en la misma pista a la misma hora.
+- **Festivos y vacaciones**: un horario crea un entrenamiento cada semana, también en Navidad. Se cancelan o se borran a mano. (Quitar el horario borra los que nadie ha tocado.)
+- **Cambiar un horario cuando alguien ya ha tocado sesiones**: la que se movió a mano se queda donde está; la que caería donde el equipo ya tiene otro entrenamiento, en el pasado o fuera de la temporada, tampoco se mueve. Puede quedar una semana con el entrenamiento en el horario antiguo: se arregla a mano.
+- **Un horario no se rellena solo**: si se añade a mitad de temporada crea de hoy en adelante; cambiarlo de día no crea la sesión de una semana que quedase sin ninguna.
+- **Cambiar las fechas de una temporada no toca sus entrenamientos**: acortarla deja fuera los que ya estaban; alargarla no crea los que faltan (se quita el horario y se vuelve a añadir).
+- **Quien tiene una sesión abierta mientras su horario cambia o su pista cambia de nombre** recibe «Alguien ha cambiado esto…» al guardar, también si solo estaba montando ejercicios: pierde lo que no había guardado.
+- **Los topes de las listas se pensaron para un calendario hecho a mano.** Con horarios, la dirección de un club con ocho o diez equipos ve en «Próximos» (50) y en la semana de Inicio (30) solo dos o tres semanas. Un entrenador con su equipo, toda la temporada cercana. A revisar con un club real: paginar la Agenda o filtrar por semanas.
+- **Un horario crea como mucho un año de entrenamientos**, dure lo que dure la temporada.
+- **Un horario entre las 02:00 y las 02:59** nace a las 03:30 el domingo del cambio de hora de marzo. Sin interés práctico.
+- **Los entrenamientos de un horario nacen todos con el título «Entrenamiento»** y sin objetivo. La propuesta de sesión (pieza 2) los rellena de uno en uno.
+- **Las pistas no tienen dirección, ni mapa, ni orden**: son un nombre. Un partido fuera sigue llevando su lugar como texto.
+- **El lugar de un partido admite 120 caracteres en su formulario y 80 en la base** (viene de la Fase 6): entre 81 y 120 se rechaza como «Revisa los campos marcados» sin marcar ninguno.
+- **Jugadores y familias no ven el calendario** ni sus cambios: pieza 9.
+
+Decisiones tomadas sin preguntarlas una a una (están también en la especificación):
+
+- Quitar un horario borra sus entrenamientos futuros sin tocar; los preparados se quedan.
+- «Cambios recientes» son los de los últimos 7 días, y un cancelado sigue en «Próximos» hasta que pasa su fecha.
+- El copy nuevo no lo ha validado producto.
+
 ## Estructura del club (pieza 5 de la evolución)
 
 Especificación `docs/superpowers/specs/2026-10-11-estructura-del-club-design.md`, plan `docs/superpowers/plans/2026-10-11-estructura-del-club.md`. Va encima de la pieza 4. Alcance decidido con el propietario el 11 oct 2026: temporada, equipos y personas.
@@ -223,7 +261,7 @@ Lo que queda:
 - **La demo pública y Gestión.** Producción es una demo con acceso público: si quien entra dirige el club de ejemplo, puede cambiar su estructura (renombrar equipos, archivar personas, marcar otra temporada como actual). Se recupera sembrando. Decidido con el propietario el 11 oct 2026: se queda así, como ya pasaba con la metodología.
 - **Una persona puede estar a la vez en el cuerpo técnico y en la plantilla de un equipo**, y en varios equipos: la base no lo impide y Gestión tampoco.
 - **Posición es texto libre.** Sin lista cerrada por club.
-- **Pistas, instalaciones y horarios recurrentes**: pieza 6. **Marca y terminología** («Configuración»): sin pieza asignada.
+- **Marca y terminología** («Configuración»): sin pieza asignada. (Las pistas y los horarios recurrentes llegaron con la pieza 6.)
 
 Decisiones tomadas sin preguntarlas una a una (están también en la especificación):
 

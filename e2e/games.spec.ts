@@ -89,13 +89,19 @@ test("Álex crea un partido desde la Agenda, lo ve entre los próximos y lo canc
   await page.getByRole("button", { name: "Cancelar partido" }).click();
   const dialog = page.getByRole("alertdialog", { name: "¿Cancelar este partido?" });
   await dialog.getByRole("button", { name: "Cancelar partido" }).click();
-  await expect(page.getByText("Partido cancelado")).toBeVisible();
+  // Lo dice su cabecera y, debajo, queda en sus cambios.
+  await expect(dialog).toHaveCount(0);
+  await expect(page.getByText("Partido cancelado").first()).toBeVisible();
+  await expect(
+    page.locator("section", { has: page.getByRole("heading", { name: "Cambios", exact: true }) }),
+  ).toContainText("Partido cancelado");
   await expect(page.getByRole("main").getByRole("button")).toHaveCount(0);
 
+  // Aún no ha pasado: sigue entre los próximos, dicho como cancelado, y no entre los anteriores.
   await page.goto(GAMES);
-  await expect(page.getByRole("link", { name: /CB E2E Rival/ })).toHaveCount(0);
+  await expect(page.getByRole("main").getByRole("link", { name: /CB E2E Rival/ }).last()).toContainText("Cancelado");
   await page.goto(PAST_GAMES);
-  await expect(page.getByRole("link", { name: /CB E2E Rival/ })).toContainText("Cancelado");
+  await expect(page.getByRole("link", { name: /CB E2E Rival/ })).toHaveCount(0);
 });
 
 test("la antigua lista de partidos lleva a la Agenda, con su filtro", async ({ page }) => {
