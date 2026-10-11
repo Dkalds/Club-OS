@@ -218,6 +218,9 @@ Lo que deja:
 - **Cambiar de media pista a pista completa no recoloca las fichas.**
 - **Sin trayectorias curvas, zonas, texto sobre la pista ni entrenador como ficha.** Sin tope propio de balones (caben hasta 24 fichas en total).
 - **El teclado mueve fichas y destinos con botones de flecha**, no con las teclas de flecha sobre la pista.
+- **El arrastre con el dedo no está probado en un iPhone de verdad.** Solo la ficha lleva `touch-action: none` (un `<g>` dentro del SVG), y los e2e arrastran con ratón: falta comprobar en Safari de iOS que el dedo sobre una ficha no desplaza la página, y un e2e con toque.
+- **Dos balones junto al mismo jugador**: lleva el más cercano (`ballHeldBy`); el otro se queda donde está al mover al jugador y no se ofrece pasarlo desde él.
+- **Un pase a un jugador apunta a donde ese jugador acaba el paso cuando se dibuja el pase.** Si después se le cambia el movimiento a quien recibe, el pase no le sigue: se vuelve a dibujar.
 - **Dos personas editando la misma pizarra**: gana la primera que guarda; la otra recibe «Alguien ha cambiado esto…» y pierde lo suyo al recargar. Es lo mismo que en el resto de la ficha.
 
 Decisiones tomadas sin preguntarlas una a una (están también en la especificación):

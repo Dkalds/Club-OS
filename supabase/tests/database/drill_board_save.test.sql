@@ -9,12 +9,15 @@
 --   · Una pizarra que no pasa el `check` es INVALID.
 --   · Sin pizarra (ausente o `null` de JSON) la quita.
 --   · Por la API directa: quien edita el ejercicio cambia la columna; quien no, no.
+--   · El club: la dirección de OTRO club no guarda ni cambia nada de este.
+--   · El orden (C26): quien no puede editar recibe NOT_FOUND también con una copia obsoleta
+--     o con una pizarra inválida.
 --
 -- Se ejecuta con `pnpm test:db`. Los helpers `tests.*` vienen de `supabase/seed.sql`. Todo
 -- ocurre dentro de una transacción que se deshace al final. Los datos son ficticios.
 begin;
 
-select plan(21);
+select plan(28);
 
 -- ── Fixtures ──────────────────────────────────────────────────────────────────────────
 do $$
@@ -27,6 +30,7 @@ declare
   u_c2    uuid := tests.create_user('c2@boardsave.pgtap.test');
   u_jugad uuid := tests.create_user('jugador@boardsave.pgtap.test');
   u_cb    uuid := tests.create_user('coach-b@boardsave.pgtap.test');
+  u_ab    uuid := tests.create_user('admin-b@boardsave.pgtap.test');
 
   p_p1 constant uuid := gen_random_uuid();
 
@@ -52,7 +56,8 @@ begin
     (club_a, u_c1,    'coach',  null),
     (club_a, u_c2,    'coach',  null),
     (club_a, u_jugad, 'player', p_p1),
-    (club_b, u_cb,    'coach',  null);
+    (club_b, u_cb,    'coach',  null),
+    (club_b, u_ab,    'admin',  null);
 
   insert into drills (
     id, organization_id, title, min_players, max_players, min_minutes, max_minutes, min_age,
@@ -67,6 +72,7 @@ begin
   perform set_config('fx.c2',    u_c2::text,    true);
   perform set_config('fx.jugad', u_jugad::text, true);
   perform set_config('fx.cb',    u_cb::text,    true);
+  perform set_config('fx.ab',    u_ab::text,    true);
   perform set_config('fx.d_pub',    d_pub::text,    true);
   perform set_config('fx.d_draft',  d_draft::text,  true);
   perform set_config('fx.d_c1_pub', d_c1_pub::text, true);
@@ -104,6 +110,16 @@ select results_eq(
   'la pizarra queda guardada y la función devuelve la copia nueva del ejercicio'
 );
 
+-- Guardar mueve la copia: la de antes ya no vale.
+select throws_like(
+  $$select public.save_drill_board(
+      current_setting('fx.d_draft')::uuid,
+      current_setting('fx.u_draft')::timestamptz - interval '1 microsecond',
+      current_setting('fx.board')::jsonb)$$,
+  '%STALE_COPY%',
+  'la copia de antes de guardar ya es obsoleta'
+);
+
 -- 3. Su propio ejercicio, ya publicado, no: publicar es de la dirección, y cambiarlo también.
 select throws_like(
   $$select public.save_drill_board(
@@ -111,6 +127,21 @@ select throws_like(
       current_setting('fx.board')::jsonb)$$,
   '%NOT_FOUND%',
   'el autor no guarda la pizarra de su ejercicio ya publicado'
+);
+
+-- Tampoco por la API directa: la política no le deja la fila de su publicado.
+select is_empty(
+  $$update drills set board = current_setting('fx.board')::jsonb
+    where id = current_setting('fx.d_c1_pub')::uuid returning id$$,
+  'el autor no cambia por la API directa la pizarra de su ejercicio ya publicado'
+);
+
+-- El orden (C26): sin permiso es NOT_FOUND aunque la copia sea obsoleta o la pizarra inválida.
+select throws_like(
+  $$select public.save_drill_board(
+      current_setting('fx.d_c1_pub')::uuid, '2000-01-01T00:00:00Z', '{"version": 2}'::jsonb)$$,
+  '%NOT_FOUND%',
+  'quien no puede editar recibe NOT_FOUND antes que STALE_COPY o INVALID'
 );
 
 -- 4. Ni la de un publicado de otro.
@@ -204,6 +235,37 @@ select throws_like(
       current_setting('fx.board')::jsonb)$$,
   '%NOT_FOUND%',
   'otro club recibe NOT_FOUND'
+);
+
+-- La dirección de OTRO club: aquí lo único que la para es el club, porque en el suyo edita
+-- cualquier ejercicio.
+select tests.authenticate_as(current_setting('fx.ab')::uuid);
+
+select throws_like(
+  $$select public.save_drill_board(
+      current_setting('fx.d_pub')::uuid, tests.token(current_setting('fx.d_pub')::uuid),
+      current_setting('fx.board')::jsonb)$$,
+  '%NOT_FOUND%',
+  'la dirección de otro club recibe NOT_FOUND en un publicado de este'
+);
+
+select throws_like(
+  $$select public.save_drill_board(
+      current_setting('fx.d_draft')::uuid, tests.token(current_setting('fx.d_draft')::uuid),
+      current_setting('fx.board')::jsonb)$$,
+  '%NOT_FOUND%',
+  'y en un borrador de este'
+);
+
+select is_empty(
+  $$update drills set board = current_setting('fx.board')::jsonb
+    where id in (current_setting('fx.d_pub')::uuid, current_setting('fx.d_draft')::uuid) returning id$$,
+  'la dirección de otro club no cambia nada por la API directa'
+);
+
+select is_empty(
+  $$select id from drills where id in (current_setting('fx.d_pub')::uuid, current_setting('fx.d_draft')::uuid)$$,
+  'ni ve esos ejercicios'
 );
 
 -- 15. Un jugador.

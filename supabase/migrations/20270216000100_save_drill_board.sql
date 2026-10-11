@@ -23,6 +23,11 @@ grant update (board) on table public.drills to authenticated;
 --   1. NOT_FOUND si el ejercicio no existe, no se ve o no se puede editar.
 --   2. STALE_COPY si `p_expected_updated_at` ya no es el del ejercicio.
 --   3. INVALID si la pizarra no pasa el `check`.
+--
+-- La fila se bloquea al leerla (`for update`), como en `save_drill`: dos guardados a la vez con
+-- la misma copia no pasan los dos, el segundo espera y ve el `updated_at` nuevo. Y si entre la
+-- lectura y la escritura el ejercicio deja de poder editarse (la dirección publica el borrador),
+-- la escritura no encuentra fila: es NOT_FOUND, no un guardado que parece haber ido bien.
 create function public.save_drill_board(
   p_drill uuid,
   p_expected_updated_at timestamptz,
@@ -41,7 +46,8 @@ begin
   into v_current
   from public.drills as d
   where d.id = p_drill
-    and private.can_edit_drill(d.id);
+    and private.can_edit_drill(d.id)
+  for update;
 
   if not found then
     raise exception 'NOT_FOUND' using errcode = 'P0002';
@@ -61,6 +67,10 @@ begin
     when check_violation then
       raise exception 'INVALID' using errcode = '22023';
   end;
+
+  if v_updated_at is null then
+    raise exception 'NOT_FOUND' using errcode = 'P0002';
+  end if;
 
   return v_updated_at;
 end;

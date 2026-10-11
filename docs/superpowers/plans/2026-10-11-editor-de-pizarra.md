@@ -49,4 +49,4 @@
 
 - [x] E2E (`board-editor.spec.ts`, en `admin`).
 - [x] Contratos, backlog, README y `design/components/Board`.
-- [ ] Suite entera desde base vacía, repaso visual a 375×812, revisión de la rama y una tanda de arreglos.
+- [x] Suite entera desde base vacía, repaso visual a 375×812, revisión de la rama y una tanda de arreglos.

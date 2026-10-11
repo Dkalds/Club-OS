@@ -259,7 +259,8 @@ export const drillIdSchema = z.object({ drillId: id });
 export const saveDrillBoardSchema = z.object({
   drillId: id,
   expectedUpdatedAt: z.string().trim().min(1),
-  board: z.unknown(),
+  // `null` la quita, y hay que decirlo: una clave que no llega no borra nada.
+  board: z.record(z.string(), z.unknown()).nullable(),
 });
 
 /** Lo que recibe `saveDrillBoard`. */

@@ -26,3 +26,4 @@ El editor dibuja sobre la misma pista, con el mismo dibujo. Lo que añade:
 - El movimiento que se está decidiendo se ve atenuado, con su destino en un círculo discontinuo, hasta que se confirma tocando la pista.
 - Bajo la pista, los pasos como píldoras («Inicio», «Paso 1»…, «+ Paso»), con la activa en `brand-accent-soft`; después, lo que se puede hacer con lo elegido, en botones `secondary` (y `danger` para quitar); y al final «Deshacer», «Rehacer», «Vista previa» y el `primary` de la pantalla, «Guardar pizarra».
 - Mover sin arrastrar: cuatro botones de flecha de 44 px, redondos, con borde `line`.
+- Arrastrar empieza al mover el dedo 6 px (menos es un toque) y la ficha se mueve lo que el dedo, sin saltar a él. Lo que se coloca a mano queda a 2 unidades del borde como poco.

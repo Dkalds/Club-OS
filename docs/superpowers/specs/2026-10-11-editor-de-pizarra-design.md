@@ -30,17 +30,17 @@ La pantalla es la pista (la del visor, con el mismo dibujo) y, debajo, lo que se
 
 - **Los pasos.** Una fila con «Inicio», «Paso 1», «Paso 2»… e «+ Paso». «Inicio» es dónde empieza cada ficha. Un paso enseña las fichas donde están al empezarlo y los movimientos de ese paso.
 - **Colocar fichas** (solo en «Inicio»). Cuatro botones: «Atacante», «Defensor», «Balón» y «Cono». La ficha nueva aparece en un sitio libre y se arrastra a su sitio. Los atacantes y los defensores se numeran solos (el menor número libre, del 1 al 9).
-- **Mover una ficha** (solo en «Inicio»). Se arrastra con el dedo. Sin arrastrar: se elige la ficha y se mueve con cuatro botones de flecha.
+- **Mover una ficha** (solo en «Inicio»). Se arrastra con el dedo (el arrastre empieza al mover 6 px; menos es un toque). Sin arrastrar: se elige la ficha y se mueve con cuatro botones de flecha. Quien lleva el balón se lo lleva consigo.
 - **Tocar una ficha** la elige y enseña lo que puede hacer:
   - Un jugador, en un paso: «Cortar», «Botar» y «Bloquear». El balón: «Pasar». A quien lleva el balón también se le ofrece «Pasar» (el movimiento es del balón), y tocar a un jugador como destino del pase le deja el balón a él.
-  - Elegida la acción, se toca la pista donde acaba: ahí queda dibujado el movimiento. Sin tocar la pista, el destino se mueve con los botones de flecha y «Confirmar».
+  - Elegida la acción, se toca la pista donde acaba: ahí queda dibujado el movimiento. Sin tocar la pista, el destino se mueve con los botones de flecha y «Confirmar». Un destino tan cerca que el movimiento no se dibujaría no se guarda, y se dice.
   - Si la ficha ya se mueve en ese paso: «Quitar movimiento». Elegir otra acción lo sustituye.
   - En «Inicio»: «Quitar ficha» (y con ella sus movimientos).
-- **Pasos.** «+ Paso» añade uno detrás del que se ve; «Duplicar paso» lo copia detrás; «Quitar paso» lo quita. Cada paso tiene su nota (140 caracteres). Un paso sin movimientos no se guarda: al guardar se descartan los vacíos.
+- **Pasos.** «+ Paso» añade uno detrás del que se ve; «Duplicar paso» lo copia detrás, repitiendo el gesto de cada ficha desde donde quedó; «Quitar paso» lo quita. Cada paso tiene su nota (140 caracteres). Un paso sin movimientos no se guarda: al guardar se descartan los vacíos.
 - **Pista.** «Media pista» o «Pista completa». Cambiarla no mueve las fichas de sitio en sus coordenadas: se recolocan a mano.
 - **Deshacer y rehacer**, de todo lo anterior, hasta 50 cambios.
 - **Vista previa.** Enseña la pizarra en el visor (`Board`), con sus controles, tal como se verá.
-- **Guardar.** Guarda la pizarra del ejercicio y vuelve a su ficha. Con cambios sin guardar, salir pregunta. «Quitar pizarra» la borra, con confirmación.
+- **Guardar.** Guarda la pizarra del ejercicio y vuelve a su ficha. Con cambios sin guardar, salir pregunta. «Quitar pizarra» la borra, con confirmación; guardar sin fichas una pizarra que existía pasa por la misma confirmación.
 
 Los topes son los de la pieza 3 (24 fichas, 12 pasos, 12 movimientos por paso): al llegar, el botón se desactiva y dice por qué.
 

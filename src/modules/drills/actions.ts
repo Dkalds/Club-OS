@@ -205,8 +205,8 @@ export async function saveDrillBoard(
     saveDrillBoardSchema,
     input,
     async ({ db, ctx, data, fromDb }) => {
-      const board = data.board === null || data.board === undefined ? null : parseBoard(data.board);
-      if (data.board !== null && data.board !== undefined && board === null) return fail("INVALID");
+      const board = data.board === null ? null : parseBoard(data.board);
+      if (data.board !== null && board === null) return fail("INVALID");
 
       const { data: drill, error: readError } = await db
         .from("drills")

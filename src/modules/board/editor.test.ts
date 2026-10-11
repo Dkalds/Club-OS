@@ -314,9 +314,44 @@ describe("move-token", () => {
     expect(tokenOf(state, "a1")?.at).toEqual({ x: 34, y: 12 });
     expect(state.past).toEqual([start.board]);
     expect(state.selected).toBe("a1");
+    // El balón que lleva (estaba a 3 de él) se mueve lo mismo: 16 a la izquierda y 68 arriba.
+    expect(tokenOf(state, "ball")?.at).toEqual({ x: 37, y: 12 });
     // Las demás, y los pasos, siguen como estaban.
-    expect(state.board.tokens.filter((token) => token.id !== "a1")).toEqual(board().tokens.slice(1));
+    const others = (tokens: BoardToken[]) => tokens.filter((token) => token.id !== "a1" && token.id !== "ball");
+    expect(others(state.board.tokens)).toEqual(others(board().tokens));
     expect(state.board.steps).toEqual(board().steps);
+  });
+
+  it("mover a un jugador que no lleva el balón no mueve el balón; mover el balón no mueve a nadie", () => {
+    const moved = editorReducer(open(board()), moveToken("a2", 60, 60));
+    expect(tokenOf(moved, "ball")?.at).toEqual({ x: 53, y: 80 });
+
+    const ballMoved = editorReducer(open(board()), moveToken("ball", 10, 10));
+    expect(tokenOf(ballMoved, "a1")?.at).toEqual({ x: 50, y: 80 });
+  });
+
+  it("el balón que acompaña no se sale de la pista", () => {
+    const state = editorReducer(open(board()), moveToken("a1", 99, 80));
+
+    expect(tokenOf(state, "ball")?.at).toEqual({ x: 100, y: 80 });
+  });
+
+  it("varios toques de flecha seguidos a la misma ficha son un solo paso atrás; un arrastre, otro", () => {
+    const start = open(board());
+    const nudged = run(
+      start,
+      { type: "move-token", id: "a2", to: { x: 22, y: 60 }, nudge: true },
+      { type: "move-token", id: "a2", to: { x: 24, y: 60 }, nudge: true },
+      { type: "move-token", id: "a2", to: { x: 26, y: 60 }, nudge: true },
+    );
+    expect(nudged.past).toHaveLength(1);
+    expect(tokenOf(editorReducer(nudged, UNDO), "a2")?.at).toEqual({ x: 20, y: 60 });
+
+    // Un arrastre después (sin `nudge`) es otro cambio, y otra ficha a toques, también.
+    const dragged = editorReducer(nudged, moveToken("a2", 40, 40));
+    expect(dragged.past).toHaveLength(2);
+    const other = editorReducer(nudged, { type: "move-token", id: "d1", to: { x: 52, y: 70 }, nudge: true });
+    expect(other.past).toHaveLength(2);
   });
 
   it.each([
@@ -543,7 +578,17 @@ describe("pasos", () => {
     const start = open(board(), view(1));
     const state = editorReducer(start, DUPLICATE_STEP);
 
-    expect(state.board.steps).toEqual([first, first, second]);
+    // La copia repite el gesto desde donde quedó cada ficha, acotado a la pista: el balón fue de
+    // (53,80) a (23,60) y sigue otros 30 a la izquierda y 20 arriba; el 1, de (50,80) a (50,30),
+    // sigue hacia el aro.
+    const copy = {
+      note: first.note,
+      moves: [
+        { token: "ball", kind: "pass", to: { x: 0, y: 40 } },
+        { token: "a1", kind: "cut", to: { x: 50, y: 0 } },
+      ],
+    };
+    expect(state.board.steps).toEqual([first, copy, second]);
     expect(state.view).toBe(2);
     expect(state.selected).toBeNull();
     expect(state.past).toEqual([start.board]);
@@ -553,7 +598,8 @@ describe("pasos", () => {
     const state = open(board(), view(2), DUPLICATE_STEP);
 
     expect(state.board.steps).toHaveLength(3);
-    expect(state.board.steps[2]).toEqual(board().steps[1]);
+    // El 2 botó de (20,60) a (30,25): en la copia sigue 10 a la derecha y 35 arriba, hasta el fondo.
+    expect(state.board.steps[2]).toEqual({ moves: [{ token: "a2", kind: "dribble", to: { x: 40, y: 0 } }] });
     expect(state.board.steps[2]).not.toHaveProperty("note");
     expect(state.view).toBe(3);
   });
@@ -581,7 +627,7 @@ describe("pasos", () => {
     });
 
     const originalChanged = run(duplicated, view(1), setMove("a1", "screen", 9, 9), setNote(""));
-    expect(originalChanged.board.steps[1]).toEqual(board().steps[0]);
+    expect(originalChanged.board.steps[1]).toEqual(duplicated.board.steps[1]);
   });
 
   it("remove-step quita el paso que se ve y enseña el que ocupa su sitio", () => {

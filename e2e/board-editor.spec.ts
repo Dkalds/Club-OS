@@ -127,7 +127,7 @@ test("dibujar una pizarra desde cero, previsualizarla y guardarla", async ({ pag
   expect(Math.hypot(ball.x - one.x, ball.y - one.y)).toBeLessThan(40);
 
   // Un paso: el 1 pasa al 2 tocándole, y corta hacia el aro.
-  await button(page, "Paso").click();
+  await button(page, "Añadir paso").click();
   await expect(button(page, "Paso 1")).toHaveAttribute("aria-pressed", "true");
   // A quien lleva el balón se le ofrece pasarlo: no hace falta acertarle al balón.
   await token(page, "Atacante 1").click();
@@ -200,6 +200,68 @@ test("deshacer, rehacer y salir con cambios sin guardar", async ({ page }) => {
   await page.getByRole("link", { name: "Volver" }).click();
   await leave.getByRole("button", { name: "Salir sin guardar" }).click();
   await expect(page).toHaveURL(new RegExp(`${draft}$`));
+});
+
+test("con teclado, el foco sigue en el editor cuando cambia el panel", async ({ page }) => {
+  test.skip(!CAN_WRITE, NEEDS_LOCAL_DB);
+  await openAs(page, ALEX);
+  await page.goto(`${draft}/board`);
+  await hydrated(button(page, "Añadir cono"));
+
+  // Añadir una ficha la elige, y el botón desaparece: el foco pasa a la ficha.
+  await button(page, "Añadir cono").focus();
+  await page.keyboard.press("Enter");
+  await expect(token(page, "Cono 1")).toBeFocused();
+
+  // «Listo» la suelta: el foco va al primer control de lo que queda.
+  await button(page, "Listo").focus();
+  await page.keyboard.press("Enter");
+  await expect(button(page, "Añadir atacante")).toBeFocused();
+
+  // En un paso: elegir la acción lleva el foco a las flechas del destino, y confirmar, a la ficha.
+  await button(page, "Paso 1").click();
+  await token(page, "Atacante 2").focus();
+  await page.keyboard.press("Enter");
+  await expect(token(page, "Atacante 2")).toHaveAttribute("aria-pressed", "true");
+  await button(page, "Botar").focus();
+  await page.keyboard.press("Enter");
+  await expect(button(page, "Mover el destino a la izquierda")).toBeFocused();
+  await button(page, "Confirmar").focus();
+  await page.keyboard.press("Enter");
+  await expect(court(page).locator('[data-move="dribble"]')).toHaveCount(1);
+  await expect(token(page, "Atacante 2")).toBeFocused();
+});
+
+test("si alguien cambia el ejercicio mientras se dibuja, guardar avisa y no pisa nada", async ({ page }) => {
+  test.skip(!CAN_WRITE, NEEDS_LOCAL_DB);
+  await openAs(page, ALEX);
+  await page.goto(`${draft}/board`);
+  await hydrated(button(page, "Añadir cono"));
+
+  await button(page, "Añadir cono").click();
+  await expect(token(page, "Cono 1")).toBeVisible();
+
+  // Otra persona guarda la ficha del ejercicio: la copia con la que se abrió el editor ya no vale.
+  const db = createAdminClient();
+  const changed = await db.from("drills").update({ objective: "Cambiado desde otro móvil." }).eq("title", NAME);
+  if (changed.error) throw changed.error;
+
+  await button(page, "Guardar pizarra").click();
+  const alert = page.getByRole("alert").filter({ hasText: "Alguien ha cambiado esto mientras editabas." });
+  await expect(alert).toBeVisible();
+  await expect(page).toHaveURL(new RegExp(`${draft}/board$`));
+
+  // Nada se ha guardado: la pizarra sigue sin el cono.
+  const saved = await db.from("drills").select("board, objective").eq("title", NAME).single();
+  expect(saved.data?.objective).toBe("Cambiado desde otro móvil.");
+  expect((saved.data?.board as { tokens: unknown[] }).tokens).toHaveLength(3);
+
+  // «Recargar» trae la copia nueva, sin lo dibujado y sin preguntar por los cambios.
+  await alert.getByRole("button", { name: "Recargar" }).click();
+  await hydrated(button(page, "Añadir cono"));
+  await expect(token(page, "Cono 1")).toHaveCount(0);
+  await expect(token(page, "Atacante 2")).toBeVisible();
+  await expect(button(page, "Guardar pizarra")).toBeDisabled();
 });
 
 test("quitar la pizarra", async ({ page }) => {

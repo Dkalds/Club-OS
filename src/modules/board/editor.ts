@@ -42,7 +42,11 @@ export type EditorState = {
 
 export type EditorAction =
   | { type: "add-token"; kind: BoardTokenKind }
-  | { type: "move-token"; id: string; to: BoardPoint }
+  /**
+   * Con `nudge` (un toque de flecha), varios seguidos de la misma ficha son un solo paso atrás:
+   * llevarla a su sitio a toques no puede comerse el historial.
+   */
+  | { type: "move-token"; id: string; to: BoardPoint; nudge?: boolean }
   | { type: "remove-token"; id: string }
   | { type: "set-move"; id: string; kind: BoardMoveKind; to: BoardPoint }
   | { type: "clear-move"; id: string }
@@ -266,10 +270,27 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       const to = clampPoint(action.to);
       const token = board.tokens.find((candidate) => candidate.id === action.id);
       if (!token || (token.at.x === to.x && token.at.y === to.y)) return state;
-      return commit(state, {
-        ...board,
-        tokens: board.tokens.map((candidate) => (candidate.id === action.id ? { ...candidate, at: to } : candidate)),
-      });
+
+      // Quien lleva el balón se lo lleva: se mueve lo mismo que él, sin salirse de la pista.
+      const start: BoardFrame = Object.fromEntries(board.tokens.map((candidate) => [candidate.id, candidate.at]));
+      const held = ballHeldBy(board, start, token.id);
+      const dx = to.x - token.at.x;
+      const dy = to.y - token.at.y;
+      return commit(
+        state,
+        {
+          ...board,
+          tokens: board.tokens.map((candidate) => {
+            if (candidate.id === action.id) return { ...candidate, at: to };
+            if (candidate.id === held) {
+              return { ...candidate, at: clampPoint({ x: candidate.at.x + dx, y: candidate.at.y + dy }) };
+            }
+            return candidate;
+          }),
+        },
+        {},
+        action.nudge ? `move:${action.id}` : null,
+      );
     }
 
     case "remove-token": {
@@ -333,7 +354,16 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
 
     case "duplicate-step": {
       if (step === null || !canAddStep(board)) return state;
-      const copy = { ...board.steps[step], moves: board.steps[step].moves.map((move) => ({ ...move, to: { ...move.to } })) };
+      // El paso copiado repite el gesto, no el destino: cada ficha vuelve a moverse lo mismo y en
+      // la misma dirección desde donde quedó. Con el mismo destino no se movería nadie.
+      const from = boardFrames(board)[step];
+      const copy = {
+        ...board.steps[step],
+        moves: board.steps[step].moves.map((move) => {
+          const origin = from[move.token] ?? move.to;
+          return { ...move, to: clampPoint({ x: 2 * move.to.x - origin.x, y: 2 * move.to.y - origin.y }) };
+        }),
+      };
       const steps = [...board.steps.slice(0, step + 1), copy, ...board.steps.slice(step + 1)];
       return commit(state, { ...board, steps }, { view: state.view + 1, selected: null });
     }
