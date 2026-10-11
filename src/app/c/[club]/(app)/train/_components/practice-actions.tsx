@@ -288,7 +288,7 @@ export function PracticeActions({
             open={confirming}
             onOpenChange={setConfirming}
             title="¿Cancelar esta sesión?"
-            body="Dejará de salir en Inicio y en Próximas. Seguirá en el histórico."
+            body="Dejará de salir en Inicio y en Próximas. En la Agenda se verá como cancelada hasta que pase su fecha."
             confirmLabel="Cancelar sesión"
             cancelLabel="Volver"
             tone="danger"

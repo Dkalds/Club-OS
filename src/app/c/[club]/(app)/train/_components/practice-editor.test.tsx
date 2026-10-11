@@ -297,6 +297,42 @@ describe("PracticeEditor · la pantalla", () => {
   });
 });
 
+describe("PracticeEditor · las pistas del club en «Fecha y datos»", () => {
+  /** Lo que sugiere «Lugar»: las opciones del `<datalist>` al que apunta su `list`. */
+  function suggestedPlaces(): string[] | null {
+    const listId = metaField("Lugar").getAttribute("list");
+    const list = listId ? document.getElementById(listId) : null;
+    return list ? [...list.querySelectorAll("option")].map((option) => option.value) : null;
+  }
+
+  it("«Lugar» sugiere las pistas que la página le pasa con las opciones", () => {
+    render(
+      <PracticeEditor
+        clubSlug="club-a"
+        practice={practice()}
+        options={{
+          teams: [{ id: TEAM, name: "Equipo A" }],
+          focusAreas: [{ id: FOCUS, name: "Rebote" }],
+          venues: ["Pista 1", "Pista 2"],
+        }}
+        drillFocusAreas={DRILL_FOCUS_AREAS}
+        initialValues={VALUES}
+      />,
+    );
+    click("Fecha y datos");
+
+    expect(metaField("Lugar")).toHaveValue("Pabellón 2");
+    expect(suggestedPlaces()).toEqual(["Pista 1", "Pista 2"]);
+  });
+
+  it("sin pistas, «Lugar» no sugiere nada", () => {
+    renderEditor();
+    click("Fecha y datos");
+
+    expect(suggestedPlaces()).toBeNull();
+  });
+});
+
 describe("PracticeEditor · salir con cambios", () => {
   // Review Focus 5: se sale con cambios sin guardar.
   it("sin cambios, «Volver a la sesión» navega y la pestaña no pregunta", () => {

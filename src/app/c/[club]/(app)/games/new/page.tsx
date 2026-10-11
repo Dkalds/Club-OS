@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { requireClub } from "@/lib/guards";
 import { can } from "@/lib/permissions";
+import { listVenueNames } from "@/modules/calendar/queries";
 import { defaultSessionDate } from "@/lib/time";
 import { DEFAULT_GAME_MINUTES } from "@/modules/games/limits";
 import { noTeamsState } from "@/modules/team/no-teams";
@@ -19,7 +20,7 @@ export default async function NewGamePage({ params }: PageProps<"/c/[club]/games
   const ctx = await requireClub(club);
   if (!can(ctx, "game.manage")) notFound();
 
-  const { teams, active } = await getTeamScope(ctx);
+  const [{ teams, active }, venues] = await Promise.all([getTeamScope(ctx), listVenueNames(ctx)]);
   const first = teams[0];
 
   return (
@@ -30,6 +31,7 @@ export default async function NewGamePage({ params }: PageProps<"/c/[club]/games
         <GameForm
           clubSlug={ctx.org.slug}
           teams={teams}
+          venues={venues}
           initial={{
             // El equipo activo, si hay uno elegido; si no, el primero.
             teamId: (active ?? first).id,

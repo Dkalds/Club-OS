@@ -24,9 +24,10 @@ export function parseAgendaKind(value: unknown): AgendaKind {
 
 /**
  * Los entrenos y los partidos del equipo activo (el elegido o, sin elegir, todos «mis equipos»),
- * por semanas, como mucho 50 por pestaña. `upcoming` es lo programado que no ha terminado (algo
- * en curso cuenta), del más próximo al más lejano; `past` es todo lo demás (hecho, cancelado y
- * programado que ya terminó), del más reciente al más antiguo. `kind` deja solo los entrenos o
+ * por semanas, como mucho 50 por pestaña. `upcoming` es lo que no ha terminado (algo en curso
+ * cuenta), programado o cancelado, del más próximo al más lejano: una cancelación se sigue viendo
+ * hasta que pasa su fecha, que es cuando su equipo necesita saberla. `past` es todo lo demás (lo
+ * hecho y lo que ya terminó), del más reciente al más antiguo. `kind` deja solo los entrenos o
  * solo los partidos.
  *
  * `nowIso` es el instante actual del servidor en ISO: nunca llega de la petición, porque va
@@ -47,11 +48,11 @@ export async function listAgenda(ctx: ClubContext, { scope, kind }: AgendaFilter
       scoped.map((team) => team.id),
     );
   const ofKind = kind === "all" ? events : events.eq("kind", kind);
-  // Lo anterior es lo que no es «programado y sin terminar»: se pide con la negación.
+  // Lo anterior es lo que no es «sin hacer y sin terminar»: se pide con la negación.
   const inScope =
     scope === "upcoming"
-      ? ofKind.eq("status", "scheduled").gt("ends_at", nowIso)
-      : ofKind.or(`status.neq.scheduled,ends_at.lte.${nowIso}`);
+      ? ofKind.in("status", ["scheduled", "cancelled"]).gt("ends_at", nowIso)
+      : ofKind.or(`status.eq.done,ends_at.lte.${nowIso}`);
 
   // Uno de más, para saber si hay más de los que se enseñan.
   const { data, error } = await inScope

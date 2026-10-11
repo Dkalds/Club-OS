@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   getPracticeFormOptions: vi.fn(),
   getTeamDefaults: vi.fn(),
   getTemplate: vi.fn(),
+  listVenueNames: vi.fn(),
 }));
 
 vi.mock("@/modules/tenancy/queries", () => ({ getClubContext: mocks.getClubContext }));
@@ -15,6 +16,7 @@ vi.mock("@/modules/practice/queries", () => ({
   getTeamDefaults: mocks.getTeamDefaults,
 }));
 vi.mock("@/modules/practice/template-queries", () => ({ getTemplate: mocks.getTemplate }));
+vi.mock("@/modules/calendar/queries", () => ({ listVenueNames: mocks.listVenueNames }));
 // Como el de verdad: `notFound()` corta el render lanzando.
 vi.mock("next/navigation", () => ({
   notFound: () => {
@@ -68,6 +70,7 @@ beforeEach(() => {
   mocks.getPracticeFormOptions.mockResolvedValue({ teams: TEAMS, focusAreas: FOCUS_AREAS, defaultTeamId: null });
   mocks.getTeamDefaults.mockResolvedValue(NO_HISTORY);
   mocks.getTemplate.mockResolvedValue(null);
+  mocks.listVenueNames.mockResolvedValue([]);
 });
 
 afterEach(() => {
@@ -82,6 +85,7 @@ describe("/train/new, acceso y lectura", () => {
 
     expect(mocks.getClubContext).toHaveBeenCalledWith("club-a");
     expect(mocks.getPracticeFormOptions).not.toHaveBeenCalled();
+    expect(mocks.listVenueNames).not.toHaveBeenCalled();
   });
 
   it.each(["player", "guardian"] as const)("un %s no gestiona sesiones: 404 sin leer nada", async (role) => {
@@ -90,6 +94,7 @@ describe("/train/new, acceso y lectura", () => {
     await expect(NewPracticePage(props())).rejects.toThrow("NOT_FOUND");
 
     expect(mocks.getPracticeFormOptions).not.toHaveBeenCalled();
+    expect(mocks.listVenueNames).not.toHaveBeenCalled();
   });
 
   it.each(["coach", "admin"] as const)("un %s entra y se leen las opciones con su contexto", async (role) => {
@@ -107,6 +112,12 @@ describe("/train/new, acceso y lectura", () => {
     mocks.getPracticeFormOptions.mockRejectedValue(new Error("practice.teams: fallo"));
 
     await expect(NewPracticePage(props())).rejects.toThrow("practice.teams: fallo");
+  });
+
+  it("si no se pueden leer las pistas del club, lanza también", async () => {
+    mocks.listVenueNames.mockRejectedValue(new Error("calendar.venue-names: fallo"));
+
+    await expect(NewPracticePage(props())).rejects.toThrow("calendar.venue-names: fallo");
   });
 });
 
@@ -126,9 +137,21 @@ describe("/train/new, pantalla", () => {
     render(await NewPracticePage(props()));
 
     expect(formProps().clubSlug).toBe("club-a");
-    expect(formProps().options).toEqual({ teams: TEAMS, focusAreas: FOCUS_AREAS, defaultTeamId: null });
+    expect(formProps().options).toEqual({ teams: TEAMS, focusAreas: FOCUS_AREAS, defaultTeamId: null, venues: [] });
     expect(formProps().edit).toBeUndefined();
     expect(formProps().template).toBeUndefined();
+  });
+
+  it("le da las pistas del club, leídas con su contexto, para que «Lugar» las sugiera", async () => {
+    const ctx = clubContext("coach");
+    mocks.getClubContext.mockResolvedValue(ctx);
+    mocks.listVenueNames.mockResolvedValue(["Pista 1", "Pista 2"]);
+
+    render(await NewPracticePage(props()));
+
+    expect(mocks.listVenueNames).toHaveBeenCalledTimes(1);
+    expect(mocks.listVenueNames).toHaveBeenCalledWith(ctx);
+    expect(formProps().options.venues).toEqual(["Pista 1", "Pista 2"]);
   });
 
   it("parte del primer equipo, las 18:00 y 75 minutos, sin título, objetivos ni lugar", async () => {

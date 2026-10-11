@@ -29,6 +29,7 @@ describe("AdminNav", () => {
     const nav = screen.getByRole("navigation", { name: "Gestión" });
     expect(within(nav).getAllByRole("link").map((link) => link.textContent)).toEqual([
       "Temporada",
+      "Calendario",
       "Personas",
       "Identidad",
       "Valores",
@@ -46,6 +47,10 @@ describe("AdminNav", () => {
     expect(within(nav).getByRole("link", { name: "Personas" })).toHaveAttribute(
       "href",
       "/c/club-a/admin/people",
+    );
+    expect(within(nav).getByRole("link", { name: "Calendario" })).toHaveAttribute(
+      "href",
+      "/c/club-a/admin/calendar",
     );
   });
 
@@ -66,6 +71,7 @@ describe("AdminNav", () => {
     ["/c/club-a/admin/season", "Temporada"],
     ["/c/club-a/admin/season/00000000-0000-4000-8000-000000000001", "Temporada"],
     ["/c/club-a/admin/season/categories", "Temporada"],
+    ["/c/club-a/admin/calendar", "Calendario"],
     ["/c/club-a/admin/people", "Personas"],
     ["/c/club-a/admin/people/00000000-0000-4000-8000-000000000002", "Personas"],
   ])("%s marca «%s»", (pathname, label) => {

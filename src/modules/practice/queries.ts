@@ -91,6 +91,10 @@ const DEFAULTS_SCAN_LIMIT = 200;
  * hasta que llega. Un equipo sin sesiones, o cuya última no entra en las 200 más recientes del
  * conjunto, lleva los de siempre: las 18:00, 75 minutos y sin lugar. Todos los equipos de
  * `teams` tienen entrada.
+ *
+ * Las que ya han empezado y las futuras se leen por separado, cada una con su tope: con un
+ * horario semanal un equipo tiene decenas de sesiones por delante, y en una sola lectura por
+ * fecha las futuras se comerían el tope sin llegar nunca a la última que ya empezó.
  */
 export async function getTeamDefaults(
   ctx: ClubContext,
@@ -105,23 +109,37 @@ export async function getTeamDefaults(
 
   const supabase = await createClient();
 
-  const { data, error } = await supabase
-    .from("events")
-    .select("team_id, starts_at, ends_at, location")
-    .eq("organization_id", ctx.org.id)
-    .eq("kind", "practice")
-    .neq("status", "cancelled")
-    .in(
-      "team_id",
-      teams.map((team) => team.id),
-    )
-    .order("starts_at", { ascending: false })
-    .order("id", { ascending: true })
-    .limit(DEFAULTS_SCAN_LIMIT);
-  if (error) throwReadError("practice.team-defaults", error);
+  const practices = () =>
+    supabase
+      .from("events")
+      .select("team_id, starts_at, ends_at, location")
+      .eq("organization_id", ctx.org.id)
+      .eq("kind", "practice")
+      .neq("status", "cancelled")
+      .in(
+        "team_id",
+        teams.map((team) => team.id),
+      );
+  const [started, upcoming] = await Promise.all([
+    // Las que ya han empezado, de la más reciente a la más antigua.
+    practices()
+      .lte("starts_at", nowIso)
+      .order("starts_at", { ascending: false })
+      .order("id", { ascending: true })
+      .limit(DEFAULTS_SCAN_LIMIT),
+    // Las futuras, de la más próxima a la más lejana.
+    practices()
+      .gt("starts_at", nowIso)
+      .order("starts_at", { ascending: true })
+      .order("id", { ascending: true })
+      .limit(DEFAULTS_SCAN_LIMIT),
+  ]);
+  if (started.error) throwReadError("practice.team-defaults", started.error);
+  if (upcoming.error) throwReadError("practice.team-defaults", upcoming.error);
 
-  // Llegan de la más lejana en el futuro a la más antigua: de cada equipo vale la primera que
-  // ya ha empezado y, mientras no aparezca, la última futura vista (la más próxima).
+  // De la más lejana en el futuro a la más antigua: de cada equipo vale la primera que ya ha
+  // empezado y, mientras no aparezca, la última futura vista (la más próxima).
+  const data = [...upcoming.data.toReversed(), ...started.data];
   const now = Date.parse(nowIso);
   const settled = new Set<string>();
   for (const row of data) {

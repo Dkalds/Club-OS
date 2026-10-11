@@ -209,7 +209,7 @@ export function PracticeEditor({
 }: {
   clubSlug: string;
   practice: PracticeDetail;
-  options: { teams: TeamOption[]; focusAreas: FocusOption[] };
+  options: { teams: TeamOption[]; focusAreas: FocusOption[]; venues?: readonly string[] };
   drillFocusAreas: FocusArea[];
   initialValues: PracticeFormValues;
   slotMinutes?: number;

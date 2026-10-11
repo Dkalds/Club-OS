@@ -14,6 +14,9 @@ const mocks = vi.hoisted(() => ({
   getAdminTeam: vi.fn(),
   listPeople: vi.fn(),
   getPerson: vi.fn(),
+  listVenues: vi.fn(),
+  listSeasonSchedules: vi.fn(),
+  listTeamSchedules: vi.fn(),
 }));
 
 vi.mock("@/modules/tenancy/queries", () => ({ getClubContext: mocks.getClubContext }));
@@ -51,6 +54,20 @@ vi.mock("@/modules/structure/actions", () => ({
   updatePerson: vi.fn(),
   setPersonArchived: vi.fn(),
 }));
+// El calendario del club (pistas y horarios semanales): sus lecturas, de pega.
+vi.mock("@/modules/calendar/queries", () => ({
+  listVenues: mocks.listVenues,
+  listSeasonSchedules: mocks.listSeasonSchedules,
+  listTeamSchedules: mocks.listTeamSchedules,
+}));
+vi.mock("@/modules/calendar/actions", () => ({
+  createVenue: vi.fn(),
+  renameVenue: vi.fn(),
+  deleteVenue: vi.fn(),
+  createTeamSchedule: vi.fn(),
+  updateTeamSchedule: vi.fn(),
+  deleteTeamSchedule: vi.fn(),
+}));
 vi.mock("@/modules/methodology/admin-queries", () => ({
   listSectionsForAdmin: mocks.listSectionsForAdmin,
   listValuesForAdmin: mocks.listValuesForAdmin,
@@ -81,6 +98,7 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn() }),
 }));
 
+import AdminCalendarPage from "./calendar/page";
 import AdminPage from "./page";
 import AdminPersonPage from "./people/[personId]/page";
 import AdminPeoplePage from "./people/page";
@@ -110,6 +128,7 @@ const PAGES: Array<[string, () => Promise<unknown>]> = [
   ],
   ["/admin/season/categories", () => AdminCategoriesPage(PARAMS)],
   ["/admin/teams/[teamId]", () => AdminTeamPage({ params: Promise.resolve({ club: "club-a", teamId: ID }) })],
+  ["/admin/calendar", () => AdminCalendarPage(PARAMS)],
   ["/admin/people", () => AdminPeoplePage(PARAMS)],
   [
     "/admin/people/[personId]",
@@ -136,6 +155,9 @@ const READS = [
   "getAdminTeam",
   "listPeople",
   "getPerson",
+  "listVenues",
+  "listSeasonSchedules",
+  "listTeamSchedules",
 ] as const;
 
 function expectNothingRead() {
@@ -154,11 +176,14 @@ beforeEach(() => {
   mocks.getAdminTeam.mockResolvedValue(null);
   mocks.listPeople.mockResolvedValue([]);
   mocks.getPerson.mockResolvedValue(null);
+  mocks.listVenues.mockResolvedValue([]);
+  mocks.listSeasonSchedules.mockResolvedValue([]);
+  mocks.listTeamSchedules.mockResolvedValue([]);
 });
 
 describe("páginas de Gestión", () => {
-  it("son todas las páginas de Gestión: las de la estructura del club y las de la metodología", () => {
-    expect(PAGES).toHaveLength(11);
+  it("son todas las páginas de Gestión: las de la estructura del club, su calendario y las de la metodología", () => {
+    expect(PAGES).toHaveLength(12);
   });
 
   it.each(PAGES)("%s: un entrenador recibe el 404, sin que se lea nada", async (_route, page) => {
@@ -194,6 +219,7 @@ describe("páginas de Gestión", () => {
   it.each([
     [AdminSeasonPage, "Temporada"],
     [AdminCategoriesPage, "Categorías"],
+    [AdminCalendarPage, "Calendario"],
     [AdminPeoplePage, "Personas"],
   ] as const)("dirección ve la cabecera de cada apartado de la estructura: «%#»", async (page, title) => {
     mocks.getClubContext.mockResolvedValue(clubContext("admin"));

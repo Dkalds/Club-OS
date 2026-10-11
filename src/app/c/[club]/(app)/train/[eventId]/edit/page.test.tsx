@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   getPractice: vi.fn(),
   getPracticeFormOptions: vi.fn(),
   getFocusAreas: vi.fn(),
+  listVenueNames: vi.fn(),
 }));
 
 vi.mock("@/modules/tenancy/queries", () => ({ getClubContext: mocks.getClubContext }));
@@ -16,6 +17,7 @@ vi.mock("@/modules/practice/queries", () => ({
   getPracticeFormOptions: mocks.getPracticeFormOptions,
 }));
 vi.mock("@/modules/drills/queries", () => ({ getFocusAreas: mocks.getFocusAreas }));
+vi.mock("@/modules/calendar/queries", () => ({ listVenueNames: mocks.listVenueNames }));
 // Como los de verdad: `notFound()` y `redirect()` cortan el render lanzando.
 vi.mock("next/navigation", () => ({
   notFound: () => {
@@ -91,6 +93,7 @@ beforeEach(() => {
   mocks.getPractice.mockResolvedValue(practice());
   mocks.getPracticeFormOptions.mockResolvedValue({ teams: TEAMS, focusAreas: FOCUS_AREAS });
   mocks.getFocusAreas.mockResolvedValue(DRILL_FOCUS_AREAS);
+  mocks.listVenueNames.mockResolvedValue([]);
 });
 
 describe("/train/[eventId]/edit, acceso", () => {
@@ -103,6 +106,7 @@ describe("/train/[eventId]/edit, acceso", () => {
     expect(mocks.getPractice).not.toHaveBeenCalled();
     expect(mocks.getPracticeFormOptions).not.toHaveBeenCalled();
     expect(mocks.getFocusAreas).not.toHaveBeenCalled();
+    expect(mocks.listVenueNames).not.toHaveBeenCalled();
   });
 
   // Review Focus 1: una sesión de otro equipo o de otro club no llega (RLS): el mismo 404.
@@ -121,6 +125,7 @@ describe("/train/[eventId]/edit, acceso", () => {
     await expect(EditPracticePage(props())).rejects.toThrow("NOT_FOUND");
 
     expect(mocks.getPracticeFormOptions).not.toHaveBeenCalled();
+    expect(mocks.listVenueNames).not.toHaveBeenCalled();
   });
 
   // Review Focus 5: una sesión hecha o cancelada no se edita.
@@ -151,6 +156,12 @@ describe("/train/[eventId]/edit, acceso", () => {
     await expect(EditPracticePage(props())).rejects.toThrow("practice.focus-areas: fallo");
   });
 
+  it("si no se pueden leer las pistas del club, lanza también", async () => {
+    mocks.listVenueNames.mockRejectedValue(new Error("calendar.venue-names: fallo"));
+
+    await expect(EditPracticePage(props())).rejects.toThrow("calendar.venue-names: fallo");
+  });
+
   it("si no se pueden leer los objetivos del selector de ejercicios, lanza también", async () => {
     mocks.getFocusAreas.mockRejectedValue(new Error("drills.focus-areas: fallo"));
 
@@ -175,7 +186,19 @@ describe("/train/[eventId]/edit, editor", () => {
 
     expect(editorProps().clubSlug).toBe("club-a");
     expect(editorProps().practice).toEqual(practice());
-    expect(editorProps().options).toEqual({ teams: TEAMS, focusAreas: FOCUS_AREAS });
+    expect(editorProps().options).toEqual({ teams: TEAMS, focusAreas: FOCUS_AREAS, venues: [] });
+  });
+
+  it("le da las pistas del club, leídas con su contexto, para que «Lugar» las sugiera", async () => {
+    const ctx = clubContext("coach");
+    mocks.getClubContext.mockResolvedValue(ctx);
+    mocks.listVenueNames.mockResolvedValue(["Pista 1", "Pista 2"]);
+
+    render(await EditPracticePage(props()));
+
+    expect(mocks.listVenueNames).toHaveBeenCalledTimes(1);
+    expect(mocks.listVenueNames).toHaveBeenCalledWith(ctx);
+    expect(editorProps().options.venues).toEqual(["Pista 1", "Pista 2"]);
   });
 
   it("le da al selector de ejercicios los objetivos del club con su slug, leídos con el contexto del club", async () => {

@@ -2,7 +2,12 @@ import { requireClub } from "@/lib/guards";
 import { can } from "@/lib/permissions";
 import type { AddOption } from "@/modules/schedule/add-menu";
 import { AgendaList } from "@/modules/schedule/agenda-list";
+import { listRecentChanges } from "@/modules/schedule/changes-queries";
 import { listAgenda, parseAgendaKind, parseAgendaScope } from "@/modules/schedule/queries";
+import { RecentChanges } from "@/ui/event-changes";
+
+/** Cuántos cambios recientes enseña la Agenda encima de su lista. */
+const AGENDA_CHANGES = 5;
 
 /**
  * Agenda: los entrenos y los partidos del equipo activo, por semanas.
@@ -14,6 +19,9 @@ import { listAgenda, parseAgendaKind, parseAgendaScope } from "@/modules/schedul
  * `listAgenda` decide qué es próximo y qué anterior, y nunca llega de la petición. Si no se
  * puede leer, `listAgenda` lanza y lo recoge `error.tsx`; mientras llega, se ve `loading.tsx`.
  *
+ * Encima de lo que viene, «Cambios recientes»: los eventos que han cambiado de hora, de lugar o
+ * se han cancelado en los últimos días y aún no han pasado.
+ *
  * `can` solo decide qué ofrece «Añadir»: lo que protege es RLS y cada acción de crear.
  */
 export default async function AgendaPage({ params, searchParams }: PageProps<"/c/[club]/agenda">) {
@@ -24,7 +32,12 @@ export default async function AgendaPage({ params, searchParams }: PageProps<"/c
   const query = await searchParams;
   const filters = { scope: parseAgendaScope(query.scope), kind: parseAgendaKind(query.kind) };
 
-  const agenda = await listAgenda(ctx, filters, new Date().toISOString());
+  const nowIso = new Date().toISOString();
+  // Los cambios son de lo que viene: en «Anteriores» no se piden.
+  const [agenda, changes] = await Promise.all([
+    listAgenda(ctx, filters, nowIso),
+    filters.scope === "upcoming" ? listRecentChanges(ctx, nowIso, AGENDA_CHANGES) : null,
+  ]);
 
   const addOptions: AddOption[] = [];
   if (can(ctx, "practice.manage")) addOptions.push({ label: "Sesión de entrenamiento", href: `${base}/train/new` });
@@ -33,6 +46,7 @@ export default async function AgendaPage({ params, searchParams }: PageProps<"/c
   return (
     <div className="flex flex-col gap-(--space-6) px-(--space-4) pt-(--space-6)">
       <h1 className="font-display text-display-l uppercase">Agenda</h1>
+      {changes ? <RecentChanges items={changes.items} more={changes.more} /> : null}
       <AgendaList
         clubSlug={ctx.org.slug}
         filters={filters}

@@ -4,6 +4,7 @@ import { can } from "@/lib/permissions";
 import { isoToLocalInputs } from "@/lib/time";
 import { getFocusAreas } from "@/modules/drills/queries";
 import { sessionMinutes } from "@/modules/practice/items";
+import { listVenueNames } from "@/modules/calendar/queries";
 import { getPractice, getPracticeFormOptions } from "@/modules/practice/queries";
 import { PracticeEditor } from "../../_components/practice-editor";
 
@@ -43,11 +44,13 @@ export default async function EditPracticePage({
   if (!can(ctx, "practice.manage")) notFound();
   if (practice.status !== "scheduled") redirect(`/c/${ctx.org.slug}/train/${practice.eventId}`);
 
-  const [options, drillFocusAreas, { propose }] = await Promise.all([
+  const [formOptions, venues, drillFocusAreas, { propose }] = await Promise.all([
     getPracticeFormOptions(ctx),
+    listVenueNames(ctx),
     getFocusAreas(ctx),
     searchParams,
   ]);
+  const options = { ...formOptions, venues };
   // Sin ítems, `sessionMinutes` da lo que dura la franja.
   const slotMinutes = sessionMinutes([], practice.startsAt, practice.endsAt);
 

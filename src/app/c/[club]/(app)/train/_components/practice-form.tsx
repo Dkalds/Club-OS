@@ -108,7 +108,8 @@ export function PracticeForm({
   teamDefaults,
 }: {
   clubSlug: string;
-  options: { teams: TeamOption[]; focusAreas: FocusOption[] };
+  /** `venues`: los nombres de las pistas del club, que «Lugar» sugiere al escribir. */
+  options: { teams: TeamOption[]; focusAreas: FocusOption[]; venues?: readonly string[] };
   initial: PracticeFormValues;
   template?: { id: string };
   teamDefaults?: Record<string, TeamDefaults & { date?: string }>;
@@ -328,6 +329,7 @@ export function PracticeForm({
         value={values.location}
         onChange={touch("location")}
         maxLength={LOCATION_MAX}
+        suggestions={options.venues}
         error={errors.location}
       />
       {edit ? (

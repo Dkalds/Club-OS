@@ -2,7 +2,11 @@ import { requireClub } from "@/lib/guards";
 import { can } from "@/lib/permissions";
 import { HomeScreen } from "@/modules/home/home-screen";
 import { getHomeData } from "@/modules/home/queries";
+import { listRecentChanges } from "@/modules/schedule/changes-queries";
 import { hasIdentityTab, IDENTITY_LABEL, identityHref } from "@/modules/tenancy/navigation";
+
+/** Cuántos cambios recientes enseña Inicio: los más próximos; el resto, en la Agenda. */
+const HOME_CHANGES = 3;
 
 /**
  * Inicio del club: el próximo entrenamiento, el próximo partido y la semana de quien entra.
@@ -23,7 +27,8 @@ export default async function ClubHomePage({ params }: PageProps<"/c/[club]">) {
   const { club } = await params;
   const ctx = await requireClub(club);
 
-  const home = await getHomeData(ctx, new Date().toISOString());
+  const nowIso = new Date().toISOString();
+  const [home, changes] = await Promise.all([getHomeData(ctx, nowIso), listRecentChanges(ctx, nowIso, HOME_CHANGES)]);
   const { wayName } = ctx.branding;
 
   return (
@@ -32,6 +37,7 @@ export default async function ClubHomePage({ params }: PageProps<"/c/[club]">) {
       clubSlug={ctx.org.slug}
       ownShortName={ctx.branding.shortName}
       canCreatePractice={can(ctx, "practice.manage")}
+      changes={changes}
       identity={
         hasIdentityTab(ctx.membership.role)
           ? null
