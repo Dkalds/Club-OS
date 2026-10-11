@@ -993,6 +993,84 @@ describe("DrillForm · diagrama", () => {
     expect(screen.queryByText(/Este ejercicio tiene pizarra/)).not.toBeInTheDocument();
   });
 
+  describe("el enlace al editor de la pizarra", () => {
+    const BOARD_HREF = `/c/club-a/drills/${DRILL_ID}/board`;
+    const BOARD: NonNullable<DrillDetail["board"]> = {
+      version: 1,
+      court: "half",
+      tokens: [{ id: "a1", kind: "attacker", label: "1", at: { x: 50, y: 80 } }],
+      steps: [],
+    };
+
+    it("sin pizarra, el campo lleva «Dibujar pizarra», que va al editor de este ejercicio", () => {
+      renderEdit();
+
+      const link = within(group("Diagrama")).getByRole("link", { name: "Dibujar pizarra" });
+      expect(link).toHaveAttribute("href", BOARD_HREF);
+      expect(screen.queryByRole("link", { name: "Editar pizarra" })).not.toBeInTheDocument();
+    });
+
+    it("con pizarra, el enlace es «Editar pizarra», al mismo sitio", () => {
+      renderEdit({ board: BOARD });
+
+      const link = within(group("Diagrama")).getByRole("link", { name: "Editar pizarra" });
+      expect(link).toHaveAttribute("href", BOARD_HREF);
+      expect(screen.queryByRole("link", { name: "Dibujar pizarra" })).not.toBeInTheDocument();
+    });
+
+    it("sale tenga o no imagen subida: la imagen no es la pizarra", () => {
+      renderEdit({ diagramMediaId: null, diagramUrl: null });
+
+      expect(within(group("Diagrama")).getByRole("link", { name: "Dibujar pizarra" })).toHaveAttribute(
+        "href",
+        BOARD_HREF,
+      );
+    });
+
+    it("es un enlace discreto, no otro botón principal: lo principal es «Guardar cambios»", () => {
+      renderEdit();
+
+      const link = screen.getByRole("link", { name: "Dibujar pizarra" });
+      expect(link).toHaveClass("text-brand-accent", "border-transparent");
+      expect(link).not.toHaveClass("bg-brand-accent");
+    });
+
+    it("con pizarra va justo tras el aviso, antes de la imagen y de «Subir diagrama»", () => {
+      renderEdit({ diagramMediaId: null, diagramUrl: null, board: BOARD });
+
+      const link = screen.getByRole("link", { name: "Editar pizarra" });
+      expect(screen.getByText(/Este ejercicio tiene pizarra/).compareDocumentPosition(link)).toBe(
+        Node.DOCUMENT_POSITION_FOLLOWING,
+      );
+      expect(link.compareDocumentPosition(screen.getByRole("img", { name: "Pista sin diagrama" }))).toBe(
+        Node.DOCUMENT_POSITION_FOLLOWING,
+      );
+      expect(link.compareDocumentPosition(screen.getByRole("button", { name: "Subir diagrama" }))).toBe(
+        Node.DOCUMENT_POSITION_FOLLOWING,
+      );
+    });
+
+    it("no es un botón del formulario: pulsarlo no guarda ni sube nada", () => {
+      renderEdit();
+      const link = screen.getByRole("link", { name: "Dibujar pizarra" });
+      // jsdom no navega: el clic se corta al llegar a `document`.
+      const cut = (event: Event) => event.preventDefault();
+      document.addEventListener("click", cut);
+
+      fireEvent.click(link);
+
+      document.removeEventListener("click", cut);
+      expect(mocks.updateDrill).not.toHaveBeenCalled();
+      expect(mocks.uploadDrillDiagram).not.toHaveBeenCalled();
+    });
+
+    it("en el alta no hay enlace: el ejercicio aún no tiene id", () => {
+      renderNew();
+
+      expect(screen.queryByRole("link", { name: /pizarra/i })).not.toBeInTheDocument();
+    });
+  });
+
   it("«Subir diagrama» abre el selector de ficheros", () => {
     renderEdit({ diagramMediaId: null, diagramUrl: null });
     const open = vi.spyOn(fileInput(), "click");
@@ -1416,6 +1494,29 @@ describe("DrillForm · cambios sin guardar", () => {
       expect(field("Título")).toHaveValue("Otro título");
       expect(clickLink(outside)).toBe("se queda");
       expect(leaveDialog()).toBeInTheDocument();
+    });
+
+    it("el enlace a la pizarra también pregunta: irse a dibujarla perdería lo escrito", () => {
+      render(editForm());
+      change("Título", "Otro título");
+
+      expect(clickLink(screen.getByRole("link", { name: "Dibujar pizarra" }))).toBe("se queda");
+
+      expect(leaveDialog()).toBeInTheDocument();
+      expect(mocks.push).not.toHaveBeenCalled();
+
+      press("Salir sin guardar");
+
+      expect(mocks.push).toHaveBeenCalledTimes(1);
+      expect(mocks.push).toHaveBeenCalledWith(`/c/club-a/drills/${DRILL_ID}/board`);
+    });
+
+    it("sin cambios, el enlace a la pizarra navega al momento", () => {
+      render(editForm());
+
+      expect(clickLink(screen.getByRole("link", { name: "Dibujar pizarra" }))).toBe("navega");
+
+      expect(leaveDialog()).not.toBeInTheDocument();
     });
   });
 

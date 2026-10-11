@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ActionResult } from "@/lib/action-result";
+import type { Board } from "@/modules/board/types";
 import { PLATFORM_BRAND_COLORS } from "@/modules/tenancy/branding";
 import type { ClubContext } from "@/modules/tenancy/queries";
 
@@ -15,7 +16,14 @@ vi.mock("@/lib/guards", () => ({ requireClub: mocks.requireClub }));
 vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidatePath }));
 
 import { DIAGRAM_ERROR, MAX_DIAGRAM_BYTES } from "@/modules/media/diagram-file";
-import { archiveDrill, createDrill, publishDrill, updateDrill, uploadDrillDiagram } from "./actions";
+import {
+  archiveDrill,
+  createDrill,
+  publishDrill,
+  saveDrillBoard,
+  updateDrill,
+  uploadDrillDiagram,
+} from "./actions";
 import type { DrillInput } from "./schema";
 
 // Datos neutros: los tests de `src/` no pueden nombrar a ningún club (pnpm check:guards).
@@ -79,6 +87,7 @@ class FakeQuery implements PromiseLike<Reply> {
   select = (...args: unknown[]) => this.record("select", args);
   eq = (...args: unknown[]) => this.record("eq", args);
   single = (...args: unknown[]) => this.record("single", args);
+  maybeSingle = (...args: unknown[]) => this.record("maybeSingle", args);
 
   then<A = Reply, B = never>(
     onfulfilled?: ((value: Reply) => A | PromiseLike<A>) | null,
@@ -772,6 +781,539 @@ describe.each([
     installDb(dbError("XX000", "boom"));
 
     await expect(run("club-a", { drillId: DRILL })).resolves.toEqual({ ok: false, error: "SAVE_FAILED" });
+  });
+});
+
+// ── saveDrillBoard ───────────────────────────────────────────────────────────────────────
+
+/** Una pizarra válida y pequeña: el 1, con el balón, pasa al 2 y corta. */
+const BOARD: Board = {
+  version: 1,
+  court: "half",
+  tokens: [
+    { id: "a1", kind: "attacker", label: "1", at: { x: 50, y: 80 } },
+    { id: "a2", kind: "attacker", label: "2", at: { x: 20, y: 60 } },
+    { id: "b1", kind: "ball", at: { x: 53, y: 80 } },
+    { id: "c1", kind: "cone", at: { x: 80, y: 30 } },
+  ],
+  steps: [
+    {
+      note: "El 1 pasa al 2 y corta",
+      moves: [
+        { token: "b1", kind: "pass", to: { x: 23, y: 60 } },
+        { token: "a1", kind: "cut", to: { x: 50, y: 30 } },
+      ],
+    },
+  ],
+};
+
+/** La lectura que acota el ejercicio al club: lo encuentra. */
+const found = () => reply({ id: DRILL });
+
+function saveBoard(board: Board | null = BOARD, expectedUpdatedAt = STAMP, drillId = DRILL) {
+  return saveDrillBoard("club-a", { drillId, expectedUpdatedAt, board });
+}
+
+/** Los campos que señala un resultado fallido, en orden alfabético. */
+function failedFields(result: ActionResult<unknown>): string[] {
+  return result.ok ? [] : Object.keys(result.fieldErrors ?? {}).sort();
+}
+
+describe("saveDrillBoard: la entrada", () => {
+  it("un id que no es uuid no llega a la base de datos, ni al club", async () => {
+    const result = await saveBoard(BOARD, STAMP, "no-es-un-uuid");
+
+    expect(result).toEqual({
+      ok: false,
+      error: "INVALID",
+      fieldErrors: { drillId: "No encontramos este contenido." },
+    });
+    expect(mocks.requireClub).not.toHaveBeenCalled();
+    expect(mocks.createClient).not.toHaveBeenCalled();
+    expect(mocks.revalidatePath).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["vacía", ""],
+    ["en blanco", "   "],
+  ])("sin la copia esperada (%s) no se guarda: INVALID en expectedUpdatedAt", async (_name, expectedUpdatedAt) => {
+    const result = await saveBoard(BOARD, expectedUpdatedAt);
+
+    expect(result).toMatchObject({ ok: false, error: "INVALID" });
+    expect(failedFields(result)).toEqual(["expectedUpdatedAt"]);
+    expect(mocks.createClient).not.toHaveBeenCalled();
+  });
+
+  it("sin el id del ejercicio o sin la copia (un cliente manipulado) tampoco", async () => {
+    const noDrill = await saveDrillBoard("club-a", unsafe({ expectedUpdatedAt: STAMP, board: BOARD }));
+    const noCopy = await saveDrillBoard("club-a", unsafe({ drillId: DRILL, board: BOARD }));
+    const nothing = await saveDrillBoard("club-a", unsafe(null));
+
+    expect(noDrill).toMatchObject({ ok: false, error: "INVALID" });
+    expect(failedFields(noDrill)).toEqual(["drillId"]);
+    expect(noCopy).toMatchObject({ ok: false, error: "INVALID" });
+    expect(failedFields(noCopy)).toEqual(["expectedUpdatedAt"]);
+    expect(nothing).toMatchObject({ ok: false, error: "INVALID" });
+    expect(mocks.createClient).not.toHaveBeenCalled();
+  });
+
+  it("el id y la copia mal a la vez: los dos errores", async () => {
+    const result = await saveBoard(BOARD, "", "no-es-un-uuid");
+
+    expect(result).toMatchObject({ ok: false, error: "INVALID" });
+    expect(failedFields(result)).toEqual(["drillId", "expectedUpdatedAt"]);
+  });
+
+  it.each<[string, Record<string, unknown>]>([
+    ["ausente", { drillId: DRILL, expectedUpdatedAt: STAMP }],
+    ["undefined", { drillId: DRILL, expectedUpdatedAt: STAMP, board: undefined }],
+  ])("la clave `board` es obligatoria (%s): solo un `null` escrito quita la pizarra", async (_name, input) => {
+    // Sin respuestas preparadas: cualquier llamada a la base rompería el test.
+    const db = installDb();
+
+    const result = await saveDrillBoard("club-a", unsafe(input));
+
+    expect(result).toMatchObject({ ok: false, error: "INVALID" });
+    expect(failedFields(result)).toEqual(["board"]);
+    expect(db.queries).toEqual([]);
+    expect(db.rpcs).toEqual([]);
+    expect(mocks.revalidatePath).not.toHaveBeenCalled();
+  });
+
+  it.each<[string, unknown]>([
+    ["un texto", "una pizarra"],
+    ["un texto vacío", ""],
+    ["un número", 42],
+    ["un booleano", false],
+    ["una lista", [BOARD]],
+  ])("una pizarra que no es un objeto (%s) no llega a la base de datos, ni al club", async (_name, board) => {
+    const result = await saveDrillBoard("club-a", unsafe({ drillId: DRILL, expectedUpdatedAt: STAMP, board }));
+
+    expect(result).toMatchObject({ ok: false, error: "INVALID" });
+    expect(failedFields(result)).toEqual(["board"]);
+    expect(mocks.requireClub).not.toHaveBeenCalled();
+    expect(mocks.createClient).not.toHaveBeenCalled();
+    expect(mocks.revalidatePath).not.toHaveBeenCalled();
+    expect(logged).toEqual([]);
+  });
+});
+
+describe("saveDrillBoard: quién guarda", () => {
+  it.each(["player", "guardian"] as const)("%s: NOT_FOUND sin tocar la base de datos", async (role) => {
+    mocks.requireClub.mockResolvedValue(contextWithRole(role));
+
+    await expect(saveBoard()).resolves.toEqual({ ok: false, error: "NOT_FOUND" });
+    await expect(saveBoard(null)).resolves.toEqual({ ok: false, error: "NOT_FOUND" });
+
+    expect(mocks.createClient).not.toHaveBeenCalled();
+    expect(mocks.revalidatePath).not.toHaveBeenCalled();
+    expect(logged).toEqual([]);
+  });
+
+  it.each(["coach", "admin"] as const)("%s: puede (qué ejercicio, lo decide la función)", async (role) => {
+    mocks.requireClub.mockResolvedValue(contextWithRole(role));
+    installDb(found(), reply(NEXT_STAMP));
+
+    await expect(saveBoard()).resolves.toMatchObject({ ok: true });
+  });
+
+  it("un club que no existe lanza el 404, no lo traga", async () => {
+    mocks.requireClub.mockRejectedValue(NOT_FOUND);
+
+    await expect(saveBoard()).rejects.toBe(NOT_FOUND);
+
+    expect(mocks.createClient).not.toHaveBeenCalled();
+    expect(logged).toEqual([]);
+  });
+
+  it("pregunta por el club que le pasan", async () => {
+    installDb(found(), reply(NEXT_STAMP));
+
+    await saveDrillBoard("club-b", { drillId: DRILL, expectedUpdatedAt: STAMP, board: BOARD });
+
+    expect(mocks.requireClub).toHaveBeenCalledWith("club-b");
+  });
+});
+
+describe("saveDrillBoard: la pizarra se valida antes de tocar la base de datos", () => {
+  const [a1, a2] = BOARD.tokens;
+  const oneMove = (token: string, kind: string, to = { x: 1, y: 1 }) => ({
+    ...BOARD,
+    steps: [{ moves: [{ token, kind, to }] }],
+  });
+
+  it.each<[string, unknown]>([
+    ["un objeto vacío", {}],
+    ["otra versión", { ...BOARD, version: 2 }],
+    ["una pista que no existe", { ...BOARD, court: "street" }],
+    ["sin fichas", { ...BOARD, tokens: [], steps: [] }],
+    ["sin la lista de pasos", { version: 1, court: "half", tokens: BOARD.tokens }],
+    ["un paso sin movimientos", { ...BOARD, steps: [{ moves: [] }] }],
+    ["dos fichas con el mismo id", { ...BOARD, tokens: [a1, { ...a2, id: "a1" }], steps: [] }],
+    ["una ficha fuera de la pista", { ...BOARD, tokens: [{ ...a1, at: { x: 101, y: 80 } }], steps: [] }],
+    ["una coordenada con decimales", { ...BOARD, tokens: [{ ...a1, at: { x: 50.5, y: 80 } }], steps: [] }],
+    ["una etiqueta de más de dos caracteres", { ...BOARD, tokens: [{ ...a1, label: "123" }], steps: [] }],
+    ["mueve una ficha que no existe", oneMove("zz", "cut")],
+    ["un jugador «pasa»", oneMove("a1", "pass")],
+    ["el balón «corta»", oneMove("b1", "cut")],
+    ["un cono se mueve", oneMove("c1", "cut")],
+    ["un movimiento que no existe", oneMove("a1", "jump")],
+    ["un destino fuera de la pista", oneMove("b1", "pass", { x: 50, y: -1 })],
+    [
+      "la misma ficha dos veces en un paso",
+      {
+        ...BOARD,
+        steps: [
+          {
+            moves: [
+              { token: "a1", kind: "cut", to: { x: 1, y: 1 } },
+              { token: "a1", kind: "dribble", to: { x: 2, y: 2 } },
+            ],
+          },
+        ],
+      },
+    ],
+    [
+      "más de 24 fichas",
+      {
+        ...BOARD,
+        tokens: Array.from({ length: 25 }, (_, index) => ({ id: `c${index}`, kind: "cone", at: { x: index, y: 10 } })),
+        steps: [],
+      },
+    ],
+    ["más de 12 pasos", { ...BOARD, steps: Array.from({ length: 13 }, () => BOARD.steps[0]) }],
+    [
+      "una nota de más de 140 caracteres",
+      { ...BOARD, steps: [{ note: "n".repeat(141), moves: BOARD.steps[0].moves }] },
+    ],
+  ])("%s: INVALID, sin leer ni escribir nada", async (_name, board) => {
+    // Sin respuestas preparadas: cualquier llamada a la base rompería el test.
+    const db = installDb();
+
+    const result = await saveDrillBoard("club-a", unsafe({ drillId: DRILL, expectedUpdatedAt: STAMP, board }));
+
+    expect(result).toEqual({ ok: false, error: "INVALID" });
+    expect(db.queries).toEqual([]);
+    expect(db.rpcs).toEqual([]);
+    expect(mocks.revalidatePath).not.toHaveBeenCalled();
+    expect(logged).toEqual([]);
+  });
+
+  it("el permiso va antes que la pizarra: sin él, una pizarra rota también es NOT_FOUND", async () => {
+    mocks.requireClub.mockResolvedValue(contextWithRole("player"));
+
+    const result = await saveDrillBoard("club-a", unsafe({ drillId: DRILL, expectedUpdatedAt: STAMP, board: {} }));
+
+    expect(result).toEqual({ ok: false, error: "NOT_FOUND" });
+    expect(mocks.createClient).not.toHaveBeenCalled();
+  });
+});
+
+describe("saveDrillBoard: acota el ejercicio al club antes de llamar a la función (C25)", () => {
+  it("lee el ejercicio por club e id, y solo después llama a la función", async () => {
+    const db = installDb(found(), reply(NEXT_STAMP));
+
+    await saveBoard();
+
+    expect(db.queries).toHaveLength(1);
+    expect(db.queries[0].table).toBe("drills");
+    expect(db.queries[0].sent("select")).toEqual(["id"]);
+    expect(db.queries[0].filters).toEqual([
+      ["organization_id", ORG],
+      ["id", DRILL],
+    ]);
+    // Cero o una fila, nunca un error por no encontrarla.
+    expect(db.queries[0].calls.some((call) => call.method === "maybeSingle")).toBe(true);
+    expect(db.rpcs).toHaveLength(1);
+  });
+
+  it("al quitar la pizarra también", async () => {
+    const db = installDb(found(), reply(NEXT_STAMP));
+
+    await saveBoard(null);
+
+    expect(db.queries).toHaveLength(1);
+    expect(db.queries[0].table).toBe("drills");
+    expect(db.queries[0].filters).toEqual([
+      ["organization_id", ORG],
+      ["id", DRILL],
+    ]);
+  });
+
+  it("si el ejercicio no es de este club (o no se ve), NOT_FOUND sin llamar a la función", async () => {
+    // Una sola respuesta: si llamara a la función, no tendría qué responder.
+    const db = installDb(reply(null));
+
+    const result = await saveBoard();
+
+    expect(result).toEqual({ ok: false, error: "NOT_FOUND" });
+    expect(db.rpcs).toEqual([]);
+    expect(mocks.revalidatePath).not.toHaveBeenCalled();
+    expect(logged).toEqual([]);
+  });
+
+  it("quitar la pizarra de un ejercicio de otro club tampoco llega a la función", async () => {
+    const db = installDb(reply(null));
+
+    await expect(saveBoard(null)).resolves.toEqual({ ok: false, error: "NOT_FOUND" });
+    expect(db.rpcs).toEqual([]);
+  });
+
+  it("si esa lectura falla, no inventa un éxito ni llama a la función: SAVE_FAILED, registrado", async () => {
+    const db = installDb(dbError("XX000", 'fila con "texto del club"'));
+
+    const result = await saveBoard();
+
+    expect(result).toEqual({ ok: false, error: "SAVE_FAILED" });
+    expect(db.rpcs).toEqual([]);
+    expect(logged).toEqual(["[drills.save-board] PostgrestError code=XX000"]);
+    expect(mocks.revalidatePath).not.toHaveBeenCalled();
+  });
+
+  it("el club es el de la sesión, no el que traiga la entrada", async () => {
+    const db = installDb(found(), reply(NEXT_STAMP));
+
+    await saveDrillBoard(
+      "club-a",
+      unsafe({ drillId: DRILL, expectedUpdatedAt: STAMP, board: BOARD, organization_id: "otro", p_org: "otro" }),
+    );
+
+    expect(db.queries[0].filters).toEqual([
+      ["organization_id", ORG],
+      ["id", DRILL],
+    ]);
+    expect(JSON.stringify(db.rpcs)).not.toContain("otro");
+  });
+});
+
+describe("saveDrillBoard: lo que manda a save_drill_board", () => {
+  it("con pizarra: el ejercicio, la copia esperada y la pizarra, y devuelve el updated_at nuevo", async () => {
+    const db = installDb(found(), reply(NEXT_STAMP));
+
+    const result = await saveBoard();
+
+    expect(result).toEqual({ ok: true, data: { updatedAt: NEXT_STAMP } });
+    expect(db.rpcs).toStrictEqual([
+      { name: "save_drill_board", args: { p_drill: DRILL, p_expected_updated_at: STAMP, p_board: BOARD } },
+    ]);
+  });
+
+  it("solo escribe por la función, en una sola llamada: ningún update directo de `drills`", async () => {
+    const db = installDb(found(), reply(NEXT_STAMP));
+
+    await saveBoard();
+
+    const methods = db.queries.flatMap((query) => query.calls.map((call) => call.method));
+    expect(db.rpcs).toHaveLength(1);
+    expect(methods).not.toContain("update");
+    expect(methods).not.toContain("insert");
+  });
+
+  it("pasa la copia esperada intacta, con sus microsegundos y su desfase", async () => {
+    const db = installDb(found(), reply(NEXT_STAMP));
+
+    await saveBoard(BOARD, "2026-10-03T12:00:00.000001+02:00");
+
+    expect(db.rpcs[0].args.p_expected_updated_at).toBe("2026-10-03T12:00:00.000001+02:00");
+  });
+
+  it("manda la pizarra ya validada: las claves de más de la entrada no viajan", async () => {
+    const db = installDb(found(), reply(NEXT_STAMP));
+    const dirty = {
+      ...BOARD,
+      organization_id: "otro",
+      author: "alguien",
+      tokens: BOARD.tokens.map((token) => ({ ...token, color: "rojo", selected: true })),
+      steps: BOARD.steps.map((step) => ({
+        ...step,
+        duration: 3,
+        moves: step.moves.map((move) => ({ ...move, curve: true, to: { ...move.to, z: 9 } })),
+      })),
+    };
+
+    const result = await saveDrillBoard("club-a", unsafe({ drillId: DRILL, expectedUpdatedAt: STAMP, board: dirty }));
+
+    expect(result.ok).toBe(true);
+    expect(db.rpcs[0].args.p_board).toStrictEqual(BOARD);
+  });
+
+  it("lo que `parseBoard` normaliza llega normalizado: etiquetas y notas en blanco o nulas se quitan", async () => {
+    const db = installDb(found(), reply(NEXT_STAMP));
+    const loose = {
+      version: 1,
+      court: "full",
+      tokens: [
+        { id: "a1", kind: "attacker", label: " 1 ", at: { x: 50, y: 80 } },
+        { id: "b1", kind: "ball", label: null, at: { x: 53, y: 80 } },
+        { id: "c1", kind: "cone", label: "  ", at: { x: 10, y: 10 } },
+      ],
+      steps: [
+        { note: "  Sale botando  ", moves: [{ token: "a1", kind: "dribble", to: { x: 50, y: 40 } }] },
+        { note: null, moves: [{ token: "b1", kind: "pass", to: { x: 10, y: 10 } }] },
+        { note: "   ", moves: [{ token: "a1", kind: "screen", to: { x: 30, y: 30 } }] },
+      ],
+    };
+
+    await saveDrillBoard("club-a", unsafe({ drillId: DRILL, expectedUpdatedAt: STAMP, board: loose }));
+
+    expect(db.rpcs[0].args.p_board).toStrictEqual({
+      version: 1,
+      court: "full",
+      tokens: [
+        { id: "a1", kind: "attacker", label: "1", at: { x: 50, y: 80 } },
+        { id: "b1", kind: "ball", at: { x: 53, y: 80 } },
+        { id: "c1", kind: "cone", at: { x: 10, y: 10 } },
+      ],
+      steps: [
+        { note: "Sale botando", moves: [{ token: "a1", kind: "dribble", to: { x: 50, y: 40 } }] },
+        { moves: [{ token: "b1", kind: "pass", to: { x: 10, y: 10 } }] },
+        { moves: [{ token: "a1", kind: "screen", to: { x: 30, y: 30 } }] },
+      ],
+    });
+  });
+
+  it("una foto fija (sin pasos) y una pizarra en los topes (24 fichas, 12 pasos) se guardan", async () => {
+    const still: Board = { ...BOARD, steps: [] };
+    const big: Board = {
+      version: 1,
+      court: "full",
+      tokens: [
+        ...Array.from({ length: 23 }, (_, index) => ({
+          id: `c${index + 1}`,
+          kind: "cone" as const,
+          at: { x: index * 4, y: 100 },
+        })),
+        { id: "a1", kind: "attacker", label: "1", at: { x: 0, y: 0 } },
+      ],
+      steps: Array.from({ length: 12 }, (_, index) => ({
+        note: "n".repeat(140),
+        moves: [{ token: "a1", kind: "cut" as const, to: index % 2 === 0 ? { x: 100, y: 100 } : { x: 0, y: 0 } }],
+      })),
+    };
+
+    for (const board of [still, big]) {
+      const db = installDb(found(), reply(NEXT_STAMP));
+
+      await expect(saveBoard(board)).resolves.toEqual({ ok: true, data: { updatedAt: NEXT_STAMP } });
+      expect(db.rpcs[0].args.p_board).toStrictEqual(board);
+    }
+  });
+
+  it("con `board: null` NO manda `p_board` (ni como null): ausente es lo que la quita (C15)", async () => {
+    const db = installDb(found(), reply(NEXT_STAMP));
+
+    const result = await saveBoard(null);
+
+    expect(result).toEqual({ ok: true, data: { updatedAt: NEXT_STAMP } });
+    expect(db.rpcs).toHaveLength(1);
+    expect(db.rpcs[0].name).toBe("save_drill_board");
+    expect(db.rpcs[0].args).toStrictEqual({ p_drill: DRILL, p_expected_updated_at: STAMP });
+    expect(Object.hasOwn(db.rpcs[0].args, "p_board")).toBe(false);
+  });
+
+  it("devuelve el updated_at tal cual lo da la función, con sus microsegundos", async () => {
+    installDb(found(), reply("2026-10-03T10:05:00.000009+00:00"));
+
+    await expect(saveBoard()).resolves.toEqual({
+      ok: true,
+      data: { updatedAt: "2026-10-03T10:05:00.000009+00:00" },
+    });
+  });
+});
+
+describe("saveDrillBoard: errores de la función", () => {
+  const SAVES: Array<[string, Board | null]> = [
+    ["guardar", BOARD],
+    ["quitar", null],
+  ];
+
+  it.each(SAVES)("%s: no encontrado o sin permiso para editarlo (P0002) es NOT_FOUND", async (_name, board) => {
+    installDb(found(), dbError("P0002", "NOT_FOUND"));
+
+    await expect(saveBoard(board)).resolves.toEqual({ ok: false, error: "NOT_FOUND" });
+    expect(logged).toEqual([]);
+    expect(mocks.revalidatePath).not.toHaveBeenCalled();
+  });
+
+  it.each(SAVES)("%s: copia obsoleta (P0001 STALE_COPY)", async (_name, board) => {
+    installDb(found(), dbError("P0001", "STALE_COPY"));
+
+    await expect(saveBoard(board)).resolves.toEqual({ ok: false, error: "STALE_COPY" });
+    expect(logged).toEqual([]);
+    expect(mocks.revalidatePath).not.toHaveBeenCalled();
+  });
+
+  it("una pizarra que la base rechaza (22023) es INVALID, sin registrar", async () => {
+    installDb(found(), dbError("22023", "INVALID"));
+
+    await expect(saveBoard()).resolves.toEqual({ ok: false, error: "INVALID" });
+    expect(logged).toEqual([]);
+    expect(mocks.revalidatePath).not.toHaveBeenCalled();
+  });
+
+  it("un P0001 con un mensaje que no es un error conocido es SAVE_FAILED, registrado", async () => {
+    installDb(found(), dbError("P0001", "otra cosa"));
+
+    await expect(saveBoard()).resolves.toEqual({ ok: false, error: "SAVE_FAILED" });
+    expect(logged).toEqual(["[drills.save-board] PostgrestError code=P0001"]);
+  });
+
+  it("cualquier otro error es SAVE_FAILED y se registra sin el contenido de la fila", async () => {
+    installDb(found(), dbError("XX000", 'fila con "texto del club"'));
+
+    await expect(saveBoard()).resolves.toEqual({ ok: false, error: "SAVE_FAILED" });
+    expect(logged).toEqual(["[drills.save-board] PostgrestError code=XX000"]);
+    expect(mocks.revalidatePath).not.toHaveBeenCalled();
+  });
+
+  it("un permiso denegado tras pasar `can` (42501) es NOT_FOUND y se registra", async () => {
+    installDb(found(), dbError("42501", "permission denied for table drills"));
+
+    await expect(saveBoard()).resolves.toEqual({ ok: false, error: "NOT_FOUND" });
+    expect(logged).toEqual(["[drills.save-board] PostgrestError code=42501"]);
+  });
+
+  it("si el cliente lanza una excepción, devuelve SAVE_FAILED sin romperse", async () => {
+    mocks.createClient.mockRejectedValue(new TypeError("fetch failed"));
+
+    await expect(saveBoard()).resolves.toEqual({ ok: false, error: "SAVE_FAILED" });
+    expect(logged).toEqual(["[drills.save-board] TypeError"]);
+    expect(mocks.revalidatePath).not.toHaveBeenCalled();
+  });
+});
+
+describe("saveDrillBoard: tras guardar", () => {
+  /** Donde se ve la pizarra de un ejercicio: la biblioteca, la ficha de una sesión y el directo. */
+  const ROUTES = [
+    ["/c/[club]/(app)/drills", "layout"],
+    ["/c/[club]/(app)/train", "layout"],
+    ["/c/[club]/(live)", "layout"],
+  ];
+
+  it("revalida la biblioteca, Entrenar y el directo, por patrón de ruta y layout", async () => {
+    installDb(found(), reply(NEXT_STAMP));
+
+    await saveBoard();
+
+    // Patrones de ruta (carpetas, con sus grupos) y `layout`, no la URL del club (ver `@/lib/mutate`).
+    expect(mocks.revalidatePath.mock.calls).toEqual(ROUTES);
+  });
+
+  it("al quitarla, las mismas", async () => {
+    installDb(found(), reply(NEXT_STAMP));
+
+    await saveBoard(null);
+
+    expect(mocks.revalidatePath.mock.calls).toEqual(ROUTES);
+  });
+
+  it("no revalida si el ejercicio no es del club ni si la pizarra no vale", async () => {
+    installDb(reply(null));
+    await saveBoard();
+    installDb();
+    await saveDrillBoard("club-a", unsafe({ drillId: DRILL, expectedUpdatedAt: STAMP, board: {} }));
+
+    expect(mocks.revalidatePath).not.toHaveBeenCalled();
   });
 });
 
