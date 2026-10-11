@@ -15,9 +15,10 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/database.types";
 import { createAdminClient, readSupabaseEnv } from "../lib/admin-client";
-import { buildSeedData } from "./data";
+import { buildSeedData, type SeedData } from "./data";
 import { assertSeedTarget } from "./guard";
 import { renumberStandards, restackSections, type MovedStandard } from "./strays";
+import { jerseysToFree, renamesFor } from "./structure-room";
 
 type Client = SupabaseClient<Database>;
 
@@ -32,6 +33,77 @@ const MAX_USER_PAGES = 500;
 
 function check(label: string, result: { error: { message: string } | null }): void {
   if (result.error) throw new Error(`Seed: falló ${label}: ${result.error.message}`);
+}
+
+/**
+ * Hace sitio a la estructura del seed en sus clubes antes de sembrarla. Desde que la dirección
+ * la cambia en Gestión, una fila puede tener un valor único que el seed va a devolver a otra
+ * (ver `structure-room.ts`). No borra nada:
+ *
+ *  - Ninguna temporada de esos clubes queda como actual: la del seed recupera la marca al
+ *    sembrar. Entre una cosa y otra el club no tiene temporada actual: es lo que dura el seed.
+ *  - Las temporadas, categorías y equipos que llevan el nombre de otra fila del seed ganan una
+ *    marca con su id; las del seed recuperan el suyo al sembrar.
+ *  - Quien lleva en un equipo del seed el dorsal de otra persona del seed se queda sin dorsal.
+ */
+async function makeRoomForStructure(db: Client, data: SeedData, organizationIds: string[]): Promise<void> {
+  check(
+    "seasons (temporada actual)",
+    await db.from("seasons").update({ is_current: false }).in("organization_id", organizationIds).eq("is_current", true),
+  );
+
+  const seasons = await db.from("seasons").select("id, name, organization_id").in("organization_id", organizationIds);
+  check("seasons (lectura)", seasons);
+  const categories = await db
+    .from("categories")
+    .select("id, name, organization_id")
+    .in("organization_id", organizationIds);
+  check("categories (lectura)", categories);
+  const teams = await db
+    .from("teams")
+    .select("id, name, organization_id, season_id")
+    .in("organization_id", organizationIds);
+  check("teams (lectura)", teams);
+
+  const byClub = (row: { id: string; name: string; organization_id: string }) => ({
+    id: row.id,
+    name: row.name,
+    scope: row.organization_id,
+  });
+  const bySeason = (row: { id: string; name: string; organization_id: string; season_id: string }) => ({
+    id: row.id,
+    name: row.name,
+    scope: `${row.organization_id}|${row.season_id}`,
+  });
+
+  for (const rename of renamesFor((seasons.data ?? []).map(byClub), data.seasons.map(byClub))) {
+    check("seasons (nombre)", await db.from("seasons").update({ name: rename.name }).eq("id", rename.id));
+  }
+  for (const rename of renamesFor((categories.data ?? []).map(byClub), data.categories.map(byClub))) {
+    check("categories (nombre)", await db.from("categories").update({ name: rename.name }).eq("id", rename.id));
+  }
+  for (const rename of renamesFor((teams.data ?? []).map(bySeason), data.teams.map(bySeason))) {
+    check("teams (nombre)", await db.from("teams").update({ name: rename.name }).eq("id", rename.id));
+  }
+
+  const seats = await db
+    .from("team_players")
+    .select("team_id, person_id, jersey_number")
+    .in(
+      "team_id",
+      data.teams.map((team) => team.id),
+    );
+  check("team_players (lectura)", seats);
+  for (const seat of jerseysToFree(seats.data ?? [], data.team_players)) {
+    check(
+      "team_players (dorsal)",
+      await db
+        .from("team_players")
+        .update({ jersey_number: null })
+        .eq("team_id", seat.team_id)
+        .eq("person_id", seat.person_id),
+    );
+  }
 }
 
 /** El filtro `not.in` de PostgREST con los ids de unas filas. */
@@ -160,8 +232,11 @@ export async function runSeed(now: Date, client?: Client): Promise<SeedReport> {
       .from("organization_branding")
       .upsert(data.organization_branding, { onConflict: "organization_id" }),
   );
-  // `people` antes que `memberships`: la clave foránea compuesta de `person_id`.
+  // `people` antes que `memberships`: la clave foránea compuesta de `person_id`. Una persona
+  // del seed archivada en Gestión vuelve a estar en el club (`archived_at: null`): el seed la
+  // devuelve también a su equipo.
   check("people", await db.from("people").upsert(data.people, { onConflict: "id" }));
+  await makeRoomForStructure(db, data, organizationIds);
   check("seasons", await db.from("seasons").upsert(data.seasons, { onConflict: "id" }));
   check("categories", await db.from("categories").upsert(data.categories, { onConflict: "id" }));
   check("teams", await db.from("teams").upsert(data.teams, { onConflict: "id" }));

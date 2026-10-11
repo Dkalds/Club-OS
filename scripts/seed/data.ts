@@ -957,6 +957,8 @@ function addClub(data: SeedData, club: ClubDef, now: Date): void {
       first_name: person.firstName,
       last_name: person.lastName,
       birth_year: null,
+      // Quien se archivó en Gestión vuelve a estar en el club al sembrar.
+      archived_at: null,
     });
   }
 
@@ -998,6 +1000,7 @@ function addClub(data: SeedData, club: ClubDef, now: Date): void {
         first_name: player.firstName,
         last_name: player.lastName,
         birth_year: team.playersBirthYear,
+        archived_at: null,
       });
       data.team_players.push({
         organization_id: organizationId,

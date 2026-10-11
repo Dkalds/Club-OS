@@ -1015,8 +1015,10 @@ describe("buildSeedData: invariantes", () => {
   it("menores: ninguna persona lleva fecha de nacimiento completa, solo birth_year", () => {
     for (const person of data.people) {
       expect(Object.keys(person).sort()).toEqual(
-        ["birth_year", "first_name", "id", "last_name", "organization_id"].sort(),
+        // `archived_at` va siempre a null: quien se archivó en Gestión vuelve al club al sembrar.
+        ["archived_at", "birth_year", "first_name", "id", "last_name", "organization_id"].sort(),
       );
+      expect(person.archived_at).toBeNull();
       if (person.birth_year != null) {
         expect(Number.isInteger(person.birth_year)).toBe(true);
         expect(person.birth_year).toBeGreaterThanOrEqual(2000);
