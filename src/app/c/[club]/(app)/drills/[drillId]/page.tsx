@@ -9,6 +9,7 @@ import { standardsLabel } from "@/modules/tenancy/navigation";
 import { CoachingPointsList } from "@/ui/coaching-points-list";
 import { Board } from "@/ui/board";
 import { CourtDiagram } from "@/ui/court";
+import { CTAButton } from "@/ui/cta-button";
 import { MarkdownBody } from "@/ui/markdown-body";
 import { TopNavigation } from "@/ui/top-navigation";
 import { AddToPractice } from "./add-to-practice";
@@ -98,6 +99,13 @@ export default async function DrillPage({ params }: PageProps<"/c/[club]/drills/
           <Board board={drill.board} title={drill.title} />
         ) : drill.diagramUrl ? (
           <CourtDiagram src={drill.diagramUrl} alt={`Diagrama de ${drill.title}`} />
+        ) : null}
+
+        {/* Quien puede editar el ejercicio puede dibujar o cambiar su pizarra. */}
+        {perms.edit ? (
+          <CTAButton variant="secondary" block href={`${base}/drills/${drill.id}/board`}>
+            {drill.board ? "Editar pizarra" : "Dibujar pizarra"}
+          </CTAButton>
         ) : null}
 
         {objective ? (

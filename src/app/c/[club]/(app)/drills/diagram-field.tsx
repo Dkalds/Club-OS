@@ -133,6 +133,10 @@ export function DiagramField({
         </p>
       ) : null}
 
+      <CTAButton variant="ghost" className="self-start" href={`/c/${clubSlug}/drills/${drillId}/board`}>
+        {hasBoard ? "Editar pizarra" : "Dibujar pizarra"}
+      </CTAButton>
+
       {mediaId !== null && previewUrl === null ? (
         <p className="flex items-center gap-(--space-2) rounded-md border border-line bg-surface-1 p-(--space-4) text-body">
           <CheckIcon size={16} />

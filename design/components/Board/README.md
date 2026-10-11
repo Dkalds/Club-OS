@@ -17,3 +17,13 @@ La pizarra de un ejercicio: la pista con sus jugadores, el balón, los conos y l
 - Una pizarra sin pasos es una foto fija: solo el dibujo, sin controles.
 - Miniatura (`BoardThumb`): el primer momento de la pizarra en 80×60, `surface-2`, `radius-sm`, sin números, movimientos ni controles. Ocupa el sitio de la pista vacía en la tarjeta de un ejercicio y en la fila de una sesión.
 - Un ejercicio sin pizarra no enseña una pista vacía a tamaño completo: no enseña nada en ese hueco.
+
+## En el editor
+
+El editor dibuja sobre la misma pista, con el mismo dibujo. Lo que añade:
+
+- La ficha elegida lleva un anillo discontinuo en `brand-accent`. Cada ficha es un botón con nombre («Atacante 1», «Balón») y un área táctil de 44 px, salvo el balón que lleva un jugador: su área es solo el balón, para no tapar la del jugador.
+- El movimiento que se está decidiendo se ve atenuado, con su destino en un círculo discontinuo, hasta que se confirma tocando la pista.
+- Bajo la pista, los pasos como píldoras («Inicio», «Paso 1»…, «+ Paso»), con la activa en `brand-accent-soft`; después, lo que se puede hacer con lo elegido, en botones `secondary` (y `danger` para quitar); y al final «Deshacer», «Rehacer», «Vista previa» y el `primary` de la pantalla, «Guardar pizarra».
+- Mover sin arrastrar: cuatro botones de flecha de 44 px, redondos, con borde `line`.
+- Arrastrar empieza al mover el dedo 6 px (menos es un toque) y la ficha se mueve lo que el dedo, sin saltar a él. Lo que se coloca a mano queda a 2 unidades del borde como poco.

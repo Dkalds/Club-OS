@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { ACTION_ERROR_COPY } from "@/lib/action-result";
 import { DIAGRAM_ERROR, validateDiagramFile } from "@/modules/media/diagram-file";
+import type { Board } from "@/modules/board/types";
 import type { DrillDetail } from "./types";
 
 // Entrada de las acciones de ejercicios. Los límites son los CHECK de
@@ -247,6 +248,23 @@ export const updateDrillSchema = z.preprocess(
 );
 
 export const drillIdSchema = z.object({ drillId: id });
+
+// ── La pizarra ───────────────────────────────────────────────────────────────────────────
+
+/**
+ * Guardar la pizarra de un ejercicio: cuál, la copia que se editaba y la pizarra, o `null`
+ * para quitarla. Aquí solo se pide que venga: su forma (fichas, pasos, movimientos y topes) la
+ * comprueba la acción con `parseBoard`, el mismo validador que usa quien la lee.
+ */
+export const saveDrillBoardSchema = z.object({
+  drillId: id,
+  expectedUpdatedAt: z.string().trim().min(1),
+  // `null` la quita, y hay que decirlo: una clave que no llega no borra nada.
+  board: z.record(z.string(), z.unknown()).nullable(),
+});
+
+/** Lo que recibe `saveDrillBoard`. */
+export type SaveDrillBoardInput = { drillId: string; expectedUpdatedAt: string; board: Board | null };
 
 // ── Subir el diagrama ────────────────────────────────────────────────────────────────────
 

@@ -4,7 +4,8 @@
 --   · El `check`: es un objeto, dice su versión (1) y no pasa de 32 kB.
 --   · La ve quien ve el ejercicio y nadie más: otro entrenador del club ve la de un publicado
 --     y no la de un borrador ajeno; otro club, ninguna; un jugador, ninguna.
---   · Con la sesión de un usuario no se cambia: ni la dirección, ni el autor de un borrador.
+--   · Quien no puede editar el ejercicio no la cambia por la API directa (quién la guarda, y
+--     cómo, lo prueba `drill_board_save.test.sql`).
 --   · `save_drill` no la toca: guardar un ejercicio conserva su pizarra.
 --   · Por la API directa, un borrador nuevo puede traerla, y pasa por el mismo `check`.
 --
@@ -151,23 +152,21 @@ select is_empty(
 
 -- ── Quién la escribe ──────────────────────────────────────────────────────────────────
 
--- 11. La dirección cambia el contenido de un ejercicio, pero no su pizarra.
-select tests.authenticate_as(current_setting('fx.admin')::uuid);
-
-select throws_ok(
-  $$update drills set board = null where id = current_setting('fx.d_pub')::uuid$$,
-  '42501', 'permission denied for table drills',
-  'la dirección no cambia la pizarra con su sesión'
+-- 11. Un jugador no edita ejercicios: la política no le deja ninguna fila.
+select is_empty(
+  $$update drills set board = null where id = current_setting('fx.d_pub')::uuid returning id$$,
+  'un jugador no cambia la pizarra de un ejercicio'
 );
 
--- 12. Ni el autor de un borrador la suya.
+-- 12. Ni otro entrenador la de un publicado: solo la dirección lo edita.
+select tests.authenticate_as(current_setting('fx.c2')::uuid);
+
+select is_empty(
+  $$update drills set board = null where id = current_setting('fx.d_pub')::uuid returning id$$,
+  'un entrenador no cambia la pizarra de un publicado'
+);
+
 select tests.authenticate_as(current_setting('fx.c1')::uuid);
-
-select throws_ok(
-  $$update drills set board = null where id = current_setting('fx.d_draft')::uuid$$,
-  '42501', 'permission denied for table drills',
-  'el autor de un borrador no cambia su pizarra con su sesión'
-);
 
 -- 13-14. `save_drill` guarda el ejercicio y deja la pizarra como estaba.
 select lives_ok(

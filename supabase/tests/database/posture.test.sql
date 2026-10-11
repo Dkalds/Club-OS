@@ -205,11 +205,12 @@ select set_eq(
       ('game_principles', 'update', array['title', 'summary', 'sort', 'status']),
       ('principle_points', 'update', array['text', 'sort']),
       ('standards', 'update', array['number', 'title', 'description', 'sort', 'status']),
-      -- Biblioteca (20261103000400): el contenido, el estado y el diagrama.
+      -- Biblioteca (20261103000400): el contenido, el estado y el diagrama. La pizarra,
+      -- desde 20270216000100 (el editor).
       ('drills', 'update',
         array['title', 'summary', 'objective', 'setup_md', 'min_players', 'max_players',
               'min_minutes', 'max_minutes', 'min_age', 'max_age', 'equipment', 'video_url',
-              'diagram_media_id', 'status']),
+              'diagram_media_id', 'status', 'board']),
       -- Desarrollo (20261215000100). Ni el id, ni el autor, ni las fechas: los pone la base.
       -- Un objetivo nace activo; al cambiar no cambia de club, de jugador ni de equipo.
       -- Partidos (20261215000200): el alta y los cambios van por `create_game`,

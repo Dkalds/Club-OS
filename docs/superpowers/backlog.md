@@ -198,6 +198,39 @@ Lo que la Fase 3 dejó para el principio de la Fase 4 y la Fase 4 no recogió: r
 - **Las pizarras del manual traen su fondo claro y su título dentro de la imagen.** En la ficha, de tema oscuro, se ven con una banda clara arriba y abajo. Se quita regenerándolas sin fondo o recortándolas al campo.
 - **Edad, rango de jugadores y material de los 44** son una propuesta que el propietario aprobó con la especificación: los 4x4 quedan desde U16 y el único 5x5 desde U18. Se corrigen en `pack.json` y se vuelven a cargar con `--update`, o directamente en la app.
 
+## Editor de pizarra (pieza 4 de la evolución)
+
+Especificación `docs/superpowers/specs/2026-10-11-editor-de-pizarra-design.md`, plan `docs/superpowers/plans/2026-10-11-editor-de-pizarra.md`. Va encima de la pieza 3.
+
+Lo que esta pieza resuelve de lo que había pendiente:
+
+- **Nadie podía dibujar una pizarra** (lo dejó la pieza 3): quien edita un ejercicio la dibuja, la cambia y la quita.
+- **Un ejercicio con pizarra no podía quitársela.**
+
+Lo que deja:
+
+- **Migración al remoto.** `20270216000100_save_drill_board` solo está aplicada en local. Va después de la de la pieza 3 y antes de fusionar (README, «Despliegue del editor de pizarra»).
+- **La jugada como entidad propia**: situación (saque de fondo, de banda, transición, ataque, defensa), biblioteca por equipo, preparación de partidos y compartir en lectura con jugadores. Decidido con el propietario el 11 oct 2026: por ahora una jugada es un ejercicio con pizarra. Va con la estructura del club (pieza 5) y las vistas de jugador (pieza 9).
+- **Plantillas de partida** (5 abiertos, saque de fondo, 3x3…): se empieza siempre de una pista vacía o de la pizarra que ya hay.
+- **Un entrenador no cambia la pizarra de un ejercicio publicado**, tampoco del suyo: lo edita la dirección, como el resto de la ficha. Si quiere una variante, duplica el ejercicio (que hoy no existe como acción: se crea otro).
+- **El balón que lleva un jugador tiene un área táctil de unos 20 px**, a propósito: se pinta pegado a él y con los 44 px taparía al jugador. Para pasarlo se toca a quien lo lleva; para separarlo en «Inicio» hay que acertarle o moverlo con las flechas. A mirar con usuarios.
+- **Las fichas solo se arrastran en «Inicio».** En un paso, dónde está cada una sale de los movimientos anteriores: para cambiarlo se retoca ese movimiento.
+- **Cambiar de media pista a pista completa no recoloca las fichas.**
+- **Sin trayectorias curvas, zonas, texto sobre la pista ni entrenador como ficha.** Sin tope propio de balones (caben hasta 24 fichas en total).
+- **El teclado mueve fichas y destinos con botones de flecha**, no con las teclas de flecha sobre la pista.
+- **El arrastre con el dedo no está probado en un iPhone de verdad.** Solo la ficha lleva `touch-action: none` (un `<g>` dentro del SVG), y los e2e arrastran con ratón: falta comprobar en Safari de iOS que el dedo sobre una ficha no desplaza la página, y un e2e con toque.
+- **Dos balones junto al mismo jugador**: lleva el más cercano (`ballHeldBy`); el otro se queda donde está al mover al jugador y no se ofrece pasarlo desde él.
+- **Un pase a un jugador apunta a donde ese jugador acaba el paso cuando se dibuja el pase.** Si después se le cambia el movimiento a quien recibe, el pase no le sigue: se vuelve a dibujar.
+- **Dos personas editando la misma pizarra**: gana la primera que guarda; la otra recibe «Alguien ha cambiado esto…» y pierde lo suyo al recargar. Es lo mismo que en el resto de la ficha.
+
+Decisiones tomadas sin preguntarlas una a una (están también en la especificación):
+
+- La acción se elige primero y el destino después (dos toques), en vez de arrastrar una flecha.
+- A quien lleva el balón se le ofrece «Pasar», y tocar a un jugador al pasar le deja el balón a él.
+- Un paso vacío se descarta al guardar, sin avisar.
+- Guardar vuelve a la ficha del ejercicio.
+- El copy nuevo no lo ha validado producto.
+
 ## Pizarra visual (pieza 3 de la evolución)
 
 Especificación `docs/superpowers/specs/2026-10-11-pizarra-visual-design.md`, plan `docs/superpowers/plans/2026-10-11-pizarra-visual.md`. Va encima de la pieza 2.
@@ -211,7 +244,6 @@ Lo que esta pieza resuelve de lo que había pendiente:
 Lo que deja:
 
 - **Migración al remoto.** `20270202000100_drill_board` solo está aplicada en local. Va después de las de las piezas 1 y 2 y antes de fusionar (README, «Despliegue de la pizarra visual»).
-- **Nadie puede dibujar una pizarra todavía.** Solo existen las del seed. El editor (colocar, mover, dibujar, deshacer, duplicar) es la pieza 4, y con él llegan el `grant update (board)`, `save_drill` y las jugadas propias.
 - **Por la API directa, un borrador nuevo puede nacer con pizarra**: el alta de `drills` está concedida sobre la tabla entera desde la Fase 3. Es su propio borrador, pasa por el `check` y la app la valida al leer. Cerrarlo es cambiar ese `grant` por columnas.
 - **Metadatos de un ejercicio que pide la propuesta y no existen**: nivel, fase, reglas, progresión y errores frecuentes.
 - **Un movimiento muy corto no se dibuja** (menos de unas 7 unidades a lo ancho): la ficha se desplaza al reproducir, pero sin flecha. Un test vigila que las del seed se dibujan todas; el editor tendrá que avisar.
@@ -220,7 +252,6 @@ Lo que deja:
 - **En el directo conviven dos filas de controles con los mismos iconos**: los de la pizarra (anterior, reproducir, siguiente) y los de la sesión. Sus nombres los distinguen para quien escucha; a la vista, solo el tamaño y el sitio. A mirar con usuarios.
 - **Una ficha pegada al borde se recorta un poco**: el número de un defensor con `x` por encima de 93 en media pista, o el balón de un jugador en la línea de fondo contraria. Ninguna del seed llega; el editor tendrá que dejar margen.
 - **Las tarjetas de «ejercicios relacionados» de la metodología no llevan miniatura**: esa lectura recorre hasta mil filas. Si se quiere, pedir la pizarra solo de las que se pintan.
-- **Un ejercicio con pizarra no puede quitársela ni cambiarla** desde la app, y su formulario solo avisa de que la imagen subida no se verá. Llega con el editor.
 - **Sin notas de voz, recorrido de un jugador ni exportar a PDF o vídeo** (la propuesta los deja para una segunda fase).
 
 Decisiones tomadas sin preguntarlas una a una (están también en la especificación):

@@ -31,6 +31,17 @@ export function toBox(court: Court, point: BoardPoint): BoardPoint {
   return { x: 3 + point.y * 0.94, y: 3 + (100 - point.x) * 0.5 };
 }
 
+/**
+ * El inverso de `toBox`: un punto de la caja del dibujo, en unidades de pista, redondeado a
+ * enteros y acotado a la pista (0 a 100). Es lo que usa el editor para saber dónde se ha tocado:
+ * un toque en el margen cae en el borde de la pista, nunca fuera.
+ */
+export function fromBox(court: Court, point: BoardPoint): BoardPoint {
+  const clamp = (value: number) => Math.min(100, Math.max(0, Math.round(value)));
+  if (court === "half") return { x: clamp((point.x - 5) / 0.9), y: clamp((point.y - 5) / 0.65) };
+  return { x: clamp(100 - (point.y - 3) / 0.5), y: clamp((point.x - 3) / 0.94) };
+}
+
 /** Lo que miden un jugador y el balón, en unidades de la caja de media pista. */
 const PLAYER_RADIUS = 3.6;
 const BALL_RADIUS = 1.7;

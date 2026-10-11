@@ -3,7 +3,17 @@ import type { ReactNode } from "react";
 import { describe, expect, it } from "vitest";
 import { BALL_REACH } from "@/modules/board/limits";
 import type { Board, BoardFrame, BoardMoveKind, BoardPoint, BoardToken } from "@/modules/board/types";
-import { BOARD_VIEW, CourtLines, MoveMark, TokenMark, boardScale, movePaths, toBox, tokenBox } from "./board-drawing";
+import {
+  BOARD_VIEW,
+  CourtLines,
+  MoveMark,
+  TokenMark,
+  boardScale,
+  fromBox,
+  movePaths,
+  toBox,
+  tokenBox,
+} from "./board-drawing";
 
 type Court = Board["court"];
 
@@ -107,6 +117,116 @@ describe("toBox", () => {
     toBox(court, point);
 
     expect(point).toEqual({ x: 30, y: 70 });
+  });
+});
+
+describe("fromBox", () => {
+  it.each(COURTS)("%s: deshace toBox en cualquier punto entero de la pista", (court) => {
+    for (let x = 0; x <= 100; x += 1) {
+      for (let y = 0; y <= 100; y += 1) {
+        // `toStrictEqual` no deja pasar un -0 por un 0.
+        expect(fromBox(court, toBox(court, { x, y }))).toStrictEqual({ x, y });
+      }
+    }
+  });
+
+  it("media pista: las esquinas del dibujo son las de la pista, con el aro arriba", () => {
+    expect(fromBox("half", { x: 5, y: 5 })).toEqual({ x: 0, y: 0 });
+    expect(fromBox("half", { x: 95, y: 5 })).toEqual({ x: 100, y: 0 });
+    expect(fromBox("half", { x: 5, y: 70 })).toEqual({ x: 0, y: 100 });
+    expect(fromBox("half", { x: 95, y: 70 })).toEqual({ x: 100, y: 100 });
+    expect(fromBox("half", { x: 50, y: 37.5 })).toEqual({ x: 50, y: 50 });
+  });
+
+  it("pista completa: a la izquierda está el aro de ataque (y = 0) y arriba, la banda derecha (x = 100)", () => {
+    expect(fromBox("full", { x: 3, y: 3 })).toEqual({ x: 100, y: 0 });
+    expect(fromBox("full", { x: 3, y: 53 })).toEqual({ x: 0, y: 0 });
+    expect(fromBox("full", { x: 97, y: 3 })).toEqual({ x: 100, y: 100 });
+    expect(fromBox("full", { x: 97, y: 53 })).toEqual({ x: 0, y: 100 });
+    expect(fromBox("full", { x: 50, y: 28 })).toEqual({ x: 50, y: 50 });
+  });
+
+  it.each(COURTS)("%s: redondea a enteros: un toque entre dos unidades cae en la más cercana", (court) => {
+    const { width, height } = boxSize(court);
+
+    for (let x = 0; x <= width; x += 0.37) {
+      for (let y = 0; y <= height; y += 0.41) {
+        const at = fromBox(court, { x, y });
+
+        expect(Number.isInteger(at.x)).toBe(true);
+        expect(Number.isInteger(at.y)).toBe(true);
+      }
+    }
+    // Un pelo a cada lado de un punto de la pista sigue siendo ese punto; a media unidad, ya no.
+    const exact = toBox(court, { x: 40, y: 60 });
+    expect(fromBox(court, { x: exact.x + 0.2, y: exact.y - 0.2 })).toEqual({ x: 40, y: 60 });
+    expect(fromBox(court, { x: exact.x + 0.2, y: exact.y + 0.2 })).toEqual({ x: 40, y: 60 });
+    expect(fromBox(court, { x: exact.x + 2, y: exact.y + 2 })).not.toEqual({ x: 40, y: 60 });
+  });
+
+  it.each(COURTS)("%s: cualquier punto de la caja cae dentro de la pista, de 0 a 100", (court) => {
+    const { width, height } = boxSize(court);
+
+    for (let x = 0; x <= width; x += 2.5) {
+      for (let y = 0; y <= height; y += 2.5) {
+        const at = fromBox(court, { x, y });
+
+        expect(at.x).toBeGreaterThanOrEqual(0);
+        expect(at.x).toBeLessThanOrEqual(100);
+        expect(at.y).toBeGreaterThanOrEqual(0);
+        expect(at.y).toBeLessThanOrEqual(100);
+      }
+    }
+  });
+
+  it("media pista: un toque en el margen de la caja cae en el borde de la pista, nunca fuera", () => {
+    // La pista ocupa de 5 a 95 a lo ancho y de 5 a 70 a lo alto de una caja de 100 × 75.
+    expect(fromBox("half", { x: 0, y: 0 })).toStrictEqual({ x: 0, y: 0 });
+    expect(fromBox("half", { x: 100, y: 75 })).toStrictEqual({ x: 100, y: 100 });
+    expect(fromBox("half", { x: 2, y: 37.5 })).toStrictEqual({ x: 0, y: 50 });
+    expect(fromBox("half", { x: 98, y: 37.5 })).toStrictEqual({ x: 100, y: 50 });
+    expect(fromBox("half", { x: 50, y: 1 })).toStrictEqual({ x: 50, y: 0 });
+    expect(fromBox("half", { x: 50, y: 74 })).toStrictEqual({ x: 50, y: 100 });
+  });
+
+  it("pista completa: lo mismo, con sus márgenes de 3", () => {
+    expect(fromBox("full", { x: 0, y: 0 })).toStrictEqual({ x: 100, y: 0 });
+    expect(fromBox("full", { x: 100, y: 56 })).toStrictEqual({ x: 0, y: 100 });
+    expect(fromBox("full", { x: 1, y: 28 })).toStrictEqual({ x: 50, y: 0 });
+    expect(fromBox("full", { x: 99, y: 28 })).toStrictEqual({ x: 50, y: 100 });
+    expect(fromBox("full", { x: 50, y: 1 })).toStrictEqual({ x: 100, y: 50 });
+    expect(fromBox("full", { x: 50, y: 55 })).toStrictEqual({ x: 0, y: 50 });
+  });
+
+  it.each(COURTS)("%s: un punto muy fuera de la caja (el dedo sale de la pista al arrastrar) también se acota", (court) => {
+    expect(fromBox(court, { x: -500, y: -500 })).toStrictEqual(fromBox(court, { x: 0, y: 0 }));
+    expect(fromBox(court, { x: 900, y: 900 })).toStrictEqual(
+      fromBox(court, { x: boxSize(court).width, y: boxSize(court).height }),
+    );
+  });
+
+  it.each(COURTS)("%s: lo que devuelve vuelve a caer en su sitio del dibujo", (court) => {
+    // Ida y vuelta desde la caja: tocar donde está pintada una ficha da su punto.
+    for (const point of [
+      { x: 0, y: 0 },
+      { x: 13, y: 87 },
+      { x: 50, y: 50 },
+      { x: 99, y: 1 },
+      { x: 100, y: 100 },
+    ]) {
+      const again = toBox(court, fromBox(court, toBox(court, point)));
+
+      expect(again.x).toBeCloseTo(toBox(court, point).x, 10);
+      expect(again.y).toBeCloseTo(toBox(court, point).y, 10);
+    }
+  });
+
+  it.each(COURTS)("%s: no cambia el punto que recibe", (court) => {
+    const point = { x: 30.4, y: 20.6 };
+
+    fromBox(court, point);
+
+    expect(point).toEqual({ x: 30.4, y: 20.6 });
   });
 });
 

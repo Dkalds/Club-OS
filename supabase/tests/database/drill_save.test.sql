@@ -1170,8 +1170,8 @@ select set_eq(
       and has_column_privilege('authenticated', a.attrelid, a.attnum, 'update')$$,
   $$values ('title'), ('summary'), ('objective'), ('setup_md'), ('min_players'), ('max_players'),
            ('min_minutes'), ('max_minutes'), ('min_age'), ('max_age'), ('equipment'),
-           ('video_url'), ('diagram_media_id'), ('status')$$,
-  'authenticated actualiza solo el contenido, el estado y el diagrama: ni club, autor, id ni fechas'
+           ('video_url'), ('diagram_media_id'), ('status'), ('board')$$,
+  'authenticated actualiza solo el contenido, el estado, el diagrama y la pizarra: ni club, autor, id ni fechas'
 );
 
 select results_eq(
