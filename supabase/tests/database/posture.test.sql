@@ -113,17 +113,19 @@ select set_eq(
       and has_table_privilege('authenticated', c.oid, p.privilegio)$$,
   $$select t.tabla, p.privilegio
     from (values
-      -- Tenancy y estructura deportiva (20261005000100, 20261005000200): solo lectura.
+      -- Tenancy (20261005000100): solo lectura.
       ('organizations', array['select']),
       ('organization_branding', array['select']),
       ('profiles', array['select']),
       ('memberships', array['select']),
+      -- Estructura deportiva (20261005000200, 20270302000100): el alta y el cambio van por
+      -- columnas, abajo. Se borra todo menos las personas, que se archivan.
       ('people', array['select']),
-      ('seasons', array['select']),
-      ('categories', array['select']),
-      ('teams', array['select']),
-      ('team_staff', array['select']),
-      ('team_players', array['select']),
+      ('seasons', array['select', 'delete']),
+      ('categories', array['select', 'delete']),
+      ('teams', array['select', 'delete']),
+      ('team_staff', array['select', 'delete']),
+      ('team_players', array['select', 'delete']),
       -- Calendario (20261005000300): los focos y los partidos, solo lectura.
       ('focus_areas', array['select']),
       ('games', array['select']),
@@ -227,7 +229,25 @@ select set_eq(
         array['title', 'description', 'focus_area_id', 'standard_id', 'status']),
       ('coach_notes', 'insert',
         array['organization_id', 'person_id', 'team_id', 'body', 'visibility']),
-      ('coach_notes', 'update', array['body', 'visibility'])
+      ('coach_notes', 'update', array['body', 'visibility']),
+      -- Estructura del club (20270302000100). Los ids los pone la base. El club se escribe al
+      -- nacer la fila y no se cambia; tampoco la temporada de un equipo, ni el equipo o la
+      -- persona de un sitio en una plantilla o en un cuerpo técnico. `is_current` la mueven
+      -- `create_season` y `set_current_season`, que son `security invoker`.
+      ('people', 'insert', array['organization_id', 'first_name', 'last_name', 'birth_year']),
+      ('people', 'update', array['first_name', 'last_name', 'birth_year', 'archived_at']),
+      -- `is_current` no: solo la mueven `create_season` y `set_current_season`.
+      ('seasons', 'insert', array['organization_id', 'name', 'starts_on', 'ends_on']),
+      ('seasons', 'update', array['name', 'starts_on', 'ends_on']),
+      ('categories', 'insert', array['organization_id', 'name', 'age_band', 'sort']),
+      ('categories', 'update', array['name', 'age_band', 'sort']),
+      ('teams', 'insert', array['organization_id', 'season_id', 'category_id', 'name']),
+      ('teams', 'update', array['name', 'category_id']),
+      ('team_staff', 'insert', array['organization_id', 'team_id', 'person_id', 'staff_role']),
+      ('team_staff', 'update', array['staff_role']),
+      ('team_players', 'insert',
+        array['organization_id', 'team_id', 'person_id', 'jersey_number', 'position']),
+      ('team_players', 'update', array['jersey_number', 'position'])
     ) as t (tabla, privilegio, columnas)
     cross join unnest(t.columnas) as c (columna)$$,
   'los privilegios de columna de authenticated en public son exactamente los de la lista'
