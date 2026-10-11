@@ -335,7 +335,7 @@ describe("PracticeList vacía", () => {
     renderList({ teamCount: 0, practices: [], canCreate: true, role: "admin" });
 
     expect(screen.getByRole("heading", { level: 2, name: "Aún no hay equipos esta temporada" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Ir a Gestión" })).toHaveAttribute("href", "/c/club-a/admin");
+    expect(screen.getByRole("link", { name: "Ir a Gestión" })).toHaveAttribute("href", "/c/club-a/admin/season");
     expect(screen.queryByText("Aún no estás en ningún equipo")).not.toBeInTheDocument();
   });
 

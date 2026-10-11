@@ -32,6 +32,8 @@ describe("layout de Gestión", () => {
     expect(screen.getByRole("banner")).toHaveTextContent("Club A");
     const nav = screen.getByRole("navigation", { name: "Gestión" });
     expect(within(nav).getAllByRole("link").map((link) => link.textContent)).toEqual([
+      "Temporada",
+      "Personas",
       "Nuestra forma",
       "Valores",
       "Principios",

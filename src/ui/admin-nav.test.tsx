@@ -28,6 +28,8 @@ describe("AdminNav", () => {
 
     const nav = screen.getByRole("navigation", { name: "Gestión" });
     expect(within(nav).getAllByRole("link").map((link) => link.textContent)).toEqual([
+      "Temporada",
+      "Personas",
       "Identidad",
       "Valores",
       "Principios",
@@ -36,6 +38,14 @@ describe("AdminNav", () => {
     expect(within(nav).getByRole("link", { name: "Valores" })).toHaveAttribute(
       "href",
       "/c/club-a/admin/values",
+    );
+    expect(within(nav).getByRole("link", { name: "Temporada" })).toHaveAttribute(
+      "href",
+      "/c/club-a/admin/season",
+    );
+    expect(within(nav).getByRole("link", { name: "Personas" })).toHaveAttribute(
+      "href",
+      "/c/club-a/admin/people",
     );
   });
 
@@ -53,6 +63,11 @@ describe("AdminNav", () => {
     ["/c/club-a/admin/way/2f0c7a9e", "Identidad"],
     ["/c/club-a/admin/values", "Valores"],
     ["/c/club-a/admin/principles", "Principios"],
+    ["/c/club-a/admin/season", "Temporada"],
+    ["/c/club-a/admin/season/00000000-0000-4000-8000-000000000001", "Temporada"],
+    ["/c/club-a/admin/season/categories", "Temporada"],
+    ["/c/club-a/admin/people", "Personas"],
+    ["/c/club-a/admin/people/00000000-0000-4000-8000-000000000002", "Personas"],
   ])("%s marca «%s»", (pathname, label) => {
     navigation.pathname = pathname;
     render(<AdminNav items={ITEMS} />);
@@ -63,6 +78,31 @@ describe("AdminNav", () => {
   it("el prefijo es de segmentos enteros, no de letras", () => {
     navigation.pathname = "/c/club-a/admin/waylon";
     render(<AdminNav items={ITEMS} />);
+
+    expect(current()).toEqual([]);
+  });
+
+  // Los equipos no tienen apartado propio (se llega desde su temporada) y su ruta no cuelga de
+  // `/admin/season`: el apartado que la declara suya (`also`) es el actual.
+  it("una ruta que un apartado declara suya (`also`) lo marca a él, y solo a él", () => {
+    navigation.pathname = "/c/club-a/admin/teams/00000000-0000-4000-8000-000000000003";
+    const [first, ...rest] = ITEMS;
+    render(<AdminNav items={[{ ...first, also: ["/c/club-a/admin/teams"] }, ...rest]} />);
+
+    expect(current()).toEqual([first.label]);
+  });
+
+  it("`also` cuenta por segmentos enteros: `/admin/teams` no es `/admin/teamsters`", () => {
+    navigation.pathname = "/c/club-a/admin/teamsters";
+    const [first, ...rest] = ITEMS;
+    render(<AdminNav items={[{ ...first, also: ["/c/club-a/admin/teams"] }, ...rest]} />);
+
+    expect(current()).toEqual([]);
+  });
+
+  it("sin `also`, una ruta que no cuelga de ningún apartado no marca ninguno", () => {
+    navigation.pathname = "/c/club-a/admin/teams/00000000-0000-4000-8000-000000000003";
+    render(<AdminNav items={ITEMS.map(({ label, href }) => ({ label, href }))} />);
 
     expect(current()).toEqual([]);
   });

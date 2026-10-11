@@ -248,6 +248,80 @@ describe("seed contra Supabase local", () => {
     );
   });
 
+  it("tras cambiar la estructura como en Gestión, sembrar no falla y devuelve la suya", async () => {
+    const org = orgId("arcangel");
+    const team = data.teams.find((t) => t.id === teamId("arcangel", "Alevín A"));
+    const season = data.seasons.find((s) => s.organization_id === org && s.is_current);
+    const [first, second] = data.team_players.filter((seat) => seat.team_id === team?.id && seat.jersey_number != null);
+    if (!team || !season || !first || !second) throw new Error("falta estructura en el seed de Arcángel");
+
+    const straySeason = randomUUID();
+    const strayTeam = randomUUID();
+    const ok = (result: { error: { message: string } | null }) => expect(result.error).toBeNull();
+
+    try {
+      // Otra temporada pasa a ser la actual.
+      ok(await admin.from("seasons").update({ is_current: false }).eq("id", season.id));
+      ok(
+        await admin.from("seasons").insert({
+          id: straySeason,
+          organization_id: org,
+          name: "Int 2090/91",
+          starts_on: "2090-09-01",
+          ends_on: "2091-06-30",
+          is_current: true,
+        }),
+      );
+      // El equipo del seed cambia de nombre y otro ocupa el suyo, en mayúsculas.
+      ok(await admin.from("teams").update({ name: "Alevín Negro" }).eq("id", team.id));
+      ok(
+        await admin.from("teams").insert({
+          id: strayTeam,
+          organization_id: org,
+          season_id: team.season_id,
+          category_id: team.category_id,
+          name: team.name.toUpperCase(),
+        }),
+      );
+      // Dos jugadores del seed se cruzan el dorsal.
+      const jersey = (personId: string, number: number | null) =>
+        admin.from("team_players").update({ jersey_number: number }).eq("team_id", team.id).eq("person_id", personId);
+      ok(await jersey(first.person_id, null));
+      ok(await jersey(second.person_id, first.jersey_number ?? null));
+      ok(await jersey(first.person_id, second.jersey_number ?? null));
+
+      await runSeed(now);
+
+      const current = await admin.from("seasons").select("id").eq("organization_id", org).eq("is_current", true);
+      expect(current.data).toEqual([{ id: season.id }]);
+      const names = await admin.from("teams").select("id, name").in("id", [team.id, strayTeam]);
+      expect(names.data).toHaveLength(2);
+      expect(names.data).toEqual(
+        expect.arrayContaining([
+          { id: strayTeam, name: `${team.name.toUpperCase()} (${strayTeam.slice(0, 8)})` },
+          { id: team.id, name: team.name },
+        ]),
+      );
+      const jerseys = await admin
+        .from("team_players")
+        .select("person_id, jersey_number")
+        .eq("team_id", team.id)
+        .in("person_id", [first.person_id, second.person_id]);
+      expect(jerseys.data).toHaveLength(2);
+      expect(jerseys.data).toEqual(
+        expect.arrayContaining([
+          { person_id: first.person_id, jersey_number: first.jersey_number },
+          { person_id: second.person_id, jersey_number: second.jersey_number },
+        ]),
+      );
+    } finally {
+      // Lo creado aquí no es del seed: se va, para que los recuentos de los demás tests cuadren.
+      ok(await admin.from("teams").delete().eq("id", strayTeam));
+      ok(await admin.from("seasons").delete().eq("id", straySeason));
+      await runSeed(now);
+    }
+  }, 120_000);
+
   // Los cuatro tipos de contenido con estado: todo lo que el seed escribe está publicado.
   type StatusTable = "way_sections" | "club_values" | "game_principles" | "standards";
   async function statusesOf(table: StatusTable, organizationId: string): Promise<string[]> {

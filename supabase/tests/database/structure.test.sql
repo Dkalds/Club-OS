@@ -172,25 +172,25 @@ select results_eq(
   'c1 ve las categorías de su club y no las de B'
 );
 
--- En esta fase no hay escrituras para usuarios: ni política ni privilegio.
+-- Las escrituras son de la dirección del club (20270302000100; lo que ella escribe lo cubre
+-- `club_structure.test.sql`). Quien entrena sigue sin escribir, tampoco en su equipo: un alta
+-- no pasa la política, y un cambio o un borrado no encuentran ninguna fila.
 select throws_ok(
   $$insert into team_staff (organization_id, team_id, person_id, staff_role)
     values (current_setting('fx.club_a')::uuid, current_setting('fx.t2')::uuid,
             current_setting('fx.p_c1')::uuid, 'assistant')$$,
   '42501', null,
-  'nadie se añade al cuerpo técnico de otro equipo'
+  'quien entrena no se añade al cuerpo técnico de otro equipo'
 );
 
-select throws_ok(
-  $$update people set last_name = 'Cambiado'$$,
-  '42501', null,
-  'nadie edita personas en esta fase'
+select is_empty(
+  $$update people set last_name = 'Cambiado' returning id$$,
+  'quien entrena no edita personas, ni las de su equipo'
 );
 
-select throws_ok(
-  $$delete from team_players$$,
-  '42501', null,
-  'nadie edita plantillas en esta fase'
+select is_empty(
+  $$delete from team_players returning person_id$$,
+  'quien entrena no edita plantillas, ni la suya'
 );
 
 -- ── c2: staff de T2, mismo club (Review Focus 3) ─────────────────────────────────────
@@ -252,10 +252,10 @@ select results_eq(
   'admin ve a todas las personas de su club y a nadie de B'
 );
 
-select throws_ok(
-  $$update teams set name = 'Otro nombre'$$,
-  '42501', null,
-  'ni el admin escribe en esta fase'
+-- El admin escribe en su club (`club_structure.test.sql`); en otro, no: no ve la fila.
+select is_empty(
+  $$update teams set name = 'Otro nombre' where id = current_setting('fx.tb')::uuid returning id$$,
+  'el admin no escribe en los equipos de otro club'
 );
 
 -- ── coachB: el aislamiento entre clubes vale en los dos sentidos ─────────────────────
@@ -540,15 +540,20 @@ select is_empty(
   'anon no tiene ningún privilegio sobre las tablas'
 );
 
-select is_empty(
-  $$select c.relname, p.privilege
+-- De tabla entera, `authenticated` solo tiene el borrado, y no en `people`, que se archiva
+-- (20270302000100). El alta y el cambio van por columnas: `posture.test.sql` las lista. Quién
+-- escribe lo decide la política de cada tabla: la dirección del club.
+select set_eq(
+  $$select c.relname::text collate "default", p.privilege
     from pg_class as c
     cross join unnest(array['insert', 'update', 'delete', 'truncate', 'references', 'trigger'])
       as p (privilege)
     where c.relnamespace = 'public'::regnamespace
       and c.relname in ('people', 'seasons', 'categories', 'teams', 'team_staff', 'team_players')
       and has_table_privilege('authenticated', c.oid, p.privilege)$$,
-  'authenticated no tiene privilegios de escritura'
+  $$values ('seasons', 'delete'), ('categories', 'delete'), ('teams', 'delete'),
+           ('team_staff', 'delete'), ('team_players', 'delete')$$,
+  'authenticated solo tiene, de tabla entera, el borrado de cinco: las personas no se borran'
 );
 
 select results_eq(

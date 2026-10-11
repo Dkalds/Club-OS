@@ -760,7 +760,10 @@ isOneToOne: false
             [_ in never]: never
           }
           Functions: {
-            "cancel_game":
+            "add_new_player":
+{ Args: { "p_birth_year"?: number,"p_first_name": string,"p_jersey_number"?: number,"p_last_name": string,"p_position"?: string,"p_team": string }; Returns: string
+                           },
+"cancel_game":
 { Args: { "p_event": string }; Returns: undefined
                            },
 "create_game":
@@ -771,6 +774,12 @@ isOneToOne: false
                            },
 "create_practice_session":
 { Args: { "p_ends_at": string,"p_location"?: string,"p_primary_focus"?: string,"p_secondary_focus"?: string,"p_starts_at": string,"p_team": string,"p_title": string }; Returns: string
+                           },
+"create_season":
+{ Args: { "p_copy_teams_from"?: string,"p_ends_on": string,"p_name": string,"p_org": string,"p_starts_on": string }; Returns: string
+                           },
+"delete_team":
+{ Args: { "p_team": string }; Returns: undefined
                            },
 "duplicate_practice":
 { Args: { "p_event": string,"p_starts_at": string }; Returns: string
@@ -834,6 +843,9 @@ isOneToOne: false
         isOneToOne: false
         isSetofReturn: true
       } },
+"set_current_season":
+{ Args: { "p_season": string }; Returns: undefined
+                           },
 "update_game":
 { Args: { "p_competition"?: string,"p_ends_at": string,"p_event": string,"p_home_away"?: string,"p_location"?: string,"p_opponent": string,"p_opponent_notes"?: string,"p_starts_at": string }; Returns: undefined
                            },

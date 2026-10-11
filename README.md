@@ -73,6 +73,7 @@ El acceso es por invitación, con un código de 6 dígitos. No hay contraseñas 
 Si has usado Gestión en un club del seed, al volver a sembrar:
 
 - Lo que es del seed vuelve a su texto, su estado, su orden y su número.
+- La estructura del club (temporadas, categorías, equipos y plantillas) vuelve a ser la del seed aunque la hayas cambiado en Gestión: su temporada vuelve a ser la actual, y lo que creaste a mano y choca con el seed conserva todo salvo el nombre, que gana una marca, o el dorsal, que se queda vacío.
 - Lo que creaste a mano se queda. Las secciones pasan detrás de las del seed, en el orden que tenían. Un Standard solo cambia de número si ocupaba uno de los del seed: pasa al primero libre, y `pnpm seed` lo dice al acabar.
 - Con los ejercicios, igual: los que creaste se quedan y los del seed vuelven a su versión original, sin diagrama ni vídeo (ver «Despliegue de la biblioteca de ejercicios»).
 
@@ -196,6 +197,21 @@ Lista, en este orden:
   - Como su ayudante (`irene@arcangel.test`): la misma ficha. Tiene que ver la nota del cuerpo técnico y **no** la privada de Álex. Lo mismo como dirección (`raul@arcangel.test`).
   - Como la entrenadora de otro equipo (`nora@arcangel.test`) y como `marta@demo.test`: la URL de esa ficha da «No encontramos esta página».
   - Partidos (Agenda → «Añadir» → «Partido»): crear uno, cancelarlo, y corregir el resultado del jugado.
+
+### Despliegue de la estructura del club
+
+Va encima del editor de pizarra: primero su migración (abajo) y después esta, `20270302000100_club_structure`. Da a la dirección la escritura sobre `people`, `seasons`, `categories`, `teams`, `team_staff` y `team_players` (políticas y `grant` por columnas), añade restricciones a esas tablas y crea cuatro funciones. No añade tablas ni columnas, ni toca Storage, Auth o variables de entorno. Tiene que estar aplicada **antes de usar la preview del PR** y **antes de fusionar**: sin ella, en Gestión se ven la temporada y las personas, pero nada se guarda.
+
+- [ ] **Ver qué falta por aplicar**: `pnpm supabase migration list`.
+- [ ] **Antes de aplicarla, mirar los datos que hay.** Las restricciones nuevas se rechazan si ya hay filas que no las cumplen: una temporada que acaba antes de empezar, nombres vacíos o de más de 60 caracteres, o dos temporadas, dos categorías o dos equipos de una temporada con el mismo nombre (sin distinguir mayúsculas). El seed las cumple.
+- [ ] **Entre aplicarla y desplegar**, la app antigua no nota nada: solo leía estas tablas.
+- [ ] **Aplicar la migración** con `pnpm supabase db push`.
+- [ ] **Comprobar a mano**, en un móvil y con la app desplegada, como dirección:
+  - «Gestión» abre en «Temporada», con la temporada actual y sus equipos.
+  - Crear una categoría y un equipo; en el equipo, dar de alta a un jugador (solo año de nacimiento) y añadir a alguien al cuerpo técnico. Quien entrena ese equipo lo ve en la app.
+  - En «Personas», buscar sin tildes, editar a alguien y archivarlo (antes hay que quitarlo de sus equipos de la temporada actual o de una que no ha acabado).
+  - Crear una temporada copiando los equipos de la actual: nace sin ser la actual y la app no cambia. «Marcar como actual» cambia lo que ve todo el club: no probarlo en un entorno con gente dentro.
+  - Como entrenador, `/admin/season` y `/admin/people` dan el 404 de siempre.
 
 ### Despliegue del editor de pizarra
 

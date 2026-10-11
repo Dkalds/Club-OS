@@ -89,17 +89,32 @@ export function identityHref(clubSlug: string): string {
   return `/c/${clubSlug}/${TABS.identity.segment}`;
 }
 
-export type AdminNavItem = { label: string; href: string };
+/**
+ * Un apartado de Gestión. `also` son otras rutas que también son suyas aunque no cuelguen de
+ * su `href`: con una de ellas abierta, el apartado sigue siendo el actual.
+ */
+export type AdminNavItem = { label: string; href: string; also?: readonly string[] };
+
+/** El primer apartado de Gestión, al que lleva su raíz: la temporada y sus equipos. */
+export function adminHomeHref(clubSlug: string): string {
+  return `/c/${clubSlug}/admin/season`;
+}
 
 /**
- * Los apartados de Gestión (`/c/{slug}/admin/…`), en su orden: la metodología, los valores,
- * los principios de juego y los Standards. La metodología y los Standards llevan el nombre
- * que el club les haya dado en su terminología; «Valores» y «Principios» son siempre esos.
+ * Los apartados de Gestión (`/c/{slug}/admin/…`), en su orden: la estructura del club (la
+ * temporada con sus equipos, y las personas) y la metodología (el documento, los valores, los
+ * principios de juego y los Standards). La metodología y los Standards llevan el nombre que el
+ * club les haya dado en su terminología; los demás son siempre esos.
+ *
+ * Los equipos (`/admin/teams/…`) no tienen apartado propio: se llega desde su temporada, y
+ * con uno abierto el apartado actual sigue siendo «Temporada».
  */
 export function adminNavItems(clubSlug: string, terminology: Terminology): AdminNavItem[] {
   const base = `/c/${clubSlug}/admin`;
 
   return [
+    { label: "Temporada", href: adminHomeHref(clubSlug), also: [`${base}/teams`] },
+    { label: "Personas", href: `${base}/people` },
     { label: wayLabel(terminology), href: `${base}/way` },
     { label: "Valores", href: `${base}/values` },
     { label: "Principios", href: `${base}/principles` },

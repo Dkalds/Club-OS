@@ -18,8 +18,10 @@ vi.mock("./data", async (importOriginal) => {
 type Filter = [op: string, column: string, value: unknown];
 type Call = {
   table: string;
-  op: "upsert" | "delete" | "select";
+  op: "upsert" | "delete" | "select" | "update";
   rows?: Record<string, unknown>[];
+  /** Lo que escribe un `update`. */
+  values?: Record<string, unknown>;
   onConflict?: string;
   filters: Filter[];
 };
@@ -27,7 +29,7 @@ type Call = {
 type FakeOptions = {
   existingUsers?: { id: string; email: string }[];
   failOnTable?: string;
-  failOnOp?: "upsert" | "delete" | "select";
+  failOnOp?: "upsert" | "delete" | "select" | "update";
   // Lo que cada tabla tiene además del seed: lo que devuelve la lectura de lo creado a mano.
   strays?: Record<string, Record<string, unknown>[]>;
   failListUsers?: boolean;
@@ -82,6 +84,24 @@ function fakeClient(options: FakeOptions = {}) {
               const { error } = result(call);
               const data = error ? null : (options.strays?.[table] ?? []);
               return Promise.resolve({ data, error }).then(onFulfilled);
+            },
+          };
+          return query;
+        },
+        update(values: Record<string, unknown>) {
+          const call: Call = { table, op: "update", values, filters: [] };
+          calls.push(call);
+          const query = {
+            eq(column: string, value: unknown) {
+              call.filters.push(["eq", column, value]);
+              return query;
+            },
+            in(column: string, values: unknown[]) {
+              call.filters.push(["in", column, values]);
+              return query;
+            },
+            then<T>(onFulfilled: (value: { error: { message: string } | null }) => T) {
+              return Promise.resolve(result(call)).then(onFulfilled);
             },
           };
           return query;
@@ -415,12 +435,12 @@ describe("runSeed", () => {
       expect(read).toBeLessThan(write);
     });
 
-    it("solo lee esas dos tablas", async () => {
+    it("solo lee esas dos tablas y, antes, las de la estructura a la que hace sitio", async () => {
       const fake = fakeClient();
       await runSeed(NOW, fake.client);
 
       const read = fake.calls.filter((c) => c.op === "select").map((c) => c.table);
-      expect(read).toEqual(["way_sections", "standards"]);
+      expect(read).toEqual(["seasons", "categories", "teams", "team_players", "way_sections", "standards"]);
     });
 
     it("una sección creada a mano va en el mismo upsert, detrás de las del seed y con sus mismas columnas", async () => {
@@ -490,6 +510,120 @@ describe("runSeed", () => {
         new RegExp(`${table} \\(lectura de lo creado a mano\\).*fallo simulado`),
       );
       expect(fake.calls.some((c) => c.table === table && c.op === "upsert")).toBe(false);
+    });
+  });
+
+  describe("la estructura que la dirección ha cambiado en Gestión", () => {
+    const orgIds = data.organizations.map((org) => org.id);
+    const seedTeam = data.teams[0];
+    const seedSeat = data.team_players.find((seat) => seat.team_id === seedTeam.id && seat.jersey_number != null);
+    if (!seedSeat) throw new Error("El seed no tiene un jugador con dorsal en su primer equipo.");
+    const handMade = "00000000-0000-4000-8000-0000000000b1";
+
+    const indexOf = (fake: ReturnType<typeof fakeClient>, table: string, op: Call["op"]) =>
+      fake.calls.findIndex((c) => c.table === table && c.op === op);
+
+    it("sin nada que choque, solo quita la marca de temporada actual, antes de sembrar las temporadas", async () => {
+      const fake = fakeClient();
+      await runSeed(NOW, fake.client);
+
+      const updates = fake.calls.filter((c) => c.op === "update");
+      expect(updates).toHaveLength(1);
+      expect(updates[0]).toMatchObject({
+        table: "seasons",
+        values: { is_current: false },
+        filters: [
+          ["in", "organization_id", orgIds],
+          ["eq", "is_current", true],
+        ],
+      });
+      expect(fake.calls.indexOf(updates[0])).toBeLessThan(indexOf(fake, "seasons", "upsert"));
+    });
+
+    it("lee la estructura solo de los clubes del seed, y las plantillas solo de sus equipos", async () => {
+      const fake = fakeClient();
+      await runSeed(NOW, fake.client);
+
+      const filters = (table: string) => fake.calls.find((c) => c.table === table && c.op === "select")?.filters;
+      for (const table of ["seasons", "categories", "teams"]) {
+        expect(filters(table)).toEqual([["in", "organization_id", orgIds]]);
+      }
+      expect(filters("team_players")).toEqual([["in", "team_id", data.teams.map((team) => team.id)]]);
+    });
+
+    it("un equipo creado a mano con el nombre de uno del seed se aparta antes de sembrar los equipos", async () => {
+      const stray = {
+        id: handMade,
+        name: seedTeam.name.toUpperCase(),
+        organization_id: seedTeam.organization_id,
+        season_id: seedTeam.season_id,
+      };
+      // El del seed se renombró en Gestión: su nombre lo ocupa el otro.
+      const renamed = { ...stray, id: seedTeam.id, name: "Otro nombre" };
+      const fake = fakeClient({ strays: { teams: [renamed, stray] } });
+      await runSeed(NOW, fake.client);
+
+      const updates = fake.calls.filter((c) => c.table === "teams" && c.op === "update");
+      expect(updates).toHaveLength(1);
+      expect(updates[0].values).toEqual({ name: `${seedTeam.name.toUpperCase()} (${handMade.slice(0, 8)})` });
+      expect(updates[0].filters).toEqual([["eq", "id", handMade]]);
+      expect(fake.calls.indexOf(updates[0])).toBeLessThan(indexOf(fake, "teams", "upsert"));
+    });
+
+    it.each(["seasons", "categories"] as const)("lo mismo con %s, por club", async (table) => {
+      const seedRow = data[table][0];
+      const stray = { id: handMade, name: ` ${seedRow.name} `, organization_id: seedRow.organization_id };
+      const fake = fakeClient({ strays: { [table]: [stray] } });
+      await runSeed(NOW, fake.client);
+
+      const renames = fake.calls.filter((c) => c.table === table && c.op === "update" && c.values?.name !== undefined);
+      expect(renames).toHaveLength(1);
+      expect(renames[0].values).toEqual({ name: `${seedRow.name} (${handMade.slice(0, 8)})` });
+      expect(fake.calls.indexOf(renames[0])).toBeLessThan(indexOf(fake, table, "upsert"));
+    });
+
+    it("quien lleva en un equipo del seed el dorsal de un jugador del seed lo suelta antes de sembrar la plantilla", async () => {
+      const stray = { team_id: seedTeam.id, person_id: handMade, jersey_number: seedSeat.jersey_number };
+      const fake = fakeClient({ strays: { team_players: [stray] } });
+      await runSeed(NOW, fake.client);
+
+      const updates = fake.calls.filter((c) => c.table === "team_players" && c.op === "update");
+      expect(updates).toHaveLength(1);
+      expect(updates[0].values).toEqual({ jersey_number: null });
+      expect(updates[0].filters).toEqual([
+        ["eq", "team_id", seedTeam.id],
+        ["eq", "person_id", handMade],
+      ]);
+      expect(fake.calls.indexOf(updates[0])).toBeLessThan(indexOf(fake, "team_players", "upsert"));
+    });
+
+    it("no borra nada de la estructura", async () => {
+      const fake = fakeClient({
+        strays: { team_players: [{ team_id: seedTeam.id, person_id: handMade, jersey_number: seedSeat.jersey_number }] },
+      });
+      await runSeed(NOW, fake.client);
+
+      const deleted = fake.calls.filter((c) => c.op === "delete").map((c) => c.table);
+      for (const table of ["people", "seasons", "categories", "teams", "team_staff", "team_players"]) {
+        expect(deleted).not.toContain(table);
+      }
+    });
+
+    it.each(["seasons", "categories", "teams", "team_players"])(
+      "si falla la lectura de %s, se lanza con la tabla y no la escribe",
+      async (table) => {
+        const fake = fakeClient({ failOnTable: table, failOnOp: "select" });
+
+        await expect(runSeed(NOW, fake.client)).rejects.toThrow(new RegExp(`${table} \\(lectura\\).*fallo simulado`));
+        expect(fake.calls.some((c) => c.table === table && c.op === "upsert")).toBe(false);
+      },
+    );
+
+    it("si falla quitar la marca de temporada actual, se lanza y no siembra las temporadas", async () => {
+      const fake = fakeClient({ failOnTable: "seasons", failOnOp: "update" });
+
+      await expect(runSeed(NOW, fake.client)).rejects.toThrow(/seasons \(temporada actual\).*fallo simulado/);
+      expect(fake.calls.some((c) => c.table === "seasons" && c.op === "upsert")).toBe(false);
     });
   });
 
