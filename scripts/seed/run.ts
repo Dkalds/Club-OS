@@ -42,8 +42,8 @@ function check(label: string, result: { error: { message: string } | null }): vo
  *
  *  - Ninguna temporada de esos clubes queda como actual: la del seed recupera la marca al
  *    sembrar. Entre una cosa y otra el club no tiene temporada actual: es lo que dura el seed.
- *  - Las temporadas, categorías y equipos que llevan el nombre de otra fila del seed ganan una
- *    marca con su id; las del seed recuperan el suyo al sembrar.
+ *  - Las temporadas, categorías, equipos y pistas que llevan el nombre de otra fila del seed
+ *    ganan una marca con su id; las del seed recuperan el suyo al sembrar.
  *  - Quien lleva en un equipo del seed el dorsal de otra persona del seed se queda sin dorsal.
  */
 async function makeRoomForStructure(db: Client, data: SeedData, organizationIds: string[]): Promise<void> {
@@ -64,6 +64,8 @@ async function makeRoomForStructure(db: Client, data: SeedData, organizationIds:
     .select("id, name, organization_id, season_id")
     .in("organization_id", organizationIds);
   check("teams (lectura)", teams);
+  const venues = await db.from("venues").select("id, name, organization_id").in("organization_id", organizationIds);
+  check("venues (lectura)", venues);
 
   const byClub = (row: { id: string; name: string; organization_id: string }) => ({
     id: row.id,
@@ -84,6 +86,9 @@ async function makeRoomForStructure(db: Client, data: SeedData, organizationIds:
   }
   for (const rename of renamesFor((teams.data ?? []).map(bySeason), data.teams.map(bySeason))) {
     check("teams (nombre)", await db.from("teams").update({ name: rename.name }).eq("id", rename.id));
+  }
+  for (const rename of renamesFor((venues.data ?? []).map(byClub), data.venues.map(byClub))) {
+    check("venues (nombre)", await db.from("venues").update({ name: rename.name }).eq("id", rename.id));
   }
 
   const seats = await db
@@ -240,6 +245,8 @@ export async function runSeed(now: Date, client?: Client): Promise<SeedReport> {
   check("seasons", await db.from("seasons").upsert(data.seasons, { onConflict: "id" }));
   check("categories", await db.from("categories").upsert(data.categories, { onConflict: "id" }));
   check("teams", await db.from("teams").upsert(data.teams, { onConflict: "id" }));
+  // Las pistas, antes que los eventos: al sembrarlos, la base vincula cada uno con la suya.
+  check("venues", await db.from("venues").upsert(data.venues, { onConflict: "id" }));
   check(
     "memberships",
     await db.from("memberships").upsert(memberships, { onConflict: "organization_id,user_id" }),

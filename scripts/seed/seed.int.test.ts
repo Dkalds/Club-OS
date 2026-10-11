@@ -168,6 +168,7 @@ describe("seed contra Supabase local", () => {
       ["seasons", table("seasons"), data.seasons.length],
       ["categories", table("categories"), data.categories.length],
       ["teams", table("teams"), data.teams.length],
+      ["venues", table("venues"), data.venues.length],
       ["team_staff", table("team_staff"), data.team_staff.length],
       ["team_players", table("team_players"), data.team_players.length],
       ["focus_areas", table("focus_areas"), data.focus_areas.length],
@@ -194,6 +195,27 @@ describe("seed contra Supabase local", () => {
       expect(error, name).toBeNull();
       expect(count, name).toBe(rows);
     }
+  });
+
+  it("cada evento del seed queda vinculado a la pista que lleva de lugar, y solo si es una del club", async () => {
+    const orgIds = data.organizations.map((org) => org.id);
+    const venues = new Map(data.venues.map((venue) => [`${venue.organization_id}|${venue.name}`, venue.id]));
+
+    const { data: events, error } = await admin
+      .from("events")
+      .select("id, organization_id, location, venue_id")
+      .in("organization_id", orgIds);
+
+    expect(error).toBeNull();
+    expect(events?.length).toBe(data.events.length);
+    for (const event of events ?? []) {
+      // «Pabellón Los Almendros», el de un partido fuera, no es una pista del club.
+      expect(event.venue_id, event.location ?? "sin lugar").toBe(
+        venues.get(`${event.organization_id}|${event.location}`) ?? null,
+      );
+    }
+    expect((events ?? []).some((event) => event.venue_id !== null)).toBe(true);
+    expect((events ?? []).some((event) => event.location !== null && event.venue_id === null)).toBe(true);
   });
 
   it("la sesión próxima de Alevín A queda con 5 ítems y 75 minutos", async () => {
