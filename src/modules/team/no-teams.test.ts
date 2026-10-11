@@ -2,12 +2,13 @@ import { describe, expect, it } from "vitest";
 import { noTeamsState } from "./no-teams";
 
 describe("noTeamsState", () => {
-  it("dirección: no hay equipos esta temporada, y se crean en Gestión", () => {
+  it("dirección: no hay equipos esta temporada, y se crean en la temporada de Gestión", () => {
     expect(noTeamsState("admin", "club-a", "sessions")).toEqual({
       title: "Aún no hay equipos esta temporada",
       body: "Cuando des de alta los equipos en Gestión, aquí verás sus sesiones.",
-      action: { label: "Ir a Gestión", href: "/c/club-a/admin" },
+      action: { label: "Ir a Gestión", href: "/c/club-a/admin/season" },
     });
+    expect(noTeamsState("admin", "club-b", "sessions").action.href).toBe("/c/club-b/admin/season");
     expect(noTeamsState("admin", "club-a", "new-session").body).toBe(
       "Cuando des de alta los equipos en Gestión, podrás crear sus sesiones.",
     );

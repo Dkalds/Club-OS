@@ -14,7 +14,8 @@ export type ActionError =
   | "SESSION_CLOSED"
   | "GOAL_LIMIT"
   | "GAME_CLOSED"
-  | "TEMPLATE_LIMIT";
+  | "TEMPLATE_LIMIT"
+  | "IN_USE";
 
 export type ActionResult<T> =
   | { ok: true; data: T }
@@ -32,6 +33,7 @@ export const ACTION_ERROR_COPY: Record<ActionError, string> = {
     "Este jugador ya tiene 3 objetivos activos. Marca uno como logrado o archívalo para añadir otro.",
   GAME_CLOSED: "Este partido está cancelado y no se puede cambiar.",
   TEMPLATE_LIMIT: "Ya tienes 50 plantillas, el máximo. Borra alguna para guardar otra.",
+  IN_USE: "No se puede borrar porque se está usando.",
 };
 
 export function ok<T>(data: T): ActionResult<T> {

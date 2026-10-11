@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   activeNavKey,
+  adminHomeHref,
   adminNavItems,
   hasIdentityTab,
   IDENTITY_LABEL,
@@ -100,9 +101,23 @@ describe("la identidad del club", () => {
   });
 });
 
+describe("adminHomeHref", () => {
+  it("la raíz de Gestión lleva a la temporada del club", () => {
+    expect(adminHomeHref(SLUG)).toBe("/c/club-a/admin/season");
+    expect(adminHomeHref("club-b")).toBe("/c/club-b/admin/season");
+  });
+
+  it("es el primer apartado de la navegación de Gestión", () => {
+    expect(adminNavItems(SLUG, {})[0]).toMatchObject({ label: "Temporada", href: adminHomeHref(SLUG) });
+  });
+});
+
 describe("adminNavItems", () => {
-  it("por defecto: Identidad, Valores, Principios y Standards, con rutas bajo /admin", () => {
+  it("por defecto: Temporada y Personas delante de Identidad, Valores, Principios y Standards, con rutas bajo /admin", () => {
     expect(adminNavItems(SLUG, {})).toEqual([
+      // Los equipos no tienen apartado: con uno abierto, el actual sigue siendo «Temporada».
+      { label: "Temporada", href: "/c/club-a/admin/season", also: ["/c/club-a/admin/teams"] },
+      { label: "Personas", href: "/c/club-a/admin/people" },
       { label: "Identidad", href: "/c/club-a/admin/way" },
       { label: "Valores", href: "/c/club-a/admin/values" },
       { label: "Principios", href: "/c/club-a/admin/principles" },
@@ -110,17 +125,31 @@ describe("adminNavItems", () => {
     ]);
   });
 
-  it("la terminología del club cambia la primera y la última", () => {
+  it("la terminología del club cambia la metodología y los Standards, no la estructura", () => {
     const items = adminNavItems(SLUG, { way: "Nuestra forma", standards: "Normas" });
 
-    expect(items.map((item) => item.label)).toEqual(["Nuestra forma", "Valores", "Principios", "Normas"]);
+    expect(items.map((item) => item.label)).toEqual([
+      "Temporada",
+      "Personas",
+      "Nuestra forma",
+      "Valores",
+      "Principios",
+      "Normas",
+    ]);
     expect(items.map((item) => item.href)).toEqual(adminNavItems(SLUG, {}).map((item) => item.href));
   });
 
   it("un término vacío no deja un apartado sin etiqueta", () => {
     const items = adminNavItems(SLUG, { way: "   ", standards: "" });
 
-    expect(items.map((item) => item.label)).toEqual(["Identidad", "Valores", "Principios", "Standards"]);
+    expect(items.map((item) => item.label)).toEqual([
+      "Temporada",
+      "Personas",
+      "Identidad",
+      "Valores",
+      "Principios",
+      "Standards",
+    ]);
   });
 
   it("usa el slug del club en todas las rutas", () => {

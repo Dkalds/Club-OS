@@ -1,3 +1,4 @@
+import { adminHomeHref } from "@/modules/tenancy/navigation";
 import type { ClubContext } from "@/modules/tenancy/queries";
 
 type Role = ClubContext["membership"]["role"];
@@ -32,7 +33,7 @@ export function noTeamsState(
     return {
       title: "Aún no hay equipos esta temporada",
       body: `Cuando des de alta los equipos en Gestión, ${then}`,
-      action: { label: "Ir a Gestión", href: `/c/${clubSlug}/admin` },
+      action: { label: "Ir a Gestión", href: adminHomeHref(clubSlug) },
     };
   }
 

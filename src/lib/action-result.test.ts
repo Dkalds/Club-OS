@@ -56,6 +56,7 @@ describe("ACTION_ERROR_COPY", () => {
         "Este jugador ya tiene 3 objetivos activos. Marca uno como logrado o archívalo para añadir otro.",
       GAME_CLOSED: "Este partido está cancelado y no se puede cambiar.",
       TEMPLATE_LIMIT: "Ya tienes 50 plantillas, el máximo. Borra alguna para guardar otra.",
+      IN_USE: "No se puede borrar porque se está usando.",
     });
   });
 
@@ -82,7 +83,7 @@ describe("fromDbError", () => {
     });
   });
 
-  it.each(["GOAL_LIMIT", "GAME_CLOSED"] as const)("P0001 con %s devuelve ese código", (error) => {
+  it.each(["GOAL_LIMIT", "GAME_CLOSED", "IN_USE"] as const)("P0001 con %s devuelve ese código", (error) => {
     expect(fromDbError({ code: "P0001", message: error })).toStrictEqual({ ok: false, error });
   });
 
