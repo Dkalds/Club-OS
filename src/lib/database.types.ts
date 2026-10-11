@@ -266,15 +266,46 @@ isOneToOne: false
       referencedColumns: ["id"]
     }
                   ]
-                },"events": {
+                },"event_changes": {
                   Row: {
-                    "ends_at": string,"id": string,"kind": Database["public"]['Enums']["event_kind"],"location": string | null,"organization_id": string,"starts_at": string,"status": Database["public"]['Enums']["event_status"],"team_id": string
+                    "changed_at": string,"event_id": string,"id": string,"old_ends_at": string,"old_location": string | null,"old_starts_at": string,"organization_id": string,"team_id": string,"what": string
                   }
                   Insert: {
-                    "ends_at": string,"id"?: string,"kind": Database["public"]['Enums']["event_kind"],"location"?: string | null,"organization_id": string,"starts_at": string,"status"?: Database["public"]['Enums']["event_status"],"team_id": string
+                    "changed_at"?: string,"event_id": string,"id"?: string,"old_ends_at": string,"old_location"?: string | null,"old_starts_at": string,"organization_id": string,"team_id": string,"what": string
                   }
                   Update: {
-                    "ends_at"?: string,"id"?: string,"kind"?: Database["public"]['Enums']["event_kind"],"location"?: string | null,"organization_id"?: string,"starts_at"?: string,"status"?: Database["public"]['Enums']["event_status"],"team_id"?: string
+                    "changed_at"?: string,"event_id"?: string,"id"?: string,"old_ends_at"?: string,"old_location"?: string | null,"old_starts_at"?: string,"organization_id"?: string,"team_id"?: string,"what"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "event_changes_organization_id_event_id_fkey"
+      columns: ["organization_id","event_id"]
+isOneToOne: false
+      referencedRelation: "events"
+      referencedColumns: ["organization_id","id"]
+    },{
+      foreignKeyName: "event_changes_organization_id_fkey"
+      columns: ["organization_id"]
+isOneToOne: false
+      referencedRelation: "organizations"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "event_changes_organization_id_team_id_fkey"
+      columns: ["organization_id","team_id"]
+isOneToOne: false
+      referencedRelation: "teams"
+      referencedColumns: ["organization_id","id"]
+    }
+                  ]
+                },"events": {
+                  Row: {
+                    "ends_at": string,"id": string,"kind": Database["public"]['Enums']["event_kind"],"location": string | null,"organization_id": string,"schedule_id": string | null,"starts_at": string,"status": Database["public"]['Enums']["event_status"],"team_id": string,"venue_id": string | null
+                  }
+                  Insert: {
+                    "ends_at": string,"id"?: string,"kind": Database["public"]['Enums']["event_kind"],"location"?: string | null,"organization_id": string,"schedule_id"?: string | null,"starts_at": string,"status"?: Database["public"]['Enums']["event_status"],"team_id": string,"venue_id"?: string | null
+                  }
+                  Update: {
+                    "ends_at"?: string,"id"?: string,"kind"?: Database["public"]['Enums']["event_kind"],"location"?: string | null,"organization_id"?: string,"schedule_id"?: string | null,"starts_at"?: string,"status"?: Database["public"]['Enums']["event_status"],"team_id"?: string,"venue_id"?: string | null
                   }
                   Relationships: [
                     {
@@ -288,6 +319,18 @@ isOneToOne: false
       columns: ["organization_id","team_id"]
 isOneToOne: false
       referencedRelation: "teams"
+      referencedColumns: ["organization_id","id"]
+    },{
+      foreignKeyName: "events_schedule_fkey"
+      columns: ["organization_id","schedule_id"]
+isOneToOne: false
+      referencedRelation: "team_schedules"
+      referencedColumns: ["organization_id","id"]
+    },{
+      foreignKeyName: "events_venue_fkey"
+      columns: ["organization_id","venue_id"]
+isOneToOne: false
+      referencedRelation: "venues"
       referencedColumns: ["organization_id","id"]
     }
                   ]
@@ -673,6 +716,37 @@ isOneToOne: false
       referencedColumns: ["organization_id","id"]
     }
                   ]
+                },"team_schedules": {
+                  Row: {
+                    "created_at": string,"duration_minutes": number,"id": string,"organization_id": string,"start_time": string,"team_id": string,"venue_id": string | null,"weekday": number
+                  }
+                  Insert: {
+                    "created_at"?: string,"duration_minutes": number,"id"?: string,"organization_id": string,"start_time": string,"team_id": string,"venue_id"?: string | null,"weekday": number
+                  }
+                  Update: {
+                    "created_at"?: string,"duration_minutes"?: number,"id"?: string,"organization_id"?: string,"start_time"?: string,"team_id"?: string,"venue_id"?: string | null,"weekday"?: number
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "team_schedules_organization_id_fkey"
+      columns: ["organization_id"]
+isOneToOne: false
+      referencedRelation: "organizations"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "team_schedules_organization_id_team_id_fkey"
+      columns: ["organization_id","team_id"]
+isOneToOne: false
+      referencedRelation: "teams"
+      referencedColumns: ["organization_id","id"]
+    },{
+      foreignKeyName: "team_schedules_organization_id_venue_id_fkey"
+      columns: ["organization_id","venue_id"]
+isOneToOne: false
+      referencedRelation: "venues"
+      referencedColumns: ["organization_id","id"]
+    }
+                  ]
                 },"team_staff": {
                   Row: {
                     "organization_id": string,"person_id": string,"staff_role": Database["public"]['Enums']["staff_role"],"team_id": string
@@ -735,6 +809,25 @@ isOneToOne: false
       referencedColumns: ["organization_id","id"]
     }
                   ]
+                },"venues": {
+                  Row: {
+                    "created_at": string,"id": string,"name": string,"organization_id": string
+                  }
+                  Insert: {
+                    "created_at"?: string,"id"?: string,"name": string,"organization_id": string
+                  }
+                  Update: {
+                    "created_at"?: string,"id"?: string,"name"?: string,"organization_id"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "venues_organization_id_fkey"
+      columns: ["organization_id"]
+isOneToOne: false
+      referencedRelation: "organizations"
+      referencedColumns: ["id"]
+    }
+                  ]
                 },"way_sections": {
                   Row: {
                     "body_md": string,"content_kind": string,"created_at": string,"id": string,"number": number,"organization_id": string,"slug": string,"sort": number,"status": Database["public"]['Enums']["content_status"],"summary": string | null,"title": string,"updated_at": string,"updated_by": string | null
@@ -778,8 +871,14 @@ isOneToOne: false
 "create_season":
 { Args: { "p_copy_teams_from"?: string,"p_ends_on": string,"p_name": string,"p_org": string,"p_starts_on": string }; Returns: string
                            },
+"create_team_schedule":
+{ Args: { "p_duration_minutes": number,"p_start_time": string,"p_team": string,"p_venue"?: string,"p_weekday": number }; Returns: Json
+                           },
 "delete_team":
 { Args: { "p_team": string }; Returns: undefined
+                           },
+"delete_team_schedule":
+{ Args: { "p_schedule": string }; Returns: number
                            },
 "duplicate_practice":
 { Args: { "p_event": string,"p_starts_at": string }; Returns: string
@@ -851,6 +950,9 @@ isOneToOne: false
                            },
 "update_practice_session":
 { Args: { "p_ends_at": string,"p_event": string,"p_expected_updated_at": string,"p_location"?: string,"p_notes"?: string,"p_primary_focus"?: string,"p_secondary_focus"?: string,"p_starts_at": string,"p_title": string }; Returns: string
+                           },
+"update_team_schedule":
+{ Args: { "p_duration_minutes": number,"p_schedule": string,"p_start_time": string,"p_venue"?: string,"p_weekday": number }; Returns: number
                            },
 "update_way_section":
 { Args: { "p_body_md": string,"p_content_kind": string,"p_expected_updated_at": string,"p_id": string,"p_summary": string,"p_title": string }; Returns: string
