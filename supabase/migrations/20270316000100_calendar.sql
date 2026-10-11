@@ -135,12 +135,21 @@ set search_path = ''
 as $$
 begin
   if tg_op = 'UPDATE' then
-    update public.events as e
-    set location = new.name
-    where e.venue_id = new.id
-      and e.status = 'scheduled'
-      and e.starts_at > now()
-      and e.location is distinct from new.name;
+    -- Con cada sesión cambia también la copia de su plan (`practice_plans.updated_at`): quien
+    -- la tuviera abierta en el formulario recibe STALE_COPY al guardar, y no devuelve a la
+    -- sesión el nombre viejo sin enterarse.
+    with renamed as (
+      update public.events as e
+      set location = new.name
+      where e.venue_id = new.id
+        and e.status = 'scheduled'
+        and e.starts_at > now()
+        and e.location is distinct from new.name
+      returning e.id
+    )
+    update public.practice_plans as pp
+    set title = pp.title
+    where pp.event_id in (select r.id from renamed as r);
   end if;
 
   update public.events as e
@@ -276,7 +285,8 @@ create policy event_changes_select_admin_or_staff
 --
 -- La hora es la del reloj del club: `(día + hora) at time zone` da las 18:00 de Madrid a cada
 -- lado del cambio de hora. No crea nada en el pasado, ni donde el equipo ya tiene un
--- entrenamiento sin cancelar a esa misma hora (uno suyo o uno hecho a mano).
+-- entrenamiento sin cancelar a esa misma hora (uno suyo o uno hecho a mano), ni más allá de un
+-- año desde el primero.
 --
 -- Solo la llaman las funciones de abajo, que ya han comprobado quién llama.
 create function private.generate_schedule_practices(p_schedule uuid)
@@ -306,6 +316,10 @@ begin
   join public.seasons as s
     on s.id = t.season_id
   where t.id = v_schedule.team_id;
+
+  -- Como mucho un año de entrenamientos de una vez: una temporada no dura más, y sin tope una
+  -- con el final mal puesto (o puesto adrede) crearía miles.
+  v_until := least(v_until, v_from + 370);
 
   select v.name into v_location from public.venues as v where v.id = v_schedule.venue_id;
 
@@ -463,8 +477,8 @@ grant execute on function public.create_team_schedule(uuid, smallint, time, smal
 -- sesión que alguien alargó conserva lo que dura); el lugar, si era su pista. Guardar un
 -- horario sin cambiar nada no toca ningún entrenamiento.
 --
--- Uno no se mueve si caería en el pasado, después del final de la temporada o a una hora en la
--- que el equipo ya tiene otro entrenamiento sin cancelar: se queda donde está.
+-- Uno no se mueve si caería en el pasado, fuera de la temporada o a una hora en la que el
+-- equipo ya tiene otro entrenamiento sin cancelar: se queda donde está.
 create function public.update_team_schedule(
   p_schedule uuid,
   p_weekday smallint,
@@ -480,6 +494,7 @@ as $$
 declare
   v_old       public.team_schedules%rowtype;
   v_tz        text;
+  v_from      date;
   v_until     date;
   v_old_place text;
   v_new_place text;
@@ -507,8 +522,8 @@ begin
   );
 
   select o.timezone into v_tz from public.organizations as o where o.id = v_old.organization_id;
-  select s.ends_on
-  into v_until
+  select s.starts_on, s.ends_on
+  into v_from, v_until
   from public.teams as t
   join public.seasons as s
     on s.id = t.season_id
@@ -523,6 +538,8 @@ begin
       venue_id = p_venue
   where ts.id = p_schedule;
 
+  -- Bloqueados antes de decidir, como al quitar el horario: quien estuviera moviendo una de
+  -- estas sesiones termina antes, y aquí ya se ve dónde la dejó.
   for v_event in
     select e.id, e.starts_at, e.ends_at, e.location
     from public.events as e
@@ -530,6 +547,7 @@ begin
       and e.status = 'scheduled'
       and e.starts_at > now()
     order by e.starts_at
+    for update of e
   loop
     v_local := v_event.starts_at at time zone v_tz;
     continue when v_local::time <> v_old.start_time
@@ -537,9 +555,9 @@ begin
 
     v_day := v_local::date + (p_weekday - v_old.weekday);
     v_start := (v_day + p_start_time) at time zone v_tz;
-    -- Un día anterior de la misma semana puede caer ya en el pasado, y uno posterior, después
-    -- del final de la temporada: ese no se mueve.
-    continue when v_start <= now() or v_day > v_until;
+    -- Un día anterior de la misma semana puede caer ya en el pasado o antes del inicio de la
+    -- temporada, y uno posterior, después de su final: ese no se mueve.
+    continue when v_start <= now() or v_day < v_from or v_day > v_until;
     -- Ni a donde el equipo ya tiene otro entrenamiento: no se duplica.
     continue when v_start <> v_event.starts_at and exists (
       select 1
@@ -569,6 +587,10 @@ begin
 
     if found then
       v_moved := v_moved + 1;
+      -- La copia de su plan avanza con ella (`updated_at`, por su trigger): quien tuviera la
+      -- sesión abierta en el formulario recibe STALE_COPY al guardar, y no la devuelve a la hora
+      -- antigua sin enterarse.
+      update public.practice_plans as pp set title = pp.title where pp.event_id = v_event.id;
     end if;
   end loop;
 

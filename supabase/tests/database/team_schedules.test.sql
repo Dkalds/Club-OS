@@ -37,7 +37,7 @@
 -- datos son ficticios y solo de este test.
 begin;
 
-select plan(198);
+select plan(202);
 
 -- ── Ayudas (solo existen en esta transacción) ────────────────────────────────────────
 -- Ejecuta una sentencia como quien llama y devuelve cómo acabó: «ok N» con las filas que tocó
@@ -2539,10 +2539,66 @@ select is_empty(
   'cambiar un horario no deja al equipo con dos entrenamientos a la misma hora'
 );
 
--- 4. Pasar el horario a un día posterior de la semana puede sacar la última sesión de la
---    temporada: esa no se mueve.
+-- 4. Quien tiene una sesión abierta en el formulario guarda con la copia de antes del cambio de
+--    horario: STALE_COPY. Sin esto, su guardado devolvía la sesión a la hora antigua sin avisar.
+do $$
+declare
+  v_event uuid;
+begin
+  select e.id
+  into v_event
+  from public.events as e
+  where e.schedule_id = current_setting('fx.s7')::uuid
+    and e.status = 'scheduled'
+    and e.starts_at > now() + interval '30 days'
+    and (e.starts_at at time zone 'Europe/Madrid')::time = '18:00'
+    and extract(isodow from e.starts_at at time zone 'Europe/Madrid')::int = 3
+  order by e.starts_at
+  limit 1;
+
+  if v_event is null then
+    raise exception 'el test necesita una sesión del horario en su sitio';
+  end if;
+
+  perform set_config('fx.e7open', v_event::text, true);
+  perform set_config('fx.e7copy', tests.token(v_event)::text, true);
+  perform set_config('fx.moved7b', public.update_team_schedule(
+    current_setting('fx.s7')::uuid, 3::smallint, '18:15', 75::smallint)::text, true);
+end
+$$;
+
+select cmp_ok(
+  current_setting('fx.moved7b')::int, '>', 0,
+  'el cambio de horario mueve sesiones'
+);
+
+select isnt(
+  tests.token(current_setting('fx.e7open')::uuid), current_setting('fx.e7copy')::timestamptz,
+  'y avanza la copia del plan de cada sesión que mueve'
+);
+
+select tests.authenticate_as(current_setting('fx.c3')::uuid);
+
+select throws_ok(
+  $$select public.update_practice_session(
+      current_setting('fx.e7open')::uuid, current_setting('fx.e7copy')::timestamptz,
+      (select starts_at - interval '15 minutes' from events where id = current_setting('fx.e7open')::uuid),
+      (select ends_at - interval '15 minutes' from events where id = current_setting('fx.e7open')::uuid),
+      'Entrenamiento', null, null, null, 'Notas escritas con la sesión abierta')$$,
+  'P0001', 'STALE_COPY',
+  'quien guarda una sesión con la copia de antes del cambio de horario recibe STALE_COPY'
+);
+
+select tests.authenticate_as(current_setting('fx.admin')::uuid);
+
+-- 5. Pasar el horario a otro día de la semana puede sacar una sesión de la temporada, por
+--    delante o por detrás: esa no se mueve.
 do $$
 begin
+  perform public.update_team_schedule(
+    current_setting('fx.s7')::uuid, 7::smallint, '18:00', 75::smallint);
+  perform public.update_team_schedule(
+    current_setting('fx.s7')::uuid, 1::smallint, '18:00', 75::smallint);
   perform public.update_team_schedule(
     current_setting('fx.s7')::uuid, 7::smallint, '18:00', 75::smallint);
 end
@@ -2554,11 +2610,12 @@ select is_empty(
     join teams as t on t.id = e.team_id
     join seasons as s on s.id = t.season_id
     where e.schedule_id = current_setting('fx.s7')::uuid
-      and (e.starts_at at time zone 'Europe/Madrid')::date > s.ends_on$$,
-  'cambiar un horario no deja ninguna sesión después del final de la temporada'
+      and ((e.starts_at at time zone 'Europe/Madrid')::date > s.ends_on
+        or (e.starts_at at time zone 'Europe/Madrid')::date < s.starts_on)$$,
+  'cambiar un horario no deja ninguna sesión fuera de la temporada, ni antes ni después'
 );
 
--- 5. Quitar el horario no borra la sesión que quien entrena movió a mano, aunque no le haya
+-- 6. Quitar el horario no borra la sesión que quien entrena movió a mano, aunque no le haya
 --    puesto contenido: reprogramarla ya es haberla tocado. Las que siguen en su sitio y sin
 --    tocar sí se borran.
 select tests.authenticate_as(current_setting('fx.c3')::uuid);
@@ -2617,6 +2674,29 @@ select results_eq(
                               where pp.event_id = events.id and pp.notes is not null))$$,
   $$values (1, 0)$$,
   'la sesión que alguien movió a mano se queda, como suelta; las que seguían en su sitio sin tocar se borran'
+);
+
+-- ── Un horario no crea más de un año de entrenamientos ───────────────────────────────
+-- Una temporada con el final a diez años vista (un error, o adrede): el horario crea los de un
+-- año y no más.
+do $$
+declare
+  club_a constant uuid := 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+  v_season uuid;
+  v_team   uuid;
+begin
+  v_season := public.create_season(club_a, 'Sin final', current_date, current_date + 3650);
+  insert into teams (organization_id, season_id, category_id, name)
+  values (club_a, v_season, (select id from categories where organization_id = club_a order by sort limit 1), 'Eterno A')
+  returning id into v_team;
+
+  perform set_config('fx.long', public.create_team_schedule(v_team, 2::smallint, '18:00', 60::smallint) ->> 'created', true);
+end
+$$;
+
+select cmp_ok(
+  current_setting('fx.long')::int, '<=', 54,
+  'un horario crea como mucho un año de entrenamientos, dure lo que dure la temporada'
 );
 
 select * from finish();
