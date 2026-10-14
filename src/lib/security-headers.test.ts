@@ -29,6 +29,17 @@ describe("contentSecurityPolicy", () => {
     expect(csp).toContain(`connect-src 'self' ${SUPABASE_URL} wss://abcxyz.supabase.co`);
   });
 
+  it("unsafe-eval solo en desarrollo", () => {
+    expect(contentSecurityPolicy(SUPABASE_URL, "n", true)).toContain("'strict-dynamic' 'unsafe-eval'");
+    expect(contentSecurityPolicy(SUPABASE_URL, "n", false)).not.toContain("unsafe-eval");
+  });
+
+  it("con Supabase local en http, el WebSocket es ws://, no wss://", () => {
+    expect(contentSecurityPolicy("http://127.0.0.1:54321", "n")).toContain(
+      "connect-src 'self' http://127.0.0.1:54321 ws://127.0.0.1:54321",
+    );
+  });
+
   it("no se repite ningún directorio", () => {
     const csp = contentSecurityPolicy(SUPABASE_URL, "n");
     const names = csp.split("; ").map((d) => d.split(" ")[0]);

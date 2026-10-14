@@ -9,7 +9,7 @@
 -- Se ejecuta con `pnpm test:db`. Transacción que se deshace al final; datos ficticios.
 begin;
 
-select plan(6);
+select plan(7);
 
 do $$
 declare
@@ -48,6 +48,10 @@ declare
   -- T1: un plan jugado fuera del rango de fechas pedido: no cuenta.
   event_out_of_range constant uuid := gen_random_uuid();
   plan_out_of_range constant uuid := gen_random_uuid();
+
+  -- T1: jugado el 31 oct a las 23:30 UTC, que en Madrid (CET) ya es el 1 nov a las 00:30.
+  event_midnight constant uuid := gen_random_uuid();
+  plan_midnight constant uuid := gen_random_uuid();
 begin
   insert into organizations (id, slug, name) values
     (club_a, 'club-a', 'Club A'), (club_b, 'club-b', 'Club B');
@@ -83,19 +87,22 @@ begin
     (event_done, club_a, t1, 'practice', '2026-10-05 18:00+00', '2026-10-05 19:00+00', 'done'),
     (event_not_completed, club_a, t1, 'practice', '2026-10-06 18:00+00', '2026-10-06 19:00+00', 'done'),
     (event_scheduled, club_a, t1, 'practice', '2026-10-07 18:00+00', '2026-10-07 19:00+00', 'scheduled'),
-    (event_out_of_range, club_a, t1, 'practice', '2026-01-05 18:00+00', '2026-01-05 19:00+00', 'done');
+    (event_out_of_range, club_a, t1, 'practice', '2026-01-05 18:00+00', '2026-01-05 19:00+00', 'done'),
+    (event_midnight, club_a, t1, 'practice', '2026-10-31 23:30+00', '2026-11-01 00:30+00', 'done');
 
   insert into practice_plans (id, organization_id, team_id, event_id, title) values
     (plan_done, club_a, t1, event_done, 'Plan jugado'),
     (plan_not_completed, club_a, t1, event_not_completed, 'Plan sin marcar'),
     (plan_scheduled, club_a, t1, event_scheduled, 'Plan programado'),
-    (plan_out_of_range, club_a, t1, event_out_of_range, 'Plan fuera de rango');
+    (plan_out_of_range, club_a, t1, event_out_of_range, 'Plan fuera de rango'),
+    (plan_midnight, club_a, t1, event_midnight, 'Plan de medianoche');
 
   insert into practice_items (organization_id, plan_id, sort, drill_id, minutes, completed) values
     (club_a, plan_done, 1, drill_1, 10, true),
     (club_a, plan_not_completed, 1, drill_1, 10, null),
     (club_a, plan_scheduled, 1, drill_1, 10, true),
-    (club_a, plan_out_of_range, 1, drill_1, 10, true);
+    (club_a, plan_out_of_range, 1, drill_1, 10, true),
+    (club_a, plan_midnight, 1, drill_1, 10, true);
 
   perform set_config('fx.club_a', club_a::text, true);
   perform set_config('fx.admin_a', u_admin_a::text, true);
@@ -137,6 +144,14 @@ select results_eq(
   ) where team_id = current_setting('fx.t2')::uuid$$,
   $$values (0)$$,
   'T2, sin ninguna sesión jugada, no cubre nada'
+);
+
+select results_eq(
+  $$select team_id from coverage_by_team(
+    current_setting('fx.club_a')::uuid, '2026-11-01'::date, '2026-11-01'::date
+  )$$,
+  $$values (current_setting('fx.t1')::uuid)$$,
+  'el día cuenta en la zona del club, no en UTC (regla 7)'
 );
 
 select tests.authenticate_as(current_setting('fx.coach_a')::uuid);

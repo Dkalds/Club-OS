@@ -96,6 +96,8 @@ describe("PeopleScreen", () => {
 
     fireEvent.click(await screen.findByRole("button", { name: "Archivar persona" }));
     await waitFor(() => expect(mocks.archivePerson).toHaveBeenCalledWith("club-a", { personId: p.id }));
+    // Al salir bien, el diálogo se cierra: un segundo toque no archivaría otra vez.
+    await waitFor(() => expect(screen.queryByRole("button", { name: "Archivar persona" })).toBeNull());
   });
 
   it("invitar a quien no tiene cuenta abre el formulario, con la persona ya elegida", async () => {
@@ -124,7 +126,25 @@ describe("PeopleScreen", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Dar la tutela" }));
 
-    await waitFor(() => expect(mocks.createGuardianship).toHaveBeenCalled());
+    // De entrada, tutor y tutelado son dos personas distintas.
+    await waitFor(() =>
+      expect(mocks.createGuardianship).toHaveBeenCalledWith("club-a", {
+        guardianPersonId: uuid(2),
+        childPersonId: uuid(3),
+      }),
+    );
+  });
+
+  it("las personas archivadas no cuentan para dar una tutela", () => {
+    render(
+      <PeopleScreen
+        clubSlug="club-a"
+        people={[person(), person({ id: uuid(3), archivedAt: "2026-10-10T00:00:00Z" })]}
+        teams={[TEAM]}
+      />,
+    );
+
+    expect(screen.queryByRole("heading", { name: "Dar una tutela" })).toBeNull();
   });
 
   it("con una sola persona, no ofrece dar una tutela", () => {

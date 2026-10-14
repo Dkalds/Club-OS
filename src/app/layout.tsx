@@ -18,6 +18,11 @@ const barlowCondensed = Barlow_Condensed({
   display: "swap",
 });
 
+// La CSP lleva un nonce por petición (`src/lib/security-headers.ts`) y Next solo se lo pone a
+// sus scripts al renderizar en esa petición: una página prerenderizada en el build saldría
+// sin nonce y el navegador bloquearía sus scripts. Por eso nada se prerenderiza.
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "CLUB OS",
   description: "Plataforma para clubes de baloncesto de formación.",

@@ -30,12 +30,18 @@ function installDatabase({
     auth: { getClaims: async () => ({ data: userId ? { claims: { sub: userId } } : null, error: null }) },
     from: (table: string) => {
       if (table === "consents") {
+        const eq: Record<string, unknown> = {};
         const builder = {
           select: () => builder,
-          eq: () => builder,
+          eq: (c: string, v: unknown) => ((eq[c] = v), builder),
           is: () => builder,
           in: () => Promise.resolve({ data: activeImageConsents, error: null }),
-          limit: () => Promise.resolve({ data: consents, error: null }),
+          // Aplica de verdad el filtro por autor, como hace PostgREST.
+          limit: () =>
+            Promise.resolve({
+              data: consents.filter((row) => !("granted_by" in eq) || row.granted_by === eq.granted_by),
+              error: null,
+            }),
         };
         return builder;
       }
@@ -78,10 +84,22 @@ describe("getConsentStatus", () => {
     expect(await getConsentStatus(COACH)).toMatchObject({ needsTerms: true });
   });
 
-  it("con una fila de términos: needsTerms false", async () => {
-    installDatabase({ consents: [{ id: uuid(1) }] });
+  it("con una fila de términos suya: needsTerms false", async () => {
+    installDatabase({ consents: [{ id: uuid(1), granted_by: "user-1" }] });
 
     expect(await getConsentStatus(COACH)).toMatchObject({ needsTerms: false });
+  });
+
+  it("dirección ve los términos de otros (RLS), pero solo cuentan los suyos", async () => {
+    installDatabase({ consents: [{ id: uuid(1), granted_by: "otra-cuenta" }] });
+
+    expect(await getConsentStatus(ADMIN)).toMatchObject({ needsTerms: true });
+  });
+
+  it("sin sesión verificada: needsTerms true", async () => {
+    installDatabase({ userId: null });
+
+    expect(await getConsentStatus(COACH)).toMatchObject({ needsTerms: true });
   });
 
   it("un admin sin persona: nunca tiene tutelas pendientes", async () => {

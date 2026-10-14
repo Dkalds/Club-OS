@@ -31,20 +31,25 @@ export async function getConsentStatus(ctx: ClubContext): Promise<ConsentStatus>
   const supabase = await createClient();
   const orgId = ctx.org.id;
 
-  const [auth, terms] = await Promise.all([
-    supabase.auth.getClaims(),
-    supabase.from("consents").select("id").eq("organization_id", orgId).eq("kind", "terms").limit(1),
-  ]);
+  const auth = await supabase.auth.getClaims();
   if (auth.error) logError("consents.status.auth", auth.error);
-  if (terms.error) throwReadError("consents.status.terms", terms.error);
-
   const userId = auth.data?.claims.sub;
+  if (userId === undefined) return { needsTerms: true, pendingGuardianships: [] };
+
+  // Por `granted_by`, no solo por club: a dirección RLS le deja ver los términos de todo el
+  // club, y uno ajeno no cuenta como suyo.
+  const terms = await supabase
+    .from("consents")
+    .select("id")
+    .eq("organization_id", orgId)
+    .eq("kind", "terms")
+    .eq("granted_by", userId)
+    .limit(1);
+  if (terms.error) throwReadError("consents.status.terms", terms.error);
   const needsTerms = terms.data.length === 0;
 
   const personId = ctx.membership.personId;
-  if (personId === null || userId === undefined) {
-    return { needsTerms, pendingGuardianships: [] };
-  }
+  if (personId === null) return { needsTerms, pendingGuardianships: [] };
 
   const { data: wards, error: wardsError } = await supabase
     .from("guardianships")

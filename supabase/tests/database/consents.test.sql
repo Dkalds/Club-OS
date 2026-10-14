@@ -13,7 +13,7 @@
 -- Se ejecuta con `pnpm test:db`. Transacción que se deshace al final; datos ficticios.
 begin;
 
-select plan(24);
+select plan(25);
 
 -- ── Fixtures (como postgres) ─────────────────────────────────────────────────────────
 -- Club A: adminA (dirección), tutor (coach, y tutor de child por guardianship). Club B: adminB.
@@ -144,6 +144,12 @@ select tests.authenticate_as(current_setting('fx.otro')::uuid);
 select lives_ok(
   format($f$select grant_terms_consent(current_setting('fx.club_a')::uuid)$f$),
   'otro coach acepta los suyos, sin chocar con los del tutor'
+);
+
+select tests.authenticate_as(current_setting('fx.admin_b')::uuid);
+select throws_ok(
+  format($f$select grant_terms_consent(current_setting('fx.club_a')::uuid)$f$),
+  'P0002', 'NOT_FOUND', 'quien no es miembro del club no acepta sus términos'
 );
 
 -- ── grant_image_consent ──────────────────────────────────────────────────────────────

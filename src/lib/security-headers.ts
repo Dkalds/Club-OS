@@ -16,10 +16,10 @@ export function generateNonce(): string {
   return btoa(String.fromCharCode(...bytes));
 }
 
-/** El origen `https://` y `wss://` de Supabase, a partir de su URL pública. */
+/** El origen HTTP de Supabase y su WebSocket (`wss` sobre `https`, `ws` sobre `http` en local). */
 function supabaseOrigins(supabaseUrl: string): { https: string; wss: string } {
   const https = supabaseUrl.replace(/\/$/, "");
-  const wss = https.replace(/^https?:\/\//, "wss://");
+  const wss = https.replace(/^http/, "ws");
   return { https, wss };
 }
 
@@ -29,12 +29,18 @@ function supabaseOrigins(supabaseUrl: string): { https: string; wss: string } {
  * la caché offline los necesitan); el resto es la base razonable para una app de Next.js sin
  * scripts ni estilos de terceros.
  */
-export function contentSecurityPolicy(supabaseUrl: string, nonce: string): string {
+export function contentSecurityPolicy(
+  supabaseUrl: string,
+  nonce: string,
+  dev = process.env.NODE_ENV === "development",
+): string {
   const { https, wss } = supabaseOrigins(supabaseUrl);
 
   const directives = [
     `default-src 'self'`,
-    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'`,
+    // En desarrollo, React Refresh y los source maps de webpack evalúan código: sin
+    // `unsafe-eval`, `pnpm dev` no hidrata. Nunca en producción.
+    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${dev ? " 'unsafe-eval'" : ""}`,
     `style-src 'self' 'unsafe-inline'`,
     `img-src 'self' data: blob: ${https}`,
     `font-src 'self'`,

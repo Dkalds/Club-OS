@@ -245,7 +245,9 @@ function PersonRow({
         cancelLabel="Seguir"
         tone="danger"
         pending={archive.pending}
-        onConfirm={() => archive.run(() => archivePerson(clubSlug, { personId: person.id }))}
+        onConfirm={() =>
+          archive.run(() => archivePerson(clubSlug, { personId: person.id }), () => setConfirmingArchive(false))
+        }
       />
     </li>
   );
@@ -312,8 +314,9 @@ function CreatePersonForm({ clubSlug }: { clubSlug: string }) {
 
 function CreateGuardianshipForm({ clubSlug, people }: { clubSlug: string; people: AdminPerson[] }) {
   const { pending, failure, run } = useAction();
+  // Dos personas distintas de entrada: la misma en los dos lados choca con el CHECK de la tabla.
   const [guardianPersonId, setGuardianPersonId] = useState(people[0]?.id ?? "");
-  const [childPersonId, setChildPersonId] = useState(people[0]?.id ?? "");
+  const [childPersonId, setChildPersonId] = useState(people[1]?.id ?? "");
   const [done, setDone] = useState(false);
 
   function submit(event: FormEvent<HTMLFormElement>) {
@@ -367,6 +370,8 @@ export function PeopleScreen({
 }) {
   const [link, setLink] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  // Una persona archivada no se tutela ni tutela a nadie nuevo.
+  const active = people.filter((person) => !person.archivedAt);
 
   function copy() {
     navigator.clipboard.writeText(`${window.location.origin}/invite/${link}`).then(() => setCopied(true));
@@ -408,7 +413,7 @@ export function PeopleScreen({
 
       <CreatePersonForm clubSlug={clubSlug} />
 
-      {people.length > 1 && <CreateGuardianshipForm clubSlug={clubSlug} people={people} />}
+      {active.length > 1 && <CreateGuardianshipForm clubSlug={clubSlug} people={active} />}
 
       <ImportCsv clubSlug={clubSlug} />
     </>

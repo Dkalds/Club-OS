@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { canAttempt, clearAttempts, recordAttempt } from "./rate-limit";
+import { canAttempt, clearAttempts, recordAttempt, trackedKeys } from "./rate-limit";
 
 // Cada test usa su propia clave (un email neutro distinto): el módulo guarda el contador en
 // un `Map` compartido entre tests, sin forma de reiniciarlo desde fuera.
@@ -57,6 +57,16 @@ describe("canAttempt / recordAttempt", () => {
     for (let i = 0; i < 5; i += 1) recordAttempt(k, 60 * 60_000);
 
     expect(canAttempt(k, 60 * 60_000)).toBe(false);
+  });
+
+  it("muchas claves distintas no se acumulan sin fin: las caducadas se barren", () => {
+    for (let i = 0; i < 10_050; i += 1) recordAttempt(key(), 0);
+    expect(trackedKeys()).toBeGreaterThan(10_000);
+
+    // Pasada la ventana, el siguiente intento barre las caducadas.
+    recordAttempt(key(), 60 * 60_000);
+
+    expect(trackedKeys()).toBeLessThan(100);
   });
 
   it("clearAttempts quita el bloqueo y el contador", () => {

@@ -18,7 +18,20 @@ const MAX_ATTEMPTS = 5;
 const BACKOFF_MS = 60_000;
 const MAX_BACKOFF_STEPS = 6;
 
+/** Por encima de tantas claves se barren las caducadas: un email al azar por petición no llena la memoria. */
+const SWEEP_ABOVE = 10_000;
+
 const attempts = new Map<string, Entry>();
+
+function expired(entry: Entry, nowMs: number): boolean {
+  return nowMs - entry.windowStart > WINDOW_MS && entry.blockedUntil <= nowMs;
+}
+
+function sweep(nowMs: number): void {
+  for (const [key, entry] of attempts) {
+    if (expired(entry, nowMs)) attempts.delete(key);
+  }
+}
 
 /** Si la clave puede intentarlo ahora, o sigue en la espera de un bloqueo anterior. */
 export function canAttempt(key: string, nowMs = Date.now()): boolean {
@@ -32,6 +45,8 @@ export function canAttempt(key: string, nowMs = Date.now()): boolean {
  * hasta `MAX_BACKOFF_STEPS`.
  */
 export function recordAttempt(key: string, nowMs = Date.now()): void {
+  if (attempts.size > SWEEP_ABOVE) sweep(nowMs);
+
   const existing = attempts.get(key);
   const entry: Entry =
     existing && nowMs - existing.windowStart <= WINDOW_MS ? existing : { count: 0, windowStart: nowMs, blockedUntil: 0 };
@@ -47,4 +62,9 @@ export function recordAttempt(key: string, nowMs = Date.now()): void {
 /** Tras un acierto (un código verificado de verdad): la cuenta deja de estar bajo sospecha. */
 export function clearAttempts(key: string): void {
   attempts.delete(key);
+}
+
+/** Cuántas claves guarda ahora mismo (para los tests del barrido). */
+export function trackedKeys(): number {
+  return attempts.size;
 }

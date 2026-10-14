@@ -24,16 +24,19 @@ export default async function ClubHomePage({ params }: PageProps<"/c/[club]">) {
   const ctx = await requireClub(club);
 
   const now = new Date().toISOString();
-  const home = await getHomeData(ctx, now);
 
-  let coverageSummary: { coveredCount: number; totalCount: number } | null = null;
-  if (can(ctx, "coverage.view")) {
-    const to = isoToLocalInputs(now, ctx.org.timezone).date;
-    const from = isoToLocalInputs(addLocalDays(now, -DEFAULT_COVERAGE_WEEKS * 7, ctx.org.timezone), ctx.org.timezone).date;
+  // La cobertura (solo dirección) se lee a la vez que Inicio, no después.
+  async function coverage(): Promise<{ coveredCount: number; totalCount: number } | null> {
+    if (!can(ctx, "coverage.view")) return null;
+    const tz = ctx.org.timezone;
+    const to = isoToLocalInputs(now, tz).date;
+    const from = isoToLocalInputs(addLocalDays(now, -DEFAULT_COVERAGE_WEEKS * 7, tz), tz).date;
     const matrix = await getCoverageMatrix(ctx, from, to);
     const coveredCount = matrix.rows.reduce((sum, row) => sum + row.covered.filter(Boolean).length, 0);
-    coverageSummary = { coveredCount, totalCount: matrix.rows.length * matrix.standards.length };
+    return { coveredCount, totalCount: matrix.rows.length * matrix.standards.length };
   }
+
+  const [home, coverageSummary] = await Promise.all([getHomeData(ctx, now), coverage()]);
 
   return (
     <HomeScreen
