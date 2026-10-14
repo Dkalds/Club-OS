@@ -254,7 +254,18 @@ test("dirección entra desde el avatar", async ({ page }) => {
 
   // Sus apartados, con los nombres que da el club, y el actual marcado.
   const links = adminNav(page).getByRole("link");
-  await expect(links).toHaveText(["The Way", "Valores", "Principios", "Arcángel Standards"]);
+  await expect(links).toHaveText([
+    "The Way",
+    "Valores",
+    "Principios",
+    "Arcángel Standards",
+    "Club",
+    "Equipos",
+    "Personas",
+    "Ejercicios pendientes",
+    "Cobertura",
+    "Invitaciones",
+  ]);
   await expect(links.first()).toHaveAttribute("aria-current", "page");
   await expect(adminNav(page).locator('[aria-current="page"]')).toHaveCount(1);
   await links.filter({ hasText: "Valores" }).click();

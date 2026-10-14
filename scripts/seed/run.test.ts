@@ -18,7 +18,7 @@ vi.mock("./data", async (importOriginal) => {
 type Filter = [op: string, column: string, value: unknown];
 type Call = {
   table: string;
-  op: "upsert" | "delete" | "select";
+  op: "upsert" | "delete" | "select" | "insert";
   rows?: Record<string, unknown>[];
   onConflict?: string;
   filters: Filter[];
@@ -27,7 +27,7 @@ type Call = {
 type FakeOptions = {
   existingUsers?: { id: string; email: string }[];
   failOnTable?: string;
-  failOnOp?: "upsert" | "delete" | "select";
+  failOnOp?: "upsert" | "delete" | "select" | "insert";
   // Lo que cada tabla tiene además del seed: lo que devuelve la lectura de lo creado a mano.
   strays?: Record<string, Record<string, unknown>[]>;
   failListUsers?: boolean;
@@ -57,12 +57,21 @@ function fakeClient(options: FakeOptions = {}) {
           calls.push(call);
           return Promise.resolve(result(call));
         },
+        insert(rows: Record<string, unknown>[]) {
+          const call: Call = { table, op: "insert", rows, filters: [] };
+          calls.push(call);
+          return Promise.resolve(result(call));
+        },
         select() {
           const call: Call = { table, op: "select", filters: [] };
           calls.push(call);
           const query = {
             in(column: string, values: unknown[]) {
               call.filters.push(["in", column, values]);
+              return query;
+            },
+            eq(column: string, value: unknown) {
+              call.filters.push(["eq", column, value]);
               return query;
             },
             not(column: string, op: string, value: unknown) {
@@ -362,6 +371,32 @@ describe("runSeed", () => {
     expect(fake.calls).toHaveLength(0);
   });
 
+  // Fase 7 ([D7]): sin los términos aceptados, `requireTerms` mandaría a toda cuenta sembrada a
+  // `/consent` y el resto de la app no se podría usar.
+  describe("términos aceptados", () => {
+    it("cada membresía sembrada acepta los términos de su club, después de crearla", async () => {
+      const fake = fakeClient();
+      await runSeed(NOW, fake.client);
+
+      const insert = fake.calls.find((c) => c.table === "consents" && c.op === "insert");
+      expect(insert?.rows).toHaveLength(data.memberships.length);
+      expect(insert?.rows?.every((row) => row.kind === "terms")).toBe(true);
+      const memberships = fake.calls.findIndex((c) => c.table === "memberships" && c.op === "upsert");
+      expect(fake.calls.indexOf(insert!)).toBeGreaterThan(memberships);
+    });
+
+    it("no repite los que ya están: el seed se puede ejecutar dos veces", async () => {
+      const first = fakeClient();
+      await runSeed(NOW, first.client);
+      const rows = first.calls.find((c) => c.table === "consents" && c.op === "insert")!.rows!;
+
+      const second = fakeClient({ strays: { consents: rows } });
+      await runSeed(NOW, second.client);
+
+      expect(second.calls.find((c) => c.table === "consents" && c.op === "insert")).toBeUndefined();
+    });
+  });
+
   // Lo creado a mano en Gestión (secciones y Standards que no son del seed) no se borra, pero el
   // número es único por club: se lee antes de escribir y va en la misma sentencia que el seed.
   describe("lo creado a mano en los clubes del seed", () => {
@@ -419,7 +454,10 @@ describe("runSeed", () => {
       const fake = fakeClient();
       await runSeed(NOW, fake.client);
 
-      const read = fake.calls.filter((c) => c.op === "select").map((c) => c.table);
+      // Además de los términos aceptados (Fase 7), que tienen su propio bloque abajo.
+      const read = fake.calls
+        .filter((c) => c.op === "select" && c.table !== "organization_branding" && c.table !== "consents")
+        .map((c) => c.table);
       expect(read).toEqual(["way_sections", "standards"]);
     });
 
