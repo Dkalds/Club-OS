@@ -8,11 +8,68 @@ const mocks = vi.hoisted(() => ({
   listValuesForAdmin: vi.fn(),
   listPrinciplesForAdmin: vi.fn(),
   listStandardsForAdmin: vi.fn(),
+  listSeasons: vi.fn(),
+  getSeason: vi.fn(),
+  listCategories: vi.fn(),
+  getAdminTeam: vi.fn(),
+  listPeople: vi.fn(),
+  getPerson: vi.fn(),
+  listVenues: vi.fn(),
+  listSeasonSchedules: vi.fn(),
+  listTeamSchedules: vi.fn(),
 }));
 
 vi.mock("@/modules/tenancy/queries", () => ({ getClubContext: mocks.getClubContext }));
 vi.mock("@/modules/consents/queries", () => ({
   getConsentStatus: async () => ({ needsTerms: false, pendingGuardianships: [] }),
+}));
+// La estructura del club (temporada, categorías, equipos y personas): sus lecturas, de pega. Lo
+// que pinta cada página se prueba en el `pages.test.tsx` de su carpeta.
+vi.mock("@/modules/structure/queries", () => ({
+  PEOPLE_LIMIT: 1000,
+  defaultSeason: () => null,
+  listSeasons: mocks.listSeasons,
+  getSeason: mocks.getSeason,
+  listCategories: mocks.listCategories,
+  getAdminTeam: mocks.getAdminTeam,
+  listPeople: mocks.listPeople,
+  getPerson: mocks.getPerson,
+}));
+vi.mock("@/modules/structure/actions", () => ({
+  createSeason: vi.fn(),
+  updateSeason: vi.fn(),
+  setCurrentSeason: vi.fn(),
+  deleteSeason: vi.fn(),
+  createCategory: vi.fn(),
+  updateCategory: vi.fn(),
+  deleteCategory: vi.fn(),
+  createTeam: vi.fn(),
+  updateTeam: vi.fn(),
+  deleteTeam: vi.fn(),
+  addStaff: vi.fn(),
+  setStaffRole: vi.fn(),
+  removeStaff: vi.fn(),
+  addPlayer: vi.fn(),
+  addNewPlayer: vi.fn(),
+  updatePlayer: vi.fn(),
+  removePlayer: vi.fn(),
+  createPerson: vi.fn(),
+  updatePerson: vi.fn(),
+  setPersonArchived: vi.fn(),
+}));
+// El calendario del club (pistas y horarios semanales): sus lecturas, de pega.
+vi.mock("@/modules/calendar/queries", () => ({
+  listVenues: mocks.listVenues,
+  listSeasonSchedules: mocks.listSeasonSchedules,
+  listTeamSchedules: mocks.listTeamSchedules,
+}));
+vi.mock("@/modules/calendar/actions", () => ({
+  createVenue: vi.fn(),
+  renameVenue: vi.fn(),
+  deleteVenue: vi.fn(),
+  createTeamSchedule: vi.fn(),
+  updateTeamSchedule: vi.fn(),
+  deleteTeamSchedule: vi.fn(),
 }));
 vi.mock("@/modules/methodology/admin-queries", () => ({
   listSectionsForAdmin: mocks.listSectionsForAdmin,
@@ -44,9 +101,16 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn() }),
 }));
 
+import AdminCalendarPage from "./calendar/page";
 import AdminPage from "./page";
+import AdminPersonPage from "./people/[personId]/page";
+import AdminPeoplePage from "./people/page";
 import AdminPrinciplesPage from "./principles/page";
+import AdminSeasonByIdPage from "./season/[seasonId]/page";
+import AdminCategoriesPage from "./season/categories/page";
+import AdminSeasonPage from "./season/page";
 import AdminStandardsPage from "./standards/page";
+import AdminTeamPage from "./teams/[teamId]/page";
 import AdminValuesPage from "./values/page";
 import AdminWayPage from "./way/page";
 
@@ -55,13 +119,53 @@ import AdminWayPage from "./way/page";
 // `adminPage(`; aquí se comprueba que además hace lo que promete.
 const PARAMS = { params: Promise.resolve({ club: "club-a" }), searchParams: Promise.resolve({}) };
 
-const PAGES: Array<[string, (props: typeof PARAMS) => Promise<unknown>]> = [
-  ["/admin", AdminPage],
-  ["/admin/way", AdminWayPage],
-  ["/admin/values", AdminValuesPage],
-  ["/admin/principles", AdminPrinciplesPage],
-  ["/admin/standards", AdminStandardsPage],
+/** Un id con forma de uuid para las rutas que lo llevan. */
+const ID = "00000000-0000-4000-8000-000000000001";
+
+const PAGES: Array<[string, () => Promise<unknown>]> = [
+  ["/admin", () => AdminPage(PARAMS)],
+  ["/admin/season", () => AdminSeasonPage(PARAMS)],
+  [
+    "/admin/season/[seasonId]",
+    () => AdminSeasonByIdPage({ params: Promise.resolve({ club: "club-a", seasonId: ID }) }),
+  ],
+  ["/admin/season/categories", () => AdminCategoriesPage(PARAMS)],
+  ["/admin/teams/[teamId]", () => AdminTeamPage({ params: Promise.resolve({ club: "club-a", teamId: ID }) })],
+  ["/admin/calendar", () => AdminCalendarPage(PARAMS)],
+  ["/admin/people", () => AdminPeoplePage(PARAMS)],
+  [
+    "/admin/people/[personId]",
+    () => AdminPersonPage({ params: Promise.resolve({ club: "club-a", personId: ID }) }),
+  ],
+  ["/admin/way", () => AdminWayPage(PARAMS)],
+  ["/admin/values", () => AdminValuesPage(PARAMS)],
+  ["/admin/principles", () => AdminPrinciplesPage(PARAMS)],
+  ["/admin/standards", () => AdminStandardsPage(PARAMS)],
 ];
+
+/** Las páginas de la estructura que llevan un id en la URL. */
+const BY_ID = PAGES.filter(([route]) => route.endsWith("]"));
+
+/** Todas las lecturas de Gestión: ninguna debe correr antes de comprobar quién entra. */
+const READS = [
+  "listSectionsForAdmin",
+  "listValuesForAdmin",
+  "listPrinciplesForAdmin",
+  "listStandardsForAdmin",
+  "listSeasons",
+  "getSeason",
+  "listCategories",
+  "getAdminTeam",
+  "listPeople",
+  "getPerson",
+  "listVenues",
+  "listSeasonSchedules",
+  "listTeamSchedules",
+] as const;
+
+function expectNothingRead() {
+  for (const read of READS) expect(mocks[read], read).not.toHaveBeenCalled();
+}
 
 beforeEach(() => {
   vi.resetAllMocks();
@@ -69,30 +173,73 @@ beforeEach(() => {
   mocks.listValuesForAdmin.mockResolvedValue([]);
   mocks.listPrinciplesForAdmin.mockResolvedValue([]);
   mocks.listStandardsForAdmin.mockResolvedValue([]);
+  mocks.listSeasons.mockResolvedValue([]);
+  mocks.getSeason.mockResolvedValue(null);
+  mocks.listCategories.mockResolvedValue([]);
+  mocks.getAdminTeam.mockResolvedValue(null);
+  mocks.listPeople.mockResolvedValue([]);
+  mocks.getPerson.mockResolvedValue(null);
+  mocks.listVenues.mockResolvedValue([]);
+  mocks.listSeasonSchedules.mockResolvedValue([]);
+  mocks.listTeamSchedules.mockResolvedValue([]);
 });
 
 describe("páginas de Gestión", () => {
-  it.each(PAGES)("%s: un entrenador recibe el 404", async (_route, page) => {
+  it("son todas las páginas de Gestión: las de la estructura del club, su calendario y las de la metodología", () => {
+    expect(PAGES).toHaveLength(12);
+  });
+
+  it.each(PAGES)("%s: un entrenador recibe el 404, sin que se lea nada", async (_route, page) => {
     mocks.getClubContext.mockResolvedValue(clubContext("coach"));
 
-    await expect(page(PARAMS)).rejects.toThrow("NOT_FOUND");
+    await expect(page()).rejects.toThrow("NOT_FOUND");
+    expectNothingRead();
   });
 
-  it.each(PAGES)("%s: sin club recibe el mismo 404", async (_route, page) => {
+  it.each(PAGES)("%s: sin club recibe el mismo 404, sin que se lea nada", async (_route, page) => {
     mocks.getClubContext.mockResolvedValue(null);
 
-    await expect(page(PARAMS)).rejects.toThrow("NOT_FOUND");
+    await expect(page()).rejects.toThrow("NOT_FOUND");
     expect(mocks.getClubContext).toHaveBeenCalledWith("club-a");
+    expectNothingRead();
   });
 
-  it("la raíz de Gestión lleva a la metodología", async () => {
+  it("la raíz de Gestión lleva a su primer apartado, la temporada", async () => {
     mocks.getClubContext.mockResolvedValue(clubContext("admin"));
 
-    await expect(AdminPage(PARAMS)).rejects.toThrow("REDIRECT /c/club-a/admin/way");
+    await expect(AdminPage(PARAMS)).rejects.toThrow("REDIRECT /c/club-a/admin/season");
+    expectNothingRead();
+  });
+
+  it("la raíz no redirige a quien no dirige el club: recibe el 404, no una pista de la ruta", async () => {
+    for (const role of ["coach", "player", "guardian"] as const) {
+      mocks.getClubContext.mockResolvedValue(clubContext(role));
+
+      await expect(AdminPage(PARAMS)).rejects.toThrow("NOT_FOUND");
+    }
   });
 
   it.each([
-    [AdminWayPage, "The Way"],
+    [AdminSeasonPage, "Temporada"],
+    [AdminCategoriesPage, "Categorías"],
+    [AdminCalendarPage, "Calendario"],
+    [AdminPeoplePage, "Personas"],
+  ] as const)("dirección ve la cabecera de cada apartado de la estructura: «%#»", async (page, title) => {
+    mocks.getClubContext.mockResolvedValue(clubContext("admin"));
+
+    render(await page(PARAMS));
+
+    expect(screen.getByRole("heading", { level: 1, name: title })).toBeInTheDocument();
+  });
+
+  it.each(BY_ID)("%s: lo que no existe en el club es el 404 también para la dirección", async (_route, page) => {
+    mocks.getClubContext.mockResolvedValue(clubContext("admin"));
+
+    await expect(page()).rejects.toThrow("NOT_FOUND");
+  });
+
+  it.each([
+    [AdminWayPage, "Identidad"],
     [AdminValuesPage, "Valores"],
     [AdminPrinciplesPage, "Principios"],
     [AdminStandardsPage, "Standards"],

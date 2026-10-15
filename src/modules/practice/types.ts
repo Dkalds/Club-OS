@@ -2,6 +2,8 @@
 // interfaz importan estos tipos: no cambies nombres, campos ni orden sin tocar el contrato
 // entre tareas.
 
+import type { Board } from "@/modules/board/types";
+import type { LiveProgress } from "@/modules/live/label";
 import type { Standard } from "@/modules/methodology/types";
 
 /** El estado de un entrenamiento (`events.status`). */
@@ -16,9 +18,13 @@ export type PracticeItemDraft = { id?: string; drillId: string | null; title: st
 export type SavedPracticeItem = PracticeItemDraft & { id: string };
 /** Una fila de la lista de entrenamientos. `dow`, `day`, `month` y `time` llegan ya en la zona del club; `location` es el lugar tal cual se guardó, para los metadatos de la fila. */
 export type PracticeListItem = { eventId: string; teamName: string; dow: string; day: string; month: string; time: string; title: string; totalMinutes: number; itemCount: number; status: PracticeStatus; location: string | null };
-/** Un ítem del detalle: `drillVisible` dice si su ejercicio se pudo leer (RLS esconde el borrador de otro entrenador), y solo entonces la fila enlaza a su ficha. */
-export type PracticeDetailItem = SavedPracticeItem & { drillVisible: boolean };
-/** Un entrenamiento entero para el constructor. `updatedAt` es la versión con la que se guarda; `canEdit` lo decide la sesión del usuario. */
-export type PracticeDetail = { eventId: string; planId: string; teamId: string; teamName: string; status: PracticeStatus; startsAt: string; endsAt: string; slotLabel: string; location: string | null; title: string; primaryFocus: FocusOption | null; secondaryFocus: FocusOption | null; notes: string | null; items: PracticeDetailItem[]; standards: Standard[]; updatedAt: string; canEdit: boolean };
+/** Un ítem del detalle: `drillVisible` dice si su ejercicio se pudo leer (RLS esconde el borrador de otro entrenador), y solo entonces la fila enlaza a su ficha. `completed` y `actualMinutes` son lo que el directo registró de él; `null` si nada. `board` es la pizarra de su ejercicio, si la tiene: la fila enseña su miniatura. */
+export type PracticeDetailItem = SavedPracticeItem & { drillVisible: boolean; completed: boolean | null; actualMinutes: number | null; board?: Board };
+/** Un entrenamiento entero para el constructor. `updatedAt` es la versión con la que se guarda; `canEdit` lo decide la sesión del usuario. `live` es lo que el servidor sabe del directo y `actualMinutes`, lo que duró de verdad una sesión ya hecha. */
+export type PracticeDetail = { eventId: string; planId: string; teamId: string; teamName: string; status: PracticeStatus; startsAt: string; endsAt: string; slotLabel: string; location: string | null; title: string; primaryFocus: FocusOption | null; secondaryFocus: FocusOption | null; notes: string | null; items: PracticeDetailItem[]; standards: Standard[]; updatedAt: string; canEdit: boolean; live: LiveProgress; actualMinutes: number | null };
 /** Ítems consecutivos de la misma fase. `startIndex` es la posición del primero en la lista completa. */
 export type PhaseBlock<T> = { phase: string | null; startIndex: number; items: T[]; minutes: number };
+/** Una plantilla de sesión de quien la guarda: lo que dura, cuántos ejercicios tiene y sus objetivos. No tiene equipo ni fecha. */
+export type PracticeTemplate = { id: string; title: string; totalMinutes: number; itemCount: number; primaryFocus: FocusOption | null; secondaryFocus: FocusOption | null };
+/** La hora, la duración y el lugar con los que se propone una sesión nueva de un equipo: los de su última sesión. */
+export type TeamDefaults = { time: string; durationMinutes: number; location: string | null };

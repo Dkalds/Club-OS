@@ -7,6 +7,11 @@ function fmt(totalSeconds: number): string {
   return `${m}:${s}`;
 }
 
+/**
+ * El cronómetro del directo (design/components/Timer): cifras en el estilo `timer`, tabulares
+ * para que no bailen al cambiar. Pausado, en `ink-3`. Pasado de tiempo, cuenta hacia arriba con
+ * un «+» delante.
+ */
 export function Timer({
   remainingMs,
   paused,
@@ -23,7 +28,7 @@ export function Timer({
     <p
       role="timer"
       aria-live="off"
-      className={`cos-timer tabular-nums${paused ? " text-ink-3" : ""}`}
+      className={`my-(--space-2) font-display text-timer tracking-[-0.01em] tabular-nums ${paused ? "text-ink-3" : "text-ink"}`}
     >
       {display}
     </p>

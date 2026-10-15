@@ -76,6 +76,57 @@ describe("PracticeItem", () => {
     expect(screen.getByRole("button", { name: "Más minutos, Sin título" })).toBeInTheDocument();
   });
 
+  describe("la línea de por qué está ahí (`hint`)", () => {
+    const HINT = "Transición · 2 puntos clave · 1 variante";
+
+    it("sale bajo el título, dentro del botón que abre la fila", () => {
+      renderItem({ hint: HINT });
+
+      const line = screen.getByText(HINT);
+      const button = screen.getByRole("button", { name: `Activación ${TITLE} ${HINT}` });
+      expect(button).toHaveAttribute("data-control", "toggle");
+      expect(button).toContainElement(line);
+      // Debajo del título, y la última línea del botón: fase, título y por qué.
+      expect(screen.getByText(TITLE).compareDocumentPosition(line)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+      expect(button.lastElementChild).toBe(line);
+      expect(Array.from(button.children).map((child) => child.textContent)).toEqual(["Activación", TITLE, HINT]);
+    });
+
+    it("es una línea aparte, en body-s y en ink-2: el título sigue siendo lo que más pesa", () => {
+      renderItem({ hint: HINT });
+
+      expect(screen.getByText(HINT)).toHaveClass("block", "text-body-s", "text-ink-2", "wrap-break-word");
+      expect(screen.getByText(TITLE)).toHaveClass("text-body-strong");
+    });
+
+    it("no cambia el nombre de los demás botones de la fila: siguen llevando solo el título", () => {
+      renderItem({ hint: HINT, expanded: true });
+
+      for (const name of [`Más minutos, ${TITLE}`, `Menos minutos, ${TITLE}`, `Subir ${TITLE}`, `Quitar ${TITLE}`]) {
+        expect(screen.getByRole("button", { name }), name).toBeInTheDocument();
+      }
+    });
+
+    it("pulsar la línea abre la fila, como pulsar el título", () => {
+      const { onToggle } = renderItem({ hint: HINT });
+
+      fireEvent.click(screen.getByText(HINT));
+
+      expect(onToggle).toHaveBeenCalledTimes(1);
+    });
+
+    it("sin `hint`, o con uno vacío, no hay línea: el botón acaba en el título", () => {
+      const { unmount } = renderItem();
+      expect(toggle().lastElementChild).toBe(screen.getByText(TITLE));
+      expect(toggle().children).toHaveLength(2);
+      unmount();
+
+      renderItem({ hint: "" });
+      expect(toggle().lastElementChild).toBe(screen.getByText(TITLE));
+      expect(toggle().children).toHaveLength(2);
+    });
+  });
+
   describe("minutos", () => {
     it("«Más minutos, {título}» llama a onMinutes(5)", () => {
       const { onMinutes } = renderItem();
@@ -404,6 +455,87 @@ describe("PracticeItemView", () => {
     renderView({ href: "/c/club-a/drills/d1" });
 
     expect(screen.getByRole("link")).toHaveClass("min-h-18");
+  });
+
+  describe("la miniatura (`thumb`)", () => {
+    // Un nodo cualquiera en el sitio de la miniatura: qué se pinta dentro es cosa de quien la pasa.
+    const THUMB = <svg aria-hidden="true" data-testid="thumb" />;
+
+    /** Lo que hay en la fila, en orden: la etiqueta o, si lo tiene, el `data-testid` de cada hijo. */
+    function parts(row: Element): string[] {
+      return Array.from(row.children).map((child) => child.getAttribute("data-testid") ?? child.tagName.toLowerCase());
+    }
+
+    it("sin href, va en la fila entre el número y el título", () => {
+      renderView({ thumb: THUMB });
+
+      const thumb = screen.getByTestId("thumb");
+      const row = thumb.parentElement as HTMLElement;
+      expect(screen.getByRole("listitem")).toContainElement(thumb);
+      expect(screen.queryByRole("link")).not.toBeInTheDocument();
+      // Número, miniatura, fase y título, minutos.
+      expect(parts(row)).toEqual(["span", "thumb", "span", "span"]);
+      expect(thumb.previousElementSibling).toBe(screen.getByText("03"));
+      expect(thumb.nextElementSibling).toContainElement(screen.getByText(TITLE));
+    });
+
+    it("con href, va dentro del enlace, entre el número y el título", () => {
+      renderView({ href: "/c/club-a/drills/d1", thumb: THUMB });
+
+      const link = screen.getByRole("link");
+      const thumb = screen.getByTestId("thumb");
+      // Hija directa del enlace: tocarla abre la ficha, como el resto de la fila.
+      expect(thumb.parentElement).toBe(link);
+      expect(thumb.previousElementSibling).toBe(within(link).getByText("03"));
+      expect(thumb.nextElementSibling).toContainElement(within(link).getByText(TITLE));
+      // Número, miniatura, fase y título, minutos y el chevron.
+      expect(parts(link)).toEqual(["span", "thumb", "span", "span", "svg"]);
+    });
+
+    it("se pinta una sola vez", () => {
+      renderView({ href: "/c/club-a/drills/d1", thumb: THUMB });
+
+      expect(screen.getAllByTestId("thumb")).toHaveLength(1);
+    });
+
+    it("una miniatura decorativa no cambia el nombre del enlace", () => {
+      const { unmount } = renderView({ href: "/c/club-a/drills/d1" });
+      const name = screen.getByRole("link").textContent;
+      unmount();
+
+      renderView({ href: "/c/club-a/drills/d1", thumb: THUMB });
+
+      expect(screen.getByRole("link").textContent).toBe(name);
+      expect(screen.getByRole("link", { name: /Técnica Movilidad \+ rueda de pases/ })).toBeInTheDocument();
+    });
+
+    it("convive con el resultado de una sesión hecha: la miniatura, y bajo el título cómo acabó", () => {
+      renderView({ thumb: THUMB, result: { completed: true, actualMinutes: 9 } });
+
+      const thumb = screen.getByTestId("thumb");
+      expect(thumb.nextElementSibling).toHaveTextContent("Hecho · 9 min");
+      expect(thumb.nextElementSibling).toHaveTextContent(TITLE);
+    });
+
+    it("sin `thumb` la fila no cambia: número, fase y título, y minutos; con href, además el chevron", () => {
+      const { unmount } = renderView();
+      const row = screen.getByText("03").parentElement as HTMLElement;
+      expect(parts(row)).toEqual(["span", "span", "span"]);
+      expect(row.querySelector("svg")).toBeNull();
+      unmount();
+
+      renderView({ href: "/c/club-a/drills/d1" });
+      expect(parts(screen.getByRole("link"))).toEqual(["span", "span", "span", "svg"]);
+    });
+
+    it("un `thumb` sin nada que pintar (undefined o null) es como no pasarlo", () => {
+      const { unmount } = renderView({ thumb: undefined });
+      expect(parts(screen.getByText("03").parentElement as HTMLElement)).toEqual(["span", "span", "span"]);
+      unmount();
+
+      renderView({ thumb: null });
+      expect(parts(screen.getByText("03").parentElement as HTMLElement)).toEqual(["span", "span", "span"]);
+    });
   });
 });
 

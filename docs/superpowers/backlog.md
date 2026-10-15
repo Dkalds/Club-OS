@@ -100,7 +100,7 @@ Lo de este bloque que venía de antes, resuelto:
 
 Lo que deja la Fase 6:
 
-- **Inicio de dirección.** Sigue contando solo los equipos que la persona entrena: a dirección sin equipos le dice «Aún no estás en ningún equipo». Va con la Inicio de dirección de la Fase 7.
+- **Inicio de dirección.** Resuelto en «Uso diario del entrenador» (más abajo): Inicio usa «mis equipos» del equipo activo. Una Inicio propia de dirección (cobertura) sigue siendo de la Fase 7.
 - **Familias y jugadores.** Las políticas de objetivos y notas no dan lectura a cuentas de jugador ni de familia ([D6]); se añadirá con `guardianships` (Fase 7) y la decisión 13 de la spec.
 - La lista de equipos de dirección no enseña cuántos jugadores tiene cada uno (el plan lo decía); haría falta contar la plantilla en la consulta.
 - `pnpm dev` no arrancaba desde la Fase 5 (Serwist y Turbopack): arreglado (`next dev --webpack`).
@@ -197,6 +197,223 @@ Lo que la Fase 3 dejó para el principio de la Fase 4 y la Fase 4 no recogió: r
 - **`pnpm test:int` falla con un paquete importado en local.** `scripts/seed/seed.int.test.ts` cuenta todos los ejercicios de cada club (21 en Arcángel). Se arregla contando solo los ids del seed; no se hizo porque la entrega no tocaba el seed ni sus tests.
 - **Las pizarras del manual traen su fondo claro y su título dentro de la imagen.** En la ficha, de tema oscuro, se ven con una banda clara arriba y abajo. Se quita regenerándolas sin fondo o recortándolas al campo.
 - **Edad, rango de jugadores y material de los 44** son una propuesta que el propietario aprobó con la especificación: los 4x4 quedan desde U16 y el único 5x5 desde U18. Se corrigen en `pack.json` y se vuelven a cargar con `--update`, o directamente en la app.
+
+## Calendario (pieza 6 de la evolución)
+
+Especificación `docs/superpowers/specs/2026-10-11-calendario-design.md`, plan `docs/superpowers/plans/2026-10-11-calendario.md`. Va encima de la pieza 5. Alcance decidido con el propietario el 11 oct 2026: horarios semanales, pistas y registro de cambios, gestionados solo por la dirección.
+
+Lo que esta pieza resuelve de lo que había pendiente:
+
+- **Cada entrenamiento se creaba a mano.** Un horario semanal crea los de toda la temporada.
+- **El lugar era solo un texto.** El club tiene sus pistas; un evento cuyo lugar es una de ellas queda vinculado, y «Lugar» las sugiere.
+- **Un cambio de hora o una cancelación no dejaban rastro** (y cancelar sacaba el evento de lo que viene): quedan registrados y se enseñan en Inicio, en la Agenda y en la ficha; un cancelado sigue en «Próximos» hasta que pasa su fecha.
+
+Lo que queda:
+
+- **Migración al remoto.** `20270316000100_calendar` solo está aplicada en local. Va después de la de la pieza 5 y antes de fusionar (README, «Despliegue del calendario»).
+- **Importar el calendario de competición desde un fichero**, con revisión antes de publicar: pieza 10.
+- **El rol de coordinación** (5b): hoy los horarios y las pistas son de la dirección.
+- **Avisos fuera de la app** (correo, notificaciones) y marcar un cambio como visto. Hoy «Cambios recientes» enseña lo de los últimos 7 días a todo el que ve el equipo, lo haya visto o no.
+- **No se registra quién hizo cada cambio**, solo qué y cuándo.
+- **Cambiar un horario llena «Cambios recientes» de filas iguales** (una por entrenamiento movido: «Cambio de hora» tres veces en Inicio y «Ver 34 más»). Agruparlas en una sola («El horario de los jueves pasa a las 17:30») pide guardar que el cambio vino del horario.
+- **Ocupación de pistas**: nada avisa de que dos equipos coinciden en la misma pista a la misma hora.
+- **Festivos y vacaciones**: un horario crea un entrenamiento cada semana, también en Navidad. Se cancelan o se borran a mano. (Quitar el horario borra los que nadie ha tocado.)
+- **Cambiar un horario cuando alguien ya ha tocado sesiones**: la que se movió a mano se queda donde está; la que caería donde el equipo ya tiene otro entrenamiento, en el pasado o fuera de la temporada, tampoco se mueve. Puede quedar una semana con el entrenamiento en el horario antiguo: se arregla a mano.
+- **Un horario no se rellena solo**: si se añade a mitad de temporada crea de hoy en adelante; cambiarlo de día no crea la sesión de una semana que quedase sin ninguna.
+- **Cambiar las fechas de una temporada no toca sus entrenamientos**: acortarla deja fuera los que ya estaban; alargarla no crea los que faltan (se quita el horario y se vuelve a añadir).
+- **Quien tiene una sesión abierta mientras su horario cambia o su pista cambia de nombre** recibe «Alguien ha cambiado esto…» al guardar, también si solo estaba montando ejercicios: pierde lo que no había guardado.
+- **Los topes de las listas se pensaron para un calendario hecho a mano.** Con horarios, la dirección de un club con ocho o diez equipos ve en «Próximos» (50) y en la semana de Inicio (30) solo dos o tres semanas. Un entrenador con su equipo, toda la temporada cercana. A revisar con un club real: paginar la Agenda o filtrar por semanas.
+- **Un horario crea como mucho un año de entrenamientos**, dure lo que dure la temporada.
+- **Un horario entre las 02:00 y las 02:59** nace a las 03:30 el domingo del cambio de hora de marzo. Sin interés práctico.
+- **Los entrenamientos de un horario nacen todos con el título «Entrenamiento»** y sin objetivo. La propuesta de sesión (pieza 2) los rellena de uno en uno.
+- **Las pistas no tienen dirección, ni mapa, ni orden**: son un nombre. Un partido fuera sigue llevando su lugar como texto.
+- **El lugar de un partido admite 120 caracteres en su formulario y 80 en la base** (viene de la Fase 6): entre 81 y 120 se rechaza como «Revisa los campos marcados» sin marcar ninguno.
+- **Jugadores y familias no ven el calendario** ni sus cambios: pieza 9.
+
+Decisiones tomadas sin preguntarlas una a una (están también en la especificación):
+
+- Quitar un horario borra sus entrenamientos futuros sin tocar; los preparados se quedan.
+- «Cambios recientes» son los de los últimos 7 días, y un cancelado sigue en «Próximos» hasta que pasa su fecha.
+- El copy nuevo no lo ha validado producto.
+
+## Estructura del club (pieza 5 de la evolución)
+
+Especificación `docs/superpowers/specs/2026-10-11-estructura-del-club-design.md`, plan `docs/superpowers/plans/2026-10-11-estructura-del-club.md`. Va encima de la pieza 4. Alcance decidido con el propietario el 11 oct 2026: temporada, equipos y personas.
+
+Lo que esta pieza resuelve de lo que había pendiente:
+
+- **La estructura de un club solo existía si alguien la sembraba.** La dirección crea y mantiene temporadas, categorías, equipos, cuerpos técnicos, plantillas y personas desde Gestión.
+- **«Duplicar estructura a la nueva temporada»** (especificación, tabla de decisiones): una temporada nueva puede nacer con los equipos de otra.
+- **El aviso «Aún no hay equipos esta temporada»** de la dirección lleva ya a donde se crean.
+
+Lo que queda:
+
+- **Migración al remoto.** `20270302000100_club_structure` solo está aplicada en local. Va después de la de la pieza 4 y antes de fusionar (README, «Despliegue de la estructura del club»).
+- **Invitaciones (5b).** Dar de alta a una persona no le da acceso: su cuenta sigue naciendo con el seed o a mano. Invitar por email, dar y quitar acceso y cambiar roles necesitan una función de servidor fuera de `src/` (la clave de servicio no entra ahí). La ficha de una persona solo dice si tiene acceso y con qué rol.
+- **Familias (5b)**: vincular a un jugador con sus tutores. Y los roles de coordinación y tesorería.
+- **Importar personas y equipos desde un fichero** (pieza 10). Hoy una plantilla de quince se da de alta de una en una.
+- **Pasar jugadores de una temporada a la siguiente en bloque.** Copiar equipos copia nombre y categoría, no plantillas ni cuerpos técnicos.
+- **La lista de personas viaja entera con la página** (hasta 1000) y se filtra en el navegador. Un club mayor necesitará paginar y buscar en el servidor.
+- **Sin copia esperada.** Dos personas de la dirección editando lo mismo: gana la última que guarda, sin aviso. Las filas son pequeñas y de pocos campos; si molesta, `updated_at` y `STALE_COPY` como en la metodología.
+- **Un equipo con actividad no se borra ni se archiva**: se queda en su temporada. Un equipo creado por error y con una sesión ya dentro obliga a borrar antes la sesión, y las sesiones no se borran.
+- **Archivar a una persona no toca sus equipos de temporadas pasadas**, ni su cuenta: quien tiene acceso lo conserva hasta que existan las invitaciones. Si una temporada ya acabada vuelve a marcarse como actual, quien se archivó estando en uno de sus equipos sale en esa plantilla.
+- **`pnpm seed` sobre un club cuya estructura cambió la dirección** no falla, pero tampoco borra: la temporada del seed vuelve a ser la actual, y lo creado a mano que choca con el seed conserva todo salvo el nombre (gana una marca con su id) o el dorsal (se queda vacío). Dos equipos del seed con los nombres cruzados, o dos dorsales, vuelven cada uno al suyo. Los e2e de Gestión limpian lo suyo (lo que lleva «E2E»); `restoreSeed` sigue sin conocer estas tablas.
+- **La demo pública y Gestión.** Producción es una demo con acceso público: si quien entra dirige el club de ejemplo, puede cambiar su estructura (renombrar equipos, archivar personas, marcar otra temporada como actual). Se recupera sembrando. Decidido con el propietario el 11 oct 2026: se queda así, como ya pasaba con la metodología.
+- **Una persona puede estar a la vez en el cuerpo técnico y en la plantilla de un equipo**, y en varios equipos: la base no lo impide y Gestión tampoco.
+- **Posición es texto libre.** Sin lista cerrada por club.
+- **Marca y terminología** («Configuración»): sin pieza asignada. (Las pistas y los horarios recurrentes llegaron con la pieza 6.)
+
+Decisiones tomadas sin preguntarlas una a una (están también en la especificación):
+
+- La plantilla y el cuerpo técnico los monta solo la dirección; quien entrena los lee.
+- No se archiva a quien sigue en un equipo de la temporada actual o de una que no ha acabado, y a quien está archivado no se le añade a ningún equipo.
+- La raíz de Gestión lleva a Temporada, no a la metodología.
+- Cuál es la temporada actual no se cambia por la API directa: solo con «Marcar como actual».
+- El copy nuevo no lo ha validado producto.
+
+## Editor de pizarra (pieza 4 de la evolución)
+
+Especificación `docs/superpowers/specs/2026-10-11-editor-de-pizarra-design.md`, plan `docs/superpowers/plans/2026-10-11-editor-de-pizarra.md`. Va encima de la pieza 3.
+
+Lo que esta pieza resuelve de lo que había pendiente:
+
+- **Nadie podía dibujar una pizarra** (lo dejó la pieza 3): quien edita un ejercicio la dibuja, la cambia y la quita.
+- **Un ejercicio con pizarra no podía quitársela.**
+
+Lo que deja:
+
+- **Migración al remoto.** `20270216000100_save_drill_board` solo está aplicada en local. Va después de la de la pieza 3 y antes de fusionar (README, «Despliegue del editor de pizarra»).
+- **La jugada como entidad propia**: situación (saque de fondo, de banda, transición, ataque, defensa), biblioteca por equipo, preparación de partidos y compartir en lectura con jugadores. Decidido con el propietario el 11 oct 2026: por ahora una jugada es un ejercicio con pizarra. Va con la estructura del club (pieza 5) y las vistas de jugador (pieza 9).
+- **Plantillas de partida** (5 abiertos, saque de fondo, 3x3…): se empieza siempre de una pista vacía o de la pizarra que ya hay.
+- **Un entrenador no cambia la pizarra de un ejercicio publicado**, tampoco del suyo: lo edita la dirección, como el resto de la ficha. Si quiere una variante, duplica el ejercicio (que hoy no existe como acción: se crea otro).
+- **El balón que lleva un jugador tiene un área táctil de unos 20 px**, a propósito: se pinta pegado a él y con los 44 px taparía al jugador. Para pasarlo se toca a quien lo lleva; para separarlo en «Inicio» hay que acertarle o moverlo con las flechas. A mirar con usuarios.
+- **Las fichas solo se arrastran en «Inicio».** En un paso, dónde está cada una sale de los movimientos anteriores: para cambiarlo se retoca ese movimiento.
+- **Cambiar de media pista a pista completa no recoloca las fichas.**
+- **Sin trayectorias curvas, zonas, texto sobre la pista ni entrenador como ficha.** Sin tope propio de balones (caben hasta 24 fichas en total).
+- **El teclado mueve fichas y destinos con botones de flecha**, no con las teclas de flecha sobre la pista.
+- **El arrastre con el dedo no está probado en un iPhone de verdad.** Solo la ficha lleva `touch-action: none` (un `<g>` dentro del SVG), y los e2e arrastran con ratón: falta comprobar en Safari de iOS que el dedo sobre una ficha no desplaza la página, y un e2e con toque.
+- **Dos balones junto al mismo jugador**: lleva el más cercano (`ballHeldBy`); el otro se queda donde está al mover al jugador y no se ofrece pasarlo desde él.
+- **Un pase a un jugador apunta a donde ese jugador acaba el paso cuando se dibuja el pase.** Si después se le cambia el movimiento a quien recibe, el pase no le sigue: se vuelve a dibujar.
+- **Dos personas editando la misma pizarra**: gana la primera que guarda; la otra recibe «Alguien ha cambiado esto…» y pierde lo suyo al recargar. Es lo mismo que en el resto de la ficha.
+
+Decisiones tomadas sin preguntarlas una a una (están también en la especificación):
+
+- La acción se elige primero y el destino después (dos toques), en vez de arrastrar una flecha.
+- A quien lleva el balón se le ofrece «Pasar», y tocar a un jugador al pasar le deja el balón a él.
+- Un paso vacío se descarta al guardar, sin avisar.
+- Guardar vuelve a la ficha del ejercicio.
+- El copy nuevo no lo ha validado producto.
+
+## Pizarra visual (pieza 3 de la evolución)
+
+Especificación `docs/superpowers/specs/2026-10-11-pizarra-visual-design.md`, plan `docs/superpowers/plans/2026-10-11-pizarra-visual.md`. Va encima de la pieza 2.
+
+Lo que esta pieza resuelve de lo que había pendiente:
+
+- **La pizarra en directo era una imagen** que no estaba disponible sin conexión (lo dejó la pieza 1): una pizarra viaja con la sesión y se ve sin red. `diagram-cache.ts` sigue sin conectar, pero ya solo importa para las imágenes subidas.
+- **La ficha decía «Pista sin diagrama»** con una pista vacía a tamaño completo: sin pizarra ni imagen ya no enseña nada en ese hueco.
+- **Las instrucciones del ejercicio no salían en el directo**: «Cómo se organiza», plegado.
+
+Lo que deja:
+
+- **Migración al remoto.** `20270202000100_drill_board` solo está aplicada en local. Va después de las de las piezas 1 y 2 y antes de fusionar (README, «Despliegue de la pizarra visual»).
+- **Por la API directa, un borrador nuevo puede nacer con pizarra**: el alta de `drills` está concedida sobre la tabla entera desde la Fase 3. Es su propio borrador, pasa por el `check` y la app la valida al leer. Cerrarlo es cambiar ese `grant` por columnas.
+- **Metadatos de un ejercicio que pide la propuesta y no existen**: nivel, fase, reglas, progresión y errores frecuentes.
+- **Un movimiento muy corto no se dibuja** (menos de unas 7 unidades a lo ancho): la ficha se desplaza al reproducir, pero sin flecha. Un test vigila que las del seed se dibujan todas; el editor tendrá que avisar.
+- **La miniatura viaja con cada fila de la biblioteca** (hasta 100 pizarras de 32 kB como mucho por búsqueda; las del seed pesan menos de 1 kB). Si una biblioteca crece con pizarras grandes, pedir para la lista solo el primer fotograma.
+- **El directo no enseña vídeo dentro de la pantalla**, ni la pizarra a pantalla completa o en horizontal.
+- **En el directo conviven dos filas de controles con los mismos iconos**: los de la pizarra (anterior, reproducir, siguiente) y los de la sesión. Sus nombres los distinguen para quien escucha; a la vista, solo el tamaño y el sitio. A mirar con usuarios.
+- **Una ficha pegada al borde se recorta un poco**: el número de un defensor con `x` por encima de 93 en media pista, o el balón de un jugador en la línea de fondo contraria. Ninguna del seed llega; el editor tendrá que dejar margen.
+- **Las tarjetas de «ejercicios relacionados» de la metodología no llevan miniatura**: esa lectura recorre hasta mil filas. Si se quiere, pedir la pizarra solo de las que se pintan.
+- **Sin notas de voz, recorrido de un jugador ni exportar a PDF o vídeo** (la propuesta los deja para una segunda fase).
+
+Decisiones tomadas sin preguntarlas una a una (están también en la especificación):
+
+- Cuatro movimientos (corte, bote, pase, bloqueo) y cuatro fichas (atacante, defensor, balón, cono) en la versión 1.
+- La pista completa se dibuja apaisada, con el aro de ataque a la izquierda.
+- El balón que lleva un jugador se pinta pegado a él, no encima.
+- Sin pizarra ni imagen, la ficha y el directo no enseñan nada en ese hueco; con las dos, manda la pizarra.
+- En el directo, cómo se organiza el ejercicio va plegado.
+- El copy nuevo («Paso 2 de 4», «Final», «Cómo se organiza», las notas de las pizarras de ejemplo) no lo ha validado producto.
+
+## Preparar sesión (pieza 2 de la evolución)
+
+Especificación `docs/superpowers/specs/2026-10-10-preparar-sesion-design.md`, plan `docs/superpowers/plans/2026-10-10-preparar-sesion.md`. Va encima de la pieza 1.
+
+Lo que esta pieza resuelve de lo que había pendiente:
+
+- **«Preparar sesión» abría el formulario de siempre** (lo dejó la pieza 1): ahora acaba con dos caminos, y hay plantillas.
+- **El formulario proponía siempre las 18:00 y 75 minutos**: propone la hora, la duración y el lugar de la última sesión del equipo.
+- **`practice_plans.is_template` existía sin uso**: nadie podía crear ni borrar un plan sin equipo.
+
+Lo que deja:
+
+- **Migración al remoto.** `20270119000100_practice_templates` solo está aplicada en local. Va después de la de la pieza 1 y antes de fusionar (README, «Despliegue de «Preparar sesión»»).
+- **La propuesta no mira el material.** Los ejercicios dicen qué material piden, pero el club no tiene inventario: llega con la estructura del club (pieza 5).
+- **La propuesta no mira la fase de la temporada ni la carga de la semana.** Solo evita repetir lo de las tres últimas sesiones.
+- **Una biblioteca de más de 500 ejercicios publicados**: la propuesta mira los 500 primeros por título (`PROPOSAL_SCAN_LIMIT`). Hoy ninguna se acerca; si alguna llega, filtrar por edad en la consulta.
+- **Los valores por defecto del equipo miran las 200 sesiones más recientes del conjunto** (`getTeamDefaults`): dirección con muchos equipos puede ver las 18:00 y 75 minutos en uno que lleva tiempo sin entrenar.
+- **Plantillas compartidas con el club**, y por fase de temporada: pieza 5. Pedirán su política y decidir quién las edita.
+- **Una plantilla no se renombra ni se edita.** Se corrige la sesión y se guarda otra; la vieja se borra.
+- **Dirección lee en la base las plantillas de cualquiera de su club** (la política de lectura de un plan sin equipo ya era así). Ninguna pantalla las enseña. Si se quiere cerrar, es un cambio de `practice_plans_select_visible`.
+- **La línea de «por qué está» solo dura hasta recargar**: no se guarda. Un ejercicio añadido a mano no la lleva.
+- **Los topes de las plantillas viven en la función, no en la base.** Por la API directa una persona puede pasar de 50 plantillas propias, guardar una vacía o añadir ítems a una suya (más de 30); dos «Guardar como plantilla» a la vez con 49 pasan las dos. Solo afecta a sus propios datos. Con más de 50, la lista enseña 50; una sesión creada con más de 30 ejercicios no se guarda sin recortar. Cerrarlo es un trigger con el recuento.
+- **La línea de «por qué está» no nombra el Standard del ejercicio** (regla 8): dice objetivos, puntos clave y variantes. El constructor tampoco lo enseñaba antes; es el sitio natural para hacerlo. Decisión de producto.
+- **Un equipo de menos de 8 años no recibe propuesta**: los ejercicios empiezan en 8 y la edad no se relaja. La pantalla lo dice y se monta a mano.
+- **«Proponer» solo con la lista vacía.** Completar una sesión a medias («propón lo que falta») no está.
+- **IA**: fuera, por decisión del propietario (10 oct 2026). La propuesta son reglas.
+
+Decisiones tomadas sin preguntarlas una a una (están también en la especificación):
+
+- Los dos caminos crean la sesión antes de montar los ejercicios; lo que no se guarda sola es la lista.
+- El reparto por fases (15 / 45 / 20 / 20), las relajaciones en su orden, y que se añadan ejercicios (hasta ocho) cuando los cinco huecos no llenan la franja.
+- «Reciente» son las tres últimas sesiones del equipo.
+- Tope de 50 plantillas por persona y club.
+- Las notas de la sesión y de sus ejercicios no se copian a la plantilla, y la sesión creada con ella nace sin notas.
+- La hora, la duración y el lugar que se proponen son los de la última sesión que ya ha empezado, no los de una programada para más adelante.
+- Una sesión creada con una plantilla abre su ficha, no el constructor: ya tiene sus ejercicios.
+- El copy nuevo no lo ha validado producto.
+
+## Uso diario del entrenador (pieza 1 de la evolución)
+
+Especificación `docs/superpowers/specs/2026-10-10-uso-diario-design.md`, plan `docs/superpowers/plans/2026-10-10-uso-diario.md`. Es la primera de las diez piezas de la «Propuesta de evolución para CLUB OS» (10 oct 2026); las otras nueve están en la tabla de la especificación.
+
+Lo que esta pieza resuelve de lo que había pendiente:
+
+- **Inicio de dirección** (lo dejó la Fase 6): Inicio usa «mis equipos» como las demás pantallas, así que dirección ve lo próximo del club, o del equipo que elija, en vez de «Aún no estás en ningún equipo».
+- **`getLiveSession` no miraba el error de la lectura** ni la forma del id: ahora lanza con `throwReadError` y descarta lo que no es un uuid.
+- **La pantalla de directo usaba clases que la app no define** (`cos-*`, `p-space-*`): se rehízo con utilidades de token. `Timer` no tenía tamaño (`cos-timer`).
+- **Abrir el directo ya enviaba progreso** antes de «Iniciar» (marcaba los ejercicios como no completados y movía la copia de la sesión).
+- **`safeHref` para el enlace de vídeo**: el del directo pasa por él. El «Ver vídeo» de la ficha de un ejercicio sigue pendiente (Fase 7, «Lo que deja la Fase 3»).
+
+Lo que deja:
+
+- **Migración al remoto.** `20270105000100_live_state` solo está aplicada en local. Va antes de fusionar (README, «Entorno remoto»; producción se despliega sola y comparte Supabase con las previews).
+- **Jugador y familia siguen sin pantallas.** Su barra es Inicio e Identidad. Si entran por URL a Agenda, Sesiones, Biblioteca o Equipo ven lo de antes (estados vacíos: RLS no les da datos). Sus menús completos son la pieza 9.
+- **El menú de dirección de la propuesta** (Temporada, Calendario, Personas y roles, Configuración) y el rol de coordinación: pieza 5.
+- **«Preparar sesión» abre el formulario de siempre.** Los dos caminos (proponer o desde cero) y las plantillas: pieza 2.
+- **La pizarra en directo sigue siendo una imagen.** La ficha dice «Pista sin diagrama» cuando el ejercicio no la tiene, y las instrucciones del ejercicio no salen en el directo: pieza 3.
+- **El tiempo exacto de un ejercicio solo se retoma en el dispositivo que lo cronometró.** En otro se continúa en el ejercicio guardado, con su tiempo entero. Sincronizar el reloj pediría guardar en el servidor el inicio del ítem y las pausas.
+- **Una sesión en curso cuya franja ya terminó sale del foco.** «Próximo» es lo programado que no ha acabado (`ends_at > ahora`), así que una sesión de 18:00 a 19:15 que sigue en directo a las 19:20 deja de ser la de Inicio y aparece en «Histórico» y en «Anteriores» sin decir que está en curso: «Continuar» solo está en su ficha. Es anterior a esta pieza, pero choca con lo que promete. Arreglo: contar como próxima la que tiene `live_started_at` y sigue `scheduled`, y rotularla «En curso» en las listas (pide leer `live_started_at` en la lista de Sesiones y en la Agenda).
+- **Dos envíos del directo que llegan desordenados.** Cada envío lleva el progreso completo y el más reciente cancela al anterior en el cliente, también la petición en vuelo; si la anterior ya había salido y llega después, el servidor se queda con la posición vieja hasta el siguiente envío. Solo importa si era el último antes de salir. Cerrarlo del todo pide que el servidor descarte un envío más viejo que el que ya tiene (un contador por envío).
+- **Un reintento pendiente en OTRO dispositivo puede revivir una sesión reiniciada.** «Empezar de nuevo» cancela el envío pendiente del dispositivo que lo pulsa; el de otro móvil que estuviera sin red llegará después y la dejará otra vez empezada. Mismo arreglo que el anterior, más un identificador de «vuelta» que el reinicio cambie.
+- **`diagram-cache.ts` no está conectado a la pantalla de directo.** Lo dejó la Fase 5: precarga y sirve diagramas sin conexión, pero `LiveScreen` pinta `item.diagramUrl` tal cual. Va con la decisión sobre las URL firmadas que caducan (bloque de la Fase 5).
+- **El enlace de vídeo saca del directo** (otra pestaña) con el reloj en marcha. Un reproductor dentro de la pantalla es de la pieza 3.
+- **`TeamSwitcher`, la hoja de «Añadir» y la fila de Identidad de Inicio no tienen vista previa propia en `design/components/`**: el selector está descrito en `TopNavigation` y la barra por rol en `BottomNavigation`.
+- **E2E de la barra de jugador y de familia**: el seed no tiene cuentas con esos roles; lo cubren los tests de unidad y de componente. Va con la pieza 9.
+- **Coste de la Agenda** (estimado, sin medir): como la lista de Sesiones, la política de `events` ejecuta sus funciones por fila antes de ordenar y cortar, y «Anteriores» no tiene suelo de fecha. Va con «Coste de las políticas con función por fila» (Fase 7).
+
+Decisiones tomadas sin preguntarlas una a una (están también en la especificación):
+
+- Jugador y familia ven solo Inicio e Identidad hasta la pieza 9.
+- El equipo activo por defecto es «Todos mis equipos», también para quien entrena dos.
+- Continuar en otro dispositivo arranca el ejercicio guardado con su tiempo entero y el reloj en marcha.
+- «Empezar de nuevo» solo existe con la sesión en curso; una terminada se duplica.
+- El botón de crear se llama «Preparar sesión» aunque abra el formulario de siempre, y la pantalla del formulario sigue titulándose «Nueva sesión».
+- En el último ejercicio, el control de la derecha es «Terminar entrenamiento» (antes se llamaba «Siguiente ejercicio» también ahí).
+- Terminar registra el ejercicio en curso con el tiempo que llevaba (antes el último quedaba siempre sin registrar).
+- «Añadir a sesión», en la ficha de un ejercicio, ofrece las sesiones de todos «mis equipos» aunque haya uno elegido: en esa pantalla no hay selector a la vista.
+- El copy nuevo no lo ha validado producto. Entre otros: «¿Empezar de nuevo?» / «Se borra el progreso de esta sesión. No se puede deshacer.», «¿Terminar el entrenamiento?» / «La sesión pasa al histórico con los minutos de cada ejercicio. No se puede deshacer.», «Seguir entrenando», «Entrenamiento terminado» / «Ya está en el histórico.», «Hecho · 9 min», «Sin hacer», «Todos mis equipos», «Semana que viene», «Semana del 19 oct», «No hay nada programado», «Aún no hay nada anterior» y «Mostrando los 50 más próximos».
 
 ## Lista para la Task 12 (entorno remoto)
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_PHASES, changeMinutes, moveItem, phaseBlocks, sessionMinutes, totalMinutes } from "./items";
+import { DEFAULT_PHASES, changeMinutes, fitNotice, moveItem, phaseBlocks, sessionMinutes, totalMinutes } from "./items";
 
 describe("DEFAULT_PHASES", () => {
   it("son las ocho fases del contrato, en su orden", () => {
@@ -58,6 +58,22 @@ describe("sessionMinutes", () => {
 
   it("nunca es negativa: una franja que acaba antes de empezar dura 0", () => {
     expect(sessionMinutes([], END_ONE_HOUR, START)).toBe(0);
+  });
+});
+
+describe("fitNotice", () => {
+  it("dice lo que sobra cuando lo montado dura menos que la franja", () => {
+    expect(fitNotice(65, 75)).toBe("Te sobran 10 min");
+    expect(fitNotice(74, 75)).toBe("Te sobra 1 min");
+  });
+
+  it("dice lo que se pasa cuando dura más", () => {
+    expect(fitNotice(85, 75)).toBe("Te pasas 10 min");
+  });
+
+  it("no dice nada si coincide o si no hay nada montado", () => {
+    expect(fitNotice(75, 75)).toBeNull();
+    expect(fitNotice(0, 75)).toBeNull();
   });
 });
 

@@ -351,6 +351,8 @@ describe("buildDrillRows", () => {
         equipment: ["Balones"],
         video_url: null,
         diagram_media_id: null,
+        // Un club que no tiene pizarras de ejemplo: la columna va a null, no ausente.
+        board: null,
         status: "published",
         author_email: "raul@club-x.test",
       },

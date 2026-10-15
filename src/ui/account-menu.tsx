@@ -12,12 +12,15 @@ const ITEM =
   "hover:bg-surface-3 active:bg-surface-3 " +
   "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus-ring";
 
+export type AccountLink = { label: string; href: string };
+
 /**
- * El menú de la persona que ha entrado, en la cabecera: su avatar abre «Gestión» (solo si
- * `adminHref`, que decide quien lo monta) y «Salir».
+ * El menú de la persona que ha entrado, en la cabecera: su avatar abre los enlaces que le pasa
+ * quien lo monta (`links`: «Identidad», «Gestión»…, según el rol) y «Salir», que va siempre el
+ * último.
  *
  * Es un botón que muestra y oculta un panel (`aria-expanded`), no un `role="menu"`: lo que
- * hay dentro es un enlace y un botón normales, que se recorren con Tab. Se cierra con
+ * hay dentro son enlaces y un botón normales, que se recorren con Tab. Se cierra con
  * Escape, devolviendo el foco al botón; al pulsar fuera, sin tocar el foco; y si el foco
  * sale con el teclado. El nombre accesible del botón es siempre el mismo; el nombre de la
  * persona es el del avatar.
@@ -28,7 +31,7 @@ const ITEM =
  * (`surface-2`, borde `line`, `radius-lg`), sin sombra, y mide como mínimo cuatro áreas
  * táctiles de ancho (`target-min`).
  */
-export function AccountMenu({ name, adminHref }: { name: string; adminHref: string | null }) {
+export function AccountMenu({ name, links = [] }: { name: string; links?: AccountLink[] }) {
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null);
   const toggle = useRef<HTMLButtonElement>(null);
@@ -80,11 +83,11 @@ export function AccountMenu({ name, adminHref }: { name: string; adminHref: stri
           id={panelId}
           className="absolute top-full right-0 z-20 mt-(--space-1) min-w-[calc(var(--target-min)*4)] overflow-hidden rounded-lg border border-line bg-surface-2 py-(--space-1)"
         >
-          {adminHref ? (
-            <Link href={adminHref} prefetch={false} className={ITEM}>
-              Gestión
+          {links.map((link) => (
+            <Link key={link.href} href={link.href} prefetch={false} className={ITEM}>
+              {link.label}
             </Link>
-          ) : null}
+          ))}
           <SignOutForm>
             <button type="submit" className={ITEM}>
               Salir

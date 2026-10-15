@@ -113,29 +113,28 @@ select set_eq(
       and has_table_privilege('authenticated', c.oid, p.privilegio)$$,
   $$select t.tabla, p.privilegio
     from (values
-      -- Tenancy y estructura deportiva (20261005000100, 20261005000200): solo lectura.
-      -- El cambio de organizations/organization_branding va por columnas, abajo
-      -- (20270112000500, Fase 7 Task 10).
+      -- Tenancy (20261005000100): solo lectura. El cambio de organizations/organization_branding
+      -- va por columnas, abajo (20270112000500, Fase 7 Task 10).
       ('organizations', array['select']),
       ('organization_branding', array['select']),
       ('profiles', array['select']),
       ('memberships', array['select']),
-      -- El cambio y el archivado van por columnas, abajo (20270112000700, Fase 7 Task 11).
-      ('people', array['select', 'insert']),
-      -- Temporadas, categorías y equipos (20270112000500): el alta y el cambio son de
-      -- dirección; no se borran.
-      ('seasons', array['select', 'insert', 'update']),
-      ('categories', array['select', 'insert', 'update']),
-      ('teams', array['select', 'insert', 'update']),
-      ('team_staff', array['select']),
-      ('team_players', array['select']),
+      -- Estructura deportiva (20261005000200, 20270302000100): el alta y el cambio van por
+      -- columnas, abajo. Se borra todo menos las personas, que se archivan.
+      ('people', array['select']),
+      ('seasons', array['select', 'delete']),
+      ('categories', array['select', 'delete']),
+      ('teams', array['select', 'delete']),
+      ('team_staff', array['select', 'delete']),
+      ('team_players', array['select', 'delete']),
       -- Calendario (20261005000300): los focos y los partidos, solo lectura.
       ('focus_areas', array['select']),
       ('games', array['select']),
-      -- Sesiones (20261117000200): el alta y el cambio van por columnas, abajo. Solo se
-      -- borran los ítems; ni eventos ni planes.
+      -- Sesiones (20261117000200): el alta y el cambio van por columnas, abajo. Se borran
+      -- los ítems y, de los planes, solo una plantilla propia (20270119000100: la política
+      -- no abre el borrado de un plan de equipo). Los eventos, nunca.
       ('events', array['select']),
-      ('practice_plans', array['select']),
+      ('practice_plans', array['select', 'delete']),
       ('practice_items', array['select', 'delete']),
       -- Metodología (20261020000100, 20261021000100): el cambio va por columnas, abajo. El
       -- `delete` solo tiene política en `principle_points`: en las otras cuatro no encuentra
@@ -171,7 +170,14 @@ select set_eq(
       -- `record_audit`, security definer, sin grant a authenticated. `platform_admins` no
       -- tiene ninguna política de insert ni update para authenticated ([D14]).
       ('audit_log', array['select']),
-      ('platform_admins', array['select'])
+      ('platform_admins', array['select']),
+      -- Calendario del club (20270316000100): las pistas las escribe la dirección; el alta y el
+      -- cambio de nombre van por columnas, abajo. Los horarios semanales y el registro de
+      -- cambios solo se leen: los escriben `create_team_schedule`, `update_team_schedule` y
+      -- `delete_team_schedule` (`security definer`) y el trigger de `events`.
+      ('venues', array['select', 'delete']),
+      ('team_schedules', array['select']),
+      ('event_changes', array['select'])
     ) as t (tabla, privilegios)
     cross join unnest(t.privilegios) as p (privilegio)$$,
   'los privilegios de tabla de authenticated en public son exactamente los de la lista'
@@ -203,10 +209,10 @@ select set_eq(
       ('events', 'update', array['starts_at', 'ends_at', 'location', 'status']),
       ('practice_plans', 'insert',
         array['organization_id', 'team_id', 'event_id', 'title', 'primary_focus_id',
-              'secondary_focus_id', 'notes']),
+              'secondary_focus_id', 'notes', 'is_template']),
       ('practice_plans', 'update',
         array['title', 'primary_focus_id', 'secondary_focus_id', 'notes', 'status',
-              'last_save_id', 'actual_minutes']),
+              'last_save_id', 'actual_minutes', 'live_started_at', 'live_position']),
       ('practice_items', 'insert',
         array['organization_id', 'plan_id', 'sort', 'phase', 'drill_id', 'title_override',
               'minutes', 'notes']),
@@ -222,11 +228,12 @@ select set_eq(
       ('game_principles', 'update', array['title', 'summary', 'sort', 'status']),
       ('principle_points', 'update', array['text', 'sort']),
       ('standards', 'update', array['number', 'title', 'description', 'sort', 'status']),
-      -- Biblioteca (20261103000400): el contenido, el estado y el diagrama.
+      -- Biblioteca (20261103000400): el contenido, el estado y el diagrama. La pizarra,
+      -- desde 20270216000100 (el editor).
       ('drills', 'update',
         array['title', 'summary', 'objective', 'setup_md', 'min_players', 'max_players',
               'min_minutes', 'max_minutes', 'min_age', 'max_age', 'equipment', 'video_url',
-              'diagram_media_id', 'status']),
+              'diagram_media_id', 'status', 'board']),
       -- Desarrollo (20261215000100). Ni el id, ni el autor, ni las fechas: los pone la base.
       -- Un objetivo nace activo; al cambiar no cambia de club, de jugador ni de equipo.
       -- Partidos (20261215000200): el alta y los cambios van por `create_game`,
@@ -253,8 +260,29 @@ select set_eq(
         array['display_name', 'wordmark_sub', 'short_name', 'way_name', 'tagline',
               'color_accent', 'color_accent_pressed', 'color_on_accent', 'color_accent_soft',
               'terminology', 'terms_text', 'image_consent_text']),
-      -- Personas (20270112000700, Fase 7 Task 11): editar y archivar, nunca el club ni el id.
-      ('people', 'update', array['first_name', 'last_name', 'birth_year', 'archived_at'])
+      -- Estructura del club (20270302000100). Los ids los pone la base. El club se escribe al
+      -- nacer la fila y no se cambia; tampoco la temporada de un equipo, ni el equipo o la
+      -- persona de un sitio en una plantilla o en un cuerpo técnico. `is_current` la mueven
+      -- `create_season` y `set_current_season`, que son `security definer`.
+      ('people', 'insert', array['organization_id', 'first_name', 'last_name', 'birth_year']),
+      ('people', 'update', array['first_name', 'last_name', 'birth_year', 'archived_at']),
+      -- `is_current` no: solo la mueven `create_season` y `set_current_season`.
+      ('seasons', 'insert', array['organization_id', 'name', 'starts_on', 'ends_on']),
+      ('seasons', 'update', array['name', 'starts_on', 'ends_on']),
+      ('categories', 'insert', array['organization_id', 'name', 'age_band', 'sort']),
+      ('categories', 'update', array['name', 'age_band', 'sort']),
+      ('teams', 'insert', array['organization_id', 'season_id', 'category_id', 'name']),
+      ('teams', 'update', array['name', 'category_id']),
+      ('team_staff', 'insert', array['organization_id', 'team_id', 'person_id', 'staff_role']),
+      ('team_staff', 'update', array['staff_role']),
+      ('team_players', 'insert',
+        array['organization_id', 'team_id', 'person_id', 'jersey_number', 'position']),
+      ('team_players', 'update', array['jersey_number', 'position']),
+      -- Calendario del club (20270316000100). De una pista solo se escribe el nombre; el club,
+      -- al nacer la fila. `events.venue_id` y `events.schedule_id` no se conceden: la primera
+      -- la pone un trigger a partir de `location` y la segunda, las funciones de los horarios.
+      ('venues', 'insert', array['organization_id', 'name']),
+      ('venues', 'update', array['name'])
     ) as t (tabla, privilegio, columnas)
     cross join unnest(t.columnas) as c (columna)$$,
   'los privilegios de columna de authenticated en public son exactamente los de la lista'

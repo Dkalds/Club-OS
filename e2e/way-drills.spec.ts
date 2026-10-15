@@ -38,10 +38,6 @@ const DRAFT = ARCANGEL.drills.find((drill) => drill.status === "draft");
 const TRANSITION_SHOWN = ["3 calles", "3x2 continuo", "4x4 transición"];
 const TRANSITION_REST = ["Contraataque 2x1", "Rebote + outlet"];
 
-function mainNav(page: Page) {
-  return page.getByRole("navigation", { name: "Principal" });
-}
-
 /** Un `<h1>`: toda pantalla tiene uno solo, y es lo que dice dónde se está. */
 function title(page: Page) {
   return page.getByRole("heading", { level: 1 });
@@ -69,12 +65,12 @@ function libraryRow(page: Page, drillTitle: string) {
   return libraryRows(page).filter({ hasText: drillTitle });
 }
 
-/** Entra como `email` y abre «Cómo jugamos» desde la navegación, como lo haría una persona. */
+/** Entra como `email` y abre «Cómo jugamos» desde Inicio, como lo haría una persona. */
 async function openSection(page: Page, email: string): Promise<void> {
   await openAs(page, email);
   await expect(page).toHaveURL(new RegExp(`${CLUB}$`));
 
-  await mainNav(page).getByRole("link", { name: "The Way" }).click();
+  await page.getByRole("main").getByRole("link", { name: /^Identidad/ }).click();
   await expect(page).toHaveURL(new RegExp(`${CLUB}/way$`));
   await page.getByRole("main").getByRole("link", { name: /Cómo jugamos/ }).click();
   await expect(page).toHaveURL(new RegExp(`${SECTION}$`));

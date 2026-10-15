@@ -55,21 +55,29 @@ export function ItemCard({
   );
 }
 
-/** La card del alta: su encabezado, que da nombre a su formulario (`EditorForm`, `create`), y el formulario. */
+/**
+ * La card del alta: su encabezado, que da nombre a su formulario (`EditorForm`, `create`), y el
+ * formulario. `level` es el nivel de ese encabezado: 2 bajo el `<h1>` de la página y 3 cuando el
+ * alta va dentro de un apartado que ya tiene su `<h2>`, junto a elementos que son `<h3>`.
+ */
 export function NewItemCard({
   headingId,
   title,
+  level = 2,
   children,
 }: {
   headingId: string;
   title: string;
+  level?: 2 | 3;
   children: ReactNode;
 }) {
+  const Heading = level === 3 ? "h3" : "h2";
+
   return (
     <Card>
-      <h2 id={headingId} className={HEADING_CLASS}>
+      <Heading id={headingId} className={HEADING_CLASS}>
         {title}
-      </h2>
+      </Heading>
       {children}
     </Card>
   );

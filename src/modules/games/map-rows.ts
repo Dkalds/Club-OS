@@ -1,7 +1,8 @@
 import { dayChip, formatGameSlot, isoToLocalInputs, localTime, monthChip } from "@/lib/time";
 import type { GameDetail, GameListItem, GameStatus, HomeAway } from "./types";
 
-// De las filas de PostgREST a los partidos de la pantalla. Funciones puras, aparte para probarlas
+// De la fila de PostgREST al partido de su ficha. La lista de partidos es la de la Agenda
+// (`@/modules/schedule`). Funciones puras, aparte para probarlas
 // sin base de datos. Las horas salen en la zona del club (regla 7).
 //
 // `games` cuelga de `events` por una clave compuesta: llega como objeto o como lista de un
@@ -14,10 +15,6 @@ function one<T>(value: Embedded<T> | undefined): T | null {
 }
 
 // ── Columnas ─────────────────────────────────────────────────────────────────────────
-
-/** La lista: el evento y los datos de su partido. El nombre del equipo sale de «mis equipos». */
-export const LIST_COLUMNS = `id, team_id, status, starts_at, ends_at, location,
-  games(opponent_name, competition_name, home_away, score_for, score_against)`;
 
 /**
  * El detalle, con su equipo. El `!inner` con el filtro sobre `teams.seasons.is_current` deja
@@ -77,25 +74,6 @@ function toItem(row: GameEventRow, teamName: string, game: GameRow, timezone: st
         ? { for: game.score_for, against: game.score_against }
         : null,
   };
-}
-
-/**
- * Las filas en el orden en que llegan. Un evento sin partido (no debería existir: `create_game`
- * crea los dos) o de un equipo que no está en la lista no se pinta.
- */
-export function toGameListItems(
-  rows: GameEventRow[],
-  teams: Array<{ id: string; name: string }>,
-  timezone: string,
-  nowIso: string,
-): GameListItem[] {
-  const names = new Map(teams.map((team) => [team.id, team.name]));
-  return rows.flatMap((row) => {
-    const game = one(row.games);
-    const teamName = names.get(row.team_id);
-    if (!game || teamName === undefined) return [];
-    return toItem(row, teamName, game, timezone, nowIso);
-  });
 }
 
 /** El detalle, o `null` si no llega su partido o su equipo. */

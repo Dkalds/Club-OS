@@ -38,7 +38,7 @@ export function AdminNav({ items }: { items: AdminNavItem[] }) {
     >
       <ul className="flex px-(--space-2) lg:flex-col lg:px-(--space-4)">
         {items.map((item) => {
-          const active = isActive(pathname, item.href);
+          const active = [item.href, ...(item.also ?? [])].some((href) => isActive(pathname, href));
 
           return (
             <li key={item.href} className="shrink-0 lg:shrink">

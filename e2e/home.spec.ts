@@ -33,7 +33,7 @@ test.use({ viewport: { width: 375, height: 812 } });
 
 const ALEX = "alex@arcangel.test"; // entrenador de Alevín A
 const NORA = "nora@arcangel.test"; // entrenadora de Benjamín A, mismo club
-const RAUL = "raul@arcangel.test"; // dirección, sin equipo
+const RAUL = "raul@arcangel.test"; // dirección: no entrena a ningún equipo y ve los del club
 const MARTA = "marta@demo.test"; // entrenadora del otro club
 
 const CLUB = `/c/${ARCANGEL.slug}`;
@@ -206,24 +206,18 @@ test("la entrenadora de Benjamín A solo ve lo suyo", async ({ page }) => {
   }
 });
 
-test("dirección sin equipo ve el estado vacío", async ({ page }) => {
+test("dirección ve lo próximo de todos los equipos del club", async ({ page }) => {
   await openHome(page, RAUL, CLUB, "Raúl");
 
-  await expect(
-    page.getByRole("heading", { level: 2, name: "Aún no estás en ningún equipo" }),
-  ).toBeVisible();
-  await expect(
-    page.getByText(
-      "Cuando dirección te asigne un equipo, aquí verás tus entrenamientos y partidos.",
-    ),
-  ).toBeVisible();
+  // Raúl no entrena a ningún equipo, pero sus equipos son todos los del club: Inicio enseña lo
+  // próximo de los dos, no «Aún no estás en ningún equipo».
+  await expect(page.getByRole("heading", { level: 2, name: "Aún no estás en ningún equipo" })).toHaveCount(0);
+  await expect(page.getByText("2 equipos · Temporada 2026/27")).toBeVisible();
+  await expect(practiceCard(page)).toBeVisible();
+  await expect(weekSection(page)).toBeVisible();
 
-  // Sin equipo no hay nada más: ni entrenamiento, ni partido, ni semana. Quien administra
-  // puede leer todos los eventos del club, pero Inicio solo enseña los de sus equipos.
-  await expect(practiceCard(page)).toHaveCount(0);
-  await expect(gameCard(page)).toHaveCount(0);
-  await expect(page.getByRole("heading", { name: "Esta semana" })).toHaveCount(0);
-  await expect(page.locator("main")).not.toContainText("Transición + rebote defensivo");
+  // Con más de un equipo, la cabecera lleva el selector; sin elegir, se ven todos.
+  await expect(page.getByRole("banner").getByRole("button", { name: "Todos. Cambiar de equipo" })).toBeVisible();
 });
 
 test("cabe en el móvil", async ({ page }) => {
@@ -281,11 +275,11 @@ test("sin errores de consola", async ({ page, browserErrors }) => {
 
   // Cada pestaña, y de vuelta a Inicio.
   const tabs = mainNav(page).getByRole("link");
-  await expect(tabs).toHaveText(["Inicio", "Nuestra forma", "Entrenar", "Partidos", "Equipo"]);
+  await expect(tabs).toHaveText(["Inicio", "Agenda", "Sesiones", "Biblioteca", "Equipo"]);
   for (const [label, path, heading] of [
-    ["Nuestra forma", "/way", "The Demo Way"],
-    ["Entrenar", "/train", "Entrenar"],
-    ["Partidos", "/games", "Partidos"],
+    ["Agenda", "/agenda", "Agenda"],
+    ["Sesiones", "/train", "Sesiones"],
+    ["Biblioteca", "/drills", "Biblioteca"],
     // Con un solo equipo, Equipo abre su plantilla: el título es el equipo.
     ["Equipo", "/team", "Infantil A"],
   ]) {
@@ -294,6 +288,18 @@ test("sin errores de consola", async ({ page, browserErrors }) => {
     await expect(page.getByRole("heading", { level: 1, name: heading })).toBeVisible();
     await expect(tabs.filter({ hasText: label })).toHaveAttribute("aria-current", "page");
   }
+
+  await tabs.filter({ hasText: "Inicio" }).click();
+  await expect(page).toHaveURL(new RegExp(`${DEMO}$`));
+  await expect(practiceCard(page)).toBeVisible();
+
+  // La identidad del club no es una pestaña para quien entrena: se entra desde Inicio, y la
+  // pestaña marcada sigue siendo Inicio.
+  await page.getByRole("main").getByRole("link", { name: /^Identidad/ }).click();
+  await expect(page).toHaveURL(new RegExp(`${DEMO}/way$`));
+  await expect(page.getByRole("heading", { level: 1, name: "The Demo Way" })).toBeVisible();
+  await expect(tabs.filter({ hasText: "Inicio" })).toHaveAttribute("aria-current", "page");
+  await expect(mainNav(page).locator('[aria-current="page"]')).toHaveCount(1);
 
   await tabs.filter({ hasText: "Inicio" }).click();
   await expect(page).toHaveURL(new RegExp(`${DEMO}$`));

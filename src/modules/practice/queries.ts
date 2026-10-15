@@ -1,16 +1,30 @@
 import { can } from "@/lib/permissions";
 import { throwReadError } from "@/lib/read-error";
 import { createClient } from "@/lib/supabase/server";
+import { isoToLocalInputs } from "@/lib/time";
 import { UUID_RE } from "@/lib/uuid";
-import { listMyTeams } from "@/modules/team/queries";
+import { getTeamScope } from "@/modules/team/scope";
+import type { TeamSummary } from "@/modules/team/types";
 import type { ClubContext } from "@/modules/tenancy/queries";
+import {
+  DEFAULT_SESSION_MINUTES,
+  DEFAULT_SESSION_TIME,
+  MAX_SESSION_MINUTES,
+  MIN_SESSION_MINUTES,
+} from "./limits";
 import {
   DETAIL_COLUMNS,
   LIST_COLUMNS,
   toPracticeDetail,
   toPracticeListItems,
 } from "./map-rows";
-import type { FocusOption, PracticeDetail, PracticeListItem, TeamOption } from "./types";
+import type {
+  FocusOption,
+  PracticeDetail,
+  PracticeListItem,
+  TeamDefaults,
+  TeamOption,
+} from "./types";
 
 // Lecturas de las sesiones de entrenamiento para quien entrena.
 //
@@ -24,15 +38,18 @@ import type { FocusOption, PracticeDetail, PracticeListItem, TeamOption } from "
 /** Las sesiones que como mucho enseña cada pestaña de la lista. */
 const LIST_LIMIT = 50;
 
+/** Un equipo como opción de un formulario o como nombre de una fila. Ya llegan por nombre. */
+function toOptions(teams: readonly TeamSummary[]): TeamOption[] {
+  return teams.map(({ id, name }) => ({ id, name }));
+}
+
 /**
  * Los equipos donde la sesión puede planificar, por nombre: «mis equipos» (`team`), es decir,
  * los de la temporada actual, todos para la dirección y los de su cuerpo técnico para el resto.
+ * Son todos, no solo el equipo activo: al crear una sesión se puede elegir cualquiera.
  */
 export async function listManageableTeams(ctx: ClubContext): Promise<TeamOption[]> {
-  const teams = await listMyTeams(ctx);
-  return teams
-    .map(({ id, name }) => ({ id, name }))
-    .sort((a, b) => a.name.localeCompare(b.name, "es") || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  return toOptions((await getTeamScope(ctx)).teams);
 }
 
 /** Los objetivos de trabajo del club, en su orden. */
@@ -50,30 +67,116 @@ async function getFocusAreas(ctx: ClubContext): Promise<FocusOption[]> {
   return data.map((row) => ({ id: row.id, name: row.name }));
 }
 
-/** Lo que ofrece el formulario de una sesión para elegir: los equipos gestionables y los objetivos del club. */
+/**
+ * Lo que ofrece el formulario de una sesión para elegir: los equipos gestionables y los
+ * objetivos del club. `defaultTeamId` es el equipo activo, si hay uno elegido: una sesión nueva
+ * lo trae preseleccionado.
+ */
 export async function getPracticeFormOptions(
   ctx: ClubContext,
-): Promise<{ teams: TeamOption[]; focusAreas: FocusOption[] }> {
-  const [teams, focusAreas] = await Promise.all([listManageableTeams(ctx), getFocusAreas(ctx)]);
+): Promise<{ teams: TeamOption[]; focusAreas: FocusOption[]; defaultTeamId: string | null }> {
+  const [scope, focusAreas] = await Promise.all([getTeamScope(ctx), getFocusAreas(ctx)]);
 
-  return { teams, focusAreas };
+  return { teams: toOptions(scope.teams), focusAreas, defaultTeamId: scope.active?.id ?? null };
+}
+
+/** Las sesiones que como mucho se miran para saber cuál fue la última de cada equipo. */
+const DEFAULTS_SCAN_LIMIT = 200;
+
+/**
+ * Con qué hora, duración y lugar se propone una sesión nueva de cada equipo de `teams`: los de
+ * su última sesión que no se canceló, con la hora en la zona del club. «Última» es la más
+ * reciente que ya ha empezado (`nowIso`); si aún no ha entrenado nunca, la más próxima de las
+ * programadas. Así una sesión suelta puesta para dentro de un mes no cambia lo que se propone
+ * hasta que llega. Un equipo sin sesiones, o cuya última no entra en las 200 más recientes del
+ * conjunto, lleva los de siempre: las 18:00, 75 minutos y sin lugar. Todos los equipos de
+ * `teams` tienen entrada.
+ *
+ * Las que ya han empezado y las futuras se leen por separado, cada una con su tope: con un
+ * horario semanal un equipo tiene decenas de sesiones por delante, y en una sola lectura por
+ * fecha las futuras se comerían el tope sin llegar nunca a la última que ya empezó.
+ */
+export async function getTeamDefaults(
+  ctx: ClubContext,
+  teams: readonly TeamOption[],
+  nowIso: string,
+): Promise<Record<string, TeamDefaults>> {
+  const defaults: Record<string, TeamDefaults> = {};
+  for (const team of teams) {
+    defaults[team.id] = { time: DEFAULT_SESSION_TIME, durationMinutes: DEFAULT_SESSION_MINUTES, location: null };
+  }
+  if (teams.length === 0) return defaults;
+
+  const supabase = await createClient();
+
+  const practices = () =>
+    supabase
+      .from("events")
+      .select("team_id, starts_at, ends_at, location")
+      .eq("organization_id", ctx.org.id)
+      .eq("kind", "practice")
+      .neq("status", "cancelled")
+      .in(
+        "team_id",
+        teams.map((team) => team.id),
+      );
+  const [started, upcoming] = await Promise.all([
+    // Las que ya han empezado, de la más reciente a la más antigua.
+    practices()
+      .lte("starts_at", nowIso)
+      .order("starts_at", { ascending: false })
+      .order("id", { ascending: true })
+      .limit(DEFAULTS_SCAN_LIMIT),
+    // Las futuras, de la más próxima a la más lejana.
+    practices()
+      .gt("starts_at", nowIso)
+      .order("starts_at", { ascending: true })
+      .order("id", { ascending: true })
+      .limit(DEFAULTS_SCAN_LIMIT),
+  ]);
+  if (started.error) throwReadError("practice.team-defaults", started.error);
+  if (upcoming.error) throwReadError("practice.team-defaults", upcoming.error);
+
+  // De la más lejana en el futuro a la más antigua: de cada equipo vale la primera que ya ha
+  // empezado y, mientras no aparezca, la última futura vista (la más próxima).
+  const data = [...upcoming.data.toReversed(), ...started.data];
+  const now = Date.parse(nowIso);
+  const settled = new Set<string>();
+  for (const row of data) {
+    if (settled.has(row.team_id) || !Object.hasOwn(defaults, row.team_id)) continue;
+    if (Date.parse(row.starts_at) <= now) settled.add(row.team_id);
+
+    const minutes = Math.round((Date.parse(row.ends_at) - Date.parse(row.starts_at)) / 60_000);
+    defaults[row.team_id] = {
+      time: isoToLocalInputs(row.starts_at, ctx.org.timezone).time,
+      durationMinutes: Math.min(MAX_SESSION_MINUTES, Math.max(MIN_SESSION_MINUTES, minutes)),
+      location: row.location,
+    };
+  }
+  return defaults;
 }
 
 /**
- * Los entrenamientos de los equipos gestionables, como mucho 50 por pestaña. `upcoming` son los
+ * Los entrenamientos del equipo activo (el elegido o, sin elegir, todos los gestionables), como
+ * mucho 50 por pestaña. `upcoming` son los
  * programados que no han terminado (uno en curso cuenta), del más próximo al más lejano;
  * `history` es todo lo demás (hechos, cancelados y programados que ya terminaron), del más
- * reciente al más antiguo. `teamCount` es cuántos equipos puede gestionar la sesión: sin
+ * reciente al más antiguo. `teamCount` es cuántos equipos se están viendo: sin
  * ninguno, el estado vacío ni consulta los eventos.
  *
  * `nowIso` es el instante actual del servidor en ISO. Las horas salen en la zona del club.
+ *
+ * Con `allTeams`, las de todos «mis equipos» aunque haya uno elegido: para elegir a qué sesión
+ * se añade un ejercicio, donde no hay selector de equipo a la vista.
  */
 export async function listPractices(
   ctx: ClubContext,
   scope: "upcoming" | "history",
   nowIso: string,
+  { allTeams = false }: { allTeams?: boolean } = {},
 ): Promise<{ practices: PracticeListItem[]; teamCount: number; truncated: boolean }> {
-  const teams = await listManageableTeams(ctx);
+  const teamScope = await getTeamScope(ctx);
+  const teams = toOptions(allTeams ? teamScope.teams : teamScope.scoped);
   if (teams.length === 0) return { practices: [], teamCount: 0, truncated: false };
 
   const supabase = await createClient();

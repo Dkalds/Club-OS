@@ -116,6 +116,22 @@ export function addLocalDays(iso: string, days: number, tz: string): string {
   return toIso(date);
 }
 
+/**
+ * El instante de las 00:00 locales del lunes de la semana de `iso`, en ISO UTC. La semana va
+ * de lunes a domingo. Retrocede en días de calendario y busca entonces el principio de ese día
+ * (en ese orden, como «Esta semana» de Inicio): con el cambio de hora un día local no dura 24 h.
+ */
+export function startOfLocalWeek(iso: string, tz: string): string {
+  const sinceMonday = (inZone(iso, tz).getDay() + 6) % 7;
+  return startOfLocalDay(addLocalDays(iso, -sinceMonday, tz), tz);
+}
+
+/** «19 oct»: el día y el mes abreviado de `iso` en `tz`. */
+export function dayMonth(iso: string, tz: string): string {
+  const date = inZone(iso, tz);
+  return `${date.getDate()} ${MONTHS[date.getMonth()]}`;
+}
+
 // Los formularios (`<input type="date">` y `<input type="time">`) dan texto en el reloj del
 // club, sin zona. Estas funciones lo pasan a instante y de vuelta, siempre en `tz`.
 

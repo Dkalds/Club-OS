@@ -7,7 +7,9 @@ import { getDrill } from "@/modules/drills/queries";
 import { listPractices } from "@/modules/practice/queries";
 import { standardsLabel } from "@/modules/tenancy/navigation";
 import { CoachingPointsList } from "@/ui/coaching-points-list";
+import { Board } from "@/ui/board";
 import { CourtDiagram } from "@/ui/court";
+import { CTAButton } from "@/ui/cta-button";
 import { MarkdownBody } from "@/ui/markdown-body";
 import { TopNavigation } from "@/ui/top-navigation";
 import { AddToPractice } from "./add-to-practice";
@@ -61,7 +63,8 @@ export default async function DrillPage({ params }: PageProps<"/c/[club]/drills/
   const setup = drill.setupMd?.trim();
   const upcoming =
     can(ctx, "practice.manage") && drill.status === "published"
-      ? await listPractices(ctx, "upcoming", new Date().toISOString())
+      ? // Las de todos sus equipos, aunque tenga uno elegido: aquí no hay selector a la vista.
+        await listPractices(ctx, "upcoming", new Date().toISOString(), { allTeams: true })
       : null;
 
   return (
@@ -88,7 +91,22 @@ export default async function DrillPage({ params }: PageProps<"/c/[club]/drills/
           <MetaPills header={drillHeader(drill)} />
         </div>
 
-        <CourtDiagram src={drill.diagramUrl} alt={`Diagrama de ${drill.title}`} />
+        {/*
+          La pizarra, si la tiene; si no, la imagen subida; y sin ninguna de las dos, nada: una
+          pista vacía no es una pizarra.
+        */}
+        {drill.board ? (
+          <Board board={drill.board} title={drill.title} />
+        ) : drill.diagramUrl ? (
+          <CourtDiagram src={drill.diagramUrl} alt={`Diagrama de ${drill.title}`} />
+        ) : null}
+
+        {/* Quien puede editar el ejercicio puede dibujar o cambiar su pizarra. */}
+        {perms.edit ? (
+          <CTAButton variant="secondary" block href={`${base}/drills/${drill.id}/board`}>
+            {drill.board ? "Editar pizarra" : "Dibujar pizarra"}
+          </CTAButton>
+        ) : null}
 
         {objective ? (
           <Section title="Objetivo">

@@ -335,9 +335,9 @@ test("crea un borrador", async ({ page, browserErrors }) => {
   titles.push(name);
   await openAs(page, ALEX);
 
-  // Se llega desde la biblioteca, con «Nuevo» de su cabecera.
+  // Se llega desde la biblioteca, con «Nuevo ejercicio», junto a su título.
   await page.goto(LIBRARY);
-  await detailHeader(page).getByRole("link", { name: "Nuevo" }).click();
+  await page.getByRole("link", { name: "Nuevo ejercicio" }).click();
   await expect(page).toHaveURL(new RegExp(`${LIBRARY}/new$`));
 
   // Un solo <h1>; la cabecera de detalle sustituye a la de marca y vuelve a la biblioteca.
@@ -470,7 +470,9 @@ test("sube un diagrama", async ({ page }) => {
 
   // Se llega a la edición desde la ficha, con «Editar» de su cabecera.
   await page.goto(ficha);
-  await expect(page.getByRole("img", { name: "Pista sin diagrama" })).toBeVisible();
+  // Sin pizarra ni diagrama, la ficha no enseña una pista vacía.
+  await expect(title(page)).toHaveText(name);
+  await expect(page.getByRole("main").getByRole("img")).toHaveCount(0);
   await detailHeader(page).getByRole("link", { name: "Editar" }).click();
   await expect(page).toHaveURL(new RegExp(`${ficha}/edit$`));
   await expect(title(page)).toHaveCount(1);
@@ -530,7 +532,8 @@ test("sube un diagrama", async ({ page }) => {
   await expect(page.getByRole("button", { name: "Subir diagrama" })).toBeFocused();
   await save(page, "Guardar cambios").click();
   await expect(page).toHaveURL(new RegExp(`${ficha}$`));
-  await expect(page.getByRole("img", { name: "Pista sin diagrama" })).toBeVisible();
+  await expect(title(page)).toHaveText(name);
+  await expect(page.getByRole("main").getByRole("img")).toHaveCount(0);
   await expect(page.locator(`main img[src*="${SIGNED_URL}"]`)).toHaveCount(0);
   const removed = await db.from("drills").select("diagram_media_id").eq("id", id).single();
   expect(removed.data?.diagram_media_id).toBeNull();

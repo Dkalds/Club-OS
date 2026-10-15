@@ -147,7 +147,10 @@ test("del principio al ejercicio y a la sesión", async ({ page }) => {
   // Con un ítem ya guardado, que el ejercicio llegue al final se ve.
   await addSavedBlock(page, "Calentamiento");
 
-  await page.getByRole("navigation", { name: "Principal" }).getByRole("link", { name: "The Way" }).click();
+  // La identidad del club no es una pestaña para quien entrena: se entra desde Inicio.
+  await page.getByRole("navigation", { name: "Principal" }).getByRole("link", { name: "Inicio" }).click();
+  await expect(page).toHaveURL(new RegExp(`${CLUB}$`));
+  await page.getByRole("main").getByRole("link", { name: /^Identidad/ }).click();
   await expect(page).toHaveURL(new RegExp(`${CLUB}/way$`));
   await page.getByRole("main").getByRole("link", { name: /Cómo jugamos/ }).click();
   await expect(page).toHaveURL(new RegExp(`${CLUB}/way/como-jugamos$`));

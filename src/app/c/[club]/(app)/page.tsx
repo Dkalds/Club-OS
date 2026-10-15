@@ -4,6 +4,11 @@ import { addLocalDays, isoToLocalInputs } from "@/lib/time";
 import { DEFAULT_COVERAGE_WEEKS, getCoverageMatrix } from "@/modules/coverage/queries";
 import { HomeScreen } from "@/modules/home/home-screen";
 import { getHomeData } from "@/modules/home/queries";
+import { listRecentChanges } from "@/modules/schedule/changes-queries";
+import { hasIdentityTab, IDENTITY_LABEL, identityHref } from "@/modules/tenancy/navigation";
+
+/** Cuántos cambios recientes enseña Inicio: los más próximos; el resto, en la Agenda. */
+const HOME_CHANGES = 3;
 
 /**
  * Inicio del club: el próximo entrenamiento, el próximo partido y la semana de quien entra.
@@ -16,14 +21,16 @@ import { getHomeData } from "@/modules/home/queries";
  * se calcula en el navegador. Si los datos no se pueden leer, `getHomeData` lanza y lo
  * recoge `error.tsx`; mientras llegan, se ve `loading.tsx`.
  *
- * `can` solo muestra u oculta «Nueva sesión» en el aviso sin entrenamiento: lo que protege es
- * RLS y la acción de crear.
+ * `can` solo muestra u oculta «Preparar sesión» en el aviso sin entrenamiento: lo que protege es
+ * RLS y la acción de crear. Quien no tiene la identidad del club como pestaña (quien entrena y
+ * la dirección) la encuentra aquí, en una fila fija al final.
  */
 export default async function ClubHomePage({ params }: PageProps<"/c/[club]">) {
   const { club } = await params;
   const ctx = await requireClub(club);
 
   const now = new Date().toISOString();
+  const { wayName } = ctx.branding;
 
   // La cobertura (solo dirección) se lee a la vez que Inicio, no después.
   async function coverage(): Promise<{ coveredCount: number; totalCount: number } | null> {
@@ -36,7 +43,11 @@ export default async function ClubHomePage({ params }: PageProps<"/c/[club]">) {
     return { coveredCount, totalCount: matrix.rows.length * matrix.standards.length };
   }
 
-  const [home, coverageSummary] = await Promise.all([getHomeData(ctx, now), coverage()]);
+  const [home, changes, coverageSummary] = await Promise.all([
+    getHomeData(ctx, now),
+    listRecentChanges(ctx, now, HOME_CHANGES),
+    coverage(),
+  ]);
 
   return (
     <HomeScreen
@@ -45,6 +56,16 @@ export default async function ClubHomePage({ params }: PageProps<"/c/[club]">) {
       ownShortName={ctx.branding.shortName}
       canCreatePractice={can(ctx, "practice.manage")}
       coverageSummary={coverageSummary}
+      changes={changes}
+      identity={
+        hasIdentityTab(ctx.membership.role)
+          ? null
+          : {
+              href: identityHref(ctx.org.slug),
+              // El nombre que el club da a su metodología; si no le ha puesto ninguno, nada.
+              subtitle: wayName.trim() && wayName !== IDENTITY_LABEL ? wayName : undefined,
+            }
+      }
     />
   );
 }

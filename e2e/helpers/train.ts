@@ -6,7 +6,7 @@ import { addLocalDays, isoToLocalInputs } from "../../src/lib/time";
 import { openAs } from "./sessions";
 import { expect } from "./test";
 
-// Lo que comparten los specs de Entrenar (`train`, `practice-session` y `practice-builder`):
+// Lo que comparten los specs de Sesiones (`train`, `practice-session` y `practice-builder`):
 // esperar a React, medir la pantalla del móvil y crear una sesión desde su formulario. Antes
 // cada spec llevaba su copia.
 
@@ -116,7 +116,7 @@ export function inDays(days: number): string {
 const EDIT_URL = new RegExp(`${CLUB}/train/([0-9a-f-]{36})/edit$`);
 
 /**
- * Entra como `email`, abre «Nueva sesión» desde Entrenar, la rellena y la crea. Al volver, la
+ * Entra como `email`, abre «Preparar sesión» desde Sesiones, la rellena y la crea. Al volver, la
  * página es el constructor de la sesión nueva, que aún no tiene ejercicios. Devuelve su id.
  */
 export async function createSession(
@@ -126,17 +126,19 @@ export async function createSession(
 ): Promise<string> {
   await openAs(page, email);
   await page.goto(`${CLUB}/train`);
-  await page.getByRole("link", { name: "Nueva sesión" }).click();
+  await page.getByRole("link", { name: "Preparar sesión" }).click();
   await expect(page).toHaveURL(new RegExp(`${CLUB}/train/new$`));
   await expect(title(page)).toHaveText("Nueva sesión");
-  await hydrated(page.getByRole("button", { name: "Crear sesión" }));
+  await hydrated(page.getByRole("button", { name: "Empezar desde cero" }));
 
   await field(page, "Título").fill(session.title);
   await field(page, "Fecha").fill(session.date);
   await field(page, "Hora").fill(session.time);
   await field(page, "Duración (min)").fill(session.minutes);
+  // El formulario trae el lugar de la última sesión del equipo: aquí la sesión nace sin lugar.
+  await field(page, "Lugar").fill("");
   if (session.focus) await field(page, "Objetivo principal").selectOption({ label: session.focus });
-  await page.getByRole("button", { name: "Crear sesión" }).click();
+  await page.getByRole("button", { name: "Empezar desde cero" }).click();
 
   await expect(page).toHaveURL(EDIT_URL);
   await expect(title(page)).toHaveText(session.title);

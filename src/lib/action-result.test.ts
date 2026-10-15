@@ -60,6 +60,8 @@ describe("ACTION_ERROR_COPY", () => {
       INVITE_ALREADY_ACCEPTED: "Esta invitación ya se aceptó.",
       LAST_ADMIN: "Este club necesita al menos una persona en dirección.",
       CONSENT_GRANTOR: "Solo el tutor de esta persona puede dar este consentimiento.",
+      TEMPLATE_LIMIT: "Ya tienes 50 plantillas, el máximo. Borra alguna para guardar otra.",
+      IN_USE: "No se puede borrar porque se está usando.",
     });
   });
 
@@ -86,7 +88,7 @@ describe("fromDbError", () => {
     });
   });
 
-  it.each(["GOAL_LIMIT", "GAME_CLOSED"] as const)("P0001 con %s devuelve ese código", (error) => {
+  it.each(["GOAL_LIMIT", "GAME_CLOSED", "IN_USE"] as const)("P0001 con %s devuelve ese código", (error) => {
     expect(fromDbError({ code: "P0001", message: error })).toStrictEqual({ ok: false, error });
   });
 

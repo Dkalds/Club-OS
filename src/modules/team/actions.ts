@@ -1,144 +1,66 @@
 "use server";
 
-import type { z } from "zod";
-import { fail, ok, type ActionResult } from "@/lib/action-result";
-import { mutate as runMutation, type Write } from "@/lib/mutate";
-import {
-  createCategorySchema,
-  createSeasonSchema,
-  createTeamSchema,
-  updateCategorySchema,
-  updateSeasonSchema,
-  updateTeamSchema,
-  type CreateCategoryInput,
-  type CreateSeasonInput,
-  type CreateTeamInput,
-  type UpdateCategoryInput,
-  type UpdateSeasonInput,
-  type UpdateTeamInput,
-} from "./schema";
+import { revalidatePath } from "next/cache";
+import { cookies } from "next/headers";
+import { z } from "zod";
+import { fail, fromZodError, ok, type ActionResult } from "@/lib/action-result";
+import { requireClub } from "@/lib/guards";
+import { listMyTeams } from "./queries";
+import { ACTIVE_TEAM_COOKIE, activeTeamCookiePath } from "./scope";
 
-// Acciones de Gestión de equipos (`/admin/teams`, Fase 7 Task 10): temporadas, categorías y
-// equipos. Alta y edición directas sobre la tabla (política y columnas de
-// `20270112000500`); ninguna se borra. Como mucho una temporada actual por club (único
-// parcial de la tabla): marcar una segunda, 23505 → INVALID en `isCurrent`.
+// El equipo activo se elige aquí. No escribe en la base de datos (por eso no pasa por
+// `mutate`): solo deja una cookie de preferencia. Sigue el mismo orden que las demás acciones:
+// Zod sobre la entrada, el club, la comprobación de que se puede, la escritura y revalidar.
 
-const IS_CURRENT_UNIQUE = { field: "isCurrent", message: "Ya hay otra temporada marcada como actual." };
+/** Un año: la preferencia sobrevive a la temporada, y un equipo que deje de ser mío se ignora. */
+const ONE_YEAR_SECONDS = 60 * 60 * 24 * 365;
 
-function mutate<D, T>(
-  name: string,
-  clubSlug: string,
-  schema: z.ZodType<D>,
-  input: unknown,
-  write: (run: Write<D>) => Promise<ActionResult<T>>,
-): Promise<ActionResult<T>> {
-  return runMutation(
-    { tag: `team.${name}`, permission: "team.manage", routes: ["/c/[club]/admin"] },
-    clubSlug,
-    schema,
-    input,
-    write,
-  );
-}
+/** Todo lo que se pinta dentro del marco de la app depende del equipo activo. */
+const APP_ROUTE = "/c/[club]/(app)";
 
-// ── Temporadas ───────────────────────────────────────────────────────────────────────
+const setActiveTeamSchema = z.object({
+  /** El equipo que se quiere ver; `null` para volver a verlos todos. */
+  teamId: z.string().uuid("No encontramos este contenido.").nullable(),
+});
 
-export async function createSeason(
-  clubSlug: string,
-  input: CreateSeasonInput,
-): Promise<ActionResult<{ seasonId: string }>> {
-  return mutate("create-season", clubSlug, createSeasonSchema, input, async ({ db, ctx, data, fromDb }) => {
-    const { data: row, error } = await db
-      .from("seasons")
-      .insert({
-        organization_id: ctx.org.id,
-        name: data.name,
-        starts_on: data.startsOn,
-        ends_on: data.endsOn,
-        is_current: data.isCurrent,
-      })
-      .select("id")
-      .single();
-    if (error) return fromDb(error, IS_CURRENT_UNIQUE);
+export type SetActiveTeamInput = z.input<typeof setActiveTeamSchema>;
 
-    return ok({ seasonId: row.id });
-  });
-}
+/**
+ * Elige el equipo activo de quien llama en este club, o lo quita (`teamId: null`).
+ *
+ * Solo se puede elegir uno de «mis equipos» (`listMyTeams`, con la sesión de la persona y RLS):
+ * el de otro club, uno que no entreno o uno que no existe es `NOT_FOUND` y no deja cookie. Aun
+ * así la cookie nunca da acceso a nada: quien la lee (`getTeamScope`) vuelve a comprobar que el
+ * equipo es mío.
+ *
+ * La cookie vive bajo `/c/{slug}`, no se lee desde JavaScript y no lleva datos de nadie: solo
+ * el id opaco de un equipo.
+ */
+export async function setActiveTeam(clubSlug: string, input: SetActiveTeamInput): Promise<ActionResult<null>> {
+  const parsed = setActiveTeamSchema.safeParse(input);
+  if (!parsed.success) return fromZodError(parsed.error);
 
-export async function updateSeason(clubSlug: string, input: UpdateSeasonInput): Promise<ActionResult<null>> {
-  return mutate("update-season", clubSlug, updateSeasonSchema, input, async ({ db, ctx, data, fromDb }) => {
-    const { data: rows, error } = await db
-      .from("seasons")
-      .update({ name: data.name, starts_on: data.startsOn, ends_on: data.endsOn, is_current: data.isCurrent })
-      .eq("organization_id", ctx.org.id)
-      .eq("id", data.seasonId)
-      .select("id");
-    if (error) return fromDb(error, IS_CURRENT_UNIQUE);
+  // Fuera de todo try/catch: `notFound()` funciona lanzando.
+  const ctx = await requireClub(clubSlug);
+  const { teamId } = parsed.data;
+  const store = await cookies();
+  const path = activeTeamCookiePath(ctx.org.slug);
 
-    return rows.length === 0 ? fail("NOT_FOUND") : ok(null);
-  });
-}
+  if (teamId === null) {
+    store.delete({ name: ACTIVE_TEAM_COOKIE, path });
+  } else {
+    const teams = await listMyTeams(ctx);
+    if (!teams.some((team) => team.id === teamId)) return fail("NOT_FOUND");
 
-// ── Categorías ───────────────────────────────────────────────────────────────────────
+    store.set(ACTIVE_TEAM_COOKIE, teamId, {
+      path,
+      httpOnly: true,
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+      maxAge: ONE_YEAR_SECONDS,
+    });
+  }
 
-export async function createCategory(
-  clubSlug: string,
-  input: CreateCategoryInput,
-): Promise<ActionResult<{ categoryId: string }>> {
-  return mutate("create-category", clubSlug, createCategorySchema, input, async ({ db, ctx, data, fromDb }) => {
-    const { data: row, error } = await db
-      .from("categories")
-      .insert({ organization_id: ctx.org.id, name: data.name, age_band: data.ageBand, sort: data.sort })
-      .select("id")
-      .single();
-    if (error) return fromDb(error);
-
-    return ok({ categoryId: row.id });
-  });
-}
-
-export async function updateCategory(clubSlug: string, input: UpdateCategoryInput): Promise<ActionResult<null>> {
-  return mutate("update-category", clubSlug, updateCategorySchema, input, async ({ db, ctx, data, fromDb }) => {
-    const { data: rows, error } = await db
-      .from("categories")
-      .update({ name: data.name, age_band: data.ageBand, sort: data.sort })
-      .eq("organization_id", ctx.org.id)
-      .eq("id", data.categoryId)
-      .select("id");
-    if (error) return fromDb(error);
-
-    return rows.length === 0 ? fail("NOT_FOUND") : ok(null);
-  });
-}
-
-// ── Equipos ──────────────────────────────────────────────────────────────────────────
-
-export async function createTeam(
-  clubSlug: string,
-  input: CreateTeamInput,
-): Promise<ActionResult<{ teamId: string }>> {
-  return mutate("create-team", clubSlug, createTeamSchema, input, async ({ db, ctx, data, fromDb }) => {
-    const { data: row, error } = await db
-      .from("teams")
-      .insert({ organization_id: ctx.org.id, season_id: data.seasonId, category_id: data.categoryId, name: data.name })
-      .select("id")
-      .single();
-    if (error) return fromDb(error);
-
-    return ok({ teamId: row.id });
-  });
-}
-
-export async function updateTeam(clubSlug: string, input: UpdateTeamInput): Promise<ActionResult<null>> {
-  return mutate("update-team", clubSlug, updateTeamSchema, input, async ({ db, ctx, data, fromDb }) => {
-    const { data: rows, error } = await db
-      .from("teams")
-      .update({ season_id: data.seasonId, category_id: data.categoryId, name: data.name })
-      .eq("organization_id", ctx.org.id)
-      .eq("id", data.teamId)
-      .select("id");
-    if (error) return fromDb(error);
-
-    return rows.length === 0 ? fail("NOT_FOUND") : ok(null);
-  });
+  revalidatePath(APP_ROUTE, "layout");
+  return ok(null);
 }

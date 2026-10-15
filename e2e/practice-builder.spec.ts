@@ -421,13 +421,13 @@ test("salir por la navegación inferior también pregunta", async ({ page }) => 
   await addBlock(page, A);
   await save(page);
   const edit = new RegExp(`${CLUB}/train/${eventId}/edit$`);
-  const tab = page.getByRole("navigation", { name: "Principal" }).getByRole("link", { name: "Partidos" });
+  const tab = page.getByRole("navigation", { name: "Principal" }).getByRole("link", { name: "Agenda" });
   const dialog = page.getByRole("alertdialog", { name: "¿Salir sin guardar?" });
   /** La pestaña ya está en pantalla, entera: no se sigue mientras su página aún llega. */
   const arrived = async () => {
-    await expect(page).toHaveURL(new RegExp(`${CLUB}/games$`));
+    await expect(page).toHaveURL(new RegExp(`${CLUB}/agenda$`));
     await expect(tab).toHaveAttribute("aria-current", "page");
-    await expect(title(page)).toHaveText("Partidos");
+    await expect(title(page)).toHaveText("Agenda");
   };
 
   await page.getByRole("button", { name: `Más minutos, ${A}` }).click();

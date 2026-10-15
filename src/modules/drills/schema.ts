@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { ACTION_ERROR_COPY } from "@/lib/action-result";
 import { DIAGRAM_ERROR, validateDiagramFile } from "@/modules/media/diagram-file";
+import type { Board } from "@/modules/board/types";
 import type { DrillDetail } from "./types";
 
 // Entrada de las acciones de ejercicios. Los límites son los CHECK de
@@ -19,8 +20,8 @@ export const VIDEO_URL_RE = /^https:\/\/((www|m)\.)?(youtube\.com|youtu\.be|vime
 
 /**
  * Lo que manda el formulario al crear o guardar un ejercicio: la ficha menos lo que no se
- * escribe (el id, el estado, el autor, las fechas, la URL firmada del diagrama y lo que se
- * calcula al leer). Los principios y Standards van como ids (`principleIds`, `standardIds`,
+ * escribe (el id, el estado, el autor, las fechas, la pizarra, la URL firmada del diagrama y lo
+ * que se calcula al leer). Los principios y Standards van como ids (`principleIds`, `standardIds`,
  * que la ficha ya trae con todos los vínculos), no como lo que se muestra.
  */
 export type DrillInput = Omit<
@@ -29,6 +30,7 @@ export type DrillInput = Omit<
   | "status"
   | "createdBy"
   | "focus"
+  | "board"
   | "diagramUrl"
   | "principles"
   | "principlesSectionSlug"
@@ -246,6 +248,23 @@ export const updateDrillSchema = z.preprocess(
 );
 
 export const drillIdSchema = z.object({ drillId: id });
+
+// ── La pizarra ───────────────────────────────────────────────────────────────────────────
+
+/**
+ * Guardar la pizarra de un ejercicio: cuál, la copia que se editaba y la pizarra, o `null`
+ * para quitarla. Aquí solo se pide que venga: su forma (fichas, pasos, movimientos y topes) la
+ * comprueba la acción con `parseBoard`, el mismo validador que usa quien la lee.
+ */
+export const saveDrillBoardSchema = z.object({
+  drillId: id,
+  expectedUpdatedAt: z.string().trim().min(1),
+  // `null` la quita, y hay que decirlo: una clave que no llega no borra nada.
+  board: z.record(z.string(), z.unknown()).nullable(),
+});
+
+/** Lo que recibe `saveDrillBoard`. */
+export type SaveDrillBoardInput = { drillId: string; expectedUpdatedAt: string; board: Board | null };
 
 // ── Subir el diagrama ────────────────────────────────────────────────────────────────────
 

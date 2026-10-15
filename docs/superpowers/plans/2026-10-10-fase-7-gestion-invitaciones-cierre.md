@@ -205,7 +205,7 @@ e2e/{invite,admin-club,admin-people,admin-invites,coverage}.spec.ts
 **Files:** Create `src/app/c/[club]/admin/{club,teams,invites}/page.tsx` (+ `_components`, tests)
 
 - `/admin/club`: nombre, zona horaria, colores de marca (`contrastRatio`, `validateAccent`, `deriveBrandColors` — contrato, C-Fase 7), terminología, y los dos textos de consentimiento.
-- `/admin/teams`: temporadas, categorías y equipos (alta y edición; no hay "fase de equipo" en el contrato más allá de CRUD simple).
+- ~~`/admin/teams`: temporadas, categorías y equipos~~ Al fusionar con `main` se retiró: lo hace la pieza «Estructura del club» (`src/modules/structure`, `/admin/season`, `/admin/teams/[teamId]`).
 - `/admin/invites`: lista, crear, reenviar, cancelar.
 - [ ] TDD por pantalla, con `contrastRatio`/`validateAccent`/`deriveBrandColors` primero como funciones puras con sus tests. Commit `feat(admin): club, equipos e invitaciones`.
 
@@ -215,7 +215,7 @@ e2e/{invite,admin-club,admin-people,admin-invites,coverage}.spec.ts
 
 **Files:** Create `src/app/c/[club]/admin/people/page.tsx` (+ `_components/import-csv.tsx`), `src/modules/people-import/{parse,actions,types}.ts` (+ tests)
 
-- Lista y alta/edición de personas una a una, con «Invitar» sobre quien no tiene cuenta ([D2]), «Archivar» ([D5]).
+- Lista, alta, edición y archivado de personas: los hace `src/modules/structure` (pieza «Estructura del club»). Esta fase añade encima «Invitar» sobre quien no tiene cuenta ([D2]), dar una tutela e importar por CSV.
 - Importación CSV ([D6]): subir fichero → vista previa fila a fila (válida/con error, y por qué) → confirmar → escribir solo lo válido o nada, según lo que dirección confirme.
 - [ ] TDD: el analizador de CSV primero, como función pura (fichero de texto a filas tipadas, sin tocar la base), con casos de comillas, comas dentro de un campo y filas vacías. Después las acciones. Commit `feat(admin): personas, alta, baja e importación CSV`.
 

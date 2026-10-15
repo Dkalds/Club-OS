@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { drillMeta } from "@/modules/drills/format";
 import type { DrillSummary } from "@/modules/drills/types";
+import { BoardThumb } from "./board-thumb";
 import { CourtThumb } from "./court-thumb";
 import { FilterTag } from "./filter-tag";
 import { DraftIcon } from "./icons";
@@ -11,7 +12,8 @@ import { DraftIcon } from "./icons";
  * adelante, el selector del Practice Builder. Va dentro de una `Card` `flush`, con las filas
  * directas, para que pinte sus separadores.
  *
- * Enseña la miniatura (la pista vacía: las listas no cargan diagramas), el título en
+ * Enseña la miniatura (la de su pizarra, si la tiene; si no, la pista vacía: las listas no
+ * cargan las imágenes de los diagramas), el título en
  * `font-display`, los metadatos («U12+ · 6–12 jug. · 10–15 min», de `drillMeta`) y la etiqueta
  * de su primer objetivo. Un borrador lo dice con «Borrador», con su icono; archivado o
  * publicado no llevan nada. `DrillSummary` no trae los Standards ni los principios que
@@ -22,7 +24,8 @@ import { DraftIcon } from "./icons";
  * HTML válido y su toque no debe abrir la ficha. Es quien lo pasa quien le da sus 44px.
  *
  * Es un componente de servidor y se repite una vez por ejercicio: por eso solo importa módulos
- * sin `"use client"` (`./court-thumb`, `./filter-tag`, no `./court` ni `./filter`, que traen los
+ * sin `"use client"` (`./court-thumb`, `./board-thumb`, `./filter-tag`, no `./court`, `./board` ni
+ * `./filter`, que traen los
  * componentes de cliente y, con ellos, la hoja inferior y Radix). Un test recorre su grafo de
  * importaciones y lo vigila. La miniatura es decorativa: no se cargan diagramas en las listas y
  * su nombre se leería delante del título en cada fila.
@@ -51,7 +54,7 @@ export function DrillCard({
         prefetch={false}
         className="group flex min-w-0 flex-1 items-center gap-(--space-3) px-(--space-4) py-(--space-3) text-ink active:bg-surface-3 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus-ring"
       >
-        <CourtThumb decorative />
+        {drill.board ? <BoardThumb board={drill.board} /> : <CourtThumb decorative />}
         <span className="flex min-w-0 flex-1 flex-col gap-0.5">
           <span className="line-clamp-2 font-display text-title font-bold wrap-break-word uppercase">
             {drill.title}

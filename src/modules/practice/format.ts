@@ -66,3 +66,19 @@ export function statusLabel(status: PracticeStatus): string | null {
   if (status === "cancelled") return "Cancelada";
   return null;
 }
+
+/**
+ * Lo que se dice de una plantilla bajo su título: lo que dura, cuántos ejercicios tiene y sus
+ * objetivos («45 min · 4 ejercicios · Tiro, Pase»).
+ */
+export function templateSubtitle(template: {
+  totalMinutes: number;
+  itemCount: number;
+  primaryFocus: { name: string } | null;
+  secondaryFocus: { name: string } | null;
+}): string {
+  const focus = [template.primaryFocus, template.secondaryFocus].flatMap((item) => (item ? [item.name] : []));
+  const fields = [minutesLabel(template.totalMinutes), itemsLabel(template.itemCount)];
+  if (focus.length > 0) fields.push(focus.join(", "));
+  return fields.join(FIELD_SEPARATOR);
+}

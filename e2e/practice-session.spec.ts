@@ -161,12 +161,12 @@ test("un formulario con errores los dice bajo cada campo y no pierde lo escrito"
   // No escribe: la acción rechaza la entrada antes de llegar a la base de datos.
   await openAs(page, ALEX);
   await page.goto(`${CLUB}/train/new`);
-  await hydrated(page.getByRole("button", { name: "Crear sesión" }));
+  await hydrated(page.getByRole("button", { name: "Empezar desde cero" }));
 
   // Sin título y con una duración fuera de rango.
   await field(page, "Duración (min)").fill("500");
   await field(page, "Lugar").fill("Pabellón 3");
-  await page.getByRole("button", { name: "Crear sesión" }).click();
+  await page.getByRole("button", { name: "Empezar desde cero" }).click();
 
   await expect(page.getByRole("alert").filter({ hasText: "Revisa los campos marcados." })).toBeVisible();
   await expect(field(page, "Título")).toHaveAccessibleDescription("Escribe un título.");
@@ -177,7 +177,7 @@ test("un formulario con errores los dice bajo cada campo y no pierde lo escrito"
   await expect(field(page, "Duración (min)")).toHaveValue("500");
   await expect(field(page, "Lugar")).toHaveValue("Pabellón 3");
   await expect(page).toHaveURL(new RegExp(`${CLUB}/train/new$`));
-  await expect(page.getByRole("button", { name: "Crear sesión" })).toBeEnabled();
+  await expect(page.getByRole("button", { name: "Empezar desde cero" })).toBeEnabled();
 });
 
 test.describe("con el móvil en otra zona horaria", () => {
@@ -272,7 +272,7 @@ test("cancelar", async ({ page }) => {
   await cancel.click();
   const dialog = page.getByRole("alertdialog", { name: "¿Cancelar esta sesión?" });
   await expect(dialog).toBeVisible();
-  await expect(dialog).toContainText("Dejará de salir en Inicio y en Próximas. Seguirá en el histórico.");
+  await expect(dialog).toContainText("Dejará de salir en Inicio y en Próximas. En la Agenda se verá como cancelada hasta que pase su fecha.");
   await dialog.getByRole("button", { name: "Volver" }).click();
   await expect(dialog).toHaveCount(0);
   await expect(page.getByRole("link", { name: "Editar sesión" })).toBeVisible();
@@ -296,7 +296,7 @@ test("cancelar", async ({ page }) => {
 
   // Sale de Próximas y está en el histórico, como cancelada.
   await page.goto(`${CLUB}/train`);
-  await expect(page.getByRole("link", { name: "Nueva sesión" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Preparar sesión" })).toBeVisible();
   await expect(row(page, name)).toHaveCount(0);
   await page.goto(`${CLUB}/train?scope=history`);
   await expect(row(page, name)).toHaveCount(1);

@@ -1,6 +1,7 @@
 // Contrato de datos de la biblioteca de ejercicios. Las fases siguientes importan estos tipos:
 // no cambies nombres, campos ni orden sin tocar el contrato entre fases.
 
+import type { Board } from "@/modules/board/types";
 import type { Standard } from "@/modules/methodology/types";
 
 /**
@@ -15,7 +16,8 @@ export type FocusArea = { id: string; slug: string; name: string };
 /**
  * Lo que enseñan las listas: tarjeta, resultado de búsqueda, fila de una sesión. Los rangos
  * son los de la base de datos: `maxAge` a `null` deja la edad máxima abierta («U12+»).
- * `createdBy` es el usuario que lo escribió, o `null` si no consta (el seed).
+ * `createdBy` es el usuario que lo escribió, o `null` si no consta (el seed). `board` es su
+ * pizarra, ya validada; falta si el ejercicio no tiene (o si la que tiene no cumple la forma).
  */
 export type DrillSummary = {
   id: string;
@@ -29,6 +31,7 @@ export type DrillSummary = {
   minMinutes: number;
   maxMinutes: number;
   focus: Array<{ slug: string; name: string }>;
+  board?: Board;
 };
 
 /**

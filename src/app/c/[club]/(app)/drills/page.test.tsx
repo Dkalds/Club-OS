@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { SEARCH_LIMIT } from "@/modules/drills/map-rows";
 import type { DrillSummary, FocusArea } from "@/modules/drills/types";
@@ -116,41 +116,57 @@ describe("quién entra", () => {
 });
 
 describe("la cabecera", () => {
-  it("es la de detalle «Biblioteca», lo primero del contenido, y vuelve a Entrenar", async () => {
+  it("es el inicio de una sección: sin cabecera de detalle ni vuelta a otra pantalla", async () => {
     const { container } = await renderPage();
 
-    const header = container.firstElementChild;
-    expect(header).toHaveAttribute("data-topnav", "detail");
-    expect(within(header as HTMLElement).getByText("Biblioteca")).toBeInTheDocument();
-    expect(within(header as HTMLElement).getByRole("link", { name: "Volver" })).toHaveAttribute(
-      "href",
-      "/c/club-a/train",
-    );
+    expect(container.querySelector("[data-topnav]")).toBeNull();
+    expect(screen.queryByRole("link", { name: "Volver" })).not.toBeInTheDocument();
   });
 
-  it.each(["admin", "coach"] as const)("%s: «Nuevo» lleva a /drills/new", async (role) => {
-    mocks.getClubContext.mockResolvedValue(clubContext(role));
-
-    await renderPage();
-
-    expect(screen.getByRole("link", { name: "Nuevo" })).toHaveAttribute("href", "/c/club-a/drills/new");
-  });
-
-  it.each(["player", "guardian"] as const)("%s: sin «Nuevo»", async (role) => {
-    mocks.getClubContext.mockResolvedValue(clubContext(role));
-
-    await renderPage();
-
-    expect(screen.queryByRole("link", { name: "Nuevo" })).not.toBeInTheDocument();
-  });
-
-  it("la pantalla tiene un único <h1>, y no es el título de la cabecera", async () => {
+  it("el único <h1> es «Biblioteca», a la vista", async () => {
     await renderPage();
 
     const headings = screen.getAllByRole("heading", { level: 1 });
-    expect(headings).toHaveLength(1);
-    expect(headings[0]).toHaveTextContent("Biblioteca de ejercicios");
+    expect(headings.map((heading) => heading.textContent)).toEqual(["Biblioteca"]);
+    expect(headings[0]).not.toHaveClass("sr-only");
     expect(screen.getAllByRole("heading")).toHaveLength(1);
+  });
+
+  it.each(["admin", "coach"] as const)("%s: «Nuevo ejercicio» lleva a /drills/new, y no es el botón principal", async (role) => {
+    mocks.getClubContext.mockResolvedValue(clubContext(role));
+
+    await renderPage();
+
+    const create = screen.getByRole("link", { name: "Nuevo ejercicio" });
+    expect(create).toHaveAttribute("href", "/c/club-a/drills/new");
+    expect(create).not.toHaveClass("bg-brand-accent");
+  });
+
+  it.each(["player", "guardian"] as const)("%s: sin «Nuevo ejercicio»", async (role) => {
+    mocks.getClubContext.mockResolvedValue(clubContext(role));
+
+    await renderPage();
+
+    expect(screen.queryByRole("link", { name: "Nuevo ejercicio" })).not.toBeInTheDocument();
+  });
+
+  it("con la biblioteca vacía, «Nuevo ejercicio» es la salida del aviso y no se repite arriba", async () => {
+    mocks.searchDrills.mockResolvedValue({ drills: [], hasMore: false });
+
+    await renderPage();
+
+    const create = screen.getAllByRole("link", { name: "Nuevo ejercicio" });
+    expect(create).toHaveLength(1);
+    expect(create[0]).toHaveClass("bg-brand-accent");
+  });
+
+  it("sin resultados por un filtro, crear sigue arriba: la salida del aviso es quitar filtros", async () => {
+    mocks.searchDrills.mockResolvedValue({ drills: [], hasMore: false });
+
+    await renderPage({ q: "nada" });
+
+    expect(screen.getByRole("link", { name: "Nuevo ejercicio" })).not.toHaveClass("bg-brand-accent");
+    expect(screen.getByRole("link", { name: "Quitar filtros" })).toBeInTheDocument();
   });
 });
 

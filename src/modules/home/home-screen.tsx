@@ -1,19 +1,41 @@
 import Link from "next/link";
 import { Card } from "@/ui/card";
 import { CTAButton } from "@/ui/cta-button";
+import { RecentChanges } from "@/ui/event-changes";
 import { GameCard } from "@/ui/game-card";
 import { Hero } from "@/ui/hero";
-import { TeamIcon, TrainIcon } from "@/ui/icons";
+import { TeamIcon, TrainIcon, WayIcon } from "@/ui/icons";
 import { DateChip, ListRow } from "@/ui/list-row";
 import { PracticeCard } from "@/ui/practice-card";
 import { SectionHeader } from "@/ui/section-header";
 import { EmptyState } from "@/ui/states";
-import type { HomeData, WeekItem } from "./types";
+import { liveEntry } from "@/modules/live/label";
+import type { RecentChange } from "@/modules/schedule/changes";
+import { IDENTITY_LABEL } from "@/modules/tenancy/navigation";
+import type { HomeData, HomePractice, WeekItem } from "./types";
 
 /** «Buenos días, Ana.»; sin nombre (una cuenta sin persona asociada), «Buenos días.». */
 export function heroTitle(greeting: string, firstName: string): string {
   const name = firstName.trim();
   return name ? `${greeting}, ${name}.` : `${greeting}.`;
+}
+
+/**
+ * La entrada al directo del próximo entrenamiento: «Iniciar entrenamiento» si nunca se ha
+ * empezado, o «Continuar entrenamiento» y, debajo, el ejercicio por el que va. Es lo mismo que
+ * dice la ficha de la sesión (`liveEntry`), y sale de lo que guarda el servidor.
+ */
+function LiveEntryButton({ practice, href }: { practice: HomePractice; href: string }) {
+  const entry = liveEntry(practice.live, practice.drillCount);
+
+  return (
+    <>
+      <CTAButton variant="primary" block href={href}>
+        {entry.label}
+      </CTAButton>
+      {entry.caption ? <p className="text-center text-body-s text-ink-2 tabular-nums">{entry.caption}</p> : null}
+    </>
+  );
 }
 
 // Margen lateral de pantalla (`space-4`). La portada no lo lleva: va a sangre.
@@ -27,11 +49,11 @@ const BLOCK = "px-(--space-4)";
  * escrito aquí: el slug y la sigla llegan por props.
  *
  * Orden: saludo → próximo entrenamiento (la única card destacada) o el aviso de que no hay
- * ninguno → próximo partido, si lo hay → «Esta semana». Sin equipos, solo el saludo y el
- * aviso. El `<h1>` es el del saludo; lo demás son `<h2>`.
+ * ninguno → próximo partido, si lo hay → «Esta semana» → la entrada a la identidad del club,
+ * fija al final. Sin equipos, el saludo, el aviso y esa entrada. El `<h1>` es el del saludo; lo demás son `<h2>`.
  *
- * Un entrenamiento (la card destacada y su fila de la semana) lleva a su sesión, `/train/{id}`;
- * un partido aún no tiene pantalla y lleva a la pestaña de Partidos. El aviso de que no hay
+ * Un entrenamiento (la card destacada y su fila de la semana) lleva a su sesión, `/train/{id}`,
+ * y un partido, a su ficha. Bajo la card, la entrada a su directo (`LiveEntryButton`). El aviso de que no hay
  * entrenamiento ofrece «Nueva sesión» solo a quien puede gestionarlas (`canCreatePractice`: lo
  * decide la página con `can`; aquí solo muestra u oculta).
  *
@@ -44,6 +66,8 @@ export function HomeScreen({
   ownShortName,
   canCreatePractice,
   coverageSummary,
+  identity = null,
+  changes = null,
 }: {
   home: HomeData;
   clubSlug: string;
@@ -53,6 +77,16 @@ export function HomeScreen({
   canCreatePractice: boolean;
   /** Solo para dirección (`coverage.view`): el resumen de la cobertura de The Way. */
   coverageSummary?: { coveredCount: number; totalCount: number } | null;
+  /**
+   * La entrada a la identidad del club, para quien no la tiene como pestaña: adónde lleva y, de
+   * subtítulo, el nombre que el club le da. `null` si ya está en su barra.
+   */
+  identity?: { href: string; subtitle?: string } | null;
+  /**
+   * Los eventos de sus equipos que han cambiado hace poco (hora, lugar o cancelación) y aún no han
+   * pasado: se enseñan lo primero, antes que el próximo entrenamiento. `null` o vacío, nada.
+   */
+  changes?: { items: readonly RecentChange[]; more: number } | null;
 }) {
   const base = `/c/${clubSlug}`;
   const practiceHref = (eventId: string) => `${base}/train/${eventId}`;
@@ -89,14 +123,18 @@ export function HomeScreen({
 
       {home.hasTeams ? (
         <>
+          {changes && changes.items.length > 0 ? (
+            <div className={BLOCK}>
+              <RecentChanges items={changes.items} more={changes.more} moreHref={`${base}/agenda`} />
+            </div>
+          ) : null}
+
           <div className={`flex flex-col gap-(--space-3) ${BLOCK}`}>
             {home.nextPractice ? (
               <>
                 <PracticeCard practice={home.nextPractice} href={practiceHref(home.nextPractice.eventId)} />
                 {home.nextPractice.drillCount > 0 ? (
-                  <CTAButton variant="primary" block href={`${practiceHref(home.nextPractice.eventId)}/live`}>
-                    Iniciar entrenamiento
-                  </CTAButton>
+                  <LiveEntryButton practice={home.nextPractice} href={`${practiceHref(home.nextPractice.eventId)}/live`} />
                 ) : null}
               </>
             ) : (
@@ -104,7 +142,7 @@ export function HomeScreen({
                 icon={<TrainIcon size={28} />}
                 title="No hay entrenamientos programados"
                 body="Cuando haya una sesión en el calendario, la verás aquí."
-                action={canCreatePractice ? { label: "Nueva sesión", href: `${base}/train/new` } : undefined}
+                action={canCreatePractice ? { label: "Preparar sesión", href: `${base}/train/new` } : undefined}
               />
             )}
           </div>
@@ -152,6 +190,19 @@ export function HomeScreen({
           />
         </div>
       )}
+
+      {identity ? (
+        <div className={BLOCK}>
+          <Card variant="flush" as="ul">
+            <ListRow
+              href={identity.href}
+              lead={<WayIcon size={24} />}
+              title={IDENTITY_LABEL}
+              subtitle={identity.subtitle}
+            />
+          </Card>
+        </div>
+      ) : null}
     </>
   );
 }

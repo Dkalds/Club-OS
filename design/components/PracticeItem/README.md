@@ -10,3 +10,5 @@ Un ítem de una sesión en el Practice Builder: fase, ejercicio y duración, reo
 - Mientras se arrastra: `surface-3` + `shadow-sheet`.
 - Accesible sin arrastrar: el menú del ítem ofrece «Subir» y «Bajar».
 - Fila de total al final en `numeral`; la suma no se guarda, se calcula.
+- Una fila que llega de una propuesta lleva una tercera línea en `body-s` e `ink-2`, bajo el título: por qué está ahí («Transición · 2 puntos clave · 1 variante»). Con ella la fila crece; no se guarda.
+- Junto al total de la barra de guardado, en `body-s`, si lo montado no encaja con la franja: «Te sobran 10 min» o «Te pasas 10 min». Solo avisa.

@@ -1,5 +1,6 @@
 import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
+import type { RecentChange } from "@/modules/schedule/changes";
 import { heroTitle, HomeScreen } from "./home-screen";
 import type { HomeData, HomeGame, HomePractice, WeekItem } from "./types";
 
@@ -13,6 +14,7 @@ const PRACTICE: HomePractice = {
   drillCount: 5,
   focus: ["Transición", "Rebote"],
   location: "Pabellón 2",
+  live: { started: false, position: null },
 };
 
 /** El kicker de la card del entrenamiento: lo fijo y, tras el punto medio, el equipo. */
@@ -183,27 +185,27 @@ describe("HomeScreen con equipos", () => {
     expect(screen.getByText("Cuando haya una sesión en el calendario, la verás aquí.")).toBeInTheDocument();
     expect(screen.queryByText(ANY_PRACTICE_KICKER)).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Abrir entrenamiento" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: "Nueva sesión" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Preparar sesión" })).not.toBeInTheDocument();
     // Ocupa el sitio del entrenamiento: antes del partido y de la semana.
     expect(comesBefore(screen.getByRole("heading", { level: 1 }), title)).toBe(true);
     expect(comesBefore(title, screen.getByText("Próximo partido"))).toBe(true);
     expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
   });
 
-  it("sin entrenamiento a la vista y con permiso para crear, el aviso ofrece «Nueva sesión»", () => {
+  it("sin entrenamiento a la vista y con permiso para crear, el aviso ofrece «Preparar sesión»", () => {
     renderHome(home({ nextPractice: null }), { clubSlug: "club-b", ownShortName: "CLB" }, true);
 
     const title = screen.getByRole("heading", { level: 2, name: "No hay entrenamientos programados" });
-    const create = screen.getByRole("link", { name: "Nueva sesión" });
+    const create = screen.getByRole("link", { name: "Preparar sesión" });
     expect(create).toHaveAttribute("href", "/c/club-b/train/new");
     // La acción es del aviso: va dentro de su card, no suelta por la pantalla.
     expect(title.parentElement).toContainElement(create);
   });
 
-  it("con entrenamiento a la vista no ofrece «Nueva sesión» aunque pueda crear: el CTA es el del entrenamiento", () => {
+  it("con entrenamiento a la vista no ofrece «Preparar sesión» aunque pueda crear: el CTA es el del entrenamiento", () => {
     renderHome(home(), { clubSlug: "club-a", ownShortName: "CLA" }, true);
 
-    expect(screen.queryByRole("link", { name: "Nueva sesión" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Preparar sesión" })).not.toBeInTheDocument();
   });
 
   it("con ejercicios, ofrece «Iniciar entrenamiento» que lleva al live de esa sesión", () => {
@@ -211,6 +213,21 @@ describe("HomeScreen con equipos", () => {
 
     const link = screen.getByRole("link", { name: "Iniciar entrenamiento" });
     expect(link).toHaveAttribute("href", "/c/club-a/train/e-1/live");
+  });
+
+  it("sin empezar no dice por dónde va", () => {
+    renderHome(home({ nextPractice: { ...PRACTICE, drillCount: 3 } }));
+
+    expect(screen.queryByText(/^Ejercicio \d+ de \d+$/)).not.toBeInTheDocument();
+  });
+
+  it("con la sesión en curso ofrece «Continuar entrenamiento» y dice por qué ejercicio va", () => {
+    renderHome(home({ nextPractice: { ...PRACTICE, drillCount: 5, live: { started: true, position: 2 } } }));
+
+    const link = screen.getByRole("link", { name: "Continuar entrenamiento" });
+    expect(link).toHaveAttribute("href", "/c/club-a/train/e-1/live");
+    expect(screen.getByText("Ejercicio 3 de 5")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Iniciar entrenamiento" })).not.toBeInTheDocument();
   });
 
   it("sin ejercicios, no ofrece «Iniciar entrenamiento»", () => {
@@ -274,5 +291,153 @@ describe("HomeScreen sin equipos", () => {
     renderHome({ ...WITHOUT_TEAMS, firstName: "" });
 
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(/^Buenos días\.$/);
+  });
+});
+
+describe("HomeScreen · la entrada a la identidad del club", () => {
+  const IDENTITY = { href: "/c/club-a/way", subtitle: "El camino del Club A" };
+
+  function renderWithIdentity(data: HomeData, identity: { href: string; subtitle?: string } | null) {
+    return render(
+      <HomeScreen home={data} clubSlug="club-a" ownShortName="CLA" canCreatePractice={false} identity={identity} />,
+    );
+  }
+
+  it("es una fila «Identidad» con el nombre que el club le da, y lleva a ella", () => {
+    renderWithIdentity(home(), IDENTITY);
+
+    const row = screen.getByRole("link", { name: /^Identidad/ });
+    expect(row).toHaveAttribute("href", "/c/club-a/way");
+    expect(row).toHaveTextContent("El camino del Club A");
+  });
+
+  it("va al final, después de «Esta semana»", () => {
+    renderWithIdentity(home(), IDENTITY);
+
+    expect(comesBefore(weekSection(), screen.getByRole("link", { name: /^Identidad/ }))).toBe(true);
+  });
+
+  it("sin equipos sigue estando: la identidad no depende de entrenar a nadie", () => {
+    renderWithIdentity(home({ hasTeams: false, nextPractice: null, nextGame: null, week: [] }), IDENTITY);
+
+    expect(screen.getByRole("link", { name: /^Identidad/ })).toBeInTheDocument();
+  });
+
+  it("sin nombre propio del club, la fila es solo «Identidad»", () => {
+    renderWithIdentity(home(), { href: "/c/club-a/way" });
+
+    expect(screen.getByRole("link", { name: "Identidad" })).toBeInTheDocument();
+  });
+
+  it("quien ya la tiene como pestaña no la ve repetida aquí", () => {
+    renderWithIdentity(home(), null);
+
+    expect(screen.queryByRole("link", { name: /^Identidad/ })).not.toBeInTheDocument();
+  });
+
+  it("sin decir nada, no se pinta", () => {
+    renderHome(home());
+
+    expect(screen.queryByRole("link", { name: /^Identidad/ })).not.toBeInTheDocument();
+  });
+});
+
+describe("HomeScreen · cambios recientes", () => {
+  const MOVED: RecentChange = {
+    eventId: "e-1",
+    href: "/c/club-a/train/e-1",
+    label: "Cambio de hora",
+    title: "Salida de presión",
+    subtitle: "Martes 6 oct · 19:00–20:15 · Salida de presión",
+    cancelled: false,
+  };
+  const CANCELLED: RecentChange = {
+    eventId: "e-3",
+    href: "/c/club-a/games/e-3",
+    label: "Cancelado",
+    title: "vs Rival C",
+    subtitle: "Sábado 10 oct · 10:30–12:00 · vs Rival C",
+    cancelled: true,
+  };
+
+  type Changes = { items: readonly RecentChange[]; more: number } | null;
+
+  function renderWithChanges(data: HomeData, changes: Changes, clubSlug = "club-a") {
+    return render(
+      <HomeScreen home={data} clubSlug={clubSlug} ownShortName="CLA" canCreatePractice={false} changes={changes} />,
+    );
+  }
+
+  /** El apartado de los cambios: de su título hacia arriba. */
+  function changesSection(): HTMLElement {
+    const section = screen.getByRole("heading", { level: 2, name: "Cambios recientes" }).closest("section");
+    if (!section) throw new Error("«Cambios recientes» no está dentro de un <section>");
+    return section;
+  }
+
+  it("se pintan lo primero: después del saludo y antes del próximo entrenamiento", () => {
+    renderWithChanges(home(), { items: [MOVED], more: 0 });
+
+    const changes = changesSection();
+    expect(comesBefore(screen.getByRole("heading", { level: 1 }), changes)).toBe(true);
+    expect(comesBefore(changes, screen.getByText(PRACTICE_KICKER))).toBe(true);
+    expect(comesBefore(changes, weekSection())).toBe(true);
+  });
+
+  it("cada evento es una fila con su enlace, lo que le ha pasado y cuándo es ahora", () => {
+    renderWithChanges(home(), { items: [MOVED, CANCELLED], more: 0 });
+
+    const rows = within(changesSection()).getAllByRole("link");
+    expect(rows.map((row) => row.getAttribute("href"))).toEqual(["/c/club-a/train/e-1", "/c/club-a/games/e-3"]);
+    expect(within(rows[0] as HTMLElement).getByText("Cambio de hora")).toBeInTheDocument();
+    expect(within(rows[0] as HTMLElement).getByText("Martes 6 oct · 19:00–20:15 · Salida de presión")).toBeInTheDocument();
+    expect(within(rows[1] as HTMLElement).getByText("Cancelado")).toBeInTheDocument();
+    expect(within(rows[1] as HTMLElement).getByText("Sábado 10 oct · 10:30–12:00 · vs Rival C")).toBeInTheDocument();
+  });
+
+  it("si no caben todos, «Ver N más» lleva a la Agenda de este club", () => {
+    renderWithChanges(home(), { items: [MOVED], more: 2 }, "club-b");
+
+    expect(within(changesSection()).getByRole("link", { name: "Ver 2 más" })).toHaveAttribute("href", "/c/club-b/agenda");
+  });
+
+  it("si caben todos, no hay «Ver más»", () => {
+    renderWithChanges(home(), { items: [MOVED], more: 0 });
+
+    expect(screen.queryByRole("link", { name: /^Ver \d+ más$/ })).not.toBeInTheDocument();
+  });
+
+  it("no quitan nada de lo demás: el entrenamiento, el partido y la semana siguen ahí", () => {
+    renderWithChanges(home(), { items: [MOVED], more: 0 });
+
+    expect(screen.getByText(PRACTICE_KICKER)).toBeInTheDocument();
+    expect(screen.getByText(ANY_GAME_KICKER)).toBeInTheDocument();
+    expect(within(weekSection()).getAllByRole("listitem")).toHaveLength(WEEK.length);
+  });
+
+  it.each([
+    ["sin cambios", { items: [], more: 0 }],
+    ["sin cambios que enseñar, aunque queden fuera", { items: [], more: 3 }],
+    ["con `null`", null],
+  ] as Array<[string, Changes]>)("%s no hay apartado", (_case, changes) => {
+    renderWithChanges(home(), changes);
+
+    expect(screen.queryByRole("heading", { name: "Cambios recientes" })).not.toBeInTheDocument();
+  });
+
+  it("sin decir nada de cambios, la pantalla es la de siempre", () => {
+    renderHome(home());
+
+    expect(screen.queryByRole("heading", { name: "Cambios recientes" })).not.toBeInTheDocument();
+  });
+
+  it("sin equipos no se pintan, aunque llegaran", () => {
+    renderWithChanges(home({ hasTeams: false, nextPractice: null, nextGame: null, week: [] }), {
+      items: [MOVED],
+      more: 0,
+    });
+
+    expect(screen.queryByRole("heading", { name: "Cambios recientes" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Cambio de hora/ })).not.toBeInTheDocument();
   });
 });

@@ -73,6 +73,7 @@ El acceso es por invitación, con un código de 6 dígitos. No hay contraseñas 
 Si has usado Gestión en un club del seed, al volver a sembrar:
 
 - Lo que es del seed vuelve a su texto, su estado, su orden y su número.
+- La estructura del club (temporadas, categorías, equipos y plantillas) vuelve a ser la del seed aunque la hayas cambiado en Gestión: su temporada vuelve a ser la actual, y lo que creaste a mano y choca con el seed conserva todo salvo el nombre, que gana una marca, o el dorsal, que se queda vacío.
 - Lo que creaste a mano se queda. Las secciones pasan detrás de las del seed, en el orden que tenían. Un Standard solo cambia de número si ocupaba uno de los del seed: pasa al primero libre, y `pnpm seed` lo dice al acabar.
 - Con los ejercicios, igual: los que creaste se quedan y los del seed vuelven a su versión original, sin diagrama ni vídeo (ver «Despliegue de la biblioteca de ejercicios»).
 
@@ -173,7 +174,7 @@ Lista, en este orden:
 - [ ] **Aplicar las migraciones** con `pnpm supabase db push`. Antes de confirmar, comprueba que la lista que enseña es la que viste en `migration list`.
 - [ ] **Volver a sembrar el demo** («Sembrar el demo», más abajo). El seed de la Fase 4 añade a Arcángel tres ejercicios («Ayuda y recuperación 3x3», «Presión al balón en medio campo» y «Bloqueo y rebote 3x3»: 21 en total, 23 con los 2 de Club Demo), los enlaza a tres ítems de la sesión «Defensa presionante» y da a Alevín A una sesión cancelada, «Tiro libre y finalizaciones», para que el histórico tenga una. Un nuevo seed devuelve las sesiones del seed a lo que dice el seed (título, estado, lugar y ejercicios); las creadas en la app se quedan.
 - [ ] **Comprobar a mano**, en un móvil y con la app desplegada:
-  - Como entrenador (`alex@arcangel.test`): Entrenar → «Nueva sesión», crearla, añadirle un ejercicio y guardarla. Tiene que salir en «Próximas» y en Inicio si es la siguiente.
+  - Como entrenador (`alex@arcangel.test`): Sesiones → «Preparar sesión», crearla, añadirle un ejercicio y guardarla. Tiene que salir en «Próximas» y en Inicio si es la siguiente.
   - Como la entrenadora de otro equipo (`nora@arcangel.test`): abrir la URL de esa sesión. Tiene que ver «No encontramos esta página», sin ningún dato de la sesión. Lo mismo con `marta@demo.test`, del otro club.
   - Las horas: la sesión sale a la hora que se escribió, que es la del club (`organizations.timezone`), aunque el móvil esté en otra zona horaria.
 
@@ -195,7 +196,94 @@ Lista, en este orden:
   - Como entrenador (`alex@arcangel.test`): Equipo → Hugo Serrano. Tiene que ver dos objetivos activos, el historial con uno logrado y las dos notas. Añadir un objetivo, marcarlo como logrado y escribir una nota.
   - Como su ayudante (`irene@arcangel.test`): la misma ficha. Tiene que ver la nota del cuerpo técnico y **no** la privada de Álex. Lo mismo como dirección (`raul@arcangel.test`).
   - Como la entrenadora de otro equipo (`nora@arcangel.test`) y como `marta@demo.test`: la URL de esa ficha da «No encontramos esta página».
-  - Partidos: crear uno, cancelarlo, y corregir el resultado del jugado.
+  - Partidos (Agenda → «Añadir» → «Partido»): crear uno, cancelarlo, y corregir el resultado del jugado.
+
+### Despliegue del calendario
+
+Va encima de la estructura del club: primero su migración (abajo) y después esta, `20270316000100_calendar`. Crea `venues`, `team_schedules` y `event_changes`, añade `venue_id` y `schedule_id` a `events` con sus triggers, y tres funciones para los horarios. No toca Storage, Auth ni variables de entorno. Tiene que estar aplicada **antes de usar la preview del PR** y **antes de fusionar**: sin ella fallan Inicio, la Agenda, las fichas de sesión y de partido y sus formularios, que ya leen las pistas y los cambios.
+
+- [ ] **Ver qué falta por aplicar**: `pnpm supabase migration list`.
+- [ ] **Entre aplicarla y desplegar**, la app antigua no nota nada: las columnas nuevas de `events` las pone la base, y el registro de cambios empieza vacío.
+- [ ] **Aplicar la migración** con `pnpm supabase db push`.
+- [ ] **Las pistas de ejemplo** solo llegan si se siembra. Al crear una pista, los eventos del club que ya tenían ese lugar quedan vinculados a ella.
+- [ ] **Comprobar a mano**, en un móvil y con la app desplegada:
+  - Como dirección, en Gestión → Calendario: crear una pista. En la página de un equipo, añadir un horario semanal: dice cuántos entrenamientos ha creado, y quien entrena ese equipo los ve en su Agenda.
+  - Cambiar la hora del horario: Inicio y la Agenda de quien entrena enseñan «Cambios recientes», y la ficha de la sesión, lo que había antes.
+  - Como entrenador, cancelar una sesión: sigue en «Próximos» de la Agenda, como cancelada.
+  - Quitar el horario: se borran los entrenamientos que nadie ha preparado; los preparados se quedan. **No probarlo sobre un horario con sesiones que alguien necesite.**
+  - Como entrenador, `/admin/calendar` da el 404 de siempre.
+
+### Despliegue de la estructura del club
+
+Va encima del editor de pizarra: primero su migración (abajo) y después esta, `20270302000100_club_structure`. Da a la dirección la escritura sobre `people`, `seasons`, `categories`, `teams`, `team_staff` y `team_players` (políticas y `grant` por columnas), añade restricciones a esas tablas y crea cuatro funciones. No añade tablas ni columnas, ni toca Storage, Auth o variables de entorno. Tiene que estar aplicada **antes de usar la preview del PR** y **antes de fusionar**: sin ella, en Gestión se ven la temporada y las personas, pero nada se guarda.
+
+- [ ] **Ver qué falta por aplicar**: `pnpm supabase migration list`.
+- [ ] **Antes de aplicarla, mirar los datos que hay.** Las restricciones nuevas se rechazan si ya hay filas que no las cumplen: una temporada que acaba antes de empezar, nombres vacíos o de más de 60 caracteres, o dos temporadas, dos categorías o dos equipos de una temporada con el mismo nombre (sin distinguir mayúsculas). El seed las cumple.
+- [ ] **Entre aplicarla y desplegar**, la app antigua no nota nada: solo leía estas tablas.
+- [ ] **Aplicar la migración** con `pnpm supabase db push`.
+- [ ] **Comprobar a mano**, en un móvil y con la app desplegada, como dirección:
+  - «Gestión» abre en «Temporada», con la temporada actual y sus equipos.
+  - Crear una categoría y un equipo; en el equipo, dar de alta a un jugador (solo año de nacimiento) y añadir a alguien al cuerpo técnico. Quien entrena ese equipo lo ve en la app.
+  - En «Personas», buscar sin tildes, editar a alguien y archivarlo (antes hay que quitarlo de sus equipos de la temporada actual o de una que no ha acabado).
+  - Crear una temporada copiando los equipos de la actual: nace sin ser la actual y la app no cambia. «Marcar como actual» cambia lo que ve todo el club: no probarlo en un entorno con gente dentro.
+  - Como entrenador, `/admin/season` y `/admin/people` dan el 404 de siempre.
+
+### Despliegue del editor de pizarra
+
+Va encima de la pizarra visual: primero su migración (abajo) y después esta, `20270216000100_save_drill_board`. Concede `update (board)` sobre `drills` a `authenticated` y crea `save_drill_board`. No añade columnas, ni toca Storage, Auth o variables de entorno. Tiene que estar aplicada **antes de usar la preview del PR** y **antes de fusionar**: sin ella, guardar una pizarra falla (el resto de la app no la necesita).
+
+- [ ] **Ver qué falta por aplicar**: `pnpm supabase migration list`.
+- [ ] **Entre aplicarla y desplegar**, la app antigua no nota nada.
+- [ ] **Aplicar la migración** con `pnpm supabase db push`.
+- [ ] **Comprobar a mano**, en un móvil y con la app desplegada:
+  - Como entrenador, en un borrador propio: «Dibujar pizarra» abre el editor. Añadir dos atacantes y un balón, arrastrarlos, añadir un paso, tocar a quien lleva el balón, «Pasar» y tocar al otro; «Vista previa» la reproduce; «Guardar pizarra» vuelve a la ficha con ella.
+  - En un ejercicio publicado, el entrenador no ve «Editar pizarra»; la dirección sí.
+  - «Quitar pizarra» la borra tras confirmar.
+
+### Despliegue de la pizarra visual
+
+Va encima de «Preparar sesión»: primero sus dos migraciones (abajo) y después esta, `20270202000100_drill_board`. Añade una columna a `drills`, `board` (la pizarra de un ejercicio como datos), con su `check`. No toca permisos, ni Storage, ni Auth, ni variables de entorno. Tiene que estar aplicada **antes de usar la preview del PR** y **antes de fusionar**: sin ella, la biblioteca, la ficha de un ejercicio, la de una sesión y el directo fallan (piden esa columna).
+
+- [ ] **Ver qué falta por aplicar**: `pnpm supabase migration list`.
+- [ ] **Entre aplicarla y desplegar**, la app antigua no nota nada: no pide la columna.
+- [ ] **Aplicar la migración** con `pnpm supabase db push`.
+- [ ] **Las pizarras de ejemplo son del seed.** La columna nace vacía: hasta que exista el editor de jugadas, un entorno solo tiene pizarras si se siembra (`pnpm seed`; contra el remoto, solo con `ALLOW_REMOTE_SEED=true` y mientras producción siga siendo una demo).
+- [ ] **Comprobar a mano**, en un móvil y con la app desplegada, como entrenador:
+  - En la biblioteca, «Pase y corte» enseña su miniatura. Su ficha, la pizarra con «Paso 1 de 4»: reproducir la recorre hasta «Final», y los pasos se pueden pasar a mano.
+  - Un ejercicio sin pizarra no enseña una pista vacía.
+  - En el directo, un ejercicio con pizarra la enseña, también sin conexión, y «Cómo se organiza» se despliega.
+
+### Despliegue de «Preparar sesión» (propuesta y plantillas)
+
+Va encima del uso diario: primero su migración (abajo) y después esta, `20270119000100_practice_templates`. No crea tablas: añade un `check` a `practice_plans` (una plantilla no tiene evento), concede `insert (is_template)` y `delete` sobre ella, cambia la política de alta de un plan de equipo (rechaza el que venga marcado como plantilla), crea tres políticas y dos funciones (`save_practice_as_template` y `create_practice_from_template`). Tiene que estar aplicada **antes de usar la preview del PR** y **antes de fusionar**: sin ella, «Guardar como plantilla» y crear una sesión con una plantilla fallan. La propuesta de entrenamiento no depende de ella.
+
+Nada en Storage, en Auth ni en las variables de entorno.
+
+- [ ] **Ver qué falta por aplicar**: `pnpm supabase migration list`.
+- [ ] **Comprobar que el `check` entra**: ninguna fila tiene `is_template` con `event_id` (`select count(*) from practice_plans where is_template and event_id is not null` da 0). Con el seed lo da: no hay plantillas.
+- [ ] **Entre aplicarla y desplegar**, la app antigua no nota nada: no escribe `is_template` ni borra planes.
+- [ ] **Aplicar la migración** con `pnpm supabase db push`.
+- [ ] **Comprobar a mano**, en un móvil y con la app desplegada, como entrenador:
+  - «Preparar sesión» acaba con «Proponer entrenamiento» y «Empezar desde cero». Proponer abre el constructor con ejercicios de la biblioteca y el aviso «Propuesta sin guardar…»; nada queda guardado hasta «Guardar sesión».
+  - En el constructor, el total dice «Te sobran…» o «Te pasas…» cuando lo montado no dura lo que la franja.
+  - En la ficha de una sesión con ejercicios, «Guardar como plantilla»; aparece en Sesiones → «Plantillas»; al usarla, la sesión nace con sus ejercicios (sin notas: no viajan a la plantilla); «Borrar plantilla» la quita. Otra persona del club no la ve.
+
+### Despliegue del uso diario (navegación por rol, Agenda y directo)
+
+Trae una migración: `20270105000100_live_state`. Añade a `practice_plans` dos columnas (`live_started_at` y `live_position`), sustituye `record_live_progress` por una con dos parámetros opcionales más y crea `reset_live_progress`. Tiene que estar aplicada **antes de usar la preview del PR** y **antes de fusionar**: sin ella, Inicio y la ficha de una sesión fallan (piden esas columnas) y el directo no guarda.
+
+No hay tablas nuevas, ni nada en Storage, en Auth o en las variables de entorno.
+
+Lista, en este orden:
+
+- [ ] **Ver qué falta por aplicar**: `pnpm supabase migration list` contra el proyecto enlazado.
+- [ ] **Saber qué hace con lo que ya hay.** Las columnas nacen vacías: todas las sesiones programadas quedan «sin iniciar», también las que algún móvil tuviera a medias (su estado guardado es de una versión anterior y se descarta). Una sesión ya hecha no cambia.
+- [ ] **Entre aplicarla y desplegar**, la app antigua llama a `record_live_progress` con cuatro argumentos: los dos nuevos tienen valor por defecto, así que sigue funcionando.
+- [ ] **Aplicar la migración** con `pnpm supabase db push`, comprobando que la lista que enseña es la de `migration list`.
+- [ ] **Comprobar a mano**, en un móvil y con la app desplegada:
+  - Como entrenador (`alex@arcangel.test`): la barra es Inicio, Agenda, Sesiones, Biblioteca y Equipo. Agenda enseña entrenos y partidos por semanas, y «Identidad» está en Inicio y en el menú de cuenta.
+  - Iniciar la sesión de hoy desde Inicio, pasar al segundo ejercicio y salir: Inicio y la ficha dicen «Continuar entrenamiento» y «Ejercicio 2 de 4», también en otro dispositivo. Continuar abre el segundo. «Empezar de nuevo» lo deja en «Iniciar entrenamiento».
+  - Como dirección (`raul@arcangel.test`): la cabecera tiene el selector de equipo. Elegir uno filtra Inicio, Agenda, Sesiones y Equipo; «Todos mis equipos» lo quita.
 
 ### Variables en Vercel
 

@@ -9,7 +9,7 @@
 -- nacimiento.
 begin;
 
-select plan(77);
+select plan(74);
 
 -- ── Fixtures (como postgres) ─────────────────────────────────────────────────────────
 -- Club A
@@ -172,27 +172,25 @@ select results_eq(
   'c1 ve las categorías de su club y no las de B'
 );
 
--- En esta fase no hay escrituras para usuarios: ni política ni privilegio.
+-- Las escrituras son de la dirección del club (20270302000100; lo que ella escribe lo cubre
+-- `club_structure.test.sql`). Quien entrena sigue sin escribir, tampoco en su equipo: un alta
+-- no pasa la política, y un cambio o un borrado no encuentran ninguna fila.
 select throws_ok(
   $$insert into team_staff (organization_id, team_id, person_id, staff_role)
     values (current_setting('fx.club_a')::uuid, current_setting('fx.t2')::uuid,
             current_setting('fx.p_c1')::uuid, 'assistant')$$,
   '42501', null,
-  'nadie se añade al cuerpo técnico de otro equipo'
+  'quien entrena no se añade al cuerpo técnico de otro equipo'
 );
 
--- Desde Fase 7 Task 11 hay columnas de escritura para dirección (people_admin_write.test.sql
--- lo cubre a fondo); c1 (coach) tiene el privilegio de columna pero RLS filtra sus filas en
--- silencio, sin 42501: no administra el club.
 select is_empty(
   $$update people set last_name = 'Cambiado' returning id$$,
-  'un coach no edita personas: ni una fila'
+  'quien entrena no edita personas, ni las de su equipo'
 );
 
-select throws_ok(
-  $$delete from team_players$$,
-  '42501', null,
-  'nadie edita plantillas en esta fase'
+select is_empty(
+  $$delete from team_players returning person_id$$,
+  'quien entrena no edita plantillas, ni la suya'
 );
 
 -- ── c2: staff de T2, mismo club (Review Focus 3) ─────────────────────────────────────
@@ -254,12 +252,10 @@ select results_eq(
   'admin ve a todas las personas de su club y a nadie de B'
 );
 
--- Desde Fase 7 Task 10, dirección edita los equipos de su club (sin where, solo toca los
--- suyos: RLS filtra en silencio los de B, no hace falta un 42501 para protegerlos).
-select results_eq(
-  $$update teams set name = name || ' (editado)' returning organization_id$$,
-  $$values (current_setting('fx.club_a')::uuid), (current_setting('fx.club_a')::uuid)$$,
-  'admin edita los equipos de su club con un update sin where, y solo los suyos'
+-- El admin escribe en su club (`club_structure.test.sql`); en otro, no: no ve la fila.
+select is_empty(
+  $$update teams set name = 'Otro nombre' where id = current_setting('fx.tb')::uuid returning id$$,
+  'el admin no escribe en los equipos de otro club'
 );
 
 -- ── coachB: el aislamiento entre clubes vale en los dos sentidos ─────────────────────
@@ -514,8 +510,7 @@ select throws_ok(
 -- Añadir un dato personal a `people` obliga a tocar este test a propósito.
 select columns_are(
   'public', 'people',
-  array['id', 'organization_id', 'first_name', 'last_name', 'birth_year', 'created_at', 'archived_at',
-        'photo_media_id'],
+  array['id', 'organization_id', 'first_name', 'last_name', 'birth_year', 'created_at', 'archived_at'],
   'people guarda el año de nacimiento, nunca la fecha completa'
 );
 
@@ -545,41 +540,20 @@ select is_empty(
   'anon no tiene ningún privilegio sobre las tablas'
 );
 
--- seasons, categories y teams tienen insert y update desde Fase 7 Task 10 (dirección), y
--- people desde Task 11; esas cuatro quedan fuera de aquí y las cubre
--- club_admin_write.test.sql, people_admin_write.test.sql y posture.test.sql.
-select is_empty(
-  $$select c.relname, p.privilege
+-- De tabla entera, `authenticated` solo tiene el borrado, y no en `people`, que se archiva
+-- (20270302000100). El alta y el cambio van por columnas: `posture.test.sql` las lista. Quién
+-- escribe lo decide la política de cada tabla: la dirección del club.
+select set_eq(
+  $$select c.relname::text collate "default", p.privilege
     from pg_class as c
     cross join unnest(array['insert', 'update', 'delete', 'truncate', 'references', 'trigger'])
       as p (privilege)
     where c.relnamespace = 'public'::regnamespace
-      and c.relname in ('team_staff', 'team_players')
+      and c.relname in ('people', 'seasons', 'categories', 'teams', 'team_staff', 'team_players')
       and has_table_privilege('authenticated', c.oid, p.privilege)$$,
-  'authenticated no tiene privilegios de escritura sobre las tablas que siguen de solo lectura'
-);
-select is_empty(
-  $$select c.relname, p.privilege
-    from pg_class as c
-    cross join unnest(array['delete', 'truncate', 'references', 'trigger'])
-      as p (privilege)
-    where c.relnamespace = 'public'::regnamespace
-      and c.relname in ('seasons', 'categories', 'teams')
-      and has_table_privilege('authenticated', c.oid, p.privilege)$$,
-  'y ni seasons, categories ni teams se borran (sin grant de delete)'
-);
--- people: insert de tabla entera (el alta, una a una y por CSV); el cambio y el archivado
--- van por columnas (abajo, en posture.test.sql), nunca update ni delete de tabla entera.
-select is(
-  has_table_privilege('authenticated', 'public.people'::regclass, 'insert'),
-  true,
-  'people sí tiene insert de tabla entera, para el alta'
-);
-select is_empty(
-  $$select p.privilege
-    from unnest(array['update', 'delete', 'truncate', 'references', 'trigger']) as p (privilege)
-    where has_table_privilege('authenticated', 'public.people'::regclass, p.privilege)$$,
-  'people no tiene update ni delete de tabla entera: el cambio va por columnas'
+  $$values ('seasons', 'delete'), ('categories', 'delete'), ('teams', 'delete'),
+           ('team_staff', 'delete'), ('team_players', 'delete')$$,
+  'authenticated solo tiene, de tabla entera, el borrado de cinco: las personas no se borran'
 );
 
 select results_eq(

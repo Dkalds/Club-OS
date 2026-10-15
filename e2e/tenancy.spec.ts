@@ -97,39 +97,39 @@ test("cada club pinta su acento", async ({ page }) => {
   );
 });
 
-test("la terminología llega a la navegación", async ({ page }) => {
+test("la barra es la del rol y la identidad lleva el nombre que le da cada club", async ({ page }) => {
+  const TABS = ["Inicio", "Agenda", "Sesiones", "Biblioteca", "Equipo"];
+
   await openAs(page, MARTA);
   await expect(page).toHaveURL(/\/c\/club-demo$/);
-  await expect(mainNav(page).getByRole("link")).toHaveText([
-    "Inicio",
-    "Nuestra forma",
-    "Entrenar",
-    "Partidos",
-    "Equipo",
-  ]);
+  // La barra no cambia de un club a otro: la decide el rol, no la terminología.
+  await expect(mainNav(page).getByRole("link")).toHaveText(TABS);
   await expect(mainNav(page).getByRole("link", { name: "Inicio" })).toHaveAttribute(
     "aria-current",
     "page",
   );
 
-  // La pestaña lleva a su sección, con el nombre que le da el club, y pasa a ser la activa.
-  // Lo que cada club escribe dentro de The Way lo prueba `way.spec.ts`.
-  await mainNav(page).getByRole("link", { name: "Nuestra forma" }).click();
+  // La entrada a la metodología se llama «Identidad» en todos los clubes, y dice de quién es.
+  // Lo que cada club escribe dentro lo prueba `way.spec.ts`.
+  const identity = page.getByRole("main").getByRole("link", { name: /^Identidad/ });
+  await expect(identity).toContainText("The Demo Way");
+  await identity.click();
   await expect(page).toHaveURL(/\/c\/club-demo\/way$/);
   await expect(page.getByRole("heading", { level: 1, name: "The Demo Way" })).toBeVisible();
-  await expect(mainNav(page).getByRole("link", { name: "Nuestra forma" })).toHaveAttribute(
-    "aria-current",
-    "page",
-  );
+  // Quien entrena no la tiene como pestaña: sigue marcada Inicio, y solo ella.
+  await expect(mainNav(page).getByRole("link", { name: "Inicio" })).toHaveAttribute("aria-current", "page");
   await expect(mainNav(page).locator('[aria-current="page"]')).toHaveCount(1);
+
+  // También está en el menú de cuenta.
+  await page.goto("/c/club-demo");
+  await page.getByRole("button", { name: "Abrir menú de cuenta" }).click();
+  await expect(page.getByRole("banner").getByRole("link", { name: "Identidad" })).toHaveAttribute(
+    "href",
+    "/c/club-demo/way",
+  );
 
   await openAs(page, ALEX);
   await expect(page).toHaveURL(/\/c\/arcangel$/);
-  await expect(mainNav(page).getByRole("link")).toHaveText([
-    "Inicio",
-    "The Way",
-    "Entrenar",
-    "Partidos",
-    "Equipo",
-  ]);
+  await expect(mainNav(page).getByRole("link")).toHaveText(TABS);
+  await expect(page.getByRole("main").getByRole("link", { name: /^Identidad/ })).toContainText("The Arcángel Way");
 });

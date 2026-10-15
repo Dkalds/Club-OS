@@ -1,6 +1,10 @@
 import type { LiveAction, LiveSession, LiveState } from "./types";
 import type { LiveProgressInput } from "./schema";
 
+/** Los topes del servidor (`record_live_progress` y `practice_plans.live_position`). */
+const MAX_ITEM_MINUTES = 180;
+const MAX_POSITION = 29;
+
 function itemMs(minutes: number): number {
   return minutes * 60_000;
 }
@@ -57,7 +61,19 @@ export function liveReducer(
     }
 
     case "finish": {
-      return { ...state, finishedAt: nowMs };
+      // Terminar cierra también el ejercicio en curso: en el último no hay «siguiente» que lo
+      // registre, y sin esto la sesión acabaría con su último ejercicio «sin hacer».
+      const currentItem = session.items[state.index];
+      if (state.startedAt === null || state.itemStartedAt === null || !currentItem) {
+        return { ...state, finishedAt: nowMs };
+      }
+      const pauseOffset = state.pausedAt !== null ? nowMs - state.pausedAt : 0;
+      const actualMs = Math.max(0, nowMs - state.itemStartedAt - state.pausedMs - pauseOffset);
+      return {
+        ...state,
+        finishedAt: nowMs,
+        progress: { ...state.progress, [currentItem.id]: { completed: actualMs > 0, actualMs } },
+      };
     }
   }
 }
@@ -89,7 +105,9 @@ export function toProgressPayload(
     if (!prog) {
       return { id: item.id, completed: false, actualMinutes: null };
     }
-    const minutes = Math.round(prog.actualMs / 60_000);
+    // Un móvil olvidado en marcha no deja el envío sin poder guardarse: el servidor admite
+    // hasta `MAX_ITEM_MINUTES` por ejercicio.
+    const minutes = Math.min(Math.round(prog.actualMs / 60_000), MAX_ITEM_MINUTES);
     return {
       id: item.id,
       // D5: 0 min → completed = false
@@ -100,5 +118,9 @@ export function toProgressPayload(
   return {
     items,
     finished: state.finishedAt !== null,
+    // El estado del directo que guarda el servidor: sin empezar no se manda ninguno (C15).
+    ...(state.startedAt !== null
+      ? { startedAt: new Date(state.startedAt).toISOString(), position: Math.min(state.index, MAX_POSITION) }
+      : {}),
   };
 }

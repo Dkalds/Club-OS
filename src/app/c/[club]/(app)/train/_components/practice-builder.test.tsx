@@ -8,7 +8,7 @@ const mocks = vi.hoisted(() => ({ savePracticeItems: vi.fn() }));
 
 vi.mock("@/modules/practice/actions", () => ({ savePracticeItems: mocks.savePracticeItems }));
 
-import { PracticeBuilder } from "./practice-builder";
+import { PracticeBuilder, type Add } from "./practice-builder";
 
 // Datos neutros: los tests de `src/` no pueden nombrar a ningún club (pnpm check:guards).
 const EVENT = "00000000-0000-4000-8000-0000000000e1";
@@ -310,6 +310,151 @@ describe("PracticeBuilder · minutos", () => {
   });
 });
 
+describe("PracticeBuilder · encaje con la franja", () => {
+  /** El aviso de encaje: la línea que va justo debajo del total, en la barra de guardado. */
+  function fit(): string | null {
+    const next = total().nextElementSibling as HTMLElement;
+    return next.tagName === "P" ? next.textContent : null;
+  }
+  /** Cualquier frase de encaje, esté donde esté. */
+  const anyFit = () => screen.queryByText(/^Te (sobran?|pasas) \d+ min$/);
+
+  // «A», «B» y «C» suman 35 minutos.
+  it("si lo montado dura menos que la franja, dice cuánto sobra, junto al total", () => {
+    renderBuilder({ slotMinutes: 45 });
+
+    expect(fit()).toBe("Te sobran 10 min");
+    const notice = screen.getByText("Te sobran 10 min");
+    expect(total().parentElement).toContainElement(notice);
+    expect(total().compareDocumentPosition(notice)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    // Es un aviso, no un error: `ink-2`, sin `danger` ni `role="alert"`.
+    expect(notice).toHaveClass("text-body-s", "text-ink-2");
+    expect(notice.closest('[role="alert"]')).toBeNull();
+    expect(within(total()).getByText("35'")).toBeInTheDocument();
+  });
+
+  it("si dura más, dice cuánto se pasa", () => {
+    renderBuilder({ slotMinutes: 30 });
+
+    expect(fit()).toBe("Te pasas 5 min");
+  });
+
+  it("si coincide con la franja no dice nada", () => {
+    renderBuilder({ slotMinutes: 35 });
+
+    expect(fit()).toBeNull();
+    expect(anyFit()).not.toBeInTheDocument();
+  });
+
+  it("un minuto de sobra se dice en singular", () => {
+    renderBuilder({ initialItems: [item(1, "Partido largo", null, 74)], slotMinutes: 75 });
+
+    expect(fit()).toBe("Te sobra 1 min");
+  });
+
+  it("con la lista vacía no dice nada, por larga que sea la franja; con el primer ítem, sí", () => {
+    renderBuilder({ initialItems: [], slotMinutes: 75 });
+    expect(fit()).toBeNull();
+    expect(anyFit()).not.toBeInTheDocument();
+
+    click("Añadir bloque libre");
+    expect(fit()).toBe("Te sobran 65 min");
+
+    click("Quitar Sin título");
+    expect(rows()).toHaveLength(0);
+    expect(fit()).toBeNull();
+  });
+
+  it("sin `slotMinutes` no dice nada, se monte lo que se monte", () => {
+    renderBuilder();
+    expect(anyFit()).not.toBeInTheDocument();
+
+    click("Más minutos, Rueda de pases");
+    click("Añadir bloque libre");
+
+    expect(fit()).toBeNull();
+    expect(anyFit()).not.toBeInTheDocument();
+  });
+
+  it("cambia al tocar +5 y −5: de sobrar a encajar y a pasarse, y vuelta", () => {
+    renderBuilder({ slotMinutes: 45 });
+    expect(fit()).toBe("Te sobran 10 min");
+
+    click("Más minutos, Rueda de pases");
+    expect(fit()).toBe("Te sobran 5 min");
+
+    click("Más minutos, Tres calles");
+    expect(within(total()).getByText("45'")).toBeInTheDocument();
+    expect(fit()).toBeNull();
+
+    click("Más minutos, Dos contra dos");
+    expect(fit()).toBe("Te pasas 5 min");
+
+    click("Menos minutos, Dos contra dos");
+    expect(fit()).toBeNull();
+
+    click("Menos minutos, Tres calles");
+    click("Menos minutos, Tres calles");
+    expect(fit()).toBe("Te sobran 10 min");
+  });
+
+  it("también cambia al añadir y al quitar, y no al reordenar", () => {
+    renderBuilder({ slotMinutes: 45 });
+
+    click("Añadir bloque libre");
+    expect(fit()).toBeNull();
+
+    click("Subir Sin título");
+    expect(fit()).toBeNull();
+
+    click("Quitar Sin título");
+    expect(fit()).toBe("Te sobran 10 min");
+
+    open("Activación Rueda de pases");
+    click("Bajar Rueda de pases");
+    expect(fit()).toBe("Te sobran 10 min");
+  });
+
+  it("solo avisa: pasarse de la franja no impide guardar, y la franja no se envía", async () => {
+    renderBuilder({ slotMinutes: 30 });
+    click("Más minutos, Rueda de pases");
+    expect(fit()).toBe("Te pasas 10 min");
+    expect(saveButton()).toBeEnabled();
+
+    save();
+
+    await screen.findByText("Sesión guardada.");
+    expect(Object.keys(sent()).sort()).toEqual(["eventId", "expectedUpdatedAt", "items", "saveId"]);
+    expect(sent().items.map((entry) => entry.minutes)).toEqual([15, 15, 10]);
+    // Guardada, sigue pasándose: el aviso es de lo que hay en pantalla, no de lo que falta por guardar.
+    expect(fit()).toBe("Te pasas 10 min");
+  });
+
+  it("el aviso por sí solo no es un cambio sin guardar", () => {
+    const { onDirtyChange } = renderBuilder({ slotMinutes: 45 });
+
+    expect(fit()).toBe("Te sobran 10 min");
+    expect(saveButton()).toBeDisabled();
+    expect(onDirtyChange).not.toHaveBeenCalled();
+  });
+
+  it("si la franja cambia (se guardan los datos de la sesión), el aviso se pone al día sin tocar la lista", () => {
+    const { update } = renderBuilder({ slotMinutes: 45 });
+    click("Más minutos, Rueda de pases");
+    expect(fit()).toBe("Te sobran 5 min");
+
+    update({ slotMinutes: 60 });
+    expect(fit()).toBe("Te sobran 20 min");
+    expect(rows()[0]).toHaveTextContent("15'");
+
+    update({ slotMinutes: 40 });
+    expect(fit()).toBeNull();
+
+    update({ slotMinutes: undefined });
+    expect(fit()).toBeNull();
+  });
+});
+
 describe("PracticeBuilder · editar una fila", () => {
   it("abierta, ofrece «Fase», «Título» y «Notas», con sus límites", () => {
     renderBuilder({ initialItems: [{ ...A, notes: "Con dos balones." }, B] });
@@ -591,6 +736,262 @@ describe("PracticeBuilder · añadir y quitar", () => {
 
         expect(rows()).toHaveLength(30);
         expect(order()[29]).toBe("30 Rebote y salida");
+      });
+    });
+
+    describe("`empty`: si la lista no tiene ningún ítem", () => {
+      /** Apunta lo que recibe en cada pintura, y ofrece proponer solo con la lista vacía. */
+      function watching(seen: Array<{ full: boolean; empty: boolean }>) {
+        return function extra(add: Add, full: boolean, empty: boolean): ReactNode {
+          seen.push({ full, empty });
+          return (
+            <>
+              {empty ? <button type="button">Proponer</button> : null}
+              <button type="button" onClick={() => add(DRILL_ITEM)}>
+                Añadir ejercicio
+              </button>
+            </>
+          );
+        };
+      }
+
+      it("con ítems es false", () => {
+        const seen: Array<{ full: boolean; empty: boolean }> = [];
+        renderBuilder({ extraActions: watching(seen) });
+
+        expect(seen.at(-1)).toEqual({ full: false, empty: false });
+        expect(screen.queryByRole("button", { name: "Proponer" })).not.toBeInTheDocument();
+      });
+
+      it("con la lista vacía es true", () => {
+        const seen: Array<{ full: boolean; empty: boolean }> = [];
+        renderBuilder({ initialItems: [], extraActions: watching(seen) });
+
+        expect(seen.at(-1)).toEqual({ full: false, empty: true });
+        expect(button("Proponer")).toBeInTheDocument();
+      });
+
+      it("deja de serlo en la misma pintura en que entra el primer ítem, y vuelve a serlo al quitar el último", () => {
+        const seen: Array<{ full: boolean; empty: boolean }> = [];
+        renderBuilder({ initialItems: [], extraActions: watching(seen) });
+
+        click("Añadir ejercicio");
+        expect(rows()).toHaveLength(1);
+        expect(seen.at(-1)?.empty).toBe(false);
+        expect(screen.queryByRole("button", { name: "Proponer" })).not.toBeInTheDocument();
+
+        open("Rebote y salida");
+        click("Quitar Rebote y salida");
+        expect(rows()).toHaveLength(0);
+        expect(seen.at(-1)?.empty).toBe(true);
+        expect(button("Proponer")).toBeInTheDocument();
+      });
+
+      it("un bloque libre también cuenta: con él la lista ya no está vacía", () => {
+        const seen: Array<{ full: boolean; empty: boolean }> = [];
+        renderBuilder({ initialItems: [], extraActions: watching(seen) });
+
+        click("Añadir bloque libre");
+
+        expect(seen.at(-1)?.empty).toBe(false);
+      });
+
+      it("con 30 ítems está llena y no vacía", () => {
+        const thirty = Array.from({ length: 30 }, (_, index) => item(index + 1, `Bloque ${index + 1}`, null, 5));
+        const seen: Array<{ full: boolean; empty: boolean }> = [];
+        renderBuilder({ initialItems: thirty, extraActions: watching(seen) });
+
+        expect(seen.at(-1)).toEqual({ full: true, empty: false });
+      });
+    });
+
+    // Lo que añade una propuesta: cada ejercicio llega con la línea de por qué está ahí.
+    describe("`add` con `hint`", () => {
+      const HINT = "Rebote · 2 puntos clave · 1 variante";
+      const SECOND: PracticeItemDraft = { ...DRILL_ITEM, title: "Pase y va", phase: "Técnica", minutes: 8 };
+      const SECOND_HINT = "Pase · 1 punto clave";
+
+      function withHint(add: Add): ReactNode {
+        return (
+          <button type="button" onClick={() => add(DRILL_ITEM, { hint: HINT })}>
+            Proponer
+          </button>
+        );
+      }
+
+      /** El botón que abre la fila propuesta: con la línea, su nombre es el título y la línea. */
+      const hinted = () => toggle(`Rebote y salida ${HINT}`);
+
+      it("añade la fila al final, cerrada, con la línea visible bajo el título", () => {
+        renderBuilder({ extraActions: withHint });
+
+        click("Proponer");
+
+        expect(rows()).toHaveLength(4);
+        expect(rows()[3]).toHaveTextContent("04");
+        expect(rows()[3]).toHaveTextContent("12'");
+        expect(rows()[3]).toContainElement(hinted());
+        expect(hinted()).toHaveAttribute("aria-expanded", "false");
+        const line = within(hinted()).getByText(HINT);
+        expect(line).toBeVisible();
+        expect(within(hinted()).getByText("Rebote y salida").compareDocumentPosition(line)).toBe(
+          Node.DOCUMENT_POSITION_FOLLOWING,
+        );
+        expect(hinted().lastElementChild).toBe(line);
+        expect(within(total()).getByText("47'")).toBeInTheDocument();
+      });
+
+      it("la línea es solo de esa fila: las demás no llevan ninguna, y sus botones siguen nombrándola por el título", () => {
+        renderBuilder({ extraActions: withHint });
+
+        click("Proponer");
+
+        expect(screen.getAllByText(HINT)).toHaveLength(1);
+        expect(toggle("Activación Rueda de pases").children).toHaveLength(2);
+        expect(button("Mover Rebote y salida")).toBeInTheDocument();
+        expect(button("Más minutos, Rebote y salida")).toBeInTheDocument();
+        open(`Rebote y salida ${HINT}`);
+        expect(button("Quitar Rebote y salida")).toBeInTheDocument();
+        expect(screen.getByRole("group", { name: "Editar Rebote y salida" })).toBeInTheDocument();
+      });
+
+      it("sin `hint`, con uno vacío o sin el segundo argumento, la fila no lleva línea", () => {
+        function plain(add: Add): ReactNode {
+          return (
+            <button
+              type="button"
+              onClick={() => {
+                add(DRILL_ITEM);
+                add({ ...DRILL_ITEM, title: "Pase y va" }, {});
+                add({ ...DRILL_ITEM, title: "Salida rápida" }, { hint: "" });
+              }}
+            >
+              Añadir tres
+            </button>
+          );
+        }
+        renderBuilder({ initialItems: [], extraActions: plain });
+
+        click("Añadir tres");
+
+        expect(order()).toEqual(["01 Rebote y salida", "02 Pase y va", "03 Salida rápida"]);
+        for (const title of ["Rebote y salida", "Pase y va", "Salida rápida"]) {
+          expect(toggle(title).children, title).toHaveLength(1);
+        }
+      });
+
+      it("el `hint` no se envía al guardar: la acción recibe el ítem tal cual, sin él", async () => {
+        renderBuilder({ extraActions: withHint });
+        click("Proponer");
+
+        save();
+
+        await screen.findByText("Sesión guardada.");
+        expect(sent().items).toHaveLength(4);
+        expect(sent().items[3]).toStrictEqual(DRILL_ITEM);
+        expect(sent().items[3]).not.toHaveProperty("hint");
+        expect(JSON.stringify(mocks.savePracticeItems.mock.calls[0])).not.toContain(HINT);
+      });
+
+      it("añadir la fila es un cambio sin guardar, pero la línea no: guardada la fila, no queda nada pendiente", async () => {
+        mocks.savePracticeItems.mockResolvedValue(ok({ updatedAt: NEXT_UPDATED_AT, itemIds: ITEM_IDS_WITH_NEW }));
+        const { onDirtyChange } = renderBuilder({ extraActions: withHint });
+
+        click("Proponer");
+        expect(onDirtyChange).toHaveBeenLastCalledWith(true);
+        expect(saveButton()).toBeEnabled();
+
+        save();
+        await screen.findByText("Sesión guardada.");
+
+        // La fila sigue con su línea (no se guarda, pero sigue ayudando hasta recargar) y no hay cambios.
+        expect(within(hinted()).getByText(HINT)).toBeInTheDocument();
+        expect(onDirtyChange).toHaveBeenLastCalledWith(false);
+        expect(saveButton()).toBeDisabled();
+
+        // Y deshacer un cambio en otra fila vuelve a no dejar nada pendiente: la línea no cuenta.
+        click("Más minutos, Rueda de pases");
+        expect(saveButton()).toBeEnabled();
+        click("Menos minutos, Rueda de pases");
+        expect(saveButton()).toBeDisabled();
+        expect(onDirtyChange).toHaveBeenLastCalledWith(false);
+      });
+
+      it("el segundo guardado sigue sin enviarla, ya con el id de la fila", async () => {
+        mocks.savePracticeItems.mockResolvedValue(ok({ updatedAt: NEXT_UPDATED_AT, itemIds: ITEM_IDS_WITH_NEW }));
+        const { update } = renderBuilder({ extraActions: withHint });
+        click("Proponer");
+        save();
+        await screen.findByText("Sesión guardada.");
+
+        update({ expectedUpdatedAt: NEXT_UPDATED_AT });
+        click("Más minutos, Rebote y salida");
+        save();
+
+        await waitFor(() => expect(mocks.savePracticeItems).toHaveBeenCalledTimes(2));
+        // De 12, el paso sube a 15.
+        expect(sent(1).items[3]).toStrictEqual({ id: NEW_ID, ...DRILL_ITEM, minutes: 15 });
+        await screen.findByText("Sesión guardada.");
+      });
+
+      it("la línea sigue a su fila cuando se mueve, se le cambian los minutos o la fase", () => {
+        renderBuilder({ extraActions: withHint });
+        click("Proponer");
+
+        open(`Rebote y salida ${HINT}`);
+        click("Subir Rebote y salida");
+        click("Más minutos, Rebote y salida");
+        fireEvent.change(screen.getByLabelText("Fase"), { target: { value: "Rebote" } });
+
+        const moved = toggle(`Rebote Rebote y salida ${HINT}`);
+        expect(rows()[2]).toContainElement(moved);
+        expect(rows()[2]).toHaveTextContent("15'");
+        expect(Array.from(moved.children).map((child) => child.textContent)).toEqual([
+          "Rebote",
+          "Rebote y salida",
+          HINT,
+        ]);
+        expect(screen.getAllByText(HINT)).toHaveLength(1);
+      });
+
+      it("varias filas en el mismo evento, cada una con la suya, en su orden", async () => {
+        function proposeTwo(add: Add): ReactNode {
+          return (
+            <button
+              type="button"
+              onClick={() => {
+                add(DRILL_ITEM, { hint: HINT });
+                add(SECOND, { hint: SECOND_HINT });
+              }}
+            >
+              Proponer
+            </button>
+          );
+        }
+        renderBuilder({ initialItems: [], extraActions: proposeTwo });
+
+        click("Proponer");
+
+        expect(rows()).toHaveLength(2);
+        expect(within(rows()[0]).getByText(HINT)).toBeInTheDocument();
+        expect(within(rows()[0]).queryByText(SECOND_HINT)).not.toBeInTheDocument();
+        expect(within(rows()[1]).getByText(SECOND_HINT)).toBeInTheDocument();
+        expect(rows()[1]).toContainElement(toggle(`Técnica Pase y va ${SECOND_HINT}`));
+        expect(within(total()).getByText("20'")).toBeInTheDocument();
+
+        save();
+        await screen.findByText("Sesión guardada.");
+        expect(sent().items).toStrictEqual([DRILL_ITEM, SECOND]);
+      });
+
+      it("con 30 ítems, `add` con `hint` tampoco añade nada", () => {
+        const thirty = Array.from({ length: 30 }, (_, index) => item(index + 1, `Bloque ${index + 1}`, null, 5));
+        renderBuilder({ initialItems: thirty, extraActions: withHint });
+
+        click("Proponer");
+
+        expect(rows()).toHaveLength(30);
+        expect(screen.queryByText(HINT)).not.toBeInTheDocument();
       });
     });
   });

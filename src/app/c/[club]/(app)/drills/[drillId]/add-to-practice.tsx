@@ -121,7 +121,7 @@ function Sessions({
             icon={<TrainIcon size={28} />}
             title="No hay sesiones programadas"
             body="Crea la próxima sesión de tu equipo y añade este ejercicio."
-            action={{ label: "Nueva sesión", href: `/c/${clubSlug}/train/new` }}
+            action={{ label: "Preparar sesión", href: `/c/${clubSlug}/train/new` }}
           />
         </div>
       ) : (

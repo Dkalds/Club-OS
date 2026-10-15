@@ -1,12 +1,15 @@
 import { render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { Board } from "@/modules/board/types";
 import type { PracticeDetail, PracticeDetailItem } from "@/modules/practice/types";
+import type { EventChange } from "@/modules/schedule/changes";
 import { clubContext } from "@/modules/tenancy/test-support";
 
-const mocks = vi.hoisted(() => ({ getClubContext: vi.fn(), getPractice: vi.fn() }));
+const mocks = vi.hoisted(() => ({ getClubContext: vi.fn(), getPractice: vi.fn(), listEventChanges: vi.fn() }));
 
 vi.mock("@/modules/tenancy/queries", () => ({ getClubContext: mocks.getClubContext }));
 vi.mock("@/modules/practice/queries", () => ({ getPractice: mocks.getPractice }));
+vi.mock("@/modules/schedule/changes-queries", () => ({ listEventChanges: mocks.listEventChanges }));
 // Como el de verdad: `notFound()` corta el render lanzando.
 vi.mock("next/navigation", () => ({
   notFound: () => {
@@ -22,7 +25,7 @@ import PracticePage from "./page";
 
 // Datos neutros: los tests de `src/` no pueden nombrar a ningún club (pnpm check:guards).
 function item(n: number, phase: string | null, title: string, minutes: number): PracticeDetailItem {
-  return { id: `i-${n}`, drillId: null, drillVisible: false, title, phase, minutes, notes: null };
+  return { id: `i-${n}`, drillId: null, drillVisible: false, title, phase, minutes, notes: null, completed: null, actualMinutes: null };
 }
 
 // Activación · Técnica ×2 · (sin fase) · Técnica: cuatro bloques, el segundo con dos ítems.
@@ -57,6 +60,8 @@ function practice(overrides: Partial<PracticeDetail> = {}): PracticeDetail {
     standards: [],
     updatedAt: "2026-10-04T10:00:00.123456+00:00",
     canEdit: true,
+    live: { started: false, position: null },
+    actualMinutes: null,
     ...overrides,
   };
 }
@@ -94,6 +99,7 @@ beforeEach(() => {
   vi.resetAllMocks();
   mocks.getClubContext.mockResolvedValue(clubContext("coach"));
   mocks.getPractice.mockResolvedValue(practice());
+  mocks.listEventChanges.mockResolvedValue([]);
 });
 
 afterEach(() => {
@@ -108,6 +114,7 @@ describe("/train/[eventId], acceso y lectura", () => {
 
     expect(mocks.getClubContext).toHaveBeenCalledWith("club-a");
     expect(mocks.getPractice).not.toHaveBeenCalled();
+    expect(mocks.listEventChanges).not.toHaveBeenCalled();
   });
 
   it("lee la sesión de la URL con el contexto del club", async () => {
@@ -134,10 +141,10 @@ describe("/train/[eventId], acceso y lectura", () => {
 });
 
 describe("/train/[eventId], cabecera", () => {
-  it("vuelve a Entrenar y el único <h1> es el título de la sesión", async () => {
+  it("vuelve a Sesiones y el único <h1> es el título de la sesión", async () => {
     await renderPage();
 
-    const back = screen.getByRole("link", { name: "Entrenar" });
+    const back = screen.getByRole("link", { name: "Sesiones" });
     expect(back).toHaveAttribute("href", "/c/club-a/train");
     expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
     const title = screen.getByRole("heading", { level: 1, name: "Salida de presión" });
@@ -330,6 +337,104 @@ describe("/train/[eventId], ejercicios", () => {
     });
   });
 
+  describe("la miniatura de la pizarra", () => {
+    const DRILL = "00000000-0000-4000-8000-0000000000d1";
+    const OTHER = "00000000-0000-4000-8000-0000000000d3";
+    const THUMB = "[data-board-thumb]";
+
+    /** Una pizarra válida y pequeña: el 1 pasa al 2 y corta. */
+    const BOARD: Board = {
+      version: 1,
+      court: "half",
+      tokens: [
+        { id: "a1", kind: "attacker", label: "1", at: { x: 50, y: 80 } },
+        { id: "a2", kind: "attacker", label: "2", at: { x: 20, y: 60 } },
+        { id: "ball", kind: "ball", at: { x: 53, y: 80 } },
+      ],
+      steps: [
+        {
+          note: "El 1 pasa al 2 y corta",
+          moves: [
+            { token: "ball", kind: "pass", to: { x: 23, y: 60 } },
+            { token: "a1", kind: "cut", to: { x: 50, y: 30 } },
+          ],
+        },
+      ],
+    };
+
+    /** Un bloque libre, un ejercicio con pizarra y otro sin ella. */
+    function withBoard(): PracticeDetailItem[] {
+      return [
+        item(1, "Técnica", "Bloque libre", 10),
+        { ...item(2, "Técnica", "Rebote y salida", 15), drillId: DRILL, drillVisible: true, board: BOARD },
+        { ...item(3, "Técnica", "Pase y corte", 10), drillId: OTHER, drillVisible: true },
+      ];
+    }
+
+    it("la fila de un ejercicio con pizarra lleva su miniatura; las demás, no", async () => {
+      const { container } = await renderPage({ items: withBoard() });
+
+      const rows = itemRows();
+      expect(rows.map((row) => row.querySelectorAll(THUMB).length)).toEqual([0, 1, 0]);
+      expect(container.querySelectorAll(THUMB)).toHaveLength(1);
+    });
+
+    it("sin ninguna pizarra en la sesión no hay ninguna miniatura", async () => {
+      const { container } = await renderPage();
+
+      expect(container.querySelector(THUMB)).toBeNull();
+    });
+
+    it("va dentro del enlace a la ficha, entre el número y el título", async () => {
+      await renderPage({ items: withBoard() });
+
+      const link = within(itemRows()[1]).getByRole("link");
+      const thumb = link.querySelector(THUMB) as Element;
+      expect(thumb.parentElement).toBe(link);
+      expect(within(link).getByText("02").compareDocumentPosition(thumb)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+      expect(thumb.compareDocumentPosition(within(link).getByText("Rebote y salida"))).toBe(
+        Node.DOCUMENT_POSITION_FOLLOWING,
+      );
+    });
+
+    it("es decorativa y sin controles: ni imagen con nombre ni botones, y la fila sigue con un único enlace", async () => {
+      await renderPage({ items: withBoard() });
+
+      const row = itemRows()[1];
+      expect(row.querySelector(THUMB)).toHaveAttribute("aria-hidden", "true");
+      expect(within(row).queryByRole("img")).not.toBeInTheDocument();
+      expect(within(row).queryByRole("button")).not.toBeInTheDocument();
+      expect(within(row).getAllByRole("link")).toHaveLength(1);
+      expect(within(row).getByRole("link")).toHaveAttribute("href", `/c/club-a/drills/${DRILL}`);
+      // La nota de un paso es de la ficha, no de la fila.
+      expect(row).not.toHaveTextContent("El 1 pasa al 2 y corta");
+    });
+
+    it("cada fila lleva la suya", async () => {
+      const items = withBoard();
+      items[2] = { ...items[2], board: { ...BOARD, court: "full" } };
+
+      await renderPage({ items });
+
+      const thumbs = itemRows().map((row) => row.querySelector(THUMB));
+      expect(thumbs[0]).toBeNull();
+      expect(thumbs[1]).not.toBeNull();
+      expect(thumbs[2]).not.toBeNull();
+      // Media pista y pista completa no se dibujan en la misma caja.
+      expect(thumbs[1]?.getAttribute("viewBox")).not.toBe(thumbs[2]?.getAttribute("viewBox"));
+    });
+
+    it("en una sesión hecha sigue ahí, junto a cómo acabó el ejercicio", async () => {
+      const items = withBoard().map((each) => ({ ...each, completed: true, actualMinutes: 9 }));
+
+      await renderPage({ status: "done", canEdit: false, items, actualMinutes: 30 });
+
+      const row = itemRows()[1];
+      expect(row.querySelectorAll(THUMB)).toHaveLength(1);
+      expect(row).toHaveTextContent("Hecho · 9 min");
+    });
+  });
+
   it("acaba con el total, la suma de los minutos de los ítems", async () => {
     await renderPage();
 
@@ -369,14 +474,14 @@ describe("/train/[eventId], ejercicios", () => {
       expect(itemRows()).toHaveLength(0);
     });
 
-    it("una sesión cerrada dice «Sesión sin ejercicios», que no se añadieron, y ofrece volver a Entrenar", async () => {
+    it("una sesión cerrada dice «Sesión sin ejercicios», que no se añadieron, y ofrece volver a Sesiones", async () => {
       await renderPage({ items: [], canEdit: false, status: "done" });
 
       expect(screen.getByRole("heading", { level: 2, name: "Sesión sin ejercicios" })).toBeInTheDocument();
       expect(screen.getByText("No se añadieron ejercicios a esta sesión.")).toBeInTheDocument();
       expect(screen.queryByText("Añade ejercicios para prepararla.")).not.toBeInTheDocument();
       expect(screen.queryByText("Esta sesión aún no tiene ejercicios")).not.toBeInTheDocument();
-      expect(screen.getByRole("link", { name: "Volver a Entrenar" })).toHaveAttribute("href", "/c/club-a/train");
+      expect(screen.getByRole("link", { name: "Volver a Sesiones" })).toHaveAttribute("href", "/c/club-a/train");
       expect(screen.queryByRole("link", { name: "Editar sesión" })).not.toBeInTheDocument();
     });
 
@@ -387,10 +492,113 @@ describe("/train/[eventId], ejercicios", () => {
 
       expect(screen.getByRole("heading", { level: 2, name: "Sesión sin ejercicios" })).toBeInTheDocument();
       expect(screen.getByText("No se añadieron ejercicios a esta sesión.")).toBeInTheDocument();
-      expect(screen.getByRole("link", { name: "Volver a Entrenar" })).toBeInTheDocument();
+      expect(screen.getByRole("link", { name: "Volver a Sesiones" })).toBeInTheDocument();
       expect(screen.queryByRole("link", { name: "Editar sesión" })).not.toBeInTheDocument();
       expect(screen.queryByTestId("actions")).not.toBeInTheDocument();
     });
+  });
+});
+
+describe("/train/[eventId], cambios", () => {
+  const EDITORS = "Lo pueden cambiar o cancelar el cuerpo técnico de Equipo A y la dirección.";
+
+  // Del más reciente al más antiguo, como los entrega `listEventChanges`.
+  const CHANGES: EventChange[] = [
+    {
+      id: "c-3",
+      what: "cancelled",
+      oldStartsAt: "2026-10-06T16:00:00+00:00",
+      oldEndsAt: "2026-10-06T17:15:00+00:00",
+      oldLocation: "Pista 1",
+      changedAt: "2026-10-05T10:00:00+00:00",
+    },
+    {
+      id: "c-2",
+      what: "location",
+      oldStartsAt: "2026-10-06T16:00:00+00:00",
+      oldEndsAt: "2026-10-06T17:15:00+00:00",
+      oldLocation: "Pista 2",
+      changedAt: "2026-10-03T10:00:00+00:00",
+    },
+    {
+      id: "c-1",
+      what: "time",
+      oldStartsAt: "2026-10-06T15:00:00+00:00",
+      oldEndsAt: "2026-10-06T16:15:00+00:00",
+      oldLocation: "Pista 2",
+      changedAt: "2026-10-01T10:00:00+00:00",
+    },
+  ];
+
+  /** Las líneas de «Cambios»: de cada una, lo que ha pasado, lo que había y cuándo se cambió. */
+  function changeLines() {
+    const changes = screen.getByRole("heading", { level: 2, name: "Cambios" }).closest("section") as HTMLElement;
+    return within(changes)
+      .getAllByRole("listitem")
+      .map((line) => [...line.children].map((child) => child.textContent));
+  }
+
+  it("lee los cambios de la sesión de la URL con el contexto del club", async () => {
+    const ctx = clubContext("coach");
+    mocks.getClubContext.mockResolvedValue(ctx);
+
+    render(await PracticePage(props("e-9")));
+
+    expect(mocks.listEventChanges).toHaveBeenCalledTimes(1);
+    expect(mocks.listEventChanges).toHaveBeenCalledWith(ctx, "e-9");
+  });
+
+  it("los dice como cambios de una sesión, con lo que había antes en el reloj del club y el día del cambio", async () => {
+    mocks.listEventChanges.mockResolvedValue(CHANGES);
+
+    render(await PracticePage(props()));
+
+    expect(changeLines()).toEqual([
+      ["Sesión cancelada", "Era: Martes 6 oct · 18:00–19:15", "Cambiado el lunes 5 oct"],
+      ["Cambio de lugar", "Antes: Pista 2", "Cambiado el sábado 3 oct"],
+      ["Cambio de hora", "Antes: Martes 6 oct · 17:00–18:15", "Cambiado el jueves 1 oct"],
+    ]);
+  });
+
+  it("van después de los ejercicios y antes de las acciones", async () => {
+    mocks.listEventChanges.mockResolvedValue(CHANGES);
+
+    render(await PracticePage(props()));
+
+    const heading = screen.getByRole("heading", { level: 2, name: "Cambios" });
+    expect(screen.getByText("Juego libre").compareDocumentPosition(heading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(heading.compareDocumentPosition(screen.getByTestId("actions")) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("sin cambios no hay apartado, pero sí quién la puede cambiar", async () => {
+    render(await PracticePage(props()));
+
+    expect(screen.queryByRole("heading", { name: "Cambios" })).not.toBeInTheDocument();
+    expect(screen.getByText(EDITORS)).toBeInTheDocument();
+  });
+
+  it("quien solo la ve también lee los cambios y quién la puede cambiar", async () => {
+    mocks.getClubContext.mockResolvedValue(clubContext("player"));
+    mocks.getPractice.mockResolvedValue(practice({ canEdit: false }));
+    mocks.listEventChanges.mockResolvedValue(CHANGES);
+
+    render(await PracticePage(props()));
+
+    expect(changeLines()).toHaveLength(3);
+    expect(screen.getByText(EDITORS)).toBeInTheDocument();
+  });
+
+  // Una sesión hecha o cancelada ya no se cambia ni se cancela: no se dice quién podría.
+  it.each(["done", "cancelled"] as const)("una sesión %s ya no dice quién la puede cambiar", async (status) => {
+    await renderPage({ status, canEdit: false });
+
+    expect(screen.queryByText(EDITORS)).not.toBeInTheDocument();
+  });
+
+  it("si no se pueden leer, lanza: lo recoge `error.tsx`", async () => {
+    mocks.listEventChanges.mockRejectedValue(new Error("schedule.event-changes: no se pudo leer de la base de datos"));
+
+    await expect(PracticePage(props())).rejects.toThrow("schedule.event-changes");
   });
 });
 
@@ -399,6 +607,12 @@ describe("/train/[eventId], acciones", () => {
     await renderPage();
 
     expect(actionsProps()).toMatchObject({ clubSlug: "club-a", eventId: "e-1", canEdit: true });
+  });
+
+  it("les pasa cuántos ejercicios tiene y lo que el servidor sabe del directo", async () => {
+    await renderPage({ live: { started: true, position: 2 } });
+
+    expect(actionsProps()).toMatchObject({ itemCount: 5, live: { started: true, position: 2 } });
   });
 
   it("una sesión cerrada llega a las acciones sin poder editarse, para que solo se duplique", async () => {
@@ -443,5 +657,48 @@ describe("/train/[eventId], acciones", () => {
     await renderPage({ status: "done", canEdit: false });
 
     expect(actionsProps().duplicateDefaults).toEqual({ date: "2026-10-27", time: "18:00" });
+  });
+});
+
+describe("/train/[eventId], revisar una sesión hecha", () => {
+  const DONE_ITEMS = [
+    { ...item(1, "Activación", "Calentamiento", 10), completed: true, actualMinutes: 12 },
+    { ...item(2, "Técnica", "Bote en movimiento", 15), completed: false, actualMinutes: null },
+  ];
+
+  it("cada ejercicio dice si se hizo y cuánto duró de verdad", async () => {
+    await renderPage({ status: "done", canEdit: false, items: DONE_ITEMS, actualMinutes: 12 });
+
+    const [first, second] = itemRows();
+    expect(first).toHaveTextContent("Hecho · 12 min");
+    expect(second).toHaveTextContent("Sin hacer");
+  });
+
+  it("de un ejercicio sin registro no dice nada: ni «Hecho» ni «Sin hacer»", async () => {
+    // Una sesión que se dio por hecha sin dirigirla desde la app.
+    await renderPage({ status: "done", canEdit: false, items: ITEMS, actualMinutes: null });
+
+    expect(screen.queryByText(/Hecho ·|Sin hacer/)).not.toBeInTheDocument();
+    expect(itemRows()).toHaveLength(ITEMS.length);
+  });
+
+  it("bajo el total previsto va el real", async () => {
+    await renderPage({ status: "done", canEdit: false, items: DONE_ITEMS, actualMinutes: 12 });
+
+    expect(screen.getByText("Total").parentElement).toHaveTextContent("25 minutos");
+    expect(screen.getByText("Real").parentElement).toHaveTextContent("12 minutos");
+  });
+
+  it("sin duración registrada no hay fila «Real»", async () => {
+    await renderPage({ status: "done", canEdit: false, items: DONE_ITEMS, actualMinutes: null });
+
+    expect(screen.queryByText("Real")).not.toBeInTheDocument();
+  });
+
+  it("una sesión programada no dice nada de cómo acabó, aunque esté en curso", async () => {
+    await renderPage({ items: DONE_ITEMS, live: { started: true, position: 1 } });
+
+    expect(screen.queryByText(/Hecho|Sin hacer/)).not.toBeInTheDocument();
+    expect(screen.queryByText("Real")).not.toBeInTheDocument();
   });
 });

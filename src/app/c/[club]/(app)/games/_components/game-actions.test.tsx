@@ -70,6 +70,10 @@ describe("GameActions", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Cancelar partido" }));
     const dialog = screen.getByRole("alertdialog", { name: "¿Cancelar este partido?" });
+    // Cancelado, sigue en «Próximos» de la Agenda hasta que pasa su fecha: el diálogo lo dice.
+    expect(dialog).toHaveAccessibleDescription(
+      "Dejará de salir en Inicio. En la Agenda se verá como cancelado hasta que pase su fecha. No se puede deshacer.",
+    );
     fireEvent.click(within(dialog).getByRole("button", { name: "Cancelar partido" }));
 
     await waitFor(() => expect(mocks.cancelGame).toHaveBeenCalledWith("club-a", { eventId: "e-1" }));

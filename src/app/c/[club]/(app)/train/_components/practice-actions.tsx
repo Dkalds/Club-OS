@@ -1,23 +1,39 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useId, useState, type FormEvent } from "react";
 import { ACTION_ERROR_COPY } from "@/lib/action-result";
 import { useAction } from "@/lib/use-action";
-import { cancelPractice, duplicatePractice } from "@/modules/practice/actions";
+import { liveEntry, type LiveProgress } from "@/modules/live/label";
+import { clearLiveState } from "@/modules/live/storage";
+import { cancelLiveSync } from "@/modules/live/sync";
+import {
+  cancelPractice,
+  duplicatePractice,
+  resetLiveProgress,
+  savePracticeAsTemplate,
+} from "@/modules/practice/actions";
 import type { PracticeStatus } from "@/modules/practice/types";
-import { loadLiveState } from "@/modules/live/storage";
 import { Card } from "@/ui/card";
 import { ConfirmDialog } from "@/ui/confirm-dialog";
 import { CTAButton } from "@/ui/cta-button";
 import { FormAlert, TextField } from "@/ui/form-field";
+import { CheckIcon } from "@/ui/icons";
 
 /**
- * Lo que se hace con una sesión desde su detalle: editarla, duplicarla y cancelarla. Quien
- * lo monta decide si se pinta (solo con `practice.manage`); `canEdit` es de la sesión, que solo
- * se edita y se cancela mientras sigue programada (la hecha o la cancelada solo se duplican).
+ * Lo que se hace con una sesión desde su detalle: dirigirla, editarla, duplicarla y cancelarla.
+ * Quien lo monta decide si se pinta (solo con `practice.manage`); `canEdit` es de la sesión, que
+ * solo se edita y se cancela mientras sigue programada (la hecha o la cancelada solo se duplican).
  *
- * «Editar sesión» es el `primary` de la pantalla y lleva al constructor. «Duplicar» (`secondary`)
+ * Una sesión programada con ejercicios ofrece entrar al directo, y es entonces el `primary` de
+ * la pantalla: «Iniciar entrenamiento» si nunca se ha empezado, o «Continuar entrenamiento» con
+ * el ejercicio por el que va (`liveEntry`). Sale de lo que guarda el servidor (`live`), no del
+ * dispositivo: lo dice igual en cualquier móvil. Con la sesión en curso hay además «Empezar de
+ * nuevo», que pregunta antes: borra el progreso en el servidor (`resetLiveProgress`) y, si va
+ * bien, lo que este dispositivo guardaba. Una sesión hecha no se reinicia: se duplica.
+ *
+ * Sin directo que ofrecer, «Editar sesión» es el `primary` de la pantalla y lleva al constructor. «Duplicar» (`secondary`)
  * abre un panel, no un diálogo (`aria-expanded`): la fecha y la hora de la copia, que parten de
  * lo que propone la página (la semana siguiente, a la misma hora del club). «Crear copia» es el
  * botón del propio panel y abre el detalle de la copia: `secondary` si la sesión se puede editar
@@ -25,42 +41,60 @@ import { FormAlert, TextField } from "@/ui/form-field";
  * `copied` lo mantiene parado desde que sale bien hasta que la página cambia: un segundo toque
  * en ese rato crearía otra copia.
  *
+ * «Guardar como plantilla» (`secondary`), con la sesión en cualquier estado mientras tenga
+ * ejercicios: copia su título, sus objetivos y sus ejercicios (no sus notas) a una plantilla de quien
+ * la guarda (`savePracticeAsTemplate`). Al guardarla lo dice, con el enlace a «Plantillas», y el
+ * botón se queda parado: otro toque guardaría otra igual.
+ *
  * «Cancelar sesión» (`danger`) pregunta antes con `ConfirmDialog`: cancelar saca la sesión de
  * Inicio y de Próximas, y no se deshace desde aquí. El diálogo se queda abierto, con sus botones
  * parados, hasta que la acción termina; sale como salga se cierra. Si ha ido bien, `refresh`
  * vuelve a pedir la página, que ya sabe que la sesión no es editable; si no, el motivo queda en
  * la página, donde se puede volver a intentar (el diálogo no tiene sitio para un aviso).
  *
- * Los dos avisos de fallo son de cada acción: uno fallado no tapa ni borra al otro.
+ * Los avisos de fallo son de cada acción: uno fallado no tapa ni borra a los otros.
  */
+/** Lo que se dice si la sesión ya no tiene ejercicios al guardarla como plantilla (otra persona los quitó). */
+const NO_ITEMS_TO_TEMPLATE = "Esta sesión ya no tiene ejercicios. Recarga para verla al día.";
+
+/** Una sesión que nunca se ha iniciado: lo que vale mientras quien lo monta no diga otra cosa. */
+const NOT_STARTED: LiveProgress = { started: false, position: null };
+
 export function PracticeActions({
   clubSlug,
   eventId,
   canEdit,
   duplicateDefaults,
   status,
-  hasItems = false,
+  itemCount = 0,
+  live = NOT_STARTED,
 }: {
   clubSlug: string;
   eventId: string;
   canEdit: boolean;
   duplicateDefaults: { date: string; time: string };
   status?: PracticeStatus;
-  hasItems?: boolean;
+  /** Cuántos ejercicios tiene la sesión: sin ninguno no hay directo que ofrecer. */
+  itemCount?: number;
+  /** Lo que el servidor sabe del directo de esta sesión. */
+  live?: LiveProgress;
 }) {
   const router = useRouter();
   const panelId = useId();
   const duplicating = useAction();
   const cancelling = useAction();
+  const restarting = useAction();
+  const templating = useAction();
+  const [templateSaved, setTemplateSaved] = useState(false);
   const [panelOpen, setPanelOpen] = useState(false);
   const [date, setDate] = useState(duplicateDefaults.date);
   const [time, setTime] = useState(duplicateDefaults.time);
   const [copied, setCopied] = useState(false);
   const [confirming, setConfirming] = useState(false);
-  const [resumed] = useState<boolean>(() => loadLiveState(eventId) !== null);
+  const [confirmingRestart, setConfirmingRestart] = useState(false);
 
-  const showStart = status === "scheduled" && hasItems;
-  const startLabel = resumed ? "Continuar entrenamiento" : "Iniciar entrenamiento";
+  const showStart = status === "scheduled" && itemCount > 0;
+  const entry = liveEntry(live, itemCount);
   const liveUrl = `/c/${clubSlug}/train/${eventId}/live`;
 
   function submitCopy(event: FormEvent<HTMLFormElement>) {
@@ -89,14 +123,68 @@ export function PracticeActions({
     );
   }
 
+  function confirmRestart() {
+    // Un envío del directo que siguiera reintentándose (sin red al salir) llegaría después del
+    // reinicio y dejaría la sesión otra vez empezada: se cancela antes.
+    cancelLiveSync(eventId);
+    restarting.run(
+      async () => {
+        try {
+          return await resetLiveProgress(clubSlug, { eventId });
+        } finally {
+          setConfirmingRestart(false);
+        }
+      },
+      () => {
+        // Lo que este dispositivo guardaba ya no vale: sin borrarlo, y si aún no se había
+        // enviado, al volver a abrir el directo mandaría el móvil y reviviría lo reiniciado.
+        clearLiveState(eventId);
+        router.refresh();
+      },
+    );
+  }
+
+  function saveAsTemplate() {
+    if (templating.pending || templateSaved) return;
+    templating.run(
+      () => savePracticeAsTemplate(clubSlug, { eventId }),
+      () => setTemplateSaved(true),
+    );
+  }
+
   const copyErrors = duplicating.failure?.fieldErrors ?? {};
 
   return (
     <div className="flex flex-col gap-(--space-3)">
       {showStart ? (
-        <CTAButton variant="primary" block href={liveUrl}>
-          {startLabel}
-        </CTAButton>
+        <>
+          <CTAButton variant="primary" block href={liveUrl}>
+            {entry.label}
+          </CTAButton>
+          {entry.caption ? (
+            <p className="text-center text-body-s text-ink-2 tabular-nums">{entry.caption}</p>
+          ) : null}
+        </>
+      ) : null}
+
+      {showStart && live.started ? (
+        <>
+          <CTAButton variant="secondary" block onClick={() => setConfirmingRestart(true)}>
+            Empezar de nuevo
+          </CTAButton>
+          {restarting.failure ? <FormAlert message={ACTION_ERROR_COPY[restarting.failure.error]} /> : null}
+          <ConfirmDialog
+            open={confirmingRestart}
+            onOpenChange={setConfirmingRestart}
+            title="¿Empezar de nuevo?"
+            body="Se borra el progreso de esta sesión. No se puede deshacer."
+            confirmLabel="Empezar de nuevo"
+            cancelLabel="Volver"
+            tone="danger"
+            pending={restarting.pending}
+            onConfirm={confirmRestart}
+          />
+        </>
       ) : null}
 
       {canEdit ? (
@@ -147,6 +235,49 @@ export function PracticeActions({
         </Card>
       ) : null}
 
+      {itemCount > 0 ? (
+        <>
+          <CTAButton
+            variant="secondary"
+            block
+            disabled={templating.pending || templateSaved}
+            onClick={saveAsTemplate}
+          >
+            Guardar como plantilla
+          </CTAButton>
+          {templating.failure ? (
+            <FormAlert
+              message={
+                // Sin campo que señalar: la sesión se ha quedado sin ejercicios desde que se abrió.
+                templating.failure.error === "INVALID"
+                  ? NO_ITEMS_TO_TEMPLATE
+                  : ACTION_ERROR_COPY[templating.failure.error]
+              }
+            />
+          ) : null}
+          {/*
+            Siempre en el árbol, también vacía: un lector de pantalla solo anuncia lo que cambia
+            en una región que ya existía. Vacía no ocupa nada: el margen negativo anula su hueco.
+          */}
+          <div role="status" className="empty:-mt-(--space-3)">
+            {templateSaved ? (
+              <p className="flex flex-wrap items-center gap-(--space-2) text-body-strong text-success">
+                <CheckIcon size={16} />
+                Plantilla guardada.
+                <Link
+                  href={`/c/${clubSlug}/train?scope=templates`}
+                  // Sin prefetch: el destino es una ruta dinámica detrás del proxy de sesión.
+                  prefetch={false}
+                  className="inline-flex min-h-(--target-min) items-center text-brand-accent underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+                >
+                  Ver plantillas
+                </Link>
+              </p>
+            ) : null}
+          </div>
+        </>
+      ) : null}
+
       {canEdit ? (
         <>
           <CTAButton variant="danger" block onClick={() => setConfirming(true)}>
@@ -157,7 +288,7 @@ export function PracticeActions({
             open={confirming}
             onOpenChange={setConfirming}
             title="¿Cancelar esta sesión?"
-            body="Dejará de salir en Inicio y en Próximas. Seguirá en el histórico."
+            body="Dejará de salir en Inicio y en Próximas. En la Agenda se verá como cancelada hasta que pase su fecha."
             confirmLabel="Cancelar sesión"
             cancelLabel="Volver"
             tone="danger"

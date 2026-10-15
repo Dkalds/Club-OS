@@ -38,6 +38,19 @@ export function sessionMinutes(
 }
 
 /**
+ * Si lo montado encaja con la franja de la sesión: «Te sobran 10 min» si dura menos, «Te pasas
+ * 10 min» si dura más, y `null` si coincide o aún no hay nada montado. Solo avisa: la sesión se
+ * puede guardar igual.
+ */
+export function fitNotice(total: number, slotMinutes: number): string | null {
+  if (total <= 0 || total === slotMinutes) return null;
+
+  const gap = Math.abs(slotMinutes - total);
+  if (total > slotMinutes) return `Te pasas ${gap} min`;
+  return gap === 1 ? "Te sobra 1 min" : `Te sobran ${gap} min`;
+}
+
+/**
  * Una copia de `items` con el elemento de `from` llevado a la posición `to`; los demás se
  * corren para hacerle sitio. Con índices iguales o que no existen no hay movimiento. No muta
  * la entrada.

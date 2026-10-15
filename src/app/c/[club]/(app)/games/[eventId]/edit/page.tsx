@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { ACTION_ERROR_COPY } from "@/lib/action-result";
 import { requireClub } from "@/lib/guards";
 import { can } from "@/lib/permissions";
+import { listVenueNames } from "@/modules/calendar/queries";
 import { getGame } from "@/modules/games/queries";
 import { BackLink } from "@/ui/back-link";
 import { GamesIcon } from "@/ui/icons";
@@ -14,7 +15,7 @@ export default async function EditGamePage({ params }: PageProps<"/c/[club]/game
   const ctx = await requireClub(club);
   if (!can(ctx, "game.manage")) notFound();
 
-  const game = await getGame(ctx, eventId, new Date().toISOString());
+  const [game, venues] = await Promise.all([getGame(ctx, eventId, new Date().toISOString()), listVenueNames(ctx)]);
   if (!game) notFound();
   const detailHref = `/c/${ctx.org.slug}/games/${game.eventId}`;
 
@@ -34,6 +35,7 @@ export default async function EditGamePage({ params }: PageProps<"/c/[club]/game
           clubSlug={ctx.org.slug}
           teams={[{ id: game.teamId, name: game.teamName }]}
           eventId={game.eventId}
+          venues={venues}
           initial={{
             teamId: game.teamId,
             opponent: game.opponent,

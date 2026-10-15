@@ -1,5 +1,6 @@
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { Board } from "@/modules/board/types";
 import type { DrillDetail, DrillStatus } from "@/modules/drills/types";
 import type { Standard } from "@/modules/methodology/types";
 import type { PracticeListItem } from "@/modules/practice/types";
@@ -40,6 +41,27 @@ const STANDARDS: Standard[] = [
   { id: "st-4", number: 4, title: "CUARTO STANDARD", description: "Descripción del cuarto." },
   { id: "st-5", number: 5, title: "QUINTO STANDARD", description: "Descripción del quinto." },
 ];
+
+/** Una pizarra válida y pequeña, de dos pasos: el 1 pasa al 2 y corta; después el 2 bota hacia el aro. */
+const BOARD: Board = {
+  version: 1,
+  court: "half",
+  tokens: [
+    { id: "a1", kind: "attacker", label: "1", at: { x: 50, y: 80 } },
+    { id: "a2", kind: "attacker", label: "2", at: { x: 20, y: 60 } },
+    { id: "ball", kind: "ball", at: { x: 53, y: 80 } },
+  ],
+  steps: [
+    {
+      note: "El 1 pasa al 2 y corta",
+      moves: [
+        { token: "ball", kind: "pass", to: { x: 23, y: 60 } },
+        { token: "a1", kind: "cut", to: { x: 50, y: 30 } },
+      ],
+    },
+    { moves: [{ token: "a2", kind: "dribble", to: { x: 30, y: 25 } }] },
+  ],
+};
 
 /** La ficha de un ejercicio sin nada opcional: lo mínimo que puede traer `getDrill`. */
 function minimal(overrides: Partial<DrillDetail> = {}): DrillDetail {
@@ -357,7 +379,10 @@ describe("«Añadir a sesión»", () => {
     await renderPage();
 
     expect(mocks.listPractices).toHaveBeenCalledTimes(1);
-    expect(mocks.listPractices).toHaveBeenCalledWith(clubContext("coach"), "upcoming", "2026-10-04T10:00:00.000Z");
+    // Las de todos sus equipos, aunque haya uno elegido en la cabecera: aquí no hay selector.
+    expect(mocks.listPractices).toHaveBeenCalledWith(clubContext("coach"), "upcoming", "2026-10-04T10:00:00.000Z", {
+      allTeams: true,
+    });
   });
 
   it.each(["draft", "archived"] as const)(
@@ -531,10 +556,10 @@ describe("una ficha mínima", () => {
     expect(screen.queryByRole("link", { name: "Ver vídeo" })).not.toBeInTheDocument();
   });
 
-  it("sin diagrama sale la pista vacía", async () => {
+  it("sin pizarra ni diagrama no sale nada: una pista vacía no es una pizarra", async () => {
     await renderPage();
 
-    expect(screen.getByRole("img", { name: "Pista sin diagrama" })).toBeInTheDocument();
+    expect(screen.queryByRole("img")).not.toBeInTheDocument();
   });
 
   it("sigue teniendo el título, las píldoras y la pista", async () => {
@@ -552,6 +577,218 @@ describe("una ficha mínima", () => {
     await renderPage();
 
     expect(screen.queryAllByRole("heading", { level: 2 })).toHaveLength(0);
+  });
+});
+
+describe("la pizarra", () => {
+  it("con pizarra pinta la pizarra, con su nombre y el paso en el que está", async () => {
+    mocks.getDrill.mockResolvedValue(minimal({ board: BOARD }));
+
+    await renderPage();
+
+    expect(screen.getByRole("img", { name: "Pizarra de Rebote + outlet, paso 1 de 2" })).toBeInTheDocument();
+    expect(screen.getAllByRole("img")).toHaveLength(1);
+  });
+
+  it("si el ejercicio tiene pizarra e imagen, manda la pizarra: la imagen no se pinta", async () => {
+    // `full()` trae `diagramUrl`.
+    mocks.getDrill.mockResolvedValue(full({ board: BOARD }));
+
+    const { container } = await renderPage();
+
+    expect(screen.getByRole("img", { name: /^Pizarra de Rebote \+ outlet/ })).toBeInTheDocument();
+    expect(screen.queryByRole("img", { name: /^Diagrama de/ })).not.toBeInTheDocument();
+    expect(screen.getAllByRole("img")).toHaveLength(1);
+    // Ni a la vista ni cargándose por detrás: la URL firmada no se usa.
+    expect(container.querySelector("img")).toBeNull();
+    expect(container.innerHTML).not.toContain("storage.test");
+  });
+
+  it("es la pizarra entera, con sus controles y la nota del paso, no una miniatura", async () => {
+    mocks.getDrill.mockResolvedValue(minimal({ board: BOARD }));
+
+    const { container } = await renderPage();
+
+    expect(screen.getByRole("button", { name: "Reproducir la pizarra" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Paso siguiente" })).toBeInTheDocument();
+    expect(screen.getByText("El 1 pasa al 2 y corta")).toBeInTheDocument();
+    expect(container.querySelector("[data-board-thumb]")).toBeNull();
+  });
+
+  it("los pasos se recorren en la propia ficha", async () => {
+    mocks.getDrill.mockResolvedValue(minimal({ board: BOARD }));
+    await renderPage();
+
+    fireEvent.click(screen.getByRole("button", { name: "Paso siguiente" }));
+
+    expect(screen.getByRole("img", { name: "Pizarra de Rebote + outlet, paso 2 de 2" })).toBeInTheDocument();
+  });
+
+  it("una foto fija (sin pasos) se nombra solo con el título, y no lleva controles", async () => {
+    mocks.getDrill.mockResolvedValue(minimal({ board: { ...BOARD, steps: [] } }));
+
+    await renderPage();
+
+    expect(screen.getByRole("img", { name: "Pizarra de Rebote + outlet" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Reproducir la pizarra" })).not.toBeInTheDocument();
+  });
+
+  it("va tras el título y las píldoras, antes de la primera sección", async () => {
+    mocks.getDrill.mockResolvedValue(full({ board: BOARD }));
+
+    await renderPage();
+
+    const board = screen.getByRole("img", { name: /^Pizarra de/ });
+    expect(screen.getByText("U12+").compareDocumentPosition(board)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(board.compareDocumentPosition(screen.getByRole("heading", { level: 2, name: "Objetivo" }))).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    );
+    // El resto de la ficha sigue en su orden.
+    expect(sections()).toEqual([
+      "Objetivo",
+      "Organización",
+      "Coaching points",
+      "Standards",
+      "Principios",
+      "Variantes",
+      "Material",
+      "Vídeo",
+    ]);
+  });
+
+  it("sin pizarra y con imagen, el único dibujo es la imagen: no hay pizarra ni sus controles", async () => {
+    // `full()`, la ficha de `beforeEach`: con `diagramUrl` y sin `board`.
+    await renderPage();
+
+    expect(screen.getAllByRole("img")).toHaveLength(1);
+    expect(screen.getByRole("img")).toHaveAccessibleName("Diagrama de Rebote + outlet");
+    expect(screen.queryByRole("img", { name: /^Pizarra de/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Reproducir la pizarra" })).not.toBeInTheDocument();
+  });
+});
+
+describe("el enlace al editor de la pizarra", () => {
+  const BOARD_HREF = `/c/club-a/drills/${DRILL_ID}/board`;
+  /** El enlace al editor, se llame como se llame; `null` si no sale. */
+  const boardLink = () => screen.queryByRole("link", { name: /^(Dibujar|Editar) pizarra$/ });
+
+  it("quien puede editar un ejercicio sin pizarra ve «Dibujar pizarra», que lleva a su editor", async () => {
+    mocks.getClubContext.mockResolvedValue(clubContext("admin"));
+    mocks.getDrill.mockResolvedValue(minimal());
+
+    await renderPage();
+
+    expect(screen.getByRole("link", { name: "Dibujar pizarra" })).toHaveAttribute("href", BOARD_HREF);
+    expect(screen.queryByRole("link", { name: "Editar pizarra" })).not.toBeInTheDocument();
+  });
+
+  it("si ya tiene pizarra, el enlace es «Editar pizarra», al mismo sitio", async () => {
+    mocks.getClubContext.mockResolvedValue(clubContext("admin"));
+    mocks.getDrill.mockResolvedValue(minimal({ board: BOARD }));
+
+    await renderPage();
+
+    expect(screen.getByRole("link", { name: "Editar pizarra" })).toHaveAttribute("href", BOARD_HREF);
+    expect(screen.queryByRole("link", { name: "Dibujar pizarra" })).not.toBeInTheDocument();
+  });
+
+  it("con imagen subida y sin pizarra sigue siendo «Dibujar pizarra»: la imagen no es una pizarra", async () => {
+    mocks.getClubContext.mockResolvedValue(clubContext("admin"));
+    // `full()` trae `diagramUrl` y no trae `board`.
+    mocks.getDrill.mockResolvedValue(full());
+
+    await renderPage();
+
+    expect(screen.getByRole("link", { name: "Dibujar pizarra" })).toHaveAttribute("href", BOARD_HREF);
+  });
+
+  it.each([
+    ["admin", "draft", false, true],
+    ["admin", "published", false, true],
+    ["admin", "archived", false, true],
+    ["coach", "draft", true, true],
+    ["coach", "draft", false, false],
+    ["coach", "published", true, false],
+    ["coach", "archived", true, false],
+    ["player", "published", false, false],
+    ["guardian", "published", false, false],
+  ] as const)(
+    "%s, ejercicio %s, suyo: %s → enlace a la pizarra: %s, tenga o no pizarra",
+    async (role, status, createdByMe, edit) => {
+      mocks.getClubContext.mockResolvedValue(clubContext(role));
+
+      mocks.getDrill.mockResolvedValue(minimal({ status, createdByMe }));
+      const without = await renderPage();
+      expect(boardLink() !== null).toBe(edit);
+      without.unmount();
+
+      mocks.getDrill.mockResolvedValue(minimal({ status, createdByMe, board: BOARD }));
+      await renderPage();
+      expect(boardLink() !== null).toBe(edit);
+      // Quien no la edita la sigue viendo.
+      expect(screen.getByRole("img", { name: /^Pizarra de/ })).toBeInTheDocument();
+    },
+  );
+
+  it("sale a quien edita el ejercicio: va junto a «Editar», no según el estado ni «Añadir a sesión»", async () => {
+    // Un borrador propio de quien entrena: no se añade a sesiones, pero su pizarra sí se dibuja.
+    mocks.getDrill.mockResolvedValue(minimal({ status: "draft", createdByMe: true }));
+
+    await renderPage();
+
+    expect(screen.getByRole("link", { name: "Editar" })).toBeInTheDocument();
+    expect(boardLink()).toHaveAttribute("href", BOARD_HREF);
+    expect(screen.queryByTestId("add-to-practice")).not.toBeInTheDocument();
+  });
+
+  it("es un botón secundario a todo el ancho: el único relleno de la ficha es «Publicar»", async () => {
+    mocks.getClubContext.mockResolvedValue(clubContext("admin"));
+    mocks.getDrill.mockResolvedValue(minimal({ board: BOARD }));
+
+    await renderPage();
+
+    expect(boardLink()).toHaveClass("border-line-strong", "w-full");
+    expect(boardLink()).not.toHaveClass("bg-brand-accent");
+  });
+
+  it("va justo debajo del dibujo, antes de la primera sección", async () => {
+    mocks.getClubContext.mockResolvedValue(clubContext("admin"));
+    mocks.getDrill.mockResolvedValue(full({ board: BOARD }));
+
+    await renderPage();
+
+    const link = screen.getByRole("link", { name: "Editar pizarra" });
+    expect(screen.getByRole("img", { name: /^Pizarra de/ }).compareDocumentPosition(link)).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    );
+    expect(link.compareDocumentPosition(screen.getByRole("heading", { level: 2, name: "Objetivo" }))).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    );
+  });
+
+  it("en una ficha sin dibujo va tras las píldoras", async () => {
+    mocks.getClubContext.mockResolvedValue(clubContext("admin"));
+    mocks.getDrill.mockResolvedValue(minimal());
+
+    await renderPage();
+
+    expect(screen.queryByRole("img")).not.toBeInTheDocument();
+    expect(
+      screen.getByText("U12+").compareDocumentPosition(screen.getByRole("link", { name: "Dibujar pizarra" })),
+    ).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+  });
+
+  it("lleva el slug del club de la sesión y el id del ejercicio leído", async () => {
+    const other = "00000000-0000-4000-8000-0000000000d7";
+    mocks.getClubContext.mockResolvedValue(clubContext("admin"));
+    mocks.getDrill.mockResolvedValue(minimal({ id: other }));
+
+    await renderPage();
+
+    expect(screen.getByRole("link", { name: "Dibujar pizarra" })).toHaveAttribute(
+      "href",
+      `/c/club-a/drills/${other}/board`,
+    );
   });
 });
 

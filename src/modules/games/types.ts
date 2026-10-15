@@ -1,6 +1,5 @@
 export type GameStatus = "scheduled" | "done" | "cancelled";
 export type HomeAway = "home" | "away";
-export type GameScope = "upcoming" | "played";
 
 /** Un partido en una lista: lo que se pinta en su fila, ya en la zona del club. */
 export type GameListItem = {

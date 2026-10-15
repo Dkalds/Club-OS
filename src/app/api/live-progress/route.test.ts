@@ -143,3 +143,27 @@ it("OK → 200 y revalidatePath", async () => {
   expect(mocks.revalidatePath).toHaveBeenCalledWith("/c/[club]/(app)", "layout");
   expect(db.rpcs[0].name).toBe("record_live_progress");
 });
+
+it("pasa el inicio y la posición a la función cuando llegan", async () => {
+  const db = useDb(USER, ownEvent, progressOk);
+  const res = await POST(req({ ...VALID_BODY, startedAt: "2026-11-17T17:02:00.000Z", position: 2 }));
+  expect(res.status).toBe(200);
+  expect(db.rpcs[0].args).toMatchObject({
+    p_started_at: "2026-11-17T17:02:00.000Z",
+    p_position: 2,
+  });
+});
+
+it("sin inicio ni posición no manda esas claves (ni nulas)", async () => {
+  const db = useDb(USER, ownEvent, progressOk);
+  await POST(req(VALID_BODY));
+  expect(db.rpcs[0].args).not.toHaveProperty("p_started_at");
+  expect(db.rpcs[0].args).not.toHaveProperty("p_position");
+});
+
+it("posición fuera de rango → 422 sin tocar la base", async () => {
+  const db = useDb(USER);
+  const res = await POST(req({ ...VALID_BODY, position: 30 }));
+  expect(res.status).toBe(422);
+  expect(db.rpcs).toHaveLength(0);
+});

@@ -14,6 +14,7 @@ const PLAN = {
   title: "Transición + rebote defensivo",
   focus: ["Defensa", "Rebote"],
   itemMinutes: [10, 15, 15, 20, 15],
+  live: { started: false, position: null },
 };
 
 function practice(id: string, startsAt: string, endsAt: string, overrides: Partial<HomeEvent> = {}): HomeEvent {
@@ -26,7 +27,7 @@ function practice(id: string, startsAt: string, endsAt: string, overrides: Parti
     endsAt,
     location: null,
     // Un plan mínimo: un entreno sin plan no sale en Inicio (ver «un entreno sin plan…»).
-    plan: { title: "Sesión", focus: [], itemMinutes: [] },
+    plan: { title: "Sesión", focus: [], itemMinutes: [], live: { started: false, position: null } },
     game: null,
     ...overrides,
   };
@@ -74,7 +75,22 @@ describe("buildHome · próximo entrenamiento", () => {
       drillCount: 5,
       focus: ["Defensa", "Rebote"],
       location: "Pabellón 2",
+      live: { started: false, position: null },
     });
+  });
+
+  it("el próximo entrenamiento dice si su directo está en curso y por qué ejercicio va", () => {
+    const home = buildHome(
+      input([
+        practice("next", "2026-10-06T16:00:00Z", "2026-10-06T17:15:00Z", {
+          plan: { ...PLAN, live: { started: true, position: 2 } },
+        }),
+      ]),
+      NOW,
+      TZ,
+    );
+
+    expect(home.nextPractice?.live).toEqual({ started: true, position: 2 });
   });
 
   it("un entrenamiento en curso sigue siendo el próximo", () => {
@@ -135,7 +151,7 @@ describe("buildHome · próximo entrenamiento", () => {
     const home = buildHome(
       input([
         practice("empty", "2026-10-06T16:00:00Z", "2026-10-06T17:15:00Z", {
-          plan: { title: "Plan vacío", focus: [], itemMinutes: [] },
+          plan: { title: "Plan vacío", focus: [], itemMinutes: [], live: { started: false, position: null } },
         }),
       ]),
       NOW,
@@ -150,7 +166,7 @@ describe("buildHome · próximo entrenamiento", () => {
     const home = buildHome(
       input([
         practice("short", "2026-10-06T16:00:00Z", "2026-10-06T17:00:00Z", {
-          plan: { title: "Plan", focus: [], itemMinutes: [10, 15, 15, 20, 15] },
+          plan: { title: "Plan", focus: [], itemMinutes: [10, 15, 15, 20, 15], live: { started: false, position: null } },
         }),
       ]),
       NOW,

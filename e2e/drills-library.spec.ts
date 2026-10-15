@@ -33,7 +33,7 @@ function mainNav(page: Page) {
 }
 
 /**
- * Las filas de la lista: los enlaces a la ficha de un ejercicio. «Nuevo» también cuelga de
+ * Las filas de la lista: los enlaces a la ficha de un ejercicio. «Nuevo ejercicio» también cuelga de
  * `/drills/`, pero lleva a `/new`, que no es una ficha.
  */
 function rows(page: Page, club = CLUB) {
@@ -115,24 +115,26 @@ test("el seed tiene lo que estos tests suponen", () => {
   expect(saysBasket.map((drill) => drill.title)).toEqual(["Bloqueo de rebote"]);
 });
 
-test("desde Entrenar se llega a la biblioteca", async ({ page }) => {
+test("la biblioteca tiene su pestaña", async ({ page }) => {
   await openAs(page, ALEX);
   await expect(page).toHaveURL(new RegExp(`${CLUB}$`));
 
-  await mainNav(page).getByRole("link", { name: "Entrenar" }).click();
-  await expect(page).toHaveURL(new RegExp(`${CLUB}/train$`));
-  // En Entrenar manda la cabecera de marca del club.
-  await expect(brandHeader(page)).toBeVisible();
-  await expect(page.getByText(ARCANGEL.branding.display_name, { exact: true })).toBeVisible();
-
-  await page.getByRole("link", { name: "Biblioteca de ejercicios" }).click();
+  await mainNav(page).getByRole("link", { name: "Biblioteca" }).click();
   await expect(page).toHaveURL(new RegExp(`${LIBRARY}$`));
 
+  // Es el inicio de una sección: manda la cabecera de marca del club y el título es el suyo.
+  await expect(brandHeader(page)).toBeVisible();
+  await expect(page.getByText(ARCANGEL.branding.display_name, { exact: true })).toBeVisible();
+  await expect(detailHeader(page)).toHaveCount(0);
   await expect(title(page)).toHaveCount(1);
-  await expect(title(page)).toHaveText("Biblioteca de ejercicios");
+  await expect(title(page)).toHaveText("Biblioteca");
 
-  // Entrenar sigue siendo la pestaña activa: la biblioteca cuelga de ella.
-  await expect(mainNav(page).getByRole("link", { name: "Entrenar" })).toHaveAttribute("aria-current", "page");
+  // Su pestaña es la activa, y solo ella; Sesiones es otro espacio.
+  await expect(mainNav(page).getByRole("link", { name: "Biblioteca" })).toHaveAttribute("aria-current", "page");
+  await expect(mainNav(page).getByRole("link", { name: "Sesiones" })).not.toHaveAttribute("aria-current");
+
+  // «Nuevo ejercicio», que puede el entrenador, lleva a la ficha en blanco.
+  await expect(page.getByRole("link", { name: "Nuevo ejercicio" })).toHaveAttribute("href", `${LIBRARY}/new`);
 
   // Los ejercicios publicados, con su ficha de datos; el borrador de Irene no es de Álex.
   const outlet = row(page, "Rebote + outlet");
@@ -144,13 +146,14 @@ test("desde Entrenar se llega a la biblioteca", async ({ page }) => {
   await expectCountToMatchRows(page);
 });
 
-test("la cabecera de detalle sustituye a la de marca", async ({ page }) => {
+test("en la ficha de un ejercicio, la cabecera de detalle sustituye a la de marca", async ({ page }) => {
   await openAs(page, ALEX);
-  await mainNav(page).getByRole("link", { name: "Entrenar" }).click();
+  await mainNav(page).getByRole("link", { name: "Biblioteca" }).click();
+  await expect(page).toHaveURL(new RegExp(`${LIBRARY}$`));
   await expect(brandHeader(page)).toBeVisible();
 
-  await page.getByRole("link", { name: "Biblioteca de ejercicios" }).click();
-  await expect(page).toHaveURL(new RegExp(`${LIBRARY}$`));
+  await row(page, "Rebote + outlet").click();
+  await expect(page).toHaveURL(new RegExp(`${LIBRARY}/[0-9a-f-]{36}$`));
   await expect(detailHeader(page)).toBeVisible();
 
   // La cabecera de marca sigue en el árbol (la pinta el marco), pero el navegador no la
@@ -161,26 +164,22 @@ test("la cabecera de detalle sustituye a la de marca", async ({ page }) => {
   await expect(page.getByText(ARCANGEL.branding.display_name, { exact: true })).toBeHidden();
   await expect(page.locator("header:visible")).toHaveCount(1);
 
-  // La de detalle está arriba del todo y nombra la pantalla.
-  await expect(detailHeader(page).getByText("Biblioteca", { exact: true })).toBeVisible();
+  // La de detalle está arriba del todo y se queda ahí al desplazar la ficha. Se desplaza por
+  // código, no con la rueda: la rueda depende de dónde esté el puntero y de si la página ya mide.
   const box = await detailHeader(page).boundingBox();
   expect(box?.y).toBe(0);
-
-  // «Volver» lleva a Entrenar; «Nuevo», que puede el entrenador, a la ficha en blanco.
-  const back = detailHeader(page).getByRole("link", { name: "Volver" });
-  await expect(back).toHaveAttribute("href", `${CLUB}/train`);
-  await expect(detailHeader(page).getByRole("link", { name: "Nuevo" })).toHaveAttribute(
-    "href",
-    `${LIBRARY}/new`,
-  );
-
-  // Se queda arriba al desplazar la lista.
-  await page.mouse.wheel(0, 400);
-  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
+  await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+  if (await page.evaluate(() => document.documentElement.scrollHeight > window.innerHeight)) {
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
+  }
   await expect(detailHeader(page)).toBeInViewport({ ratio: 1 });
 
+  // La pestaña sigue siendo Biblioteca, y «Volver» lleva a ella, con la cabecera de marca otra vez.
+  await expect(mainNav(page).getByRole("link", { name: "Biblioteca" })).toHaveAttribute("aria-current", "page");
+  const back = detailHeader(page).getByRole("link", { name: "Volver" });
+  await expect(back).toHaveAttribute("href", LIBRARY);
   await back.click();
-  await expect(page).toHaveURL(new RegExp(`${CLUB}/train$`));
+  await expect(page).toHaveURL(new RegExp(`${LIBRARY}$`));
   await expect(brandHeader(page)).toBeVisible();
   await expect(detailHeader(page)).toHaveCount(0);
 });
@@ -513,7 +512,7 @@ test("cada club su biblioteca", async ({ page, browserErrors }) => {
   await expect(page).toHaveURL(new RegExp(`${DEMO}$`));
 
   await page.goto(`${DEMO}/drills`);
-  await expect(title(page)).toHaveText("Biblioteca de ejercicios");
+  await expect(title(page)).toHaveText("Biblioteca");
   await expect(row(page, "Tiro en carrera", DEMO)).toBeVisible();
   await expect(row(page, "Defensa individual", DEMO)).toBeVisible();
   // Nada del otro club.

@@ -26,10 +26,9 @@ function contextWithRole(role: Role): ClubContext {
 const ADMIN_ONLY: Action[] = [
   "way.manage",
   "admin.access",
+  "club.manage",
   "drill.publish",
   "invite.manage",
-  "club.manage",
-  "team.manage",
   "people.manage",
   "coverage.view",
 ];
@@ -41,6 +40,7 @@ const ADMIN_ONLY: Action[] = [
 const EXPECTED: Record<Action, Record<Role, boolean>> = {
   "way.manage": { admin: true, coach: false, player: false, guardian: false },
   "admin.access": { admin: true, coach: false, player: false, guardian: false },
+  "club.manage": { admin: true, coach: false, player: false, guardian: false },
   "drill.view": { admin: true, coach: true, player: false, guardian: false },
   "drill.create": { admin: true, coach: true, player: false, guardian: false },
   "drill.publish": { admin: true, coach: false, player: false, guardian: false },
@@ -51,8 +51,6 @@ const EXPECTED: Record<Action, Record<Role, boolean>> = {
   "game.manage": { admin: true, coach: true, player: false, guardian: false },
   // Gestión de club: siempre dirección, nunca cuerpo técnico.
   "invite.manage": { admin: true, coach: false, player: false, guardian: false },
-  "club.manage": { admin: true, coach: false, player: false, guardian: false },
-  "team.manage": { admin: true, coach: false, player: false, guardian: false },
   "people.manage": { admin: true, coach: false, player: false, guardian: false },
   "coverage.view": { admin: true, coach: false, player: false, guardian: false },
 };
@@ -102,5 +100,13 @@ describe("can", () => {
   it("un entrenador sigue sin gestionar The Way ni Gestión", () => {
     expect(can(contextWithRole("coach"), "way.manage")).toBe(false);
     expect(can(contextWithRole("coach"), "admin.access")).toBe(false);
+  });
+
+  it("la estructura del club (temporadas, categorías, equipos, plantillas y personas) es solo de la dirección", () => {
+    expect(can(contextWithRole("admin"), "club.manage")).toBe(true);
+    // Quien entrena lee su plantilla, pero no la monta: ni la suya.
+    expect(can(contextWithRole("coach"), "club.manage")).toBe(false);
+    expect(can(contextWithRole("player"), "club.manage")).toBe(false);
+    expect(can(contextWithRole("guardian"), "club.manage")).toBe(false);
   });
 });

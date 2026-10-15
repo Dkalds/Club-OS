@@ -61,3 +61,35 @@ describe("sin items", () => {
     expect(liveProgressSchema.safeParse({ ...valid, items: [] }).success).toBe(true);
   });
 });
+
+describe("estado del directo", () => {
+  it("acepta el inicio en ISO y la posición", () => {
+    const body = { ...valid, startedAt: "2026-11-17T17:02:00.000Z", position: 3 };
+    const result = liveProgressSchema.safeParse(body);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.startedAt).toBe("2026-11-17T17:02:00.000Z");
+      expect(result.data.position).toBe(3);
+    }
+  });
+
+  it("acepta el inicio con desfase", () => {
+    const body = { ...valid, startedAt: "2026-11-17T18:02:00+01:00" };
+    expect(liveProgressSchema.safeParse(body).success).toBe(true);
+  });
+
+  it("sin ellos sigue siendo válido", () => {
+    const result = liveProgressSchema.safeParse(valid);
+    expect(result.success && result.data.startedAt).toBeUndefined();
+  });
+
+  it("un inicio que no es una fecha → falla", () => {
+    expect(liveProgressSchema.safeParse({ ...valid, startedAt: "ayer" }).success).toBe(false);
+  });
+
+  it("posición fuera de 0–29 o con decimales → falla", () => {
+    for (const position of [-1, 30, 1.5]) {
+      expect(liveProgressSchema.safeParse({ ...valid, position }).success).toBe(false);
+    }
+  });
+});

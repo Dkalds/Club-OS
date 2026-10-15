@@ -456,6 +456,7 @@ export type Database = {
       };
       drills: {
         Row: {
+          board: Json | null;
           created_at: string;
           created_by: string | null;
           diagram_media_id: string | null;
@@ -478,6 +479,7 @@ export type Database = {
           video_url: string | null;
         };
         Insert: {
+          board?: Json | null;
           created_at?: string;
           created_by?: string | null;
           diagram_media_id?: string | null;
@@ -500,6 +502,7 @@ export type Database = {
           video_url?: string | null;
         };
         Update: {
+          board?: Json | null;
           created_at?: string;
           created_by?: string | null;
           diagram_media_id?: string | null;
@@ -538,6 +541,64 @@ export type Database = {
           },
         ];
       };
+      event_changes: {
+        Row: {
+          changed_at: string;
+          event_id: string;
+          id: string;
+          old_ends_at: string;
+          old_location: string | null;
+          old_starts_at: string;
+          organization_id: string;
+          team_id: string;
+          what: string;
+        };
+        Insert: {
+          changed_at?: string;
+          event_id: string;
+          id?: string;
+          old_ends_at: string;
+          old_location?: string | null;
+          old_starts_at: string;
+          organization_id: string;
+          team_id: string;
+          what: string;
+        };
+        Update: {
+          changed_at?: string;
+          event_id?: string;
+          id?: string;
+          old_ends_at?: string;
+          old_location?: string | null;
+          old_starts_at?: string;
+          organization_id?: string;
+          team_id?: string;
+          what?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "event_changes_organization_id_event_id_fkey";
+            columns: ["organization_id", "event_id"];
+            isOneToOne: false;
+            referencedRelation: "events";
+            referencedColumns: ["organization_id", "id"];
+          },
+          {
+            foreignKeyName: "event_changes_organization_id_fkey";
+            columns: ["organization_id"];
+            isOneToOne: false;
+            referencedRelation: "organizations";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "event_changes_organization_id_team_id_fkey";
+            columns: ["organization_id", "team_id"];
+            isOneToOne: false;
+            referencedRelation: "teams";
+            referencedColumns: ["organization_id", "id"];
+          },
+        ];
+      };
       events: {
         Row: {
           ends_at: string;
@@ -545,9 +606,11 @@ export type Database = {
           kind: Database["public"]["Enums"]["event_kind"];
           location: string | null;
           organization_id: string;
+          schedule_id: string | null;
           starts_at: string;
           status: Database["public"]["Enums"]["event_status"];
           team_id: string;
+          venue_id: string | null;
         };
         Insert: {
           ends_at: string;
@@ -555,9 +618,11 @@ export type Database = {
           kind: Database["public"]["Enums"]["event_kind"];
           location?: string | null;
           organization_id: string;
+          schedule_id?: string | null;
           starts_at: string;
           status?: Database["public"]["Enums"]["event_status"];
           team_id: string;
+          venue_id?: string | null;
         };
         Update: {
           ends_at?: string;
@@ -565,9 +630,11 @@ export type Database = {
           kind?: Database["public"]["Enums"]["event_kind"];
           location?: string | null;
           organization_id?: string;
+          schedule_id?: string | null;
           starts_at?: string;
           status?: Database["public"]["Enums"]["event_status"];
           team_id?: string;
+          venue_id?: string | null;
         };
         Relationships: [
           {
@@ -582,6 +649,20 @@ export type Database = {
             columns: ["organization_id", "team_id"];
             isOneToOne: false;
             referencedRelation: "teams";
+            referencedColumns: ["organization_id", "id"];
+          },
+          {
+            foreignKeyName: "events_schedule_fkey";
+            columns: ["organization_id", "schedule_id"];
+            isOneToOne: false;
+            referencedRelation: "team_schedules";
+            referencedColumns: ["organization_id", "id"];
+          },
+          {
+            foreignKeyName: "events_venue_fkey";
+            columns: ["organization_id", "venue_id"];
+            isOneToOne: false;
+            referencedRelation: "venues";
             referencedColumns: ["organization_id", "id"];
           },
         ];
@@ -1365,6 +1446,8 @@ export type Database = {
           id: string;
           is_template: boolean;
           last_save_id: string | null;
+          live_position: number | null;
+          live_started_at: string | null;
           notes: string | null;
           organization_id: string;
           primary_focus_id: string | null;
@@ -1384,6 +1467,8 @@ export type Database = {
           id?: string;
           is_template?: boolean;
           last_save_id?: string | null;
+          live_position?: number | null;
+          live_started_at?: string | null;
           notes?: string | null;
           organization_id: string;
           primary_focus_id?: string | null;
@@ -1403,6 +1488,8 @@ export type Database = {
           id?: string;
           is_template?: boolean;
           last_save_id?: string | null;
+          live_position?: number | null;
+          live_started_at?: string | null;
           notes?: string | null;
           organization_id?: string;
           primary_focus_id?: string | null;
@@ -1730,6 +1817,61 @@ export type Database = {
           },
         ];
       };
+      team_schedules: {
+        Row: {
+          created_at: string;
+          duration_minutes: number;
+          id: string;
+          organization_id: string;
+          start_time: string;
+          team_id: string;
+          venue_id: string | null;
+          weekday: number;
+        };
+        Insert: {
+          created_at?: string;
+          duration_minutes: number;
+          id?: string;
+          organization_id: string;
+          start_time: string;
+          team_id: string;
+          venue_id?: string | null;
+          weekday: number;
+        };
+        Update: {
+          created_at?: string;
+          duration_minutes?: number;
+          id?: string;
+          organization_id?: string;
+          start_time?: string;
+          team_id?: string;
+          venue_id?: string | null;
+          weekday?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "team_schedules_organization_id_fkey";
+            columns: ["organization_id"];
+            isOneToOne: false;
+            referencedRelation: "organizations";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "team_schedules_organization_id_team_id_fkey";
+            columns: ["organization_id", "team_id"];
+            isOneToOne: false;
+            referencedRelation: "teams";
+            referencedColumns: ["organization_id", "id"];
+          },
+          {
+            foreignKeyName: "team_schedules_organization_id_venue_id_fkey";
+            columns: ["organization_id", "venue_id"];
+            isOneToOne: false;
+            referencedRelation: "venues";
+            referencedColumns: ["organization_id", "id"];
+          },
+        ];
+      };
       teams: {
         Row: {
           category_id: string;
@@ -1773,6 +1915,35 @@ export type Database = {
             isOneToOne: false;
             referencedRelation: "seasons";
             referencedColumns: ["organization_id", "id"];
+          },
+        ];
+      };
+      venues: {
+        Row: {
+          created_at: string;
+          id: string;
+          name: string;
+          organization_id: string;
+        };
+        Insert: {
+          created_at?: string;
+          id?: string;
+          name: string;
+          organization_id: string;
+        };
+        Update: {
+          created_at?: string;
+          id?: string;
+          name?: string;
+          organization_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "venues_organization_id_fkey";
+            columns: ["organization_id"];
+            isOneToOne: false;
+            referencedRelation: "organizations";
+            referencedColumns: ["id"];
           },
         ];
       };
@@ -1838,6 +2009,7 @@ export type Database = {
     };
     Functions: {
       accept_pending_invitations: { Args: Record<PropertyKey, never>; Returns: string[] };
+      add_new_player: { Args: { p_birth_year?: number; p_first_name: string; p_jersey_number?: number; p_last_name: string; p_position?: string; p_team: string }; Returns: string };
       cancel_game: { Args: { p_event: string }; Returns: undefined };
       coverage_by_team: {
         Args: { p_from: string; p_org: string; p_to: string };
@@ -1873,6 +2045,7 @@ export type Database = {
         };
         Returns: string;
       };
+      create_practice_from_template: { Args: { p_ends_at: string; p_location?: string; p_primary_focus?: string; p_secondary_focus?: string; p_starts_at: string; p_team: string; p_template: string; p_title: string }; Returns: string };
       create_practice_session: {
         Args: {
           p_ends_at: string;
@@ -1885,6 +2058,10 @@ export type Database = {
         };
         Returns: string;
       };
+      create_season: { Args: { p_copy_teams_from?: string; p_ends_on: string; p_name: string; p_org: string; p_starts_on: string }; Returns: string };
+      create_team_schedule: { Args: { p_duration_minutes: number; p_start_time: string; p_team: string; p_venue?: string; p_weekday: number }; Returns: Json };
+      delete_team: { Args: { p_team: string }; Returns: undefined };
+      delete_team_schedule: { Args: { p_schedule: string }; Returns: number };
       duplicate_practice: { Args: { p_event: string; p_starts_at: string }; Returns: string };
       grant_image_consent: { Args: { p_person: string }; Returns: string };
       grant_terms_consent: { Args: { p_org: string }; Returns: string };
@@ -1893,13 +2070,21 @@ export type Database = {
         Returns: undefined;
       };
       record_live_progress: {
-        Args: { p_actual_minutes?: number; p_event: string; p_finished: boolean; p_items: Json };
+        Args: {
+          p_actual_minutes?: number;
+          p_event: string;
+          p_finished: boolean;
+          p_items: Json;
+          p_position?: number;
+          p_started_at?: string;
+        };
         Returns: Json;
       };
       reorder_methodology: {
         Args: { p_ids: string[]; p_kind: string; p_org: string };
         Returns: undefined;
       };
+      reset_live_progress: { Args: { p_event: string }; Returns: string };
       revoke_image_consent: { Args: { p_consent: string }; Returns: undefined };
       save_drill: {
         Args: { p_drill?: string; p_expected_updated_at?: string; p_org: string; p_payload?: Json };
@@ -1908,10 +2093,12 @@ export type Database = {
           updated_at: string;
         }[];
       };
+      save_drill_board: { Args: { p_board?: Json; p_drill: string; p_expected_updated_at: string }; Returns: string };
       save_game_principle: {
         Args: { p_id: string; p_points: string[]; p_summary: string; p_title: string };
         Returns: undefined;
       };
+      save_practice_as_template: { Args: { p_event: string }; Returns: string };
       save_practice_items: {
         Args: { p_expected_updated_at: string; p_items: Json; p_plan: string; p_save_id?: string };
         Returns: Json;
@@ -1927,6 +2114,7 @@ export type Database = {
           p_q?: string;
         };
         Returns: {
+          board: Json | null;
           created_at: string;
           created_by: string | null;
           diagram_media_id: string | null;
@@ -1955,6 +2143,7 @@ export type Database = {
           isSetofReturn: true;
         };
       };
+      set_current_season: { Args: { p_season: string }; Returns: undefined };
       update_game: {
         Args: {
           p_competition?: string;
@@ -1982,6 +2171,7 @@ export type Database = {
         };
         Returns: string;
       };
+      update_team_schedule: { Args: { p_duration_minutes: number; p_schedule: string; p_start_time: string; p_venue?: string; p_weekday: number }; Returns: number };
       update_way_section: {
         Args: {
           p_body_md: string;

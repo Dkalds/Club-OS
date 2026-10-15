@@ -231,12 +231,12 @@ describe("/way/[section]", () => {
     expect(screen.getByRole("link", { name: "Nuestra forma" })).toHaveAttribute("href", "/c/club-a/way");
   });
 
-  it("sin terminología, el enlace de vuelta dice «The Way»", async () => {
+  it("sin terminología, el enlace de vuelta dice «Identidad»", async () => {
     mocks.getWaySection.mockResolvedValue(view({ section: section({ bodyMd: "Un texto." }) }));
 
     render(await WaySectionPage(SECTION_PARAMS));
 
-    expect(screen.getByRole("link", { name: "The Way" })).toHaveAttribute("href", "/c/club-a/way");
+    expect(screen.getByRole("link", { name: "Identidad" })).toHaveAttribute("href", "/c/club-a/way");
   });
 
   describe("de texto", () => {
@@ -261,7 +261,7 @@ describe("/way/[section]", () => {
       ).toBeInTheDocument();
       expect(screen.getByText("Vuelve a consultarla más adelante.")).toBeInTheDocument();
       // El enlace de vuelta y la acción del aviso llevan al mismo sitio.
-      for (const link of screen.getAllByRole("link", { name: "The Way" })) {
+      for (const link of screen.getAllByRole("link", { name: "Identidad" })) {
         expect(link).toHaveAttribute("href", "/c/club-a/way");
       }
     });
@@ -334,7 +334,7 @@ describe("/way/[section]", () => {
       ).toBeInTheDocument();
       expect(screen.getByText("Cuando dirección los publique, aparecerán aquí.")).toBeInTheDocument();
       // El enlace de vuelta y la acción del aviso.
-      expect(screen.getAllByRole("link", { name: "The Way" })).toHaveLength(2);
+      expect(screen.getAllByRole("link", { name: "Identidad" })).toHaveLength(2);
       // Sin principios no hay a quién buscarle ejercicios.
       expect(mocks.getRelatedDrills).not.toHaveBeenCalled();
     });
@@ -574,6 +574,6 @@ describe("/way/standards", () => {
     const empty = screen.getByRole("heading", { level: 2, name: "Todavía no hay Standards publicados" });
     expect(screen.getByText("Cuando dirección los publique, aparecerán aquí.")).toBeInTheDocument();
     const card = empty.closest("div");
-    expect(within(card!).getByRole("link", { name: "The Way" })).toHaveAttribute("href", "/c/club-a/way");
+    expect(within(card!).getByRole("link", { name: "Identidad" })).toHaveAttribute("href", "/c/club-a/way");
   });
 });

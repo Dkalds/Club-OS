@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { LiveProgressInput } from "./schema";
-import { syncLiveProgress } from "./sync";
+import { cancelLiveSync, syncLiveProgress, trackLiveSync } from "./sync";
 
 const EVENT = "9b2f6c1e-3a4d-4e5f-8a6b-7c8d9e0f1a2b";
 const ITEM = "00000000-0000-4000-8000-0000000000b1";
@@ -148,5 +148,97 @@ describe("sin conexión", () => {
 
     await syncLiveProgress(payload, { fetch, now, signal: controller.signal });
     expect(fetch).not.toHaveBeenCalled();
+  });
+});
+
+describe("cómo acaba", () => {
+  it("guardado: devuelve la copia de la sesión que dice el servidor, tal cual", async () => {
+    const fetch = vi.fn().mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => ({ applied: 1, updated_at: "2026-11-17T17:20:00.250000+00:00" }),
+    });
+
+    expect(await syncLiveProgress(payload, { fetch, now })).toEqual({
+      status: "saved",
+      updatedAt: "2026-11-17T17:20:00.250000+00:00",
+    });
+  });
+
+  it("guardado sin copia en la respuesta (o con un cuerpo ilegible): `updatedAt` nulo", async () => {
+    const empty = vi.fn().mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({}) });
+    const broken = vi.fn().mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => {
+        throw new SyntaxError("Unexpected end of JSON input");
+      },
+    });
+
+    expect(await syncLiveProgress(payload, { fetch: empty, now })).toEqual({ status: "saved", updatedAt: null });
+    expect(await syncLiveProgress(payload, { fetch: broken, now })).toEqual({ status: "saved", updatedAt: null });
+  });
+
+  it.each([401, 403, 404, 409, 422])("un %i es un rechazo, no un guardado", async (status) => {
+    const fetch = vi.fn().mockResolvedValueOnce({ ok: false, status });
+
+    expect(await syncLiveProgress(payload, { fetch, now })).toEqual({ status: "rejected", httpStatus: status });
+  });
+});
+
+describe("cancelar", () => {
+  it("la señal viaja con la petición: cancelar corta también la que está en vuelo", async () => {
+    const controller = new AbortController();
+    const fetch = vi.fn().mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({}) });
+
+    await syncLiveProgress(payload, { fetch, now, signal: controller.signal });
+
+    expect(fetch.mock.calls[0]?.[1]).toMatchObject({ signal: controller.signal });
+  });
+
+  it("cancelado a mitad de una petición: ni reintenta ni avisa de que no hay red", async () => {
+    const controller = new AbortController();
+    const fetch = vi.fn().mockImplementation(async () => {
+      controller.abort();
+      throw new DOMException("The operation was aborted.", "AbortError");
+    });
+    const onRetry = vi.fn();
+
+    const outcome = await syncLiveProgress(payload, { fetch, now, onRetry, signal: controller.signal, wait: () => Promise.resolve() });
+
+    expect(outcome).toEqual({ status: "aborted" });
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(onRetry).not.toHaveBeenCalled();
+  });
+
+  it("cancelado mientras espera para reintentar: no vuelve a intentarlo", async () => {
+    const controller = new AbortController();
+    const fetch = vi.fn().mockRejectedValue(new Error("network"));
+
+    const outcome = await syncLiveProgress(payload, {
+      fetch,
+      now,
+      signal: controller.signal,
+      wait: async () => controller.abort(),
+    });
+
+    expect(outcome).toEqual({ status: "aborted" });
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("el envío más reciente de una sesión cancela el anterior, y «cancelLiveSync» cancela el que haya", () => {
+    const first = trackLiveSync(EVENT);
+    const second = trackLiveSync(EVENT);
+    expect(first.signal.aborted).toBe(true);
+    expect(second.signal.aborted).toBe(false);
+
+    cancelLiveSync(EVENT);
+    expect(second.signal.aborted).toBe(true);
+
+    // Sin ninguno en curso no hace nada, y otra sesión no se ve afectada.
+    const other = trackLiveSync("00000000-0000-4000-8000-0000000000e9");
+    cancelLiveSync(EVENT);
+    expect(other.signal.aborted).toBe(false);
+    cancelLiveSync("00000000-0000-4000-8000-0000000000e9");
   });
 });

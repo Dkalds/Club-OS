@@ -19,7 +19,7 @@ describe("LiveControls", () => {
     expect(screen.getByLabelText("Ejercicio anterior")).toBeDisabled();
   });
 
-  it("el botón Siguiente está habilitado en el último para poder confirmar el fin", () => {
+  it("en el último, el control de la derecha termina y está habilitado", () => {
     render(
       <LiveControls
         onPrevious={noop}
@@ -30,7 +30,8 @@ describe("LiveControls", () => {
         isLast={true}
       />,
     );
-    expect(screen.getByLabelText("Siguiente ejercicio")).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Terminar entrenamiento" })).toBeEnabled();
+    expect(screen.queryByRole("button", { name: "Siguiente ejercicio" })).not.toBeInTheDocument();
   });
 
   it("muestra 'Pausa' cuando activo y 'Reanudar' cuando pausado", () => {
@@ -58,7 +59,7 @@ describe("LiveControls", () => {
     expect(screen.getByRole("button", { name: /reanudar/i })).toBeInTheDocument();
   });
 
-  it("solo hay un botón con clase primary (el de pausa/reanudar)", () => {
+  it("solo hay un botón principal (el de pausa/reanudar)", () => {
     render(
       <LiveControls
         onPrevious={noop}
@@ -70,11 +71,11 @@ describe("LiveControls", () => {
       />,
     );
     const buttons = screen.getAllByRole("button");
-    const primaryButtons = buttons.filter((b) => b.className.includes("primary"));
+    const primaryButtons = buttons.filter((b) => b.className.includes("bg-brand-accent"));
     expect(primaryButtons).toHaveLength(1);
   });
 
-  it("en el último muestra 'Terminar entrenamiento'", () => {
+  it("fuera del último, el control de la derecha pasa al siguiente", () => {
     render(
       <LiveControls
         onPrevious={noop}
@@ -82,9 +83,10 @@ describe("LiveControls", () => {
         onNext={noop}
         paused={false}
         isFirst={false}
-        isLast={true}
+        isLast={false}
       />,
     );
-    expect(screen.getByText(/terminar entrenamiento/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Siguiente ejercicio" })).toBeEnabled();
+    expect(screen.queryByRole("button", { name: "Terminar entrenamiento" })).not.toBeInTheDocument();
   });
 });

@@ -4,6 +4,7 @@ import { AccountMenu } from "./account-menu";
 
 // Datos neutros: los tests de `src/` no pueden nombrar a ningún club (pnpm check:guards).
 const ADMIN_HREF = "/c/club-a/admin";
+const ADMIN_LINKS = [{ label: "Gestión", href: ADMIN_HREF }];
 
 function toggle() {
   return screen.getByRole("button", { name: "Abrir menú de cuenta" });
@@ -15,7 +16,7 @@ function openMenu() {
 
 describe("AccountMenu", () => {
   it("cerrado por defecto", () => {
-    render(<AccountMenu name="Ana Ruiz" adminHref={ADMIN_HREF} />);
+    render(<AccountMenu name="Ana Ruiz" links={ADMIN_LINKS} />);
 
     expect(toggle()).toHaveAttribute("aria-expanded", "false");
     expect(screen.queryByRole("button", { name: "Salir" })).not.toBeInTheDocument();
@@ -23,14 +24,14 @@ describe("AccountMenu", () => {
   });
 
   it("el botón lleva el avatar de la persona", () => {
-    render(<AccountMenu name="Ana Ruiz" adminHref={null} />);
+    render(<AccountMenu name="Ana Ruiz" links={[]} />);
 
     const avatar = within(toggle()).getByRole("img", { name: "Ana Ruiz" });
     expect(avatar).toHaveTextContent("AR");
   });
 
   it("al pulsar el botón se abre y vuelve a cerrarse", () => {
-    render(<AccountMenu name="Ana Ruiz" adminHref={null} />);
+    render(<AccountMenu name="Ana Ruiz" links={[]} />);
 
     openMenu();
     expect(toggle()).toHaveAttribute("aria-expanded", "true");
@@ -48,7 +49,7 @@ describe("AccountMenu", () => {
   });
 
   it("Salir es un POST a /auth/sign-out", () => {
-    render(<AccountMenu name="Ana Ruiz" adminHref={null} />);
+    render(<AccountMenu name="Ana Ruiz" links={[]} />);
     openMenu();
 
     const form = screen.getByRole("button", { name: "Salir" }).closest("form");
@@ -59,15 +60,41 @@ describe("AccountMenu", () => {
   });
 
   it("dirección ve Gestión", () => {
-    render(<AccountMenu name="Ana Ruiz" adminHref={ADMIN_HREF} />);
+    render(<AccountMenu name="Ana Ruiz" links={ADMIN_LINKS} />);
     openMenu();
 
     expect(screen.getByRole("link", { name: "Gestión" })).toHaveAttribute("href", ADMIN_HREF);
     expect(screen.getByRole("button", { name: "Salir" })).toBeInTheDocument();
   });
 
+  it("pinta los enlaces que le pasan, en su orden, y «Salir» el último", () => {
+    render(
+      <AccountMenu
+        name="Ana Ruiz"
+        links={[
+          { label: "Identidad", href: "/c/club-a/way" },
+          { label: "Gestión", href: ADMIN_HREF },
+        ]}
+      />,
+    );
+    openMenu();
+
+    expect(screen.getByRole("link", { name: "Identidad" })).toHaveAttribute("href", "/c/club-a/way");
+    const panel = screen.getByRole("button", { name: "Salir" }).closest("div[id]") as HTMLElement;
+    const items = [...panel.querySelectorAll("a, button")].map((item) => item.textContent);
+    expect(items).toEqual(["Identidad", "Gestión", "Salir"]);
+  });
+
+  it("sin `links` solo ofrece Salir", () => {
+    render(<AccountMenu name="Ana Ruiz" />);
+    openMenu();
+
+    expect(screen.queryAllByRole("link")).toHaveLength(0);
+    expect(screen.getByRole("button", { name: "Salir" })).toBeInTheDocument();
+  });
+
   it("un entrenador no ve Gestión", () => {
-    render(<AccountMenu name="Ana Ruiz" adminHref={null} />);
+    render(<AccountMenu name="Ana Ruiz" links={[]} />);
     openMenu();
 
     expect(screen.queryByRole("link", { name: "Gestión" })).not.toBeInTheDocument();
@@ -76,7 +103,7 @@ describe("AccountMenu", () => {
   });
 
   it("Escape cierra y devuelve el foco al botón", () => {
-    render(<AccountMenu name="Ana Ruiz" adminHref={ADMIN_HREF} />);
+    render(<AccountMenu name="Ana Ruiz" links={ADMIN_LINKS} />);
     openMenu();
     screen.getByRole("link", { name: "Gestión" }).focus();
     expect(screen.getByRole("link", { name: "Gestión" })).toHaveFocus();
@@ -92,7 +119,7 @@ describe("AccountMenu", () => {
     render(
       <>
         <button type="button">Otro control</button>
-        <AccountMenu name="Ana Ruiz" adminHref={null} />
+        <AccountMenu name="Ana Ruiz" links={[]} />
       </>,
     );
     screen.getByRole("button", { name: "Otro control" }).focus();
@@ -107,7 +134,7 @@ describe("AccountMenu", () => {
     render(
       <>
         <button type="button">Fuera</button>
-        <AccountMenu name="Ana Ruiz" adminHref={null} />
+        <AccountMenu name="Ana Ruiz" links={[]} />
       </>,
     );
     openMenu();
@@ -119,7 +146,7 @@ describe("AccountMenu", () => {
   });
 
   it("pulsar dentro del menú no lo cierra", () => {
-    render(<AccountMenu name="Ana Ruiz" adminHref={ADMIN_HREF} />);
+    render(<AccountMenu name="Ana Ruiz" links={ADMIN_LINKS} />);
     openMenu();
 
     fireEvent.pointerDown(screen.getByRole("link", { name: "Gestión" }));
@@ -131,7 +158,7 @@ describe("AccountMenu", () => {
   it("si el foco sale del menú con el teclado, se cierra", () => {
     render(
       <>
-        <AccountMenu name="Ana Ruiz" adminHref={null} />
+        <AccountMenu name="Ana Ruiz" links={[]} />
         <button type="button">Siguiente</button>
       </>,
     );
@@ -145,7 +172,7 @@ describe("AccountMenu", () => {
   });
 
   it("las áreas táctiles llegan a target-min", () => {
-    render(<AccountMenu name="Ana Ruiz" adminHref={ADMIN_HREF} />);
+    render(<AccountMenu name="Ana Ruiz" links={ADMIN_LINKS} />);
     openMenu();
 
     expect(toggle().className).toContain("size-(--target-min)");
@@ -154,7 +181,7 @@ describe("AccountMenu", () => {
   });
 
   it("el ancho mínimo del panel sale de un token, no de la escala de Tailwind", () => {
-    render(<AccountMenu name="Ana Ruiz" adminHref={ADMIN_HREF} />);
+    render(<AccountMenu name="Ana Ruiz" links={ADMIN_LINKS} />);
     openMenu();
 
     const panel = document.getElementById(toggle().getAttribute("aria-controls") ?? "");

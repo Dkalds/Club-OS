@@ -314,6 +314,21 @@ describe("buildSeedData: contenido", () => {
     expect(teams("club-demo")).toEqual(["Infantil A"]);
   });
 
+  it("cada club tiene sus pistas, sin repetir nombre, y los entrenamientos del seed son en una de ellas", () => {
+    for (const club of [ARCANGEL, CLUB_DEMO]) {
+      const org = data.organizations.find((o) => o.slug === club.slug);
+      const names = data.venues.filter((venue) => venue.organization_id === org?.id).map((venue) => venue.name);
+
+      expect(names).toEqual(club.venues);
+      expect(new Set(names.map((name) => name.trim().toLowerCase())).size).toBe(names.length);
+
+      const practices = data.events.filter((event) => event.organization_id === org?.id && event.kind === "practice");
+      expect(practices.length).toBeGreaterThan(0);
+      for (const practice of practices) expect(names).toContain(practice.location);
+    }
+
+  });
+
   it("áreas de foco: técnica, transición, tiro, defensa, rebote, ataque", () => {
     for (const slug of ["arcangel", "club-demo"]) {
       const focus = data.focus_areas
@@ -1015,8 +1030,10 @@ describe("buildSeedData: invariantes", () => {
   it("menores: ninguna persona lleva fecha de nacimiento completa, solo birth_year", () => {
     for (const person of data.people) {
       expect(Object.keys(person).sort()).toEqual(
-        ["birth_year", "first_name", "id", "last_name", "organization_id"].sort(),
+        // `archived_at` va siempre a null: quien se archivó en Gestión vuelve al club al sembrar.
+        ["archived_at", "birth_year", "first_name", "id", "last_name", "organization_id"].sort(),
       );
+      expect(person.archived_at).toBeNull();
       if (person.birth_year != null) {
         expect(Number.isInteger(person.birth_year)).toBe(true);
         expect(person.birth_year).toBeGreaterThanOrEqual(2000);
@@ -1045,6 +1062,7 @@ describe("buildSeedData: invariantes", () => {
       ["seasons", data.seasons],
       ["categories", data.categories],
       ["teams", data.teams],
+      ["venues", data.venues],
       ["team_staff", data.team_staff],
       ["team_players", data.team_players],
       ["focus_areas", data.focus_areas],
@@ -1223,5 +1241,44 @@ describe("fixtures exportados (contrato entre fases)", () => {
     expect(
       data.memberships.filter((m) => m.organization_id === id).map((m) => m.email),
     ).toEqual(club.members.map((m) => m.email));
+  });
+});
+
+describe("buildSeedData: el directo de las sesiones", () => {
+  const itemsOf = (planId: string) => data.practice_items.filter((item) => item.plan_id === planId);
+
+  it("ninguna sesión sembrada está empezada: sembrar deja el directo sin iniciar", () => {
+    for (const plan of data.practice_plans) {
+      expect(plan.live_started_at).toBeNull();
+      expect(plan.live_position).toBeNull();
+    }
+  });
+
+  it("una sesión hecha tiene el registro de cada ejercicio y dura lo que suman", () => {
+    const done = data.practice_plans.filter((plan) => plan.status === "done");
+    expect(done.length).toBeGreaterThan(0);
+
+    for (const plan of done) {
+      const items = itemsOf(plan.id);
+      expect(items.length).toBeGreaterThan(0);
+      for (const item of items) {
+        expect(item.completed).toBe(true);
+        expect(item.actual_minutes).toBe(item.minutes);
+      }
+      expect(plan.actual_minutes).toBe(items.reduce((sum, item) => sum + item.minutes, 0));
+    }
+  });
+
+  it("una sesión que no se ha hecho (programada o cancelada) no tiene registro", () => {
+    const pending = data.practice_plans.filter((plan) => plan.status !== "done");
+    expect(pending.length).toBeGreaterThan(0);
+
+    for (const plan of pending) {
+      expect(plan.actual_minutes).toBeNull();
+      for (const item of itemsOf(plan.id)) {
+        expect(item.completed).toBeNull();
+        expect(item.actual_minutes).toBeNull();
+      }
+    }
   });
 });

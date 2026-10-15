@@ -18,7 +18,9 @@ export type ActionError =
   | "INVITE_INVALID"
   | "INVITE_ALREADY_ACCEPTED"
   | "LAST_ADMIN"
-  | "CONSENT_GRANTOR";
+  | "CONSENT_GRANTOR"
+  | "TEMPLATE_LIMIT"
+  | "IN_USE";
 
 export type ActionResult<T> =
   | { ok: true; data: T }
@@ -40,6 +42,8 @@ export const ACTION_ERROR_COPY: Record<ActionError, string> = {
   INVITE_ALREADY_ACCEPTED: "Esta invitación ya se aceptó.",
   LAST_ADMIN: "Este club necesita al menos una persona en dirección.",
   CONSENT_GRANTOR: "Solo el tutor de esta persona puede dar este consentimiento.",
+  TEMPLATE_LIMIT: "Ya tienes 50 plantillas, el máximo. Borra alguna para guardar otra.",
+  IN_USE: "No se puede borrar porque se está usando.",
 };
 
 export function ok<T>(data: T): ActionResult<T> {

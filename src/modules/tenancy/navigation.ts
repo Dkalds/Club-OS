@@ -1,21 +1,29 @@
 import type { Terminology } from "./branding";
+import type { ClubContext } from "./queries";
 
-export type NavKey = "home" | "way" | "train" | "games" | "team";
+type Role = ClubContext["membership"]["role"];
+
+export type NavKey = "home" | "agenda" | "sessions" | "library" | "team" | "identity";
 
 export type NavItem = { key: NavKey; label: string; href: string };
 
-/** Etiqueta de la pestaña de metodología cuando el club no le ha puesto nombre. */
-const DEFAULT_WAY_LABEL = "The Way";
+/**
+ * Cómo se llama en la navegación la metodología del club: un término de plataforma, el mismo
+ * en todos los clubes. Es también el título de sus pantallas cuando el club no les ha puesto
+ * nombre propio.
+ */
+export const IDENTITY_LABEL = "Identidad";
 
 /** Nombre de la página de los Standards cuando el club no le ha puesto uno. */
 const DEFAULT_STANDARDS_LABEL = "Standards";
 
 /**
- * El nombre que el club da a su metodología (pestaña, títulos y migas), o «The Way». Un
- * término vacío o en blanco cuenta como ausente: la etiqueta nunca se queda vacía.
+ * El nombre que el club da a su metodología (títulos y migas de sus pantallas, y Gestión), o
+ * «Identidad». Un término vacío o en blanco cuenta como ausente: la etiqueta nunca se queda
+ * vacía. La entrada de navegación no lo usa: es siempre `IDENTITY_LABEL`.
  */
 export function wayLabel(terminology: Terminology): string {
-  return terminology.way?.trim() || DEFAULT_WAY_LABEL;
+  return terminology.way?.trim() || IDENTITY_LABEL;
 }
 
 /** El nombre que el club da a sus Standards, o «Standards». Mismo criterio que `wayLabel`. */
@@ -23,48 +31,96 @@ export function standardsLabel(terminology: Terminology): string {
   return terminology.standards?.trim() || DEFAULT_STANDARDS_LABEL;
 }
 
-/** Pestañas con ruta propia bajo `/c/{slug}/`. Inicio es la raíz del club. */
-const SECTION_KEYS = ["way", "train", "games", "team"] as const satisfies ReadonlyArray<NavKey>;
-
-function isSectionKey(segment: string | undefined): segment is (typeof SECTION_KEYS)[number] {
-  return (SECTION_KEYS as ReadonlyArray<string>).includes(segment ?? "");
-}
+/** La etiqueta y el segmento de ruta de cada pestaña; Inicio es la raíz del club. */
+const TABS: Record<NavKey, { label: string; segment: string }> = {
+  home: { label: "Inicio", segment: "" },
+  agenda: { label: "Agenda", segment: "agenda" },
+  sessions: { label: "Sesiones", segment: "train" },
+  library: { label: "Biblioteca", segment: "drills" },
+  team: { label: "Equipo", segment: "team" },
+  identity: { label: IDENTITY_LABEL, segment: "way" },
+};
 
 /**
- * Las cinco pestañas de la navegación principal de un club, en su orden.
- *
- * La de metodología lleva el nombre que el club le haya dado en su terminología.
+ * Las pestañas de cada rol, en su orden. Cada rol ve solo lo que puede usar: quien entrena y la
+ * dirección, la semana de un equipo; un jugador o una familia, que hoy no leen ni equipos ni
+ * calendario (RLS), Inicio y la identidad del club. El compilador obliga a decidir un rol nuevo.
  */
-export function navItems(clubSlug: string, terminology: Terminology): NavItem[] {
+const ROLE_TABS: Record<Role, readonly NavKey[]> = {
+  admin: ["home", "agenda", "sessions", "library", "team"],
+  coach: ["home", "agenda", "sessions", "library", "team"],
+  player: ["home", "identity"],
+  guardian: ["home", "identity"],
+};
+
+/**
+ * La pestaña de cada primer segmento tras `/c/{slug}`. Los partidos (`/games/…`) no tienen
+ * pestaña propia: viven en la Agenda.
+ */
+const SECTION_TAB: Record<string, NavKey> = {
+  agenda: "agenda",
+  games: "agenda",
+  train: "sessions",
+  drills: "library",
+  team: "team",
+  way: "identity",
+};
+
+/**
+ * Las pestañas de la navegación principal de un club para quien tiene ese rol, en su orden.
+ * Las URL son las de siempre (`/train`, `/drills`, `/way`…): solo cambian los nombres.
+ */
+export function navItems(clubSlug: string, role: Role): NavItem[] {
   const base = `/c/${clubSlug}`;
 
-  return [
-    { key: "home", label: "Inicio", href: base },
-    { key: "way", label: wayLabel(terminology), href: `${base}/way` },
-    { key: "train", label: "Entrenar", href: `${base}/train` },
-    { key: "games", label: "Partidos", href: `${base}/games` },
-    { key: "team", label: "Equipo", href: `${base}/team` },
-  ];
+  return ROLE_TABS[role].map((key) => {
+    const { label, segment } = TABS[key];
+    return { key, label, href: segment ? `${base}/${segment}` : base };
+  });
 }
 
-export type AdminNavItem = { label: string; href: string };
+/** Si la identidad del club es una pestaña para ese rol. Si no, se llega desde Inicio y desde el menú de cuenta. */
+export function hasIdentityTab(role: Role): boolean {
+  return ROLE_TABS[role].includes("identity");
+}
+
+/** La entrada a la identidad del club: `/c/{slug}/way`. */
+export function identityHref(clubSlug: string): string {
+  return `/c/${clubSlug}/${TABS.identity.segment}`;
+}
 
 /**
- * Los apartados de Gestión (`/c/{slug}/admin/…`), en su orden: la metodología, los valores,
- * los principios de juego y los Standards. La metodología y los Standards llevan el nombre
- * que el club les haya dado en su terminología; «Valores» y «Principios» son siempre esos.
+ * Un apartado de Gestión. `also` son otras rutas que también son suyas aunque no cuelguen de
+ * su `href`: con una de ellas abierta, el apartado sigue siendo el actual.
+ */
+export type AdminNavItem = { label: string; href: string; also?: readonly string[] };
+
+/** El primer apartado de Gestión, al que lleva su raíz: la temporada y sus equipos. */
+export function adminHomeHref(clubSlug: string): string {
+  return `/c/${clubSlug}/admin/season`;
+}
+
+/**
+ * Los apartados de Gestión (`/c/{slug}/admin/…`), en su orden: la estructura del club (la
+ * temporada con sus equipos, su calendario y las personas) y la metodología (el documento, los valores, los
+ * principios de juego y los Standards). La metodología y los Standards llevan el nombre que el
+ * club les haya dado en su terminología; los demás son siempre esos.
+ *
+ * Los equipos (`/admin/teams/…`) no tienen apartado propio: se llega desde su temporada, y
+ * con uno abierto el apartado actual sigue siendo «Temporada».
  */
 export function adminNavItems(clubSlug: string, terminology: Terminology): AdminNavItem[] {
   const base = `/c/${clubSlug}/admin`;
 
   return [
+    { label: "Temporada", href: adminHomeHref(clubSlug), also: [`${base}/teams`] },
+    { label: "Calendario", href: `${base}/calendar` },
+    { label: "Personas", href: `${base}/people` },
     { label: wayLabel(terminology), href: `${base}/way` },
     { label: "Valores", href: `${base}/values` },
     { label: "Principios", href: `${base}/principles` },
     { label: standardsLabel(terminology), href: `${base}/standards` },
     { label: "Club", href: `${base}/club` },
-    { label: "Equipos", href: `${base}/teams` },
-    { label: "Personas", href: `${base}/people` },
     { label: "Ejercicios pendientes", href: `${base}/drills` },
     { label: "Cobertura", href: `${base}/coverage` },
     { label: "Invitaciones", href: `${base}/invites` },
@@ -72,15 +128,18 @@ export function adminNavItems(clubSlug: string, terminology: Terminology): Admin
 }
 
 /**
- * La pestaña a la que pertenece una ruta del club. Cuenta el primer segmento tras
- * `/c/{slug}`, entero: `/c/club/train/…` es Entrenar. La biblioteca de ejercicios
- * (`/c/club/drills/…`) tiene su propio segmento pero vive bajo Entrenar, así que también lo
- * activa; no es una pestaña y por eso no está en `navItems`. Todo lo demás es Inicio.
+ * La pestaña a la que pertenece una ruta del club, de entre las que tiene quien mira (`keys`).
+ * Cuenta el primer segmento tras `/c/{slug}`, entero: `/c/club/train/…` es Sesiones y
+ * `/c/club/games/…`, Agenda.
+ *
+ * Si la sección de la ruta no es una de sus pestañas (quien entrena, en `/way`: llega a la
+ * identidad desde Inicio), o la ruta no es de este club, es Inicio. Siempre hay una pestaña
+ * activa, y solo una.
  */
-export function activeNavKey(pathname: string, clubSlug: string): NavKey {
+export function activeNavKey(pathname: string, clubSlug: string, keys: readonly NavKey[]): NavKey {
   const [, root, club, section] = pathname.split("/");
   if (root !== "c" || club !== clubSlug) return "home";
-  if (section === "drills") return "train";
 
-  return isSectionKey(section) ? section : "home";
+  const key = section !== undefined && Object.hasOwn(SECTION_TAB, section) ? SECTION_TAB[section] : undefined;
+  return key !== undefined && keys.includes(key) ? key : "home";
 }

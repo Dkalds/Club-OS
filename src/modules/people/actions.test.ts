@@ -13,7 +13,7 @@ vi.mock("@/lib/guards", () => ({ requireClub: mocks.requireClub }));
 vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidatePath }));
 vi.mock("@/lib/log", () => ({ logError: mocks.logError }));
 
-import { archivePerson, createGuardianship, createPerson, updatePerson } from "./actions";
+import { createGuardianship } from "./actions";
 
 type Reply = { data: unknown; error: { code: string; message: string } | null };
 
@@ -60,58 +60,6 @@ const CHILD = uuid(2);
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.requireClub.mockResolvedValue(ADMIN);
-});
-
-describe("createPerson", () => {
-  it("inserta en el club de quien llama", async () => {
-    const { inserts } = installDatabase();
-
-    const result = await createPerson("club-a", { firstName: "Ana", lastName: "Pino", birthYear: 2014 });
-
-    expect(result).toEqual({ ok: true, data: { personId: "new-id" } });
-    expect(inserts[0]).toEqual({
-      table: "people",
-      values: { organization_id: ORG, first_name: "Ana", last_name: "Pino", birth_year: 2014 },
-    });
-  });
-
-  it("sin año de nacimiento: null, no un error", async () => {
-    const { inserts } = installDatabase();
-
-    await createPerson("club-a", { firstName: "Coach", lastName: "Ficticio", birthYear: "" });
-
-    expect((inserts[0]?.values as Record<string, unknown>).birth_year).toBeNull();
-  });
-});
-
-describe("updatePerson", () => {
-  it("de una persona que no es del club: NOT_FOUND", async () => {
-    installDatabase({ updateRows: [] });
-
-    expect(await updatePerson("club-a", { personId: PERSON, firstName: "x", lastName: "y", birthYear: null })).toEqual({
-      ok: false,
-      error: "NOT_FOUND",
-    });
-  });
-});
-
-describe("archivePerson", () => {
-  it("marca archived_at, solo si no estaba ya archivada", async () => {
-    const { updates } = installDatabase();
-
-    expect(await archivePerson("club-a", { personId: PERSON })).toEqual({ ok: true, data: null });
-    expect(updates[0]).toMatchObject({
-      table: "people",
-      eq: { organization_id: ORG, id: PERSON },
-      is: { archived_at: null },
-    });
-  });
-
-  it("una que ya está archivada: NOT_FOUND", async () => {
-    installDatabase({ updateRows: [] });
-
-    expect(await archivePerson("club-a", { personId: PERSON })).toEqual({ ok: false, error: "NOT_FOUND" });
-  });
 });
 
 describe("createGuardianship", () => {

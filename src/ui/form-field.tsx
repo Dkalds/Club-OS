@@ -110,6 +110,11 @@ type TextFieldProps = {
   error?: string;
   /** Una línea de ayuda bajo el campo, que lo describe además de su etiqueta. */
   hint?: string;
+  /**
+   * Valores que el campo sugiere al escribir (un `<datalist>`), sin obligar a elegir uno: se
+   * sigue pudiendo escribir cualquier otro. Solo en un campo de texto.
+   */
+  suggestions?: readonly string[];
 } & (
   | { type?: "text"; maxLength: number; min?: never; max?: never }
   | { type: "number"; maxLength?: number; min?: number; max?: number }
@@ -133,11 +138,14 @@ export function TextField({
   max,
   error,
   hint,
+  suggestions,
   type = "text",
 }: TextFieldProps) {
   const id = useId();
   const errorId = `${id}-error`;
   const hintId = `${id}-hint`;
+  const listId = `${id}-list`;
+  const suggests = type === "text" && suggestions !== undefined && suggestions.length > 0;
 
   return (
     <div className={FIELD_CLASS}>
@@ -154,9 +162,17 @@ export function TextField({
         min={min}
         max={max}
         onChange={(event) => onChange(event.target.value)}
+        list={suggests ? listId : undefined}
         {...errorAttributes(error, errorId, hint ? hintId : undefined)}
         className={SINGLE_LINE}
       />
+      {suggests ? (
+        <datalist id={listId}>
+          {suggestions.map((suggestion) => (
+            <option key={suggestion} value={suggestion} />
+          ))}
+        </datalist>
+      ) : null}
       {hint ? <Hint id={hintId}>{hint}</Hint> : null}
       {error ? <FieldError id={errorId}>{error}</FieldError> : null}
     </div>

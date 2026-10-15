@@ -1,5 +1,6 @@
-import type { Database } from "@/lib/database.types";
+import type { Database, Json } from "@/lib/database.types";
 import { dayChip, formatEventSlot, localTime, monthChip } from "@/lib/time";
+import { parseBoard } from "@/modules/board/schema";
 import type { Standard } from "@/modules/methodology/types";
 import { sessionMinutes } from "./items";
 import type {
@@ -56,12 +57,12 @@ export const LIST_COLUMNS =
 export const DETAIL_COLUMNS = `id, team_id, status, starts_at, ends_at, location,
   teams(name),
   practice_plans(
-    id, title, notes, updated_at,
+    id, title, notes, updated_at, actual_minutes, live_started_at, live_position,
     primary_focus:focus_areas!practice_plans_organization_id_primary_focus_id_fkey(id, name),
     secondary_focus:focus_areas!practice_plans_organization_id_secondary_focus_id_fkey(id, name),
     practice_items(
-      id, sort, phase, drill_id, title_override, minutes, notes,
-      drills(title, drill_standards(standards(id, number, title, description, status)))
+      id, sort, phase, drill_id, title_override, minutes, notes, completed, actual_minutes,
+      drills(title, board, drill_standards(standards(id, number, title, description, status)))
     )
   )`;
 
@@ -71,15 +72,20 @@ type StandardEmbed = Pick<Tables["standards"]["Row"], "id" | "number" | "title" 
 
 export type PracticeItemRow = Pick<
   Tables["practice_items"]["Row"],
-  "id" | "sort" | "phase" | "drill_id" | "title_override" | "minutes" | "notes"
+  "id" | "sort" | "phase" | "drill_id" | "title_override" | "minutes" | "notes" | "completed" | "actual_minutes"
 > & {
   drills: Embedded<{
     title: string;
+    /** La pizarra tal cual llega de la base: la valida `parseBoard` al mapear. */
+    board?: Json | null;
     drill_standards: Array<{ standards: Embedded<StandardEmbed> }> | null;
   }>;
 };
 
-export type PracticePlanRow = Pick<Tables["practice_plans"]["Row"], "id" | "title" | "notes" | "updated_at"> & {
+export type PracticePlanRow = Pick<
+  Tables["practice_plans"]["Row"],
+  "id" | "title" | "notes" | "updated_at" | "actual_minutes" | "live_started_at" | "live_position"
+> & {
   primary_focus: Embedded<FocusOption>;
   secondary_focus: Embedded<FocusOption>;
   practice_items: PracticeItemRow[] | null;
@@ -170,7 +176,16 @@ function toSavedItem(row: PracticeItemRow): SavedPracticeItem {
  * borrador de otro entrenador), y entonces la fila se queda en texto en vez de llevar a un 404.
  */
 function toDetailItem(row: PracticeItemRow): PracticeDetailItem {
-  return { ...toSavedItem(row), drillVisible: row.drill_id !== null && one(row.drills) !== null };
+  const drill = one(row.drills);
+  const board = parseBoard(drill?.board);
+
+  return {
+    ...toSavedItem(row),
+    ...(board ? { board } : {}),
+    drillVisible: row.drill_id !== null && drill !== null,
+    completed: row.completed,
+    actualMinutes: row.actual_minutes,
+  };
 }
 
 /** Los Standards publicados de los ejercicios de los ítems, cada uno una vez y por número. */
@@ -229,5 +244,7 @@ export function toPracticeDetail(
     standards: toStandards(ordered),
     updatedAt: plan.updated_at,
     canEdit: canManage && row.status === "scheduled",
+    live: { started: plan.live_started_at !== null, position: plan.live_position },
+    actualMinutes: plan.actual_minutes,
   };
 }

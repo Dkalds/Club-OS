@@ -1,8 +1,16 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { builderMinutes, itemNumber } from "@/modules/practice/format";
+import { builderMinutes, itemNumber, minutesLabel } from "@/modules/practice/format";
 import { CTAButton } from "./cta-button";
-import { ChevronDownIcon, ChevronRightIcon, ChevronUpIcon, MinusIcon, PlusIcon, TrashIcon } from "./icons";
+import {
+  CheckIcon,
+  ChevronDownIcon,
+  ChevronRightIcon,
+  ChevronUpIcon,
+  MinusIcon,
+  PlusIcon,
+  TrashIcon,
+} from "./icons";
 
 // Sin `"use client"`, como `states.tsx`: el archivo no usa hooks. `PracticeItemView` y
 // `PracticeTotal` son piezas de servidor (el detalle de una sesión), y solo `PracticeItem` lleva
@@ -48,7 +56,7 @@ function Minutes({ minutes, className }: { minutes: number; className: string })
  * dos es para quien lo escucha («Técnica 3 calles»): entre bloques no ocupa sitio. Un título
  * largo pasa a otra línea en vez de cortarse: es lo que distingue un ítem de otro.
  */
-function PhaseAndTitle({ phase, title }: { phase: string | null; title: string }) {
+function PhaseAndTitle({ phase, title, hint }: { phase: string | null; title: string; hint?: string }) {
   return (
     <>
       {phase ? (
@@ -57,6 +65,12 @@ function PhaseAndTitle({ phase, title }: { phase: string | null; title: string }
         </>
       ) : null}
       <span className="block text-body-strong wrap-break-word">{practiceItemName(title)}</span>
+      {hint ? (
+        <>
+          {" "}
+          <span className="block text-body-s wrap-break-word text-ink-2">{hint}</span>
+        </>
+      ) : null}
     </>
   );
 }
@@ -109,11 +123,15 @@ function MinutesButton({
  * No es un `<li>`: quien la monta en una lista pone el suyo, y con él lo que necesite, como
  * la referencia y la transformación de dnd-kit. Cada fila lleva su separador, un borde arriba
  * de `line`, y no lo lleva la que va en el primer `<li>` de la lista.
+ *
+ * `hint` es una línea más bajo el título, en `body-s`: por qué está ahí un ejercicio que llega
+ * de una propuesta («Transición · 2 puntos clave · 1 variante»). Con ella la fila crece.
  */
 export function PracticeItem({
   index,
   title,
   phase,
+  hint,
   minutes,
   isFirst,
   isLast,
@@ -129,6 +147,7 @@ export function PracticeItem({
   index: number;
   title: string;
   phase: string | null;
+  hint?: string;
   minutes: number;
   isFirst: boolean;
   isLast: boolean;
@@ -165,7 +184,7 @@ export function PracticeItem({
           onClick={onToggle}
           className="min-h-(--target-min) min-w-0 flex-1 cursor-pointer text-left focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus-ring"
         >
-          <PhaseAndTitle phase={phase} title={title} />
+          <PhaseAndTitle phase={phase} title={title} hint={hint} />
         </button>
         <div className="flex shrink-0 items-center gap-0.5">
           <MinutesButton label={`Menos minutos, ${name}`} onClick={() => onMinutes(-5)}>
@@ -217,6 +236,18 @@ export function PracticeItem({
   );
 }
 
+/** Cómo acabó un ejercicio en el directo: hecho, con lo que duró si se sabe, o sin hacer. */
+function ItemResult({ completed, actualMinutes }: { completed: boolean; actualMinutes: number | null }) {
+  if (!completed) return <span className="block text-body-s text-ink-3">Sin hacer</span>;
+
+  return (
+    <span className="flex items-center gap-(--space-1) text-body-s text-success tabular-nums">
+      <CheckIcon size={16} />
+      {actualMinutes === null ? "Hecho" : `Hecho · ${minutesLabel(actualMinutes)}`}
+    </span>
+  );
+}
+
 /**
  * Un ítem de una sesión ya hecha o solo para leer: su número, la fase y el título, y los
  * minutos a la derecha. Es un `<li>`: va como hijo directo de una lista, por ejemplo
@@ -226,6 +257,14 @@ export function PracticeItem({
  * `ListRow`, y sin precarga: el destino es una ruta dinámica detrás del proxy de sesión. Sin
  * `href`, es texto. El separador es el borde superior del `<li>`, salvo en la primera fila.
  * Pulsada, la fila pasa a `surface-3`.
+ *
+ * `result` es lo que el directo registró de ese ejercicio, y solo se pasa en una sesión ya
+ * hecha: debajo del título dice si se hizo y cuánto duró de verdad («Hecho · 9 min»), o «Sin
+ * hacer». Los minutos de la derecha siguen siendo los previstos. Que se hizo no lo dice solo el
+ * color: lleva su icono y su palabra.
+ *
+ * `thumb` es la miniatura de la pizarra del ejercicio, si la tiene: va entre el número y el
+ * título. Es decorativa (el título ya dice qué es) y la pone quien monta la fila.
  */
 export function PracticeItemView({
   index,
@@ -233,19 +272,30 @@ export function PracticeItemView({
   phase,
   minutes,
   href,
+  result,
+  thumb,
 }: {
   index: number;
   title: string;
   phase: string | null;
   minutes: number;
   href?: string;
+  result?: { completed: boolean; actualMinutes: number | null };
+  thumb?: ReactNode;
 }) {
   const row = "flex min-h-18 items-center gap-(--space-2) px-(--space-4) py-(--space-2) text-ink";
   const content = (
     <>
       <span className={NUMBER}>{itemNumber(index)}</span>
+      {thumb}
       <span className="min-w-0 flex-1">
         <PhaseAndTitle phase={phase} title={title} />
+        {result ? (
+          <>
+            {" "}
+            <ItemResult {...result} />
+          </>
+        ) : null}
       </span>
       <Minutes minutes={minutes} className={MINUTES} />
       {href !== undefined ? <ChevronRightIcon size={16} className="text-ink-3 group-active:text-ink-2" /> : null}
@@ -277,8 +327,19 @@ export function PracticeItemView({
  *
  * Con `inline` es solo «Total» y la suma, juntos y sin raya ni relleno: para la barra de
  * guardado del constructor, que pone el suyo.
+ *
+ * `label` cambia la palabra: «Real» para lo que duró de verdad una sesión ya hecha, debajo del
+ * total previsto.
  */
-export function PracticeTotal({ minutes, inline = false }: { minutes: number; inline?: boolean }) {
+export function PracticeTotal({
+  minutes,
+  inline = false,
+  label = "Total",
+}: {
+  minutes: number;
+  inline?: boolean;
+  label?: string;
+}) {
   return (
     <div
       className={
@@ -287,7 +348,7 @@ export function PracticeTotal({ minutes, inline = false }: { minutes: number; in
           : "flex items-center justify-between border-t border-line-strong px-(--space-4) py-(--space-3)"
       }
     >
-      <span className="font-display text-title uppercase">Total</span>
+      <span className="font-display text-title uppercase">{label}</span>
       <Minutes minutes={minutes} className="font-display text-numeral tabular-nums" />
     </div>
   );

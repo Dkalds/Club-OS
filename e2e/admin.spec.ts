@@ -199,6 +199,9 @@ test("un entrenador no entra en Gestión", async ({ page, browserErrors }) => {
     `${ADMIN}/values`,
     `${ADMIN}/principles`,
     `${ADMIN}/standards`,
+    `${ADMIN}/season`,
+    `${ADMIN}/calendar`,
+    `${ADMIN}/people`,
   ];
   browserErrors.allowNotFound(...paths);
   for (const path of paths) {
@@ -243,25 +246,27 @@ test("dirección entra desde el avatar", async ({ page }) => {
 
   await accountButton(page).click();
   await page.getByRole("link", { name: "Gestión" }).click();
-  await expect(page).toHaveURL(new RegExp(`${ADMIN}/way$`));
+  await expect(page).toHaveURL(new RegExp(`${ADMIN}/season$`));
 
   // El marco de Gestión: nombre del club, kicker y salida; sin la navegación de la app.
   const banner = page.getByRole("banner");
   await expect(banner).toContainText("Arcángel");
   await expect(banner).toContainText("Gestión");
   await expect(page.getByRole("navigation", { name: "Principal" })).toHaveCount(0);
-  await expect(page.getByRole("heading", { level: 1, name: "The Way" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "Temporada" })).toBeVisible();
 
-  // Sus apartados, con los nombres que da el club, y el actual marcado.
+  // Sus apartados (la estructura del club delante, y la metodología con los nombres que da el
+  // club), y el actual marcado.
   const links = adminNav(page).getByRole("link");
   await expect(links).toHaveText([
+    "Temporada",
+    "Calendario",
+    "Personas",
     "The Way",
     "Valores",
     "Principios",
     "Arcángel Standards",
     "Club",
-    "Equipos",
-    "Personas",
     "Ejercicios pendientes",
     "Cobertura",
     "Invitaciones",
@@ -274,10 +279,10 @@ test("dirección entra desde el avatar", async ({ page }) => {
   await expect(links.filter({ hasText: "Valores" })).toHaveAttribute("aria-current", "page");
   await expect(adminNav(page).locator('[aria-current="page"]')).toHaveCount(1);
 
-  // La raíz de Gestión redirige a la metodología.
+  // La raíz de Gestión redirige a su primer apartado, la temporada.
   await page.goto(ADMIN);
-  await expect(page).toHaveURL(new RegExp(`${ADMIN}/way$`));
-  await expect(page.getByRole("heading", { level: 1, name: "The Way" })).toBeVisible();
+  await expect(page).toHaveURL(new RegExp(`${ADMIN}/season$`));
+  await expect(page.getByRole("heading", { level: 1, name: "Temporada" })).toBeVisible();
 
   // Y «Volver a la app» lleva de vuelta a Inicio.
   await page.getByRole("link", { name: "Volver a la app" }).click();

@@ -1,7 +1,7 @@
 import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { PracticeList } from "./practice-list";
-import type { PracticeListItem } from "./types";
+import type { PracticeListItem, PracticeTemplate } from "./types";
 
 // Datos neutros: los tests de `src/` no pueden nombrar a ningún club (pnpm check:guards).
 const FIRST: PracticeListItem = {
@@ -34,6 +34,23 @@ const SECOND: PracticeListItem = {
 
 const DONE: PracticeListItem = { ...FIRST, eventId: "e-3", title: "Tiro tras bote", status: "done" };
 const CANCELLED: PracticeListItem = { ...SECOND, eventId: "e-4", title: "Pase y corte", status: "cancelled" };
+
+const TEMPLATE: PracticeTemplate = {
+  id: "00000000-0000-4000-8000-0000000000c1",
+  title: "Salida de presión",
+  totalMinutes: 45,
+  itemCount: 4,
+  primaryFocus: { id: "f-1", name: "Rebote" },
+  secondaryFocus: { id: "f-2", name: "Transición" },
+};
+const BARE_TEMPLATE: PracticeTemplate = {
+  id: "00000000-0000-4000-8000-0000000000c2",
+  title: "Tiro tras bote",
+  totalMinutes: 10,
+  itemCount: 1,
+  primaryFocus: null,
+  secondaryFocus: null,
+};
 
 type Props = Parameters<typeof PracticeList>[0];
 
@@ -154,16 +171,28 @@ describe("PracticeList, histórico", () => {
 });
 
 describe("PracticeList, pestañas", () => {
-  it("«Próximas» e «Histórico» son enlaces de la navegación «Sesiones»", () => {
+  it("«Próximas», «Histórico» y «Plantillas» son enlaces de la navegación «Sesiones»", () => {
     renderList();
 
     const tabs = within(sessionTabs());
-    expect(tabs.getAllByRole("link")).toHaveLength(2);
+    expect(tabs.getAllByRole("link")).toHaveLength(3);
     expect(tabs.getByRole("link", { name: "Próximas" })).toHaveAttribute("href", "/c/club-a/train");
     expect(tabs.getByRole("link", { name: "Histórico" })).toHaveAttribute(
       "href",
       "/c/club-a/train?scope=history",
     );
+    expect(tabs.getByRole("link", { name: "Plantillas" })).toHaveAttribute(
+      "href",
+      "/c/club-a/train?scope=templates",
+    );
+  });
+
+  it("quien no gestiona sesiones no tiene «Plantillas»", () => {
+    renderList({ canCreate: false });
+
+    const tabs = within(sessionTabs());
+    expect(tabs.getAllByRole("link")).toHaveLength(2);
+    expect(tabs.queryByRole("link", { name: "Plantillas" })).not.toBeInTheDocument();
   });
 
   it("en próximas, «Próximas» es la activa", () => {
@@ -193,39 +222,101 @@ describe("PracticeList, pestañas", () => {
   it("también salen cuando la lista está vacía, para poder pasar de una a otra", () => {
     renderList({ practices: [] });
 
-    expect(within(sessionTabs()).getAllByRole("link")).toHaveLength(2);
+    expect(within(sessionTabs()).getAllByRole("link")).toHaveLength(3);
   });
 });
 
-describe("PracticeList, «Nueva sesión»", () => {
+describe("PracticeList, plantillas", () => {
+  function renderTemplates(templates: PracticeTemplate[] = [TEMPLATE, BARE_TEMPLATE]) {
+    return renderList({ scope: "templates", practices: [], templates });
+  }
+
+  it("«Plantillas» es la pestaña activa", () => {
+    renderTemplates();
+
+    const tabs = within(sessionTabs());
+    expect(tabs.getByRole("link", { name: "Plantillas" })).toHaveAttribute("aria-current", "page");
+    expect(tabs.getByRole("link", { name: "Próximas" })).not.toHaveAttribute("aria-current");
+  });
+
+  it("cada plantilla abre la sesión nueva con ella puesta, por su id", () => {
+    renderTemplates();
+
+    expect(screen.getByRole("link", { name: /Salida de presión/ })).toHaveAttribute(
+      "href",
+      `/c/club-a/train/new?template=${TEMPLATE.id}`,
+    );
+    expect(screen.getByRole("link", { name: /Tiro tras bote/ })).toHaveAttribute(
+      "href",
+      `/c/club-a/train/new?template=${BARE_TEMPLATE.id}`,
+    );
+  });
+
+  it("dice lo que dura, cuántos ejercicios tiene y sus objetivos", () => {
+    renderTemplates();
+
+    expect(screen.getByText("45 min · 4 ejercicios · Rebote, Transición")).toBeInTheDocument();
+    expect(screen.getByText("10 min · 1 ejercicio")).toBeInTheDocument();
+  });
+
+  it("no pinta las sesiones ni el aviso de las 50 más recientes", () => {
+    renderList({ scope: "templates", templates: [TEMPLATE], truncated: true });
+
+    expect(screen.queryByText("Defensa en zona")).not.toBeInTheDocument();
+    expect(screen.queryByText("Mostrando las 50 más recientes")).not.toBeInTheDocument();
+  });
+
+  it("sin plantillas dice cómo se guarda una, y sigue ofreciendo «Preparar sesión»", () => {
+    renderTemplates([]);
+
+    expect(screen.getByRole("heading", { level: 2, name: "Aún no tienes plantillas" })).toBeInTheDocument();
+    expect(
+      screen.getByText("Abre una sesión que te haya salido bien y guárdala como plantilla."),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Ver histórico" })).toHaveAttribute(
+      "href",
+      "/c/club-a/train?scope=history",
+    );
+    expect(screen.getByRole("link", { name: "Preparar sesión" })).toHaveAttribute("href", "/c/club-a/train/new");
+  });
+
+  it("sin equipos, solo el aviso de que aún no está en ninguno", () => {
+    renderList({ scope: "templates", practices: [], templates: [TEMPLATE], teamCount: 0 });
+
+    expect(screen.queryByRole("navigation", { name: "Sesiones" })).not.toBeInTheDocument();
+    expect(screen.queryByText("Salida de presión")).not.toBeInTheDocument();
+  });
+});
+
+describe("PracticeList, «Preparar sesión»", () => {
   it("quien puede crear y tiene equipos la ve arriba, antes de las pestañas y de la lista", () => {
     renderList({ canCreate: true });
 
-    const create = screen.getByRole("link", { name: "Nueva sesión" });
+    const create = screen.getByRole("link", { name: "Preparar sesión" });
     expect(create).toHaveAttribute("href", "/c/club-a/train/new");
     expect(comesBefore(create, sessionTabs())).toBe(true);
     expect(comesBefore(create, screen.getByRole("list"))).toBe(true);
   });
 
-  it("sin permiso para crear no hay «Nueva sesión» en ninguna parte", () => {
+  it("sin permiso para crear no hay «Preparar sesión» en ninguna parte", () => {
     renderList({ canCreate: false });
-    expect(screen.queryByRole("link", { name: "Nueva sesión" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Preparar sesión" })).not.toBeInTheDocument();
   });
 
   it("sin permiso para crear no la hay tampoco con la lista vacía", () => {
     renderList({ canCreate: false, practices: [] });
-    expect(screen.queryByRole("link", { name: "Nueva sesión" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Preparar sesión" })).not.toBeInTheDocument();
   });
 
   it("sin equipos no hay donde crear una sesión, aunque haya permiso", () => {
     renderList({ canCreate: true, teamCount: 0, practices: [] });
-    expect(screen.queryByRole("link", { name: "Nueva sesión" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Preparar sesión" })).not.toBeInTheDocument();
   });
 
   it("en el histórico vacío sigue arriba, porque su salida es otra", () => {
     renderList({ scope: "history", practices: [], canCreate: true });
 
-    expect(screen.getByRole("link", { name: "Nueva sesión" })).toHaveAttribute("href", "/c/club-a/train/new");
+    expect(screen.getByRole("link", { name: "Preparar sesión" })).toHaveAttribute("href", "/c/club-a/train/new");
   });
 });
 
@@ -244,7 +335,7 @@ describe("PracticeList vacía", () => {
     renderList({ teamCount: 0, practices: [], canCreate: true, role: "admin" });
 
     expect(screen.getByRole("heading", { level: 2, name: "Aún no hay equipos esta temporada" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Ir a Gestión" })).toHaveAttribute("href", "/c/club-a/admin");
+    expect(screen.getByRole("link", { name: "Ir a Gestión" })).toHaveAttribute("href", "/c/club-a/admin/season");
     expect(screen.queryByText("Aún no estás en ningún equipo")).not.toBeInTheDocument();
   });
 
@@ -252,9 +343,9 @@ describe("PracticeList vacía", () => {
     renderList({ practices: [], canCreate: true });
 
     expect(screen.getByRole("heading", { level: 2, name: "No hay sesiones programadas" })).toBeInTheDocument();
-    expect(screen.getByText("Crea la próxima sesión de tu equipo.")).toBeInTheDocument();
+    expect(screen.getByText("Prepara la próxima sesión de tu equipo.")).toBeInTheDocument();
     // La salida del vacío es la misma acción que el botón de arriba: una sola, no dos iguales.
-    const create = screen.getAllByRole("link", { name: "Nueva sesión" });
+    const create = screen.getAllByRole("link", { name: "Preparar sesión" });
     expect(create).toHaveLength(1);
     expect(create[0]).toHaveAttribute("href", "/c/club-a/train/new");
     expect(screen.queryByRole("list")).not.toBeInTheDocument();
@@ -265,7 +356,7 @@ describe("PracticeList vacía", () => {
 
     expect(screen.getByRole("heading", { level: 2, name: "No hay sesiones programadas" })).toBeInTheDocument();
     expect(screen.getByText("Cuando haya una sesión en el calendario, la verás aquí.")).toBeInTheDocument();
-    expect(screen.queryByText("Crea la próxima sesión de tu equipo.")).not.toBeInTheDocument();
+    expect(screen.queryByText("Prepara la próxima sesión de tu equipo.")).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Ver histórico" })).toHaveAttribute(
       "href",
       "/c/club-a/train?scope=history",

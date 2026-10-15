@@ -86,7 +86,7 @@ export function GameActions({ clubSlug, game, teamLabel }: { clubSlug: string; g
         open={confirmCancel}
         onOpenChange={(open) => (open || cancel.pending ? undefined : setConfirmCancel(false))}
         title="¿Cancelar este partido?"
-        body="Dejará de salir en Próximos y en Inicio. No se puede deshacer."
+        body="Dejará de salir en Inicio. En la Agenda se verá como cancelado hasta que pase su fecha. No se puede deshacer."
         confirmLabel="Cancelar partido"
         cancelLabel="Volver"
         tone="danger"

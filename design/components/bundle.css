@@ -163,10 +163,13 @@ body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--f
 .cos-topnav { display: flex; align-items: center; justify-content: space-between; min-height: 56px; padding: 0 var(--space-2) 0 var(--space-4); background: var(--bg); }
 .cos-topnav--detail { padding: 0 var(--space-2); }
 .cos-topnav__title { flex: 1; text-align: center; }
+.cos-teamswitch { max-width: 160px; color: var(--ink); cursor: pointer; }
+.cos-teamswitch span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cos-teamswitch .cos-ico { color: var(--ink-2); }
 .cos-wordmark { font-family: var(--font-display); text-transform: uppercase; line-height: 1; }
 .cos-wordmark b { display: block; font-size: 24px; font-weight: 700; letter-spacing: .02em; }
 .cos-wordmark span { display: block; font-size: 11px; font-weight: 600; letter-spacing: .32em; color: var(--ink-2); margin-top: 2px; }
-.cos-nav { display: grid; grid-template-columns: repeat(5, 1fr); height: var(--nav-height); background: var(--surface-1); border-top: 1px solid var(--line); }
+.cos-nav { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; height: var(--nav-height); background: var(--surface-1); border-top: 1px solid var(--line); }
 .cos-nav__item { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; color: var(--ink-3); font-size: 11px; line-height: 14px; font-weight: 500; text-decoration: none; }
 .cos-nav__item[aria-current="page"] { color: var(--brand-accent); font-weight: 600; }
 .cos-nav__item[aria-current="page"] .cos-ico { stroke-width: 2.25; }
@@ -187,6 +190,26 @@ body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--f
 .cos-skel { background: var(--surface-2); border-radius: var(--radius-sm); }
 @media (prefers-reduced-motion: no-preference) { .cos-skel { animation: cos-pulse 1.4s ease-in-out infinite; } }
 @keyframes cos-pulse { 50% { opacity: .55; } }
+
+/* Board: la pizarra de un ejercicio (pista, fichas, movimientos y controles) */
+.cos-board { display: flex; flex-direction: column; gap: var(--space-2); }
+.cos-board__court { display: block; width: 100%; aspect-ratio: 4 / 3; border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--surface-1); }
+.cos-board__court--full { aspect-ratio: 25 / 14; }
+.cos-board__lines { fill: none; stroke: var(--ink-3); stroke-width: 1.2; vector-effect: non-scaling-stroke; }
+.cos-board__lines * { vector-effect: non-scaling-stroke; }
+.cos-board__move { fill: none; stroke: var(--brand-accent); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.cos-board__move * { vector-effect: non-scaling-stroke; }
+.cos-board__attacker { fill: var(--surface-1); stroke: var(--ink); stroke-width: 1.6; vector-effect: non-scaling-stroke; }
+.cos-board__defender { fill: none; stroke: var(--brand-accent); stroke-width: 1.8; stroke-linecap: round; vector-effect: non-scaling-stroke; }
+.cos-board__ball { fill: var(--ink); }
+.cos-board__cone { fill: none; stroke: var(--ink-3); stroke-width: 1.2; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+.cos-board__label { fill: var(--ink); font-family: var(--font-text); font-weight: 600; font-size: 4.2px; }
+.cos-board__label--defender { fill: var(--brand-accent); font-size: 3.4px; }
+.cos-board__controls { display: flex; align-items: center; gap: var(--space-1); }
+.cos-board__controls .cos-iconbtn:disabled { color: var(--ink-3); cursor: default; }
+.cos-board__step { margin-left: auto; font-size: 13px; line-height: 18px; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.cos-board__note { margin: 0; min-height: var(--space-6); color: var(--ink-2); }
+.cos-board__thumb { display: block; width: 80px; height: 60px; border-radius: var(--radius-sm); background: var(--surface-2); }
 
 /* AppShell */
 .cos-shell { width: 375px; height: 760px; display: flex; flex-direction: column; background: var(--bg); border: 1px solid var(--line); border-radius: var(--radius-xl); overflow: hidden; }
