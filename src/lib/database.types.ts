@@ -23,7 +23,26 @@ export type Database = {
           }
         },"public": {
           Tables: {
-            "categories": {
+            "audit_log": {
+                  Row: {
+                    "action": string,"actor_id": string,"created_at": string,"entity_id": string,"entity_table": string,"id": string,"organization_id": string
+                  }
+                  Insert: {
+                    "action": string,"actor_id": string,"created_at"?: string,"entity_id": string,"entity_table": string,"id"?: string,"organization_id": string
+                  }
+                  Update: {
+                    "action"?: string,"actor_id"?: string,"created_at"?: string,"entity_id"?: string,"entity_table"?: string,"id"?: string,"organization_id"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "audit_log_organization_id_fkey"
+      columns: ["organization_id"]
+isOneToOne: false
+      referencedRelation: "organizations"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"categories": {
                   Row: {
                     "age_band": string,"id": string,"name": string,"organization_id": string,"sort": number
                   }
@@ -95,6 +114,31 @@ isOneToOne: false
       columns: ["organization_id","team_id"]
 isOneToOne: false
       referencedRelation: "teams"
+      referencedColumns: ["organization_id","id"]
+    }
+                  ]
+                },"consents": {
+                  Row: {
+                    "body_snapshot": string,"granted_at": string,"granted_by": string,"id": string,"kind": string,"organization_id": string,"person_id": string | null,"revoked_at": string | null
+                  }
+                  Insert: {
+                    "body_snapshot": string,"granted_at"?: string,"granted_by": string,"id"?: string,"kind": string,"organization_id": string,"person_id"?: string | null,"revoked_at"?: string | null
+                  }
+                  Update: {
+                    "body_snapshot"?: string,"granted_at"?: string,"granted_by"?: string,"id"?: string,"kind"?: string,"organization_id"?: string,"person_id"?: string | null,"revoked_at"?: string | null
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "consents_organization_id_fkey"
+      columns: ["organization_id"]
+isOneToOne: false
+      referencedRelation: "organizations"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "consents_organization_id_person_id_fkey"
+      columns: ["organization_id","person_id"]
+isOneToOne: false
+      referencedRelation: "people"
       referencedColumns: ["organization_id","id"]
     }
                   ]
@@ -334,6 +378,75 @@ isOneToOne: false
       referencedColumns: ["organization_id","id"]
     }
                   ]
+                },"external_connections": {
+                  Row: {
+                    "capabilities": (string)[],"config": NonNullable<Json>,"created_at": string,"id": string,"organization_id": string,"provider": string
+                  }
+                  Insert: {
+                    "capabilities"?: (string)[],"config"?: NonNullable<Json>,"created_at"?: string,"id"?: string,"organization_id": string,"provider": string
+                  }
+                  Update: {
+                    "capabilities"?: (string)[],"config"?: NonNullable<Json>,"created_at"?: string,"id"?: string,"organization_id"?: string,"provider"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "external_connections_organization_id_fkey"
+      columns: ["organization_id"]
+isOneToOne: false
+      referencedRelation: "organizations"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"external_links": {
+                  Row: {
+                    "capability": string,"connection_id": string,"created_at": string,"entity_id": string,"entity_table": string,"external_id": string,"id": string,"organization_id": string
+                  }
+                  Insert: {
+                    "capability": string,"connection_id": string,"created_at"?: string,"entity_id": string,"entity_table": string,"external_id": string,"id"?: string,"organization_id": string
+                  }
+                  Update: {
+                    "capability"?: string,"connection_id"?: string,"created_at"?: string,"entity_id"?: string,"entity_table"?: string,"external_id"?: string,"id"?: string,"organization_id"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "external_links_organization_id_connection_id_fkey"
+      columns: ["organization_id","connection_id"]
+isOneToOne: false
+      referencedRelation: "external_connections"
+      referencedColumns: ["organization_id","id"]
+    },{
+      foreignKeyName: "external_links_organization_id_fkey"
+      columns: ["organization_id"]
+isOneToOne: false
+      referencedRelation: "organizations"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"external_records": {
+                  Row: {
+                    "capability": string,"checksum": string,"connection_id": string,"external_id": string,"fetched_at": string,"id": string,"organization_id": string,"payload": NonNullable<Json>
+                  }
+                  Insert: {
+                    "capability": string,"checksum": string,"connection_id": string,"external_id": string,"fetched_at"?: string,"id"?: string,"organization_id": string,"payload": NonNullable<Json>
+                  }
+                  Update: {
+                    "capability"?: string,"checksum"?: string,"connection_id"?: string,"external_id"?: string,"fetched_at"?: string,"id"?: string,"organization_id"?: string,"payload"?: NonNullable<Json>
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "external_records_organization_id_connection_id_fkey"
+      columns: ["organization_id","connection_id"]
+isOneToOne: false
+      referencedRelation: "external_connections"
+      referencedColumns: ["organization_id","id"]
+    },{
+      foreignKeyName: "external_records_organization_id_fkey"
+      columns: ["organization_id"]
+isOneToOne: false
+      referencedRelation: "organizations"
+      referencedColumns: ["id"]
+    }
+                  ]
                 },"focus_areas": {
                   Row: {
                     "id": string,"name": string,"organization_id": string,"slug": string,"sort": number
@@ -397,6 +510,68 @@ isOneToOne: false
       referencedColumns: ["id"]
     }
                   ]
+                },"guardianships": {
+                  Row: {
+                    "child_person_id": string,"created_at": string,"guardian_person_id": string,"organization_id": string
+                  }
+                  Insert: {
+                    "child_person_id": string,"created_at"?: string,"guardian_person_id": string,"organization_id": string
+                  }
+                  Update: {
+                    "child_person_id"?: string,"created_at"?: string,"guardian_person_id"?: string,"organization_id"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "guardianships_organization_id_child_person_id_fkey"
+      columns: ["organization_id","child_person_id"]
+isOneToOne: false
+      referencedRelation: "people"
+      referencedColumns: ["organization_id","id"]
+    },{
+      foreignKeyName: "guardianships_organization_id_fkey"
+      columns: ["organization_id"]
+isOneToOne: false
+      referencedRelation: "organizations"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "guardianships_organization_id_guardian_person_id_fkey"
+      columns: ["organization_id","guardian_person_id"]
+isOneToOne: false
+      referencedRelation: "people"
+      referencedColumns: ["organization_id","id"]
+    }
+                  ]
+                },"invitations": {
+                  Row: {
+                    "accepted_at": string | null,"cancelled_at": string | null,"created_at": string,"email": string,"expires_at": string,"first_name": string | null,"id": string,"invited_by": string | null,"last_name": string | null,"organization_id": string,"person_id": string | null,"role": Database["public"]['Enums']["org_role"],"staff_role": Database["public"]['Enums']["staff_role"] | null,"team_id": string | null,"token_hash": string
+                  }
+                  Insert: {
+                    "accepted_at"?: string | null,"cancelled_at"?: string | null,"created_at"?: string,"email": string,"expires_at": string,"first_name"?: string | null,"id"?: string,"invited_by"?: string | null,"last_name"?: string | null,"organization_id": string,"person_id"?: string | null,"role": Database["public"]['Enums']["org_role"],"staff_role"?: Database["public"]['Enums']["staff_role"] | null,"team_id"?: string | null,"token_hash": string
+                  }
+                  Update: {
+                    "accepted_at"?: string | null,"cancelled_at"?: string | null,"created_at"?: string,"email"?: string,"expires_at"?: string,"first_name"?: string | null,"id"?: string,"invited_by"?: string | null,"last_name"?: string | null,"organization_id"?: string,"person_id"?: string | null,"role"?: Database["public"]['Enums']["org_role"],"staff_role"?: Database["public"]['Enums']["staff_role"] | null,"team_id"?: string | null,"token_hash"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "invitations_organization_id_fkey"
+      columns: ["organization_id"]
+isOneToOne: false
+      referencedRelation: "organizations"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "invitations_organization_id_person_id_fkey"
+      columns: ["organization_id","person_id"]
+isOneToOne: false
+      referencedRelation: "people"
+      referencedColumns: ["organization_id","id"]
+    },{
+      foreignKeyName: "invitations_organization_id_team_id_fkey"
+      columns: ["organization_id","team_id"]
+isOneToOne: false
+      referencedRelation: "teams"
+      referencedColumns: ["organization_id","id"]
+    }
+                  ]
                 },"media_assets": {
                   Row: {
                     "bucket": string,"bytes": number,"contains_minor": boolean,"created_at": string,"created_by": string | null,"id": string,"kind": string,"mime": string,"organization_id": string,"path": string
@@ -443,13 +618,13 @@ isOneToOne: false
                   ]
                 },"organization_branding": {
                   Row: {
-                    "color_accent": string,"color_accent_pressed": string,"color_accent_soft": string,"color_on_accent": string,"display_name": string,"organization_id": string,"short_name": string,"tagline": string | null,"terminology": NonNullable<Json>,"updated_at": string,"way_name": string,"wordmark_sub": string | null
+                    "color_accent": string,"color_accent_pressed": string,"color_accent_soft": string,"color_on_accent": string,"display_name": string,"image_consent_text": string,"organization_id": string,"short_name": string,"tagline": string | null,"terminology": NonNullable<Json>,"terms_text": string,"updated_at": string,"way_name": string,"wordmark_sub": string | null
                   }
                   Insert: {
-                    "color_accent": string,"color_accent_pressed": string,"color_accent_soft": string,"color_on_accent": string,"display_name": string,"organization_id": string,"short_name": string,"tagline"?: string | null,"terminology"?: NonNullable<Json>,"updated_at"?: string,"way_name": string,"wordmark_sub"?: string | null
+                    "color_accent": string,"color_accent_pressed": string,"color_accent_soft": string,"color_on_accent": string,"display_name": string,"image_consent_text"?: string,"organization_id": string,"short_name": string,"tagline"?: string | null,"terminology"?: NonNullable<Json>,"terms_text"?: string,"updated_at"?: string,"way_name": string,"wordmark_sub"?: string | null
                   }
                   Update: {
-                    "color_accent"?: string,"color_accent_pressed"?: string,"color_accent_soft"?: string,"color_on_accent"?: string,"display_name"?: string,"organization_id"?: string,"short_name"?: string,"tagline"?: string | null,"terminology"?: NonNullable<Json>,"updated_at"?: string,"way_name"?: string,"wordmark_sub"?: string | null
+                    "color_accent"?: string,"color_accent_pressed"?: string,"color_accent_soft"?: string,"color_on_accent"?: string,"display_name"?: string,"image_consent_text"?: string,"organization_id"?: string,"short_name"?: string,"tagline"?: string | null,"terminology"?: NonNullable<Json>,"terms_text"?: string,"updated_at"?: string,"way_name"?: string,"wordmark_sub"?: string | null
                   }
                   Relationships: [
                     {
@@ -475,13 +650,13 @@ isOneToOne: true
                   ]
                 },"people": {
                   Row: {
-                    "archived_at": string | null,"birth_year": number | null,"created_at": string,"first_name": string,"id": string,"last_name": string,"organization_id": string
+                    "archived_at": string | null,"birth_year": number | null,"created_at": string,"first_name": string,"id": string,"last_name": string,"organization_id": string,"photo_media_id": string | null
                   }
                   Insert: {
-                    "archived_at"?: string | null,"birth_year"?: number | null,"created_at"?: string,"first_name": string,"id"?: string,"last_name": string,"organization_id": string
+                    "archived_at"?: string | null,"birth_year"?: number | null,"created_at"?: string,"first_name": string,"id"?: string,"last_name": string,"organization_id": string,"photo_media_id"?: string | null
                   }
                   Update: {
-                    "archived_at"?: string | null,"birth_year"?: number | null,"created_at"?: string,"first_name"?: string,"id"?: string,"last_name"?: string,"organization_id"?: string
+                    "archived_at"?: string | null,"birth_year"?: number | null,"created_at"?: string,"first_name"?: string,"id"?: string,"last_name"?: string,"organization_id"?: string,"photo_media_id"?: string | null
                   }
                   Relationships: [
                     {
@@ -490,7 +665,26 @@ isOneToOne: true
 isOneToOne: false
       referencedRelation: "organizations"
       referencedColumns: ["id"]
+    },{
+      foreignKeyName: "people_photo_media_fk"
+      columns: ["organization_id","photo_media_id"]
+isOneToOne: false
+      referencedRelation: "media_assets"
+      referencedColumns: ["organization_id","id"]
     }
+                  ]
+                },"platform_admins": {
+                  Row: {
+                    "granted_at": string,"user_id": string
+                  }
+                  Insert: {
+                    "granted_at"?: string,"user_id": string
+                  }
+                  Update: {
+                    "granted_at"?: string,"user_id"?: string
+                  }
+                  Relationships: [
+                    
                   ]
                 },"player_goals": {
                   Row: {
@@ -685,6 +879,31 @@ isOneToOne: false
       referencedColumns: ["id"]
     }
                   ]
+                },"sync_runs": {
+                  Row: {
+                    "capability": string,"connection_id": string,"error_message": string | null,"finished_at": string | null,"id": string,"organization_id": string,"records_count": number | null,"started_at": string,"status": string
+                  }
+                  Insert: {
+                    "capability": string,"connection_id": string,"error_message"?: string | null,"finished_at"?: string | null,"id"?: string,"organization_id": string,"records_count"?: number | null,"started_at"?: string,"status"?: string
+                  }
+                  Update: {
+                    "capability"?: string,"connection_id"?: string,"error_message"?: string | null,"finished_at"?: string | null,"id"?: string,"organization_id"?: string,"records_count"?: number | null,"started_at"?: string,"status"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "sync_runs_organization_id_connection_id_fkey"
+      columns: ["organization_id","connection_id"]
+isOneToOne: false
+      referencedRelation: "external_connections"
+      referencedColumns: ["organization_id","id"]
+    },{
+      foreignKeyName: "sync_runs_organization_id_fkey"
+      columns: ["organization_id"]
+isOneToOne: false
+      referencedRelation: "organizations"
+      referencedColumns: ["id"]
+    }
+                  ]
                 },"team_players": {
                   Row: {
                     "jersey_number": number | null,"organization_id": string,"person_id": string,"position": string | null,"team_id": string
@@ -853,14 +1072,25 @@ isOneToOne: false
             [_ in never]: never
           }
           Functions: {
-            "add_new_player":
+            "accept_pending_invitations":
+{ Args: Record<PropertyKey, never>; Returns: (string)[]
+                           },
+"add_new_player":
 { Args: { "p_birth_year"?: number,"p_first_name": string,"p_jersey_number"?: number,"p_last_name": string,"p_position"?: string,"p_team": string }; Returns: string
                            },
 "cancel_game":
 { Args: { "p_event": string }; Returns: undefined
                            },
+"coverage_by_team":
+{ Args: { "p_from": string,"p_org": string,"p_to": string }; Returns: {
+              "standard_id": string,"team_id": string
+            }[]
+                           },
 "create_game":
 { Args: { "p_competition"?: string,"p_ends_at": string,"p_home_away"?: string,"p_location"?: string,"p_opponent": string,"p_starts_at": string,"p_team": string }; Returns: string
+                           },
+"create_invitation":
+{ Args: { "p_email": string,"p_expires_at": string,"p_first_name"?: string,"p_last_name"?: string,"p_org": string,"p_person"?: string,"p_role": Database["public"]['Enums']["org_role"],"p_staff_role"?: Database["public"]['Enums']["staff_role"],"p_team"?: string,"p_token_hash": string }; Returns: string
                            },
 "create_practice_from_template":
 { Args: { "p_ends_at": string,"p_location"?: string,"p_primary_focus"?: string,"p_secondary_focus"?: string,"p_starts_at": string,"p_team": string,"p_template": string,"p_title": string }; Returns: string
@@ -883,6 +1113,12 @@ isOneToOne: false
 "duplicate_practice":
 { Args: { "p_event": string,"p_starts_at": string }; Returns: string
                            },
+"grant_image_consent":
+{ Args: { "p_person": string }; Returns: string
+                           },
+"grant_terms_consent":
+{ Args: { "p_org": string }; Returns: string
+                           },
 "record_game_result":
 { Args: { "p_event": string,"p_score_against": number,"p_score_for": number }; Returns: undefined
                            },
@@ -894,6 +1130,9 @@ isOneToOne: false
                            },
 "reset_live_progress":
 { Args: { "p_event": string }; Returns: string
+                           },
+"revoke_image_consent":
+{ Args: { "p_consent": string }; Returns: undefined
                            },
 "save_drill":
 { Args: { "p_drill"?: string,"p_expected_updated_at"?: string,"p_org": string,"p_payload"?: Json }; Returns: {

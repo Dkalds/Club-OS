@@ -7,16 +7,28 @@ const mocks = vi.hoisted(() => ({
   getClubContext: vi.fn(),
   listPeople: vi.fn(),
   getPerson: vi.fn(),
+  listSeasons: vi.fn(),
+  getSeason: vi.fn(),
 }));
 
+vi.mock("@/modules/consents/queries", () => ({
+  getConsentStatus: async () => ({ needsTerms: false, pendingGuardianships: [] }),
+}));
 vi.mock("@/modules/tenancy/queries", () => ({ getClubContext: mocks.getClubContext }));
 // `PEOPLE_LIMIT` vale lo mismo que el de verdad (lo fija `queries.test.ts`): la página avisa
 // cuando la lista llega a él.
 vi.mock("@/modules/structure/queries", () => ({
   PEOPLE_LIMIT: 1000,
+  defaultSeason: (seasons: unknown[]) => seasons[0] ?? null,
+  listSeasons: mocks.listSeasons,
+  getSeason: mocks.getSeason,
   listPeople: mocks.listPeople,
   getPerson: mocks.getPerson,
 }));
+// Invitar, dar una tutela e importar: sus acciones, de pega (aquí solo se pintan).
+vi.mock("@/modules/invitations/actions", () => ({ createInvitation: vi.fn() }));
+vi.mock("@/modules/people/actions", () => ({ createGuardianship: vi.fn() }));
+vi.mock("@/modules/people-import/actions", () => ({ importPeople: vi.fn() }));
 // Los formularios llaman a estas acciones; aquí solo se pintan.
 vi.mock("@/modules/structure/actions", () => ({
   createPerson: vi.fn(),
@@ -80,6 +92,8 @@ beforeEach(() => {
   mocks.getClubContext.mockResolvedValue(clubContext("admin"));
   mocks.listPeople.mockResolvedValue(PEOPLE);
   mocks.getPerson.mockResolvedValue(detail());
+  mocks.listSeasons.mockResolvedValue([]);
+  mocks.getSeason.mockResolvedValue(null);
 });
 
 afterEach(() => {

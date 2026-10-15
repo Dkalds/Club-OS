@@ -1,13 +1,14 @@
 import { notFound } from "next/navigation";
 import { adminPage } from "@/lib/guards";
 import { ACCESS_LABEL, fullName, STAFF_ROLE_LABEL } from "@/modules/structure/format";
-import { getPerson } from "@/modules/structure/queries";
+import { defaultSeason, getPerson, getSeason, listSeasons } from "@/modules/structure/queries";
 import type { PersonTeam } from "@/modules/structure/types";
 import { BackLink } from "@/ui/back-link";
 import { Card } from "@/ui/card";
 import { TeamIcon } from "@/ui/icons";
 import { ListRow } from "@/ui/list-row";
 import { PersonArchive, PersonEditor } from "../../_components/person-editor";
+import { InvitePerson } from "../_components/invite-person";
 import { BLOCK_HEADING_CLASS, Pill } from "../../_components/structure-shared";
 
 /** Qué hace una persona en un equipo. */
@@ -20,13 +21,17 @@ function seatLabel(as: PersonTeam["as"]): string {
  * tiene acceso a la app y con qué rol, y archivarla o recuperarla. Una que no existe, que es de
  * otro club o cuyo id no tiene forma de uuid da el mismo 404.
  *
- * El acceso se lee, no se cambia: invitar y dar o quitar acceso llega con las invitaciones.
+ * El acceso se lee aquí; a quien no tiene cuenta se le puede invitar, a un equipo de la
+ * temporada actual si entra como entrenador.
  */
 export default adminPage<{ club: string; personId: string }>(async (ctx, { personId }) => {
   const person = await getPerson(ctx, personId);
   if (!person) notFound();
 
   const slug = ctx.org.slug;
+  const canInvite = !person.archived && !person.access;
+  const season = canInvite ? defaultSeason(await listSeasons(ctx)) : null;
+  const seasonTeams = season ? ((await getSeason(ctx, season.id))?.teams ?? []) : [];
 
   return (
     <>
@@ -64,6 +69,13 @@ export default adminPage<{ club: string; personId: string }>(async (ctx, { perso
         )}
       </section>
 
+      {canInvite ? (
+        <InvitePerson
+          clubSlug={slug}
+          personId={person.id}
+          teams={seasonTeams.map((team) => ({ id: team.id, name: team.name }))}
+        />
+      ) : null}
       <PersonEditor clubSlug={slug} person={person} />
       <PersonArchive clubSlug={slug} person={person} archived={person.archived} />
     </>

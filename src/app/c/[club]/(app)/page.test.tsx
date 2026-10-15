@@ -4,10 +4,19 @@ import type { HomeData } from "@/modules/home/types";
 import type { RecentChange } from "@/modules/schedule/changes";
 import { clubContext } from "@/modules/tenancy/test-support";
 
-const mocks = vi.hoisted(() => ({ getClubContext: vi.fn(), getHomeData: vi.fn(), listRecentChanges: vi.fn() }));
+const mocks = vi.hoisted(() => ({
+  getClubContext: vi.fn(),
+  getHomeData: vi.fn(),
+  getCoverageMatrix: vi.fn(),
+  listRecentChanges: vi.fn(),
+}));
 
 vi.mock("@/modules/tenancy/queries", () => ({ getClubContext: mocks.getClubContext }));
 vi.mock("@/modules/home/queries", () => ({ getHomeData: mocks.getHomeData }));
+vi.mock("@/modules/coverage/queries", () => ({
+  DEFAULT_COVERAGE_WEEKS: 6,
+  getCoverageMatrix: mocks.getCoverageMatrix,
+}));
 vi.mock("@/modules/schedule/changes-queries", () => ({ listRecentChanges: mocks.listRecentChanges }));
 // Como el de verdad: `notFound()` corta el render lanzando.
 vi.mock("next/navigation", () => ({
@@ -46,6 +55,7 @@ const CHANGE: RecentChange = {
 beforeEach(() => {
   vi.resetAllMocks();
   mocks.getHomeData.mockResolvedValue(HOME);
+  mocks.getCoverageMatrix.mockResolvedValue({ standards: [], rows: [] });
   mocks.listRecentChanges.mockResolvedValue({ items: [], more: 0 });
 });
 
@@ -168,5 +178,28 @@ describe("Inicio del club", () => {
     render(await ClubHomePage(PARAMS));
 
     expect(screen.queryByRole("link", { name: "Preparar sesión" })).not.toBeInTheDocument();
+  });
+
+  it("un admin ve el resumen de cobertura; un entrenador no", async () => {
+    mocks.getClubContext.mockResolvedValue(clubContext("admin"));
+    mocks.getCoverageMatrix.mockResolvedValue({
+      standards: [{ id: "s1", number: 1, title: "x" }],
+      rows: [{ team: { id: "t1", name: "Equipo A" }, covered: [true] }],
+    });
+
+    render(await ClubHomePage(PARAMS));
+
+    expect(screen.getByRole("heading", { name: "Cobertura de The Way" })).toBeInTheDocument();
+    expect(screen.getByText(/1 de 1 combinaciones/)).toBeInTheDocument();
+    expect(mocks.getCoverageMatrix).toHaveBeenCalledTimes(1);
+  });
+
+  it("un entrenador no ve el resumen de cobertura, ni se consulta", async () => {
+    mocks.getClubContext.mockResolvedValue(clubContext("coach"));
+
+    render(await ClubHomePage(PARAMS));
+
+    expect(screen.queryByRole("heading", { name: "Cobertura de The Way" })).not.toBeInTheDocument();
+    expect(mocks.getCoverageMatrix).not.toHaveBeenCalled();
   });
 });

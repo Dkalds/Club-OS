@@ -39,6 +39,7 @@ function isPassThrough(response: Response): boolean {
 
 beforeEach(() => {
   vi.resetAllMocks();
+  vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "http://127.0.0.1:54321");
   logged = [];
   vi.spyOn(console, "error").mockImplementation((...args: unknown[]) => {
     logged.push(args.map(String).join(" "));
@@ -54,6 +55,7 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.restoreAllMocks();
+  vi.unstubAllEnvs();
 });
 
 describe("updateSession sin sesión", () => {
@@ -242,6 +244,39 @@ describe("updateSession deja rastro en el log sin datos personales", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe("updateSession pone las cabeceras de seguridad (C12)", () => {
+  it.each(["/", "/login", "/c/club-a"])("la CSP lleva un nonce, en %s", async (path) => {
+    mocks.getClaims.mockResolvedValue(SIGNED_IN);
+    const response = await updateSession(request(path));
+
+    const csp = response.headers.get("Content-Security-Policy");
+    expect(csp).toMatch(/script-src 'self' 'nonce-[^']+' 'strict-dynamic'/);
+  });
+
+  it("dos peticiones no comparten el mismo nonce", async () => {
+    mocks.getClaims.mockResolvedValue(SIGNED_IN);
+    const a = await updateSession(request("/c/club-a"));
+    const b = await updateSession(request("/c/club-a"));
+
+    expect(a.headers.get("Content-Security-Policy")).not.toBe(b.headers.get("Content-Security-Policy"));
+  });
+
+  it("también las lleva un redirect a /login", async () => {
+    const response = await updateSession(request("/c/club-a"));
+
+    expect(response.status).toBe(307);
+    expect(response.headers.get("Content-Security-Policy")).toContain("strict-dynamic");
+    expect(response.headers.get("X-Content-Type-Options")).toBe("nosniff");
+  });
+
+  it("Permissions-Policy no bloquea screen-wake-lock ni web-share", async () => {
+    const response = await updateSession(request("/"));
+
+    expect(response.headers.get("Permissions-Policy")).toContain("screen-wake-lock=(self)");
+    expect(response.headers.get("Permissions-Policy")).toContain("web-share=(self)");
   });
 });
 

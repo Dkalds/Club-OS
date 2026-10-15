@@ -1,4 +1,4 @@
-import { requireAdmin, requireClub } from "@/lib/guards";
+import { requireAdmin, requireClub, requireTerms } from "@/lib/guards";
 import { adminNavItems } from "@/modules/tenancy/navigation";
 import { AdminShell } from "@/ui/admin-shell";
 
@@ -17,6 +17,7 @@ export default async function AdminLayout({ children, params }: LayoutProps<"/c/
   const { club } = await params;
   const ctx = await requireClub(club);
   requireAdmin(ctx);
+  await requireTerms(ctx);
 
   return (
     <AdminShell

@@ -77,12 +77,14 @@ select results_eq(
   'coachA solo ve su perfil'
 );
 
--- En esta fase no hay escrituras para usuarios: ni política ni privilegio.
-select throws_ok(
+-- Desde Fase 7 Task 10 hay columnas de escritura para dirección (club_admin_write.test.sql
+-- las cubre a fondo); un coach tiene el privilegio de columna pero RLS filtra su fila en
+-- silencio, sin 42501: no es quien administra el club.
+select is_empty(
   $$update organization_branding set color_accent = '#000000'
-    where organization_id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'$$,
-  '42501', null,
-  'un miembro no puede cambiar la marca'
+    where organization_id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+    returning 1$$,
+  'un coach no cambia la marca de su club: ni una fila'
 );
 
 select throws_ok(
@@ -113,10 +115,11 @@ select is_empty(
   'admin no ve membresías de otros clubes'
 );
 
-select throws_ok(
+-- Desde Fase 7 Task 10, dirección sí cambia el nombre de su club (club_admin_write.test.sql
+-- lo cubre a fondo, incluido que no toca el de otro club).
+select lives_ok(
   $$update organizations set name = 'Otro nombre' where id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'$$,
-  '42501', null,
-  'ni el admin escribe en esta fase'
+  'dirección cambia el nombre de su club'
 );
 
 -- ── coachB: el aislamiento vale en los dos sentidos ──────────────────────────────────

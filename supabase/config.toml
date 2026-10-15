@@ -282,10 +282,12 @@ max_frequency = "5s"
 # Force log out if the user has been inactive longer than the specified duration.
 # inactivity_timeout = "8h"
 
-# This hook runs before a new user is created and allows developers to reject the request based on the incoming user object.
-# [auth.hook.before_user_created]
-# enabled = true
-# uri = "pg-functions://postgres/auth/before-user-created-hook"
+# Acceso solo por invitación (regla 6 de CLAUDE.md): cierre de seguridad para cualquier alta
+# que no pase por `create_invitation` (20270112000100_invitations.sql). No se dispara para el
+# alta normal, que inserta en auth.users directamente sin pasar por Auth.
+[auth.hook.before_user_created]
+enabled = true
+uri = "pg-functions://postgres/private/before_user_created"
 
 # This hook runs before a token is issued and allows you to add additional claims based on the authentication method used.
 # [auth.hook.custom_access_token]

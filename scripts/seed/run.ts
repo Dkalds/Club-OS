@@ -194,6 +194,45 @@ async function deleteStaleDrillChildren<Row extends { drill_id: string }>(
   }
 }
 
+/**
+ * Cada cuenta sembrada ya aceptó los términos de su club (Fase 7, [D7]): sin esto,
+ * `requireTerms` mandaría a todas a `/consent` y nada del resto de la app se podría usar.
+ * Copia el texto vigente de cada club, como haría `grant_terms_consent`. Idempotente: el
+ * índice único es parcial (`where kind = 'terms'`) y `upsert` no lo puede usar, así que
+ * solo inserta las que faltan.
+ */
+async function ensureTermsConsents(
+  db: Client,
+  memberships: Array<{ organization_id: string; user_id: string }>,
+): Promise<void> {
+  const organizationIds = [...new Set(memberships.map((m) => m.organization_id))];
+
+  const texts = await db
+    .from("organization_branding")
+    .select("organization_id, terms_text")
+    .in("organization_id", organizationIds);
+  check("organization_branding (términos)", texts);
+  const termsText = new Map((texts.data ?? []).map((row) => [row.organization_id, row.terms_text]));
+
+  const existing = await db
+    .from("consents")
+    .select("organization_id, granted_by")
+    .eq("kind", "terms")
+    .in("organization_id", organizationIds);
+  check("consents (términos)", existing);
+  const accepted = new Set((existing.data ?? []).map((row) => `${row.organization_id}:${row.granted_by}`));
+
+  const missing = memberships
+    .filter((m) => !accepted.has(`${m.organization_id}:${m.user_id}`))
+    .map((m) => ({
+      organization_id: m.organization_id,
+      kind: "terms",
+      granted_by: m.user_id,
+      body_snapshot: termsText.get(m.organization_id) ?? "",
+    }));
+  if (missing.length > 0) check("consents", await db.from("consents").insert(missing));
+}
+
 export async function runSeed(now: Date, client?: Client): Promise<SeedReport> {
   const db = client ?? adminClientForSeed();
   const data = buildSeedData(now);
@@ -251,6 +290,7 @@ export async function runSeed(now: Date, client?: Client): Promise<SeedReport> {
     "memberships",
     await db.from("memberships").upsert(memberships, { onConflict: "organization_id,user_id" }),
   );
+  await ensureTermsConsents(db, memberships);
   check(
     "team_staff",
     await db.from("team_staff").upsert(data.team_staff, { onConflict: "team_id,person_id" }),

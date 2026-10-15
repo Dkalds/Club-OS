@@ -9,6 +9,9 @@ const mocks = vi.hoisted(() => ({
   listVenues: vi.fn(),
 }));
 
+vi.mock("@/modules/consents/queries", () => ({
+  getConsentStatus: async () => ({ needsTerms: false, pendingGuardianships: [] }),
+}));
 vi.mock("@/modules/tenancy/queries", () => ({ getClubContext: mocks.getClubContext }));
 vi.mock("@/modules/calendar/queries", () => ({
   listSeasonSchedules: mocks.listSeasonSchedules,

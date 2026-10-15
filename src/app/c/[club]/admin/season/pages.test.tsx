@@ -10,6 +10,9 @@ const mocks = vi.hoisted(() => ({
   listCategories: vi.fn(),
 }));
 
+vi.mock("@/modules/consents/queries", () => ({
+  getConsentStatus: async () => ({ needsTerms: false, pendingGuardianships: [] }),
+}));
 vi.mock("@/modules/tenancy/queries", () => ({ getClubContext: mocks.getClubContext }));
 // Las lecturas son de pega; `defaultSeason` (qué temporada toca) es la de verdad.
 vi.mock("@/lib/supabase/server", () => ({ createClient: vi.fn() }));

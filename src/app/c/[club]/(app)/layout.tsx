@@ -1,4 +1,4 @@
-import { requireClub } from "@/lib/guards";
+import { requireClub, requireTerms } from "@/lib/guards";
 import { can } from "@/lib/permissions";
 import { unstable_rethrow } from "next/navigation";
 import { getTeamScope, type TeamScope } from "@/modules/team/scope";
@@ -41,6 +41,7 @@ async function readTeamScope(ctx: Parameters<typeof getTeamScope>[0]): Promise<T
 export default async function AppLayout({ children, params }: LayoutProps<"/c/[club]">) {
   const { club } = await params;
   const ctx = await requireClub(club);
+  await requireTerms(ctx);
   const { org } = ctx;
   const { role } = ctx.membership;
   const [name, scope] = await Promise.all([getViewerName(ctx), readTeamScope(ctx)]);

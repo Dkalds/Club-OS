@@ -5,6 +5,9 @@ import { clubContext } from "@/modules/tenancy/test-support";
 const mocks = vi.hoisted(() => ({ getClubContext: vi.fn(), getLiveSession: vi.fn() }));
 
 vi.mock("@/modules/tenancy/queries", () => ({ getClubContext: mocks.getClubContext }));
+vi.mock("@/modules/consents/queries", () => ({
+  getConsentStatus: async () => ({ needsTerms: false, pendingGuardianships: [] }),
+}));
 vi.mock("@/modules/live/queries", () => ({ getLiveSession: mocks.getLiveSession }));
 vi.mock("./live-screen", () => ({ LiveScreen: () => null }));
 vi.mock("next/navigation", () => ({

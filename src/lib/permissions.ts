@@ -13,7 +13,10 @@ export type Action =
   | "practice.manage"
   | "goal.manage"
   | "note.manage"
-  | "game.manage";
+  | "game.manage"
+  | "invite.manage"
+  | "people.manage"
+  | "coverage.view";
 
 /** Los roles que pueden cada acción. El compilador obliga a decidir las acciones nuevas. */
 const ALLOWED_ROLES: Record<Action, readonly Role[]> = {
@@ -34,6 +37,10 @@ const ALLOWED_ROLES: Record<Action, readonly Role[]> = {
   "goal.manage": ["admin", "coach"],
   "note.manage": ["admin", "coach"],
   "game.manage": ["admin", "coach"],
+  // Invitaciones, personas y cobertura: siempre dirección.
+  "invite.manage": ["admin"],
+  "people.manage": ["admin"],
+  "coverage.view": ["admin"],
 };
 
 /**

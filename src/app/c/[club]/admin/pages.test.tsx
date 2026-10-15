@@ -20,6 +20,9 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("@/modules/tenancy/queries", () => ({ getClubContext: mocks.getClubContext }));
+vi.mock("@/modules/consents/queries", () => ({
+  getConsentStatus: async () => ({ needsTerms: false, pendingGuardianships: [] }),
+}));
 // La estructura del club (temporada, categorías, equipos y personas): sus lecturas, de pega. Lo
 // que pinta cada página se prueba en el `pages.test.tsx` de su carpeta.
 vi.mock("@/modules/structure/queries", () => ({

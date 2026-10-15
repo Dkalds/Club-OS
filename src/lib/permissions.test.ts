@@ -23,7 +23,15 @@ function contextWithRole(role: Role): ClubContext {
 }
 
 /** Las acciones que solo hace administración. */
-const ADMIN_ONLY: Action[] = ["way.manage", "admin.access", "club.manage", "drill.publish"];
+const ADMIN_ONLY: Action[] = [
+  "way.manage",
+  "admin.access",
+  "club.manage",
+  "drill.publish",
+  "invite.manage",
+  "people.manage",
+  "coverage.view",
+];
 
 /**
  * Los roles que pueden cada acción, escritos a mano. Al ser un `Record<Action, …>`, una
@@ -41,6 +49,10 @@ const EXPECTED: Record<Action, Record<Role, boolean>> = {
   "goal.manage": { admin: true, coach: true, player: false, guardian: false },
   "note.manage": { admin: true, coach: true, player: false, guardian: false },
   "game.manage": { admin: true, coach: true, player: false, guardian: false },
+  // Gestión de club: siempre dirección, nunca cuerpo técnico.
+  "invite.manage": { admin: true, coach: false, player: false, guardian: false },
+  "people.manage": { admin: true, coach: false, player: false, guardian: false },
+  "coverage.view": { admin: true, coach: false, player: false, guardian: false },
 };
 
 /** Todas las acciones: quien administra las puede todas. */

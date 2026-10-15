@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { after } from "next/server";
 import { z } from "zod";
 import { logError } from "@/lib/log";
+import { canAttempt, clearAttempts, recordAttempt } from "@/lib/rate-limit";
 import { createAnonClient, createClient } from "@/lib/supabase/server";
 import { DEMO_ROLES, demoCredentials } from "./demo-login";
 
@@ -45,10 +46,15 @@ export async function requestLoginCode(
   const email = emailSchema.safeParse(formData.get("email"));
   if (!email.success) return { step: "email", error: INVALID_EMAIL };
 
-  try {
-    after(() => sendLoginCode(email.data));
-  } catch (error) {
-    logError("auth.request-code", error);
+  // Límite de intentos ([D12]): mismo texto siempre, bloqueada o no (nunca una pista de
+  // que ese email existe o está bajo sospecha). Solo cambia si se llega a llamar a Auth.
+  if (canAttempt(email.data)) {
+    recordAttempt(email.data);
+    try {
+      after(() => sendLoginCode(email.data));
+    } catch (error) {
+      logError("auth.request-code", error);
+    }
   }
 
   return { step: "code", email: email.data, info: CODE_SENT };
@@ -85,6 +91,9 @@ export async function verifyLoginCode(
   const code = codeSchema.safeParse(formData.get("code"));
   if (!code.success) return rejected;
 
+  // Límite de intentos ([D12]): bloqueada, el mismo rechazo de siempre, sin llamar a Auth.
+  if (!canAttempt(email.data)) return rejected;
+
   let verified = false;
   try {
     const supabase = await createClient();
@@ -99,7 +108,11 @@ export async function verifyLoginCode(
     logError("auth.verify-code", error);
     verified = false;
   }
-  if (!verified) return rejected;
+  if (!verified) {
+    recordAttempt(email.data);
+    return rejected;
+  }
+  clearAttempts(email.data);
 
   // Fuera del try/catch: `redirect()` funciona lanzando una excepción.
   redirect("/select-club");

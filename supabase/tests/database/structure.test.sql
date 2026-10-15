@@ -507,10 +507,11 @@ select throws_ok(
 );
 
 -- ── Menores: solo el año de nacimiento ───────────────────────────────────────────────
--- Añadir un dato personal a `people` obliga a tocar este test a propósito.
+-- Añadir un dato personal a `people` obliga a tocar este test a propósito. `photo_media_id` es
+-- solo la referencia a una foto, que exige consentimiento (20270112000300).
 select columns_are(
   'public', 'people',
-  array['id', 'organization_id', 'first_name', 'last_name', 'birth_year', 'created_at', 'archived_at'],
+  array['id', 'organization_id', 'first_name', 'last_name', 'birth_year', 'created_at', 'archived_at', 'photo_media_id'],
   'people guarda el año de nacimiento, nunca la fecha completa'
 );
 

@@ -10,6 +10,9 @@ vi.mock("@/modules/tenancy/queries", () => ({
   getClubContext: mocks.getClubContext,
   getViewerName: mocks.getViewerName,
 }));
+vi.mock("@/modules/consents/queries", () => ({
+  getConsentStatus: async () => ({ needsTerms: false, pendingGuardianships: [] }),
+}));
 vi.mock("@/modules/team/queries", () => ({ listMyTeams: mocks.listMyTeams }));
 // El selector de equipo es de cliente y llama a una acción: aquí solo importa si se monta.
 vi.mock("@/modules/team/actions", () => ({ setActiveTeam: vi.fn() }));

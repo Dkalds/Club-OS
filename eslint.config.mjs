@@ -21,6 +21,8 @@ const eslintConfig = defineConfig([
     "coverage/**",
     "playwright-report/**",
     "test-results/**",
+    // El service worker que genera Serwist en el build (ignorado en git): no es código fuente.
+    "public/sw.js",
     // Carpetas de agentes y worktrees: no son código del proyecto.
     ".claude/**",
     ".worktrees/**",

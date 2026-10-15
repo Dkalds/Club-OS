@@ -122,7 +122,7 @@ describe("adminHomeHref", () => {
 });
 
 describe("adminNavItems", () => {
-  it("por defecto: Temporada, Calendario y Personas delante de Identidad, Valores, Principios y Standards, con rutas bajo /admin", () => {
+  it("por defecto: Temporada, Calendario y Personas delante de Identidad, Valores, Principios, Standards, Club, Ejercicios pendientes, Cobertura e Invitaciones, con rutas bajo /admin", () => {
     expect(adminNavItems(SLUG, {})).toEqual([
       // Los equipos no tienen apartado: con uno abierto, el actual sigue siendo «Temporada».
       { label: "Temporada", href: "/c/club-a/admin/season", also: ["/c/club-a/admin/teams"] },
@@ -132,6 +132,10 @@ describe("adminNavItems", () => {
       { label: "Valores", href: "/c/club-a/admin/values" },
       { label: "Principios", href: "/c/club-a/admin/principles" },
       { label: "Standards", href: "/c/club-a/admin/standards" },
+      { label: "Club", href: "/c/club-a/admin/club" },
+      { label: "Ejercicios pendientes", href: "/c/club-a/admin/drills" },
+      { label: "Cobertura", href: "/c/club-a/admin/coverage" },
+      { label: "Invitaciones", href: "/c/club-a/admin/invites" },
     ]);
   });
 
@@ -146,6 +150,10 @@ describe("adminNavItems", () => {
       "Valores",
       "Principios",
       "Normas",
+      "Club",
+      "Ejercicios pendientes",
+      "Cobertura",
+      "Invitaciones",
     ]);
     expect(items.map((item) => item.href)).toEqual(adminNavItems(SLUG, {}).map((item) => item.href));
   });
@@ -161,6 +169,10 @@ describe("adminNavItems", () => {
       "Valores",
       "Principios",
       "Standards",
+      "Club",
+      "Ejercicios pendientes",
+      "Cobertura",
+      "Invitaciones",
     ]);
   });
 

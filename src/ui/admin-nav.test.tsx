@@ -35,6 +35,10 @@ describe("AdminNav", () => {
       "Valores",
       "Principios",
       "Standards",
+      "Club",
+      "Ejercicios pendientes",
+      "Cobertura",
+      "Invitaciones",
     ]);
     expect(within(nav).getByRole("link", { name: "Valores" })).toHaveAttribute(
       "href",

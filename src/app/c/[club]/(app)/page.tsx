@@ -1,5 +1,7 @@
 import { requireClub } from "@/lib/guards";
 import { can } from "@/lib/permissions";
+import { addLocalDays, isoToLocalInputs } from "@/lib/time";
+import { DEFAULT_COVERAGE_WEEKS, getCoverageMatrix } from "@/modules/coverage/queries";
 import { HomeScreen } from "@/modules/home/home-screen";
 import { getHomeData } from "@/modules/home/queries";
 import { listRecentChanges } from "@/modules/schedule/changes-queries";
@@ -27,9 +29,25 @@ export default async function ClubHomePage({ params }: PageProps<"/c/[club]">) {
   const { club } = await params;
   const ctx = await requireClub(club);
 
-  const nowIso = new Date().toISOString();
-  const [home, changes] = await Promise.all([getHomeData(ctx, nowIso), listRecentChanges(ctx, nowIso, HOME_CHANGES)]);
+  const now = new Date().toISOString();
   const { wayName } = ctx.branding;
+
+  // La cobertura (solo dirección) se lee a la vez que Inicio, no después.
+  async function coverage(): Promise<{ coveredCount: number; totalCount: number } | null> {
+    if (!can(ctx, "coverage.view")) return null;
+    const tz = ctx.org.timezone;
+    const to = isoToLocalInputs(now, tz).date;
+    const from = isoToLocalInputs(addLocalDays(now, -DEFAULT_COVERAGE_WEEKS * 7, tz), tz).date;
+    const matrix = await getCoverageMatrix(ctx, from, to);
+    const coveredCount = matrix.rows.reduce((sum, row) => sum + row.covered.filter(Boolean).length, 0);
+    return { coveredCount, totalCount: matrix.rows.length * matrix.standards.length };
+  }
+
+  const [home, changes, coverageSummary] = await Promise.all([
+    getHomeData(ctx, now),
+    listRecentChanges(ctx, now, HOME_CHANGES),
+    coverage(),
+  ]);
 
   return (
     <HomeScreen
@@ -37,6 +55,7 @@ export default async function ClubHomePage({ params }: PageProps<"/c/[club]">) {
       clubSlug={ctx.org.slug}
       ownShortName={ctx.branding.shortName}
       canCreatePractice={can(ctx, "practice.manage")}
+      coverageSummary={coverageSummary}
       changes={changes}
       identity={
         hasIdentityTab(ctx.membership.role)

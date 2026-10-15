@@ -1,5 +1,6 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import type { ReactNode } from "react";
+import { getConsentStatus } from "@/modules/consents/queries";
 import { getClubContext, type ClubContext } from "@/modules/tenancy/queries";
 import { can } from "./permissions";
 
@@ -22,6 +23,17 @@ export function requireAdmin(ctx: ClubContext): void {
 }
 
 /**
+ * Los términos generales bloquean el acceso ([D7]): toda cuenta sin un consentimiento de
+ * términos para este club va a `/consent` y no puede saltárselo, ni con la URL directa. Se
+ * llama desde el marco de cada área (y desde `adminPage`, que además protege cada página de
+ * Gestión por su cuenta, igual que `requireAdmin`).
+ */
+export async function requireTerms(ctx: ClubContext): Promise<void> {
+  const { needsTerms } = await getConsentStatus(ctx);
+  if (needsTerms) redirect(`/c/${ctx.org.slug}/consent`);
+}
+
+/**
  * Una página de Gestión: `export default adminPage(async (ctx, params) => …)`.
  *
  * Antes de ejecutar nada de la página resuelve el club de la URL y comprueba que quien entra
@@ -39,6 +51,7 @@ export function adminPage<P extends { club: string }>(
     const resolved = await params;
     const ctx = await requireClub(resolved.club);
     requireAdmin(ctx);
+    await requireTerms(ctx);
     return render(ctx, resolved);
   };
 }

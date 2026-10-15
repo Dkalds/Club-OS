@@ -1512,7 +1512,8 @@ select set_eq(
     ('media_assets', 'media_assets_insert_own', 'INSERT', array['authenticated'], 'PERMISSIVE'),
     ('objects', 'club_media_read', 'SELECT', array['authenticated'], 'PERMISSIVE'),
     ('objects', 'club_media_insert', 'INSERT', array['authenticated'], 'PERMISSIVE'),
-    ('objects', 'club_media_delete', 'DELETE', array['authenticated'], 'PERMISSIVE')$$,
+    ('objects', 'club_media_delete', 'DELETE', array['authenticated'], 'PERMISSIVE'),
+    ('objects', 'club_media_people_read', 'SELECT', array['authenticated'], 'PERMISSIVE')$$,
   'las políticas: leer y crear medios, y leer, subir y borrar objetos; nada de update'
 );
 

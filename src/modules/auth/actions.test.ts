@@ -14,6 +14,9 @@ const mocks = vi.hoisted(() => ({
   signInWithPassword: vi.fn(),
   redirect: vi.fn(),
   after: vi.fn(),
+  canAttempt: vi.fn(),
+  recordAttempt: vi.fn(),
+  clearAttempts: vi.fn(),
 }));
 
 vi.mock("@/lib/supabase/server", () => ({
@@ -22,6 +25,13 @@ vi.mock("@/lib/supabase/server", () => ({
 }));
 vi.mock("next/navigation", () => ({ redirect: mocks.redirect }));
 vi.mock("next/server", () => ({ after: mocks.after }));
+// Un doble, no el límite de intentos real: es un `Map` compartido entre tests y este fichero
+// llama a las dos acciones muchas veces con el mismo email.
+vi.mock("@/lib/rate-limit", () => ({
+  canAttempt: mocks.canAttempt,
+  recordAttempt: mocks.recordAttempt,
+  clearAttempts: mocks.clearAttempts,
+}));
 
 import { demoLogin, requestLoginCode, verifyLoginCode, type LoginState } from "./actions";
 
@@ -62,6 +72,7 @@ beforeEach(() => {
   mocks.after.mockImplementation((task: () => unknown) => {
     scheduled.push(task);
   });
+  mocks.canAttempt.mockReturnValue(true);
   // Cada cliente solo sabe hacer lo suyo: si una acción usa el que no toca, el test falla.
   mocks.createAnonClient.mockReturnValue({ auth: { signInWithOtp: mocks.signInWithOtp } });
   mocks.createClient.mockResolvedValue({ auth: { verifyOtp: mocks.verifyOtp } });
@@ -245,6 +256,24 @@ describe("requestLoginCode", () => {
 
     expect(logged).toEqual([]);
   });
+
+  it("cuenta el intento y no llama a Auth si el límite lo bloquea, con la misma respuesta ([D12])", async () => {
+    mocks.canAttempt.mockReturnValue(false);
+
+    const result = await requestLoginCode(emailStep, form({ email: EMAIL }));
+
+    expect(result).toEqual(codeSent);
+    expect(mocks.recordAttempt).not.toHaveBeenCalled();
+    expect(mocks.after).not.toHaveBeenCalled();
+    expect(mocks.signInWithOtp).not.toHaveBeenCalled();
+  });
+
+  it("sin bloquear, cuenta el intento por email", async () => {
+    await requestLoginCode(emailStep, form({ email: EMAIL }));
+
+    expect(mocks.canAttempt).toHaveBeenCalledWith(EMAIL);
+    expect(mocks.recordAttempt).toHaveBeenCalledWith(EMAIL);
+  });
 });
 
 describe("verifyLoginCode", () => {
@@ -260,6 +289,28 @@ describe("verifyLoginCode", () => {
     expect(mocks.redirect).not.toHaveBeenCalled();
   });
 
+  it("código erróneo: cuenta el intento ([D12])", async () => {
+    mocks.verifyOtp.mockResolvedValue({
+      data: { user: null, session: null },
+      error: { message: "Token has expired or is invalid" },
+    });
+
+    await verifyLoginCode(codeStep, form({ email: EMAIL, code: "123456" }));
+
+    expect(mocks.recordAttempt).toHaveBeenCalledWith(EMAIL);
+    expect(mocks.clearAttempts).not.toHaveBeenCalled();
+  });
+
+  it("bloqueada por el límite: el mismo rechazo, sin llamar a Auth ([D12])", async () => {
+    mocks.canAttempt.mockReturnValue(false);
+
+    const result = await verifyLoginCode(codeStep, form({ email: EMAIL, code: "123456" }));
+
+    expect(result).toEqual({ step: "code", email: EMAIL, error: INVALID_CODE });
+    expect(mocks.createClient).not.toHaveBeenCalled();
+    expect(mocks.verifyOtp).not.toHaveBeenCalled();
+  });
+
   it("código correcto", async () => {
     await expect(
       verifyLoginCode(codeStep, form({ email: EMAIL, code: "123456" })),
@@ -269,6 +320,15 @@ describe("verifyLoginCode", () => {
     expect(mocks.verifyOtp).toHaveBeenCalledWith({ email: EMAIL, token: "123456", type: "email" });
     expect(mocks.redirect).toHaveBeenCalledTimes(1);
     expect(mocks.redirect).toHaveBeenCalledWith("/select-club");
+  });
+
+  it("código correcto: deja de estar bajo sospecha ([D12])", async () => {
+    await expect(
+      verifyLoginCode(codeStep, form({ email: EMAIL, code: "123456" })),
+    ).rejects.toBeInstanceOf(RedirectSignal);
+
+    expect(mocks.clearAttempts).toHaveBeenCalledWith(EMAIL);
+    expect(mocks.recordAttempt).not.toHaveBeenCalled();
   });
 
   it.each([
