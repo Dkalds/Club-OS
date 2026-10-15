@@ -60,7 +60,15 @@ function saveButton(page: Page): Locator {
   return page.getByRole("button", { name: "Guardar sesión" });
 }
 
-/** Rellena «Nueva sesión» como Álex, con el objetivo «Transición», y la deja sin enviar. */
+/**
+ * Rellena «Nueva sesión» como Álex, con el objetivo «Transición», y la deja sin enviar.
+ *
+ * Dentro de dos semanas: detrás de todas las sesiones del seed (la última, `upcoming-1`, cae
+ * como mucho a siete días). La propuesta evita los ejercicios de las tres sesiones anteriores
+ * del equipo, y el seed las pone en martes y jueves alrededor de la hora de la siembra: con una
+ * fecha más cercana, cuáles son esas tres (y lo que suma la propuesta) dependería del día y la
+ * hora a la que corren los tests.
+ */
 async function fillNewSession(page: Page, name: string, minutes: string): Promise<void> {
   await openAs(page, ALEX);
   await page.goto(`${CLUB}/train/new`);
@@ -68,7 +76,7 @@ async function fillNewSession(page: Page, name: string, minutes: string): Promis
   await hydrated(page.getByRole("button", { name: "Proponer entrenamiento" }));
 
   await field(page, "Título").fill(name);
-  await field(page, "Fecha").fill(inDays(4));
+  await field(page, "Fecha").fill(inDays(14));
   await field(page, "Hora").fill("18:00");
   await field(page, "Duración (min)").fill(minutes);
   await field(page, "Objetivo principal").selectOption({ label: "Transición" });
