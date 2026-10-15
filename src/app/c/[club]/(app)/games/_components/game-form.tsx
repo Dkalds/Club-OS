@@ -44,11 +44,14 @@ export function GameForm({
   teams,
   initial,
   eventId,
+  venues,
 }: {
   clubSlug: string;
   teams: Array<{ id: string; name: string }>;
   initial: GameFormValues;
   eventId?: string;
+  /** Los nombres de las pistas del club, que «Lugar» sugiere al escribir. */
+  venues?: readonly string[];
 }) {
   const router = useRouter();
   const { pending, failure, run } = useAction();
@@ -126,7 +129,15 @@ export function GameForm({
         error={errors.homeAway}
       />
       <TextField label="Competición" name="competition" value={values.competition} onChange={touch("competition")} maxLength={COMPETITION_MAX} error={errors.competition} />
-      <TextField label="Lugar" name="location" value={values.location} onChange={touch("location")} maxLength={LOCATION_MAX} error={errors.location} />
+      <TextField
+        label="Lugar"
+        name="location"
+        value={values.location}
+        onChange={touch("location")}
+        maxLength={LOCATION_MAX}
+        suggestions={venues}
+        error={errors.location}
+      />
       {eventId ? (
         <TextAreaField
           label="Notas del rival"

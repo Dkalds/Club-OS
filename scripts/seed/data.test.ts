@@ -314,6 +314,21 @@ describe("buildSeedData: contenido", () => {
     expect(teams("club-demo")).toEqual(["Infantil A"]);
   });
 
+  it("cada club tiene sus pistas, sin repetir nombre, y los entrenamientos del seed son en una de ellas", () => {
+    for (const club of [ARCANGEL, CLUB_DEMO]) {
+      const org = data.organizations.find((o) => o.slug === club.slug);
+      const names = data.venues.filter((venue) => venue.organization_id === org?.id).map((venue) => venue.name);
+
+      expect(names).toEqual(club.venues);
+      expect(new Set(names.map((name) => name.trim().toLowerCase())).size).toBe(names.length);
+
+      const practices = data.events.filter((event) => event.organization_id === org?.id && event.kind === "practice");
+      expect(practices.length).toBeGreaterThan(0);
+      for (const practice of practices) expect(names).toContain(practice.location);
+    }
+
+  });
+
   it("áreas de foco: técnica, transición, tiro, defensa, rebote, ataque", () => {
     for (const slug of ["arcangel", "club-demo"]) {
       const focus = data.focus_areas
@@ -1047,6 +1062,7 @@ describe("buildSeedData: invariantes", () => {
       ["seasons", data.seasons],
       ["categories", data.categories],
       ["teams", data.teams],
+      ["venues", data.venues],
       ["team_staff", data.team_staff],
       ["team_players", data.team_players],
       ["focus_areas", data.focus_areas],

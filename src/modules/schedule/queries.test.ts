@@ -127,7 +127,7 @@ describe("listAgenda", () => {
     expect(mocks.getTeamScope).toHaveBeenCalledWith(CTX);
     expect(tables).toEqual(["events"]);
     expect(query.sent("eq")).toContainEqual(["organization_id", ORG]);
-    expect(query.sent("in")).toEqual([["team_id", [TEAM_A.id, TEAM_B.id]]]);
+    expect(query.sent("in")).toContainEqual(["team_id", [TEAM_A.id, TEAM_B.id]]);
     expect(agenda.teamCount).toBe(2);
   });
 
@@ -137,15 +137,18 @@ describe("listAgenda", () => {
 
     await listAgenda(CTX, { scope: "upcoming", kind: "all" }, NOW);
 
-    expect(query.sent("in")).toEqual([["team_id", [TEAM_B.id]]]);
+    expect(query.sent("in")).toContainEqual(["team_id", [TEAM_B.id]]);
+    expect(query.sent("in").filter(([column]) => column === "team_id")).toHaveLength(1);
   });
 
-  it("los próximos: programados que no han terminado, por inicio ascendente, con límite", async () => {
+  it("los próximos: programados y cancelados que no han terminado, por inicio ascendente, con límite", async () => {
     const { query } = useDb({ data: [], error: null });
 
     await listAgenda(CTX, { scope: "upcoming", kind: "all" }, NOW);
 
-    expect(query.sent("eq")).toContainEqual(["status", "scheduled"]);
+    // Un cancelado que aún no ha pasado sigue en «Próximos»: su equipo necesita saberlo.
+    expect(query.sent("in")).toContainEqual(["status", ["scheduled", "cancelled"]]);
+    expect(query.sent("eq").some(([column]) => column === "status")).toBe(false);
     expect(query.sent("gt")).toEqual([["ends_at", NOW]]);
     expect(query.sent("or")).toEqual([]);
     expect(query.sent("order")).toEqual([
@@ -155,12 +158,14 @@ describe("listAgenda", () => {
     expect(query.sent("limit")).toEqual([[AGENDA_LIMIT + 1]]);
   });
 
-  it("los anteriores: lo que no es programado o ya terminó, por inicio descendente", async () => {
+  it("los anteriores: lo hecho o lo que ya terminó, por inicio descendente", async () => {
     const { query } = useDb({ data: [], error: null });
 
     await listAgenda(CTX, { scope: "past", kind: "all" }, NOW);
 
-    expect(query.sent("or")).toEqual([[`status.neq.scheduled,ends_at.lte.${NOW}`]]);
+    // La negación exacta de los próximos: un cancelado solo pasa a «Anteriores» con su fecha.
+    expect(query.sent("or")).toEqual([[`status.eq.done,ends_at.lte.${NOW}`]]);
+    expect(query.sent("in").some(([column]) => column === "status")).toBe(false);
     expect(query.sent("gt")).toEqual([]);
     expect(query.sent("order")[0]).toEqual(["starts_at", { ascending: false }]);
   });

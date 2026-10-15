@@ -2,12 +2,14 @@ import { render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Board } from "@/modules/board/types";
 import type { PracticeDetail, PracticeDetailItem } from "@/modules/practice/types";
+import type { EventChange } from "@/modules/schedule/changes";
 import { clubContext } from "@/modules/tenancy/test-support";
 
-const mocks = vi.hoisted(() => ({ getClubContext: vi.fn(), getPractice: vi.fn() }));
+const mocks = vi.hoisted(() => ({ getClubContext: vi.fn(), getPractice: vi.fn(), listEventChanges: vi.fn() }));
 
 vi.mock("@/modules/tenancy/queries", () => ({ getClubContext: mocks.getClubContext }));
 vi.mock("@/modules/practice/queries", () => ({ getPractice: mocks.getPractice }));
+vi.mock("@/modules/schedule/changes-queries", () => ({ listEventChanges: mocks.listEventChanges }));
 // Como el de verdad: `notFound()` corta el render lanzando.
 vi.mock("next/navigation", () => ({
   notFound: () => {
@@ -97,6 +99,7 @@ beforeEach(() => {
   vi.resetAllMocks();
   mocks.getClubContext.mockResolvedValue(clubContext("coach"));
   mocks.getPractice.mockResolvedValue(practice());
+  mocks.listEventChanges.mockResolvedValue([]);
 });
 
 afterEach(() => {
@@ -111,6 +114,7 @@ describe("/train/[eventId], acceso y lectura", () => {
 
     expect(mocks.getClubContext).toHaveBeenCalledWith("club-a");
     expect(mocks.getPractice).not.toHaveBeenCalled();
+    expect(mocks.listEventChanges).not.toHaveBeenCalled();
   });
 
   it("lee la sesión de la URL con el contexto del club", async () => {
@@ -492,6 +496,109 @@ describe("/train/[eventId], ejercicios", () => {
       expect(screen.queryByRole("link", { name: "Editar sesión" })).not.toBeInTheDocument();
       expect(screen.queryByTestId("actions")).not.toBeInTheDocument();
     });
+  });
+});
+
+describe("/train/[eventId], cambios", () => {
+  const EDITORS = "Lo pueden cambiar o cancelar el cuerpo técnico de Equipo A y la dirección.";
+
+  // Del más reciente al más antiguo, como los entrega `listEventChanges`.
+  const CHANGES: EventChange[] = [
+    {
+      id: "c-3",
+      what: "cancelled",
+      oldStartsAt: "2026-10-06T16:00:00+00:00",
+      oldEndsAt: "2026-10-06T17:15:00+00:00",
+      oldLocation: "Pista 1",
+      changedAt: "2026-10-05T10:00:00+00:00",
+    },
+    {
+      id: "c-2",
+      what: "location",
+      oldStartsAt: "2026-10-06T16:00:00+00:00",
+      oldEndsAt: "2026-10-06T17:15:00+00:00",
+      oldLocation: "Pista 2",
+      changedAt: "2026-10-03T10:00:00+00:00",
+    },
+    {
+      id: "c-1",
+      what: "time",
+      oldStartsAt: "2026-10-06T15:00:00+00:00",
+      oldEndsAt: "2026-10-06T16:15:00+00:00",
+      oldLocation: "Pista 2",
+      changedAt: "2026-10-01T10:00:00+00:00",
+    },
+  ];
+
+  /** Las líneas de «Cambios»: de cada una, lo que ha pasado, lo que había y cuándo se cambió. */
+  function changeLines() {
+    const changes = screen.getByRole("heading", { level: 2, name: "Cambios" }).closest("section") as HTMLElement;
+    return within(changes)
+      .getAllByRole("listitem")
+      .map((line) => [...line.children].map((child) => child.textContent));
+  }
+
+  it("lee los cambios de la sesión de la URL con el contexto del club", async () => {
+    const ctx = clubContext("coach");
+    mocks.getClubContext.mockResolvedValue(ctx);
+
+    render(await PracticePage(props("e-9")));
+
+    expect(mocks.listEventChanges).toHaveBeenCalledTimes(1);
+    expect(mocks.listEventChanges).toHaveBeenCalledWith(ctx, "e-9");
+  });
+
+  it("los dice como cambios de una sesión, con lo que había antes en el reloj del club y el día del cambio", async () => {
+    mocks.listEventChanges.mockResolvedValue(CHANGES);
+
+    render(await PracticePage(props()));
+
+    expect(changeLines()).toEqual([
+      ["Sesión cancelada", "Era: Martes 6 oct · 18:00–19:15", "Cambiado el lunes 5 oct"],
+      ["Cambio de lugar", "Antes: Pista 2", "Cambiado el sábado 3 oct"],
+      ["Cambio de hora", "Antes: Martes 6 oct · 17:00–18:15", "Cambiado el jueves 1 oct"],
+    ]);
+  });
+
+  it("van después de los ejercicios y antes de las acciones", async () => {
+    mocks.listEventChanges.mockResolvedValue(CHANGES);
+
+    render(await PracticePage(props()));
+
+    const heading = screen.getByRole("heading", { level: 2, name: "Cambios" });
+    expect(screen.getByText("Juego libre").compareDocumentPosition(heading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(heading.compareDocumentPosition(screen.getByTestId("actions")) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("sin cambios no hay apartado, pero sí quién la puede cambiar", async () => {
+    render(await PracticePage(props()));
+
+    expect(screen.queryByRole("heading", { name: "Cambios" })).not.toBeInTheDocument();
+    expect(screen.getByText(EDITORS)).toBeInTheDocument();
+  });
+
+  it("quien solo la ve también lee los cambios y quién la puede cambiar", async () => {
+    mocks.getClubContext.mockResolvedValue(clubContext("player"));
+    mocks.getPractice.mockResolvedValue(practice({ canEdit: false }));
+    mocks.listEventChanges.mockResolvedValue(CHANGES);
+
+    render(await PracticePage(props()));
+
+    expect(changeLines()).toHaveLength(3);
+    expect(screen.getByText(EDITORS)).toBeInTheDocument();
+  });
+
+  // Una sesión hecha o cancelada ya no se cambia ni se cancela: no se dice quién podría.
+  it.each(["done", "cancelled"] as const)("una sesión %s ya no dice quién la puede cambiar", async (status) => {
+    await renderPage({ status, canEdit: false });
+
+    expect(screen.queryByText(EDITORS)).not.toBeInTheDocument();
+  });
+
+  it("si no se pueden leer, lanza: lo recoge `error.tsx`", async () => {
+    mocks.listEventChanges.mockRejectedValue(new Error("schedule.event-changes: no se pudo leer de la base de datos"));
+
+    await expect(PracticePage(props())).rejects.toThrow("schedule.event-changes");
   });
 });
 

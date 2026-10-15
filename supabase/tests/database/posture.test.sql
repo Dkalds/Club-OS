@@ -156,7 +156,14 @@ select set_eq(
       -- Desarrollo (20261215000100): el alta y el cambio van por columnas, abajo. Los
       -- objetivos no se borran (se archivan); las notas sí, de verdad.
       ('player_goals', array['select']),
-      ('coach_notes', array['select', 'delete'])
+      ('coach_notes', array['select', 'delete']),
+      -- Calendario del club (20270316000100): las pistas las escribe la dirección; el alta y el
+      -- cambio de nombre van por columnas, abajo. Los horarios semanales y el registro de
+      -- cambios solo se leen: los escriben `create_team_schedule`, `update_team_schedule` y
+      -- `delete_team_schedule` (`security definer`) y el trigger de `events`.
+      ('venues', array['select', 'delete']),
+      ('team_schedules', array['select']),
+      ('event_changes', array['select'])
     ) as t (tabla, privilegios)
     cross join unnest(t.privilegios) as p (privilegio)$$,
   'los privilegios de tabla de authenticated en public son exactamente los de la lista'
@@ -247,7 +254,12 @@ select set_eq(
       ('team_staff', 'update', array['staff_role']),
       ('team_players', 'insert',
         array['organization_id', 'team_id', 'person_id', 'jersey_number', 'position']),
-      ('team_players', 'update', array['jersey_number', 'position'])
+      ('team_players', 'update', array['jersey_number', 'position']),
+      -- Calendario del club (20270316000100). De una pista solo se escribe el nombre; el club,
+      -- al nacer la fila. `events.venue_id` y `events.schedule_id` no se conceden: la primera
+      -- la pone un trigger a partir de `location` y la segunda, las funciones de los horarios.
+      ('venues', 'insert', array['organization_id', 'name']),
+      ('venues', 'update', array['name'])
     ) as t (tabla, privilegio, columnas)
     cross join unnest(t.columnas) as c (columna)$$,
   'los privilegios de columna de authenticated en public son exactamente los de la lista'

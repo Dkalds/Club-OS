@@ -200,6 +200,7 @@ test("un entrenador no entra en Gestión", async ({ page, browserErrors }) => {
     `${ADMIN}/principles`,
     `${ADMIN}/standards`,
     `${ADMIN}/season`,
+    `${ADMIN}/calendar`,
     `${ADMIN}/people`,
   ];
   browserErrors.allowNotFound(...paths);
@@ -257,7 +258,7 @@ test("dirección entra desde el avatar", async ({ page }) => {
   // Sus apartados (la estructura del club delante, y la metodología con los nombres que da el
   // club), y el actual marcado.
   const links = adminNav(page).getByRole("link");
-  await expect(links).toHaveText(["Temporada", "Personas", "The Way", "Valores", "Principios", "Arcángel Standards"]);
+  await expect(links).toHaveText(["Temporada", "Calendario", "Personas", "The Way", "Valores", "Principios", "Arcángel Standards"]);
   await expect(links.first()).toHaveAttribute("aria-current", "page");
   await expect(adminNav(page).locator('[aria-current="page"]')).toHaveCount(1);
   await links.filter({ hasText: "Valores" }).click();

@@ -102,7 +102,7 @@ export function adminHomeHref(clubSlug: string): string {
 
 /**
  * Los apartados de Gestión (`/c/{slug}/admin/…`), en su orden: la estructura del club (la
- * temporada con sus equipos, y las personas) y la metodología (el documento, los valores, los
+ * temporada con sus equipos, su calendario y las personas) y la metodología (el documento, los valores, los
  * principios de juego y los Standards). La metodología y los Standards llevan el nombre que el
  * club les haya dado en su terminología; los demás son siempre esos.
  *
@@ -114,6 +114,7 @@ export function adminNavItems(clubSlug: string, terminology: Terminology): Admin
 
   return [
     { label: "Temporada", href: adminHomeHref(clubSlug), also: [`${base}/teams`] },
+    { label: "Calendario", href: `${base}/calendar` },
     { label: "Personas", href: `${base}/people` },
     { label: wayLabel(terminology), href: `${base}/way` },
     { label: "Valores", href: `${base}/values` },

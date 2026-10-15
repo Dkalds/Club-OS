@@ -277,8 +277,9 @@ describe("PracticeActions · cancelar", () => {
     fireEvent.click(cancelTrigger());
 
     const confirmation = await dialog();
+    // Cancelada, sigue en «Próximos» de la Agenda hasta que pasa su fecha: el diálogo lo dice.
     expect(confirmation).toHaveAccessibleDescription(
-      "Dejará de salir en Inicio y en Próximas. Seguirá en el histórico.",
+      "Dejará de salir en Inicio y en Próximas. En la Agenda se verá como cancelada hasta que pase su fecha.",
     );
     expect(within(confirmation).getByRole("button", { name: "Volver" })).toBeInTheDocument();
     // La confirmación es destructiva: `danger`, nunca el relleno del acento.

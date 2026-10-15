@@ -272,7 +272,7 @@ test("cancelar", async ({ page }) => {
   await cancel.click();
   const dialog = page.getByRole("alertdialog", { name: "¿Cancelar esta sesión?" });
   await expect(dialog).toBeVisible();
-  await expect(dialog).toContainText("Dejará de salir en Inicio y en Próximas. Seguirá en el histórico.");
+  await expect(dialog).toContainText("Dejará de salir en Inicio y en Próximas. En la Agenda se verá como cancelada hasta que pase su fecha.");
   await dialog.getByRole("button", { name: "Volver" }).click();
   await expect(dialog).toHaveCount(0);
   await expect(page.getByRole("link", { name: "Editar sesión" })).toBeVisible();

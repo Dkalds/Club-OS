@@ -43,6 +43,9 @@ export type SeedData = {
   seasons: WithId<TablesInsert<"seasons">>[];
   categories: WithId<TablesInsert<"categories">>[];
   teams: WithId<TablesInsert<"teams">>[];
+  // Las pistas del club (pieza 6). Un evento cuyo lugar es el nombre de una queda vinculado a
+  // ella: lo hace la base al sembrar los eventos, que van después.
+  venues: WithId<TablesInsert<"venues">>[];
   team_staff: TablesInsert<"team_staff">[];
   team_players: TablesInsert<"team_players">[];
   focus_areas: WithId<TablesInsert<"focus_areas">>[];
@@ -195,6 +198,8 @@ export type ClubDef = {
   members: { email: string; personKey: string; role: "admin" | "coach" }[];
   categories: { key: string; name: string; ageBand: string; sort: number }[];
   teams: TeamDef[];
+  /** Los nombres de sus pistas: donde entrena y juega en casa. */
+  venues: string[];
   /** Una temporada que ya terminó y sus equipos: lo que no tiene que salir en «mis equipos». */
   pastSeason?: SeasonDef & { teams: PastTeamDef[] };
   methodology: MethodologyDef;
@@ -665,6 +670,7 @@ export const ARCANGEL: ClubDef = {
     { key: "alevin", name: "Alevín", ageBand: "U12", sort: 20 },
   ],
   teams: [ALEVIN_A, BENJAMIN_A],
+  venues: ["Pabellón 1", "Pabellón 2"],
   pastSeason: {
     key: "2025-26",
     name: "2025/26",
@@ -707,6 +713,7 @@ export const CLUB_DEMO: ClubDef = {
   members: [{ email: "marta@demo.test", personKey: "marta", role: "coach" }],
   categories: [{ key: "infantil", name: "Infantil", ageBand: "U14", sort: 10 }],
   teams: [INFANTIL_A],
+  venues: ["Pabellón 1"],
   methodology: CLUB_DEMO_METHODOLOGY,
   drills: DEMO_DRILLS,
 };
@@ -728,6 +735,7 @@ function emptySeedData(): SeedData {
     seasons: [],
     categories: [],
     teams: [],
+    venues: [],
     team_staff: [],
     team_players: [],
     focus_areas: [],
@@ -933,6 +941,10 @@ function addClub(data: SeedData, club: ClubDef, now: Date): void {
       age_band: category.ageBand,
       sort: category.sort,
     });
+  }
+
+  for (const name of club.venues) {
+    data.venues.push({ id: id(`venue:${name}`), organization_id: organizationId, name });
   }
 
   if (club.pastSeason) addPastSeason(data, club, club.pastSeason);

@@ -6,10 +6,13 @@ import { formatStandardNumber } from "@/modules/methodology/format";
 import { minutesLabel } from "@/modules/practice/format";
 import { phaseBlocks, sessionMinutes, totalMinutes } from "@/modules/practice/items";
 import { getPractice } from "@/modules/practice/queries";
+import { changeLine } from "@/modules/schedule/changes";
+import { listEventChanges } from "@/modules/schedule/changes-queries";
 import { standardsLabel } from "@/modules/tenancy/navigation";
 import { BackLink } from "@/ui/back-link";
 import { BoardThumb } from "@/ui/board-thumb";
 import { Card } from "@/ui/card";
+import { ChangeLog, editorsLine } from "@/ui/event-changes";
 import { TrainIcon } from "@/ui/icons";
 import { PracticeItemView, PracticeTotal } from "@/ui/practice-item";
 import { PracticeSummary } from "@/ui/practice-summary";
@@ -53,7 +56,7 @@ export default async function PracticePage({ params }: PageProps<"/c/[club]/trai
   const { club, eventId } = await params;
   const ctx = await requireClub(club);
 
-  const practice = await getPractice(ctx, eventId);
+  const [practice, changes] = await Promise.all([getPractice(ctx, eventId), listEventChanges(ctx, eventId)]);
   if (!practice) notFound();
 
   const trainHref = `/c/${ctx.org.slug}/train`;
@@ -160,6 +163,12 @@ export default async function PracticePage({ params }: PageProps<"/c/[club]/trai
           action={{ label: "Volver a Sesiones", href: trainHref }}
         />
       )}
+
+      <ChangeLog
+        lines={changes.map((change) => changeLine(change, "practice", ctx.org.timezone))}
+        // Una sesión hecha o cancelada ya no se cambia: no se dice quién podría.
+        editors={practice.status === "scheduled" ? editorsLine(practice.teamName) : undefined}
+      />
 
       {can(ctx, "practice.manage") ? (
         <PracticeActions

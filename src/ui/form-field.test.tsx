@@ -203,6 +203,103 @@ describe("TextField", () => {
       expect(screen.getByLabelText("Material")).not.toHaveAttribute("aria-describedby");
     });
   });
+
+  describe("con sugerencias", () => {
+    const VENUES = ["Pista 1", "Pista 2"];
+
+    /** Lo que sugiere un campo: las opciones del `<datalist>` al que apunta su `list`. */
+    function suggested(input: HTMLElement): string[] | null {
+      const listId = input.getAttribute("list");
+      const list = listId ? document.getElementById(listId) : null;
+      return list ? [...list.querySelectorAll("option")].map((option) => option.value) : null;
+    }
+
+    it("el `list` del campo enlaza con un `<datalist>` que lleva una opción por sugerencia, en su orden", () => {
+      const { container } = render(
+        <TextField label="Lugar" name="location" value="" onChange={() => {}} maxLength={120} suggestions={VENUES} />,
+      );
+
+      const input = screen.getByLabelText("Lugar");
+      const list = container.querySelector("datalist");
+      expect(list).not.toBeNull();
+      expect(input).toHaveAttribute("list", list?.id);
+      expect(list?.id).not.toBe("");
+      expect(suggested(input)).toEqual(["Pista 1", "Pista 2"]);
+    });
+
+    it("sugiere, no obliga: se sigue pudiendo escribir cualquier otro valor", () => {
+      const onChange = vi.fn();
+      render(
+        <TextField label="Lugar" name="location" value="" onChange={onChange} maxLength={120} suggestions={VENUES} />,
+      );
+
+      fireEvent.change(screen.getByLabelText("Lugar"), { target: { value: "Otro pabellón" } });
+
+      expect(onChange).toHaveBeenCalledWith("Otro pabellón");
+      expect(screen.getByLabelText("Lugar").tagName).toBe("INPUT");
+    });
+
+    it("no le quita al campo su nombre ni su descripción: la pista y el error siguen ahí", () => {
+      render(
+        <TextField
+          label="Lugar"
+          name="location"
+          value=""
+          onChange={() => {}}
+          maxLength={120}
+          suggestions={VENUES}
+          hint="Donde se entrena."
+          error="Demasiado largo."
+        />,
+      );
+
+      const input = screen.getByLabelText("Lugar");
+      expect(input).toHaveAccessibleDescription("Donde se entrena. Demasiado largo.");
+      expect(input).toHaveAttribute("maxlength", "120");
+    });
+
+    it("sin sugerencias, o con la lista vacía, no hay `<datalist>` ni `list`", () => {
+      const { container, rerender } = render(
+        <TextField label="Lugar" name="location" value="" onChange={() => {}} maxLength={120} />,
+      );
+      expect(container.querySelector("datalist")).toBeNull();
+      expect(screen.getByLabelText("Lugar")).not.toHaveAttribute("list");
+
+      rerender(<TextField label="Lugar" name="location" value="" onChange={() => {}} maxLength={120} suggestions={[]} />);
+      expect(container.querySelector("datalist")).toBeNull();
+      expect(screen.getByLabelText("Lugar")).not.toHaveAttribute("list");
+    });
+
+    it("en un campo que no es de texto no se sugiere nada, aunque se le pasen", () => {
+      const { container } = render(
+        <>
+          <TextField label="Minutos" name="minutes" type="number" value="" onChange={() => {}} suggestions={VENUES} />
+          <TextField label="Fecha" name="date" type="date" value="" onChange={() => {}} suggestions={VENUES} />
+          <TextField label="Hora" name="time" type="time" value="" onChange={() => {}} suggestions={VENUES} />
+        </>,
+      );
+
+      expect(container.querySelector("datalist")).toBeNull();
+      for (const label of ["Minutos", "Fecha", "Hora"]) {
+        expect(screen.getByLabelText(label)).not.toHaveAttribute("list");
+      }
+    });
+
+    it("dos campos con sugerencias no comparten lista", () => {
+      render(
+        <>
+          <TextField label="Lugar" name="location" value="" onChange={() => {}} maxLength={120} suggestions={["Pista 1"]} />
+          <TextField label="Otro lugar" name="location" value="" onChange={() => {}} maxLength={120} suggestions={["Pista 2"]} />
+        </>,
+      );
+
+      const first = screen.getByLabelText("Lugar");
+      const second = screen.getByLabelText("Otro lugar");
+      expect(first.getAttribute("list")).not.toBe(second.getAttribute("list"));
+      expect(suggested(first)).toEqual(["Pista 1"]);
+      expect(suggested(second)).toEqual(["Pista 2"]);
+    });
+  });
 });
 
 describe("TextAreaField", () => {

@@ -152,6 +152,62 @@ describe("PracticeForm · nueva sesión", () => {
     expect(screen.getByLabelText("Duración (min)")).toHaveAttribute("max", "240");
   });
 
+  describe("«Lugar» sugiere las pistas del club", () => {
+    /** Lo que sugiere «Lugar»: las opciones del `<datalist>` al que apunta su `list`. */
+    function suggestedPlaces(): string[] | null {
+      const listId = screen.getByLabelText("Lugar").getAttribute("list");
+      const list = listId ? document.getElementById(listId) : null;
+      return list ? [...list.querySelectorAll("option")].map((option) => option.value) : null;
+    }
+
+    it("con pistas, las ofrece al escribir, en el orden en que llegan", () => {
+      renderForm({ options: { teams: ONE_TEAM, focusAreas: FOCUS_AREAS, venues: ["Pista 1", "Pista 2"] } });
+
+      expect(suggestedPlaces()).toEqual(["Pista 1", "Pista 2"]);
+    });
+
+    it("sugiere, no obliga: se puede escribir cualquier otro lugar, y es el que se manda", async () => {
+      renderForm({ options: { teams: ONE_TEAM, focusAreas: FOCUS_AREAS, venues: ["Pista 1"] } });
+
+      change("Título", "Salida de presión");
+      change("Lugar", "Un pabellón de fuera");
+      create();
+
+      await waitFor(() => expect(mocks.createPractice).toHaveBeenCalledTimes(1));
+      expect(mocks.createPractice.mock.calls[0][1]).toMatchObject({ location: "Un pabellón de fuera" });
+    });
+
+    it("ningún otro campo sugiere nada", () => {
+      const { container } = renderForm({
+        options: { teams: ONE_TEAM, focusAreas: FOCUS_AREAS, venues: ["Pista 1", "Pista 2"] },
+      });
+
+      expect(container.querySelectorAll("datalist")).toHaveLength(1);
+      expect(screen.getByLabelText("Título")).not.toHaveAttribute("list");
+    });
+
+    it.each([
+      ["sin pistas en el club", []],
+      ["sin que la página las pase", undefined],
+    ] as Array<[string, string[] | undefined]>)("%s, «Lugar» es un campo de texto sin más", (_case, venues) => {
+      const { container } = renderForm({ options: { teams: ONE_TEAM, focusAreas: FOCUS_AREAS, venues } });
+
+      expect(suggestedPlaces()).toBeNull();
+      expect(container.querySelector("datalist")).toBeNull();
+      expect(screen.getByLabelText("Lugar")).toHaveAttribute("maxlength", "80");
+    });
+
+    it("al editar también: «Lugar» conserva el de la sesión y sugiere las pistas", () => {
+      renderEdit(
+        { location: "Pabellón 2" },
+        { options: { teams: TWO_TEAMS, focusAreas: FOCUS_AREAS, venues: ["Pista 1", "Pista 2"] } },
+      );
+
+      expect(screen.getByLabelText("Lugar")).toHaveValue("Pabellón 2");
+      expect(suggestedPlaces()).toEqual(["Pista 1", "Pista 2"]);
+    });
+  });
+
   it("los dos objetivos ofrecen «Sin objetivo» primero y después los del club", () => {
     renderForm();
 

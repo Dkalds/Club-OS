@@ -1,5 +1,6 @@
 import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
+import type { RecentChange } from "@/modules/schedule/changes";
 import { heroTitle, HomeScreen } from "./home-screen";
 import type { HomeData, HomeGame, HomePractice, WeekItem } from "./types";
 
@@ -338,5 +339,105 @@ describe("HomeScreen · la entrada a la identidad del club", () => {
     renderHome(home());
 
     expect(screen.queryByRole("link", { name: /^Identidad/ })).not.toBeInTheDocument();
+  });
+});
+
+describe("HomeScreen · cambios recientes", () => {
+  const MOVED: RecentChange = {
+    eventId: "e-1",
+    href: "/c/club-a/train/e-1",
+    label: "Cambio de hora",
+    title: "Salida de presión",
+    subtitle: "Martes 6 oct · 19:00–20:15 · Salida de presión",
+    cancelled: false,
+  };
+  const CANCELLED: RecentChange = {
+    eventId: "e-3",
+    href: "/c/club-a/games/e-3",
+    label: "Cancelado",
+    title: "vs Rival C",
+    subtitle: "Sábado 10 oct · 10:30–12:00 · vs Rival C",
+    cancelled: true,
+  };
+
+  type Changes = { items: readonly RecentChange[]; more: number } | null;
+
+  function renderWithChanges(data: HomeData, changes: Changes, clubSlug = "club-a") {
+    return render(
+      <HomeScreen home={data} clubSlug={clubSlug} ownShortName="CLA" canCreatePractice={false} changes={changes} />,
+    );
+  }
+
+  /** El apartado de los cambios: de su título hacia arriba. */
+  function changesSection(): HTMLElement {
+    const section = screen.getByRole("heading", { level: 2, name: "Cambios recientes" }).closest("section");
+    if (!section) throw new Error("«Cambios recientes» no está dentro de un <section>");
+    return section;
+  }
+
+  it("se pintan lo primero: después del saludo y antes del próximo entrenamiento", () => {
+    renderWithChanges(home(), { items: [MOVED], more: 0 });
+
+    const changes = changesSection();
+    expect(comesBefore(screen.getByRole("heading", { level: 1 }), changes)).toBe(true);
+    expect(comesBefore(changes, screen.getByText(PRACTICE_KICKER))).toBe(true);
+    expect(comesBefore(changes, weekSection())).toBe(true);
+  });
+
+  it("cada evento es una fila con su enlace, lo que le ha pasado y cuándo es ahora", () => {
+    renderWithChanges(home(), { items: [MOVED, CANCELLED], more: 0 });
+
+    const rows = within(changesSection()).getAllByRole("link");
+    expect(rows.map((row) => row.getAttribute("href"))).toEqual(["/c/club-a/train/e-1", "/c/club-a/games/e-3"]);
+    expect(within(rows[0] as HTMLElement).getByText("Cambio de hora")).toBeInTheDocument();
+    expect(within(rows[0] as HTMLElement).getByText("Martes 6 oct · 19:00–20:15 · Salida de presión")).toBeInTheDocument();
+    expect(within(rows[1] as HTMLElement).getByText("Cancelado")).toBeInTheDocument();
+    expect(within(rows[1] as HTMLElement).getByText("Sábado 10 oct · 10:30–12:00 · vs Rival C")).toBeInTheDocument();
+  });
+
+  it("si no caben todos, «Ver N más» lleva a la Agenda de este club", () => {
+    renderWithChanges(home(), { items: [MOVED], more: 2 }, "club-b");
+
+    expect(within(changesSection()).getByRole("link", { name: "Ver 2 más" })).toHaveAttribute("href", "/c/club-b/agenda");
+  });
+
+  it("si caben todos, no hay «Ver más»", () => {
+    renderWithChanges(home(), { items: [MOVED], more: 0 });
+
+    expect(screen.queryByRole("link", { name: /^Ver \d+ más$/ })).not.toBeInTheDocument();
+  });
+
+  it("no quitan nada de lo demás: el entrenamiento, el partido y la semana siguen ahí", () => {
+    renderWithChanges(home(), { items: [MOVED], more: 0 });
+
+    expect(screen.getByText(PRACTICE_KICKER)).toBeInTheDocument();
+    expect(screen.getByText(ANY_GAME_KICKER)).toBeInTheDocument();
+    expect(within(weekSection()).getAllByRole("listitem")).toHaveLength(WEEK.length);
+  });
+
+  it.each([
+    ["sin cambios", { items: [], more: 0 }],
+    ["sin cambios que enseñar, aunque queden fuera", { items: [], more: 3 }],
+    ["con `null`", null],
+  ] as Array<[string, Changes]>)("%s no hay apartado", (_case, changes) => {
+    renderWithChanges(home(), changes);
+
+    expect(screen.queryByRole("heading", { name: "Cambios recientes" })).not.toBeInTheDocument();
+  });
+
+  it("sin decir nada de cambios, la pantalla es la de siempre", () => {
+    renderHome(home());
+
+    expect(screen.queryByRole("heading", { name: "Cambios recientes" })).not.toBeInTheDocument();
+  });
+
+  it("sin equipos no se pintan, aunque llegaran", () => {
+    renderWithChanges(home({ hasTeams: false, nextPractice: null, nextGame: null, week: [] }), {
+      items: [MOVED],
+      more: 0,
+    });
+
+    expect(screen.queryByRole("heading", { name: "Cambios recientes" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Cambio de hora/ })).not.toBeInTheDocument();
   });
 });

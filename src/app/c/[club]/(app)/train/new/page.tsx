@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { requireClub } from "@/lib/guards";
 import { can } from "@/lib/permissions";
+import { listVenueNames } from "@/modules/calendar/queries";
 import { defaultSessionDate } from "@/lib/time";
 import { templateSubtitle } from "@/modules/practice/format";
 import {
@@ -51,7 +52,8 @@ export default async function NewPracticePage({ params, searchParams }: PageProp
   const template = typeof templateParam === "string" ? await getTemplate(ctx, templateParam) : null;
   if (templateParam !== undefined && template === null) notFound();
 
-  const options = await getPracticeFormOptions(ctx);
+  const [formOptions, venues] = await Promise.all([getPracticeFormOptions(ctx), listVenueNames(ctx)]);
+  const options = { ...formOptions, venues };
   const trainHref = `/c/${ctx.org.slug}/train`;
   const [firstTeam] = options.teams;
   // El equipo activo, si hay uno elegido; si no, el primero.

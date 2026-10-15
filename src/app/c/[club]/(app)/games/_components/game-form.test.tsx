@@ -77,6 +77,69 @@ describe("GameForm", () => {
     );
   });
 
+  describe("«Lugar» sugiere las pistas del club", () => {
+    const TEAMS = [{ id: "t-1", name: "Equipo A" }];
+
+    /** Lo que sugiere «Lugar»: las opciones del `<datalist>` al que apunta su `list`. */
+    function suggestedPlaces(): string[] | null {
+      const listId = screen.getByLabelText("Lugar").getAttribute("list");
+      const list = listId ? document.getElementById(listId) : null;
+      return list ? [...list.querySelectorAll("option")].map((option) => option.value) : null;
+    }
+
+    it("con pistas, las ofrece al escribir, en el orden en que llegan", () => {
+      render(<GameForm clubSlug="club-a" teams={TEAMS} initial={INITIAL} venues={["Pista 1", "Pista 2"]} />);
+
+      expect(suggestedPlaces()).toEqual(["Pista 1", "Pista 2"]);
+    });
+
+    it("sugiere, no obliga: un partido fuera se juega donde sea, y ese lugar es el que se manda", async () => {
+      render(<GameForm clubSlug="club-a" teams={TEAMS} initial={INITIAL} venues={["Pista 1"]} />);
+
+      fireEvent.change(screen.getByLabelText("Rival"), { target: { value: "CB Rival" } });
+      fireEvent.change(screen.getByLabelText("Lugar"), { target: { value: "Pabellón del rival" } });
+      fireEvent.click(screen.getByRole("button", { name: "Crear partido" }));
+
+      await waitFor(() =>
+        expect(mocks.createGame).toHaveBeenCalledWith("club-a", expect.objectContaining({ location: "Pabellón del rival" })),
+      );
+    });
+
+    it("ningún otro campo sugiere nada", () => {
+      const { container } = render(
+        <GameForm clubSlug="club-a" teams={TEAMS} initial={INITIAL} venues={["Pista 1", "Pista 2"]} />,
+      );
+
+      expect(container.querySelectorAll("datalist")).toHaveLength(1);
+      expect(screen.getByLabelText("Rival")).not.toHaveAttribute("list");
+    });
+
+    it.each([
+      ["sin pistas en el club", []],
+      ["sin que la página las pase", undefined],
+    ] as Array<[string, string[] | undefined]>)("%s, «Lugar» es un campo de texto sin más", (_case, venues) => {
+      const { container } = render(<GameForm clubSlug="club-a" teams={TEAMS} initial={INITIAL} venues={venues} />);
+
+      expect(suggestedPlaces()).toBeNull();
+      expect(container.querySelector("datalist")).toBeNull();
+    });
+
+    it("al editar también: «Lugar» conserva el del partido y sugiere las pistas", () => {
+      render(
+        <GameForm
+          clubSlug="club-a"
+          teams={[]}
+          initial={{ ...INITIAL, opponent: "CB Rival", location: "Pabellón" }}
+          eventId="e-1"
+          venues={["Pista 1"]}
+        />,
+      );
+
+      expect(screen.getByLabelText("Lugar")).toHaveValue("Pabellón");
+      expect(suggestedPlaces()).toEqual(["Pista 1"]);
+    });
+  });
+
   it("un fallo con campos los marca", async () => {
     mocks.createGame.mockResolvedValue({ ok: false, error: "INVALID", fieldErrors: { opponent: "Escribe el rival." } });
     render(<GameForm clubSlug="club-a" teams={[{ id: "t-1", name: "Equipo A" }]} initial={INITIAL} />);

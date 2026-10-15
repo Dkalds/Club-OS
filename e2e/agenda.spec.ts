@@ -135,12 +135,19 @@ test("Álex ve en la Agenda sus entrenos y sus partidos, por semanas", async ({ 
   await expect(played).toContainText("54–49");
   await expect(row(page, "vs CB Ribera")).toHaveCount(0);
 
-  // Y todo lo anterior: las sesiones hechas y la cancelada, cada una diciendo cómo acabó.
+  // Y todo lo anterior: las sesiones hechas, cada una diciendo cómo acabó. La cancelada aún no
+  // ha pasado: no está aquí.
   await kindChips(page).getByRole("link", { name: "Todo" }).click();
   await expect(page).toHaveURL(new RegExp(`${AGENDA}\\?scope=past$`));
-  await expect(row(page, "Tiro libre y finalizaciones")).toContainText("Cancelada");
+  await expect(row(page, "Tiro libre y finalizaciones")).toHaveCount(0);
   await expect(rows(page).filter({ hasText: "Hecho" }).first()).toBeVisible();
   await expect(row(page, "vs CD Almendros")).toBeVisible();
+
+  // Sigue entre lo que viene, dicha como cancelada, hasta que pase su fecha: es cuando su equipo
+  // necesita saberlo.
+  await scopeTabs(page).getByRole("link", { name: "Próximos" }).click();
+  await expect(scopeTabs(page).getByRole("link", { name: "Próximos" })).toHaveAttribute("aria-current", "page");
+  await expect(row(page, "Tiro libre y finalizaciones")).toContainText("Cancelada");
 });
 
 test("una fila lleva a la pantalla de su evento, y la pestaña sigue siendo Agenda en un partido", async ({ page }) => {

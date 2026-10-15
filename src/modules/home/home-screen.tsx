@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Card } from "@/ui/card";
 import { CTAButton } from "@/ui/cta-button";
+import { RecentChanges } from "@/ui/event-changes";
 import { GameCard } from "@/ui/game-card";
 import { Hero } from "@/ui/hero";
 import { TeamIcon, TrainIcon, WayIcon } from "@/ui/icons";
@@ -9,6 +10,7 @@ import { PracticeCard } from "@/ui/practice-card";
 import { SectionHeader } from "@/ui/section-header";
 import { EmptyState } from "@/ui/states";
 import { liveEntry } from "@/modules/live/label";
+import type { RecentChange } from "@/modules/schedule/changes";
 import { IDENTITY_LABEL } from "@/modules/tenancy/navigation";
 import type { HomeData, HomePractice, WeekItem } from "./types";
 
@@ -64,6 +66,7 @@ export function HomeScreen({
   ownShortName,
   canCreatePractice,
   identity = null,
+  changes = null,
 }: {
   home: HomeData;
   clubSlug: string;
@@ -76,6 +79,11 @@ export function HomeScreen({
    * subtítulo, el nombre que el club le da. `null` si ya está en su barra.
    */
   identity?: { href: string; subtitle?: string } | null;
+  /**
+   * Los eventos de sus equipos que han cambiado hace poco (hora, lugar o cancelación) y aún no han
+   * pasado: se enseñan lo primero, antes que el próximo entrenamiento. `null` o vacío, nada.
+   */
+  changes?: { items: readonly RecentChange[]; more: number } | null;
 }) {
   const base = `/c/${clubSlug}`;
   const practiceHref = (eventId: string) => `${base}/train/${eventId}`;
@@ -100,6 +108,12 @@ export function HomeScreen({
 
       {home.hasTeams ? (
         <>
+          {changes && changes.items.length > 0 ? (
+            <div className={BLOCK}>
+              <RecentChanges items={changes.items} more={changes.more} moreHref={`${base}/agenda`} />
+            </div>
+          ) : null}
+
           <div className={`flex flex-col gap-(--space-3) ${BLOCK}`}>
             {home.nextPractice ? (
               <>

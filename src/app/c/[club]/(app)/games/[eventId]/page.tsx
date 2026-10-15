@@ -2,7 +2,10 @@ import { notFound } from "next/navigation";
 import { requireClub } from "@/lib/guards";
 import { can } from "@/lib/permissions";
 import { getGame } from "@/modules/games/queries";
+import { changeLine } from "@/modules/schedule/changes";
+import { listEventChanges } from "@/modules/schedule/changes-queries";
 import { BackLink } from "@/ui/back-link";
+import { ChangeLog, editorsLine } from "@/ui/event-changes";
 import { GameCard } from "@/ui/game-card";
 import { GameActions } from "../_components/game-actions";
 
@@ -15,7 +18,10 @@ export default async function GamePage({ params }: PageProps<"/c/[club]/games/[e
   const { club, eventId } = await params;
   const ctx = await requireClub(club);
 
-  const game = await getGame(ctx, eventId, new Date().toISOString());
+  const [game, changes] = await Promise.all([
+    getGame(ctx, eventId, new Date().toISOString()),
+    listEventChanges(ctx, eventId),
+  ]);
   if (!game) notFound();
 
   const manage = can(ctx, "game.manage");
@@ -52,6 +58,12 @@ export default async function GamePage({ params }: PageProps<"/c/[club]/games/[e
           </div>
         ) : null}
       </dl>
+
+      <ChangeLog
+        lines={changes.map((change) => changeLine(change, "game", ctx.org.timezone))}
+        // Un partido cancelado ya no se cambia: no se dice quién podría.
+        editors={game.status === "cancelled" ? undefined : editorsLine(game.teamName)}
+      />
 
       {manage ? <GameActions clubSlug={ctx.org.slug} game={game} teamLabel={game.teamName} /> : null}
     </div>

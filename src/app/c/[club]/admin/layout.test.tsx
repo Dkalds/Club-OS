@@ -33,6 +33,7 @@ describe("layout de Gestión", () => {
     const nav = screen.getByRole("navigation", { name: "Gestión" });
     expect(within(nav).getAllByRole("link").map((link) => link.textContent)).toEqual([
       "Temporada",
+      "Calendario",
       "Personas",
       "Nuestra forma",
       "Valores",

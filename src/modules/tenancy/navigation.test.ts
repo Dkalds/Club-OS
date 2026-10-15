@@ -81,6 +81,15 @@ describe("navItems", () => {
     }
   });
 
+  it("«Calendario» va entre «Temporada» y «Personas», y no reclama otras rutas", () => {
+    const items = adminNavItems(SLUG, {});
+    const calendar = items.findIndex((item) => item.label === "Calendario");
+
+    expect(items[calendar - 1]?.label).toBe("Temporada");
+    expect(items[calendar + 1]?.label).toBe("Personas");
+    expect(items[calendar]).toEqual({ label: "Calendario", href: "/c/club-a/admin/calendar" });
+  });
+
   it("usa el slug del club en todas las rutas", () => {
     for (const item of navItems("club-b", "coach")) {
       expect(item.href === "/c/club-b" || item.href.startsWith("/c/club-b/")).toBe(true);
@@ -113,10 +122,11 @@ describe("adminHomeHref", () => {
 });
 
 describe("adminNavItems", () => {
-  it("por defecto: Temporada y Personas delante de Identidad, Valores, Principios y Standards, con rutas bajo /admin", () => {
+  it("por defecto: Temporada, Calendario y Personas delante de Identidad, Valores, Principios y Standards, con rutas bajo /admin", () => {
     expect(adminNavItems(SLUG, {})).toEqual([
       // Los equipos no tienen apartado: con uno abierto, el actual sigue siendo «Temporada».
       { label: "Temporada", href: "/c/club-a/admin/season", also: ["/c/club-a/admin/teams"] },
+      { label: "Calendario", href: "/c/club-a/admin/calendar" },
       { label: "Personas", href: "/c/club-a/admin/people" },
       { label: "Identidad", href: "/c/club-a/admin/way" },
       { label: "Valores", href: "/c/club-a/admin/values" },
@@ -130,6 +140,7 @@ describe("adminNavItems", () => {
 
     expect(items.map((item) => item.label)).toEqual([
       "Temporada",
+      "Calendario",
       "Personas",
       "Nuestra forma",
       "Valores",
@@ -144,6 +155,7 @@ describe("adminNavItems", () => {
 
     expect(items.map((item) => item.label)).toEqual([
       "Temporada",
+      "Calendario",
       "Personas",
       "Identidad",
       "Valores",

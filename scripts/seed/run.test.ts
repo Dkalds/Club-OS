@@ -170,6 +170,7 @@ const TABLES_IN_ORDER = [
   "seasons",
   "categories",
   "teams",
+  "venues",
   "memberships",
   "team_staff",
   "team_players",
@@ -293,6 +294,7 @@ describe("runSeed", () => {
       seasons: "id",
       categories: "id",
       teams: "id",
+      venues: "id",
       memberships: "organization_id,user_id",
       team_staff: "team_id,person_id",
       team_players: "team_id,person_id",
@@ -440,7 +442,15 @@ describe("runSeed", () => {
       await runSeed(NOW, fake.client);
 
       const read = fake.calls.filter((c) => c.op === "select").map((c) => c.table);
-      expect(read).toEqual(["seasons", "categories", "teams", "team_players", "way_sections", "standards"]);
+      expect(read).toEqual([
+        "seasons",
+        "categories",
+        "teams",
+        "venues",
+        "team_players",
+        "way_sections",
+        "standards",
+      ]);
     });
 
     it("una sección creada a mano va en el mismo upsert, detrás de las del seed y con sus mismas columnas", async () => {
@@ -545,7 +555,7 @@ describe("runSeed", () => {
       await runSeed(NOW, fake.client);
 
       const filters = (table: string) => fake.calls.find((c) => c.table === table && c.op === "select")?.filters;
-      for (const table of ["seasons", "categories", "teams"]) {
+      for (const table of ["seasons", "categories", "teams", "venues"]) {
         expect(filters(table)).toEqual([["in", "organization_id", orgIds]]);
       }
       expect(filters("team_players")).toEqual([["in", "team_id", data.teams.map((team) => team.id)]]);
@@ -570,7 +580,7 @@ describe("runSeed", () => {
       expect(fake.calls.indexOf(updates[0])).toBeLessThan(indexOf(fake, "teams", "upsert"));
     });
 
-    it.each(["seasons", "categories"] as const)("lo mismo con %s, por club", async (table) => {
+    it.each(["seasons", "categories", "venues"] as const)("lo mismo con %s, por club", async (table) => {
       const seedRow = data[table][0];
       const stray = { id: handMade, name: ` ${seedRow.name} `, organization_id: seedRow.organization_id };
       const fake = fakeClient({ strays: { [table]: [stray] } });
@@ -609,7 +619,7 @@ describe("runSeed", () => {
       }
     });
 
-    it.each(["seasons", "categories", "teams", "team_players"])(
+    it.each(["seasons", "categories", "teams", "venues", "team_players"])(
       "si falla la lectura de %s, se lanza con la tabla y no la escribe",
       async (table) => {
         const fake = fakeClient({ failOnTable: table, failOnOp: "select" });

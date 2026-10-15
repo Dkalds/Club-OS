@@ -36,6 +36,7 @@ type Call = {
   neq: Record<string, unknown>;
   in: Record<string, unknown[]>;
   gt: Record<string, string>;
+  lte: Record<string, string>;
   or: string | null;
   order: Array<{ column: string; ascending: boolean }>;
   limit: number | null;
@@ -76,7 +77,7 @@ class FakeQuery implements PromiseLike<Result> {
     private readonly failure: Failure | null,
     calls: Call[],
   ) {
-    this.call = { table, select: null, eq: {}, neq: {}, in: {}, gt: {}, or: null, order: [], limit: null };
+    this.call = { table, select: null, eq: {}, neq: {}, in: {}, gt: {}, lte: {}, or: null, order: [], limit: null };
     calls.push(this.call);
   }
 
@@ -106,6 +107,12 @@ class FakeQuery implements PromiseLike<Result> {
   gt(column: string, value: string) {
     this.call.gt[column] = value;
     this.filters.push((row) => instant(row[column]) > instant(value));
+    return this;
+  }
+
+  lte(column: string, value: string) {
+    this.call.lte[column] = value;
+    this.filters.push((row) => instant(row[column]) <= instant(value));
     return this;
   }
 
@@ -581,21 +588,103 @@ describe("getTeamDefaults", () => {
     expect(defaults).toEqual({ [TEAM_A]: USUAL });
   });
 
-  it("filtra por club, por tipo, por no canceladas y por los equipos pedidos, de la más reciente a la más antigua y con tope", async () => {
+  it("hace dos lecturas, y las dos filtran por club, por tipo, por no canceladas y por los equipos pedidos", async () => {
     const calls = installDatabase({ events: [] });
 
     await getTeamDefaults(COACH, [A, B], LATER);
 
-    expect(calls).toHaveLength(1);
-    expect(calls[0]?.table).toBe("events");
-    expect(calls[0]?.eq).toEqual({ organization_id: ORG, kind: "practice" });
-    expect(calls[0]?.neq).toEqual({ status: "cancelled" });
-    expect(calls[0]?.in).toEqual({ team_id: [TEAM_A, TEAM_B] });
-    expect(calls[0]?.order).toEqual([
+    expect(calls).toHaveLength(2);
+    for (const call of calls) {
+      expect(call.table).toBe("events");
+      expect(call.eq).toEqual({ organization_id: ORG, kind: "practice" });
+      expect(call.neq).toEqual({ status: "cancelled" });
+      expect(call.in).toEqual({ team_id: [TEAM_A, TEAM_B] });
+    }
+  });
+
+  it("una lee las que ya han empezado, de la más reciente a la más antigua, y la otra las futuras, de la más próxima a la más lejana; cada una con su tope", async () => {
+    const calls = installDatabase({ events: [] });
+
+    await getTeamDefaults(COACH, [A, B], LATER);
+
+    const started = calls.find((call) => "starts_at" in call.lte);
+    const upcoming = calls.find((call) => "starts_at" in call.gt);
+    expect(started).not.toBe(upcoming);
+    expect(started?.lte).toEqual({ starts_at: LATER });
+    expect(started?.gt).toEqual({});
+    expect(started?.order).toEqual([
       { column: "starts_at", ascending: false },
       { column: "id", ascending: true },
     ]);
-    expect(calls[0]?.limit).toBe(200);
+    expect(started?.limit).toBe(200);
+    expect(upcoming?.gt).toEqual({ starts_at: LATER });
+    expect(upcoming?.lte).toEqual({});
+    expect(upcoming?.order).toEqual([
+      { column: "starts_at", ascending: true },
+      { column: "id", ascending: true },
+    ]);
+    expect(upcoming?.limit).toBe(200);
+  });
+
+  // El motivo de las dos lecturas: con un horario semanal un equipo tiene decenas de sesiones por
+  // delante, y en una sola lectura por fecha las futuras se comerían el tope.
+  it("con más de 200 sesiones futuras, sigue encontrando la última que ya empezó", async () => {
+    const now = "2026-10-07T10:00:00.000Z";
+    const future = Array.from({ length: 230 }, (_, index) => {
+      const start = Date.parse("2026-10-08T15:00:00.000Z") + index * 86_400_000;
+      return eventRow(`a-future-${String(index).padStart(3, "0")}`, TEAM_A, new Date(start).toISOString(), new Date(start + 3_600_000).toISOString(), {
+        location: "Pista exterior",
+      });
+    });
+    installDatabase({
+      events: [
+        ...future,
+        eventRow("a-last", TEAM_A, "2026-10-06T16:30:00+00:00", "2026-10-06T18:00:00+00:00"),
+        eventRow("a-old", TEAM_A, "2026-09-29T16:00:00+00:00", "2026-09-29T17:15:00+00:00", { location: "Pabellón 1" }),
+      ],
+    });
+
+    expect((await getTeamDefaults(COACH, [A], now))[TEAM_A]).toEqual({
+      time: "18:30",
+      durationMinutes: 90,
+      location: "Pabellón 2",
+    });
+  });
+
+  it("las muchas sesiones futuras de un equipo no dejan a otro sin la suya", async () => {
+    const now = "2026-10-07T10:00:00.000Z";
+    const future = Array.from({ length: 230 }, (_, index) => {
+      const start = Date.parse("2026-10-08T15:00:00.000Z") + index * 86_400_000;
+      return eventRow(`a-future-${String(index).padStart(3, "0")}`, TEAM_A, new Date(start).toISOString(), new Date(start + 3_600_000).toISOString());
+    });
+    installDatabase({
+      events: [
+        ...future,
+        eventRow("b-last", TEAM_B, "2026-10-05T15:00:00+00:00", "2026-10-05T16:30:00+00:00", { location: "Pabellón 1" }),
+      ],
+    });
+
+    const defaults = await getTeamDefaults(COACH, [A, B], now);
+
+    expect(defaults[TEAM_B]).toEqual({ time: "17:00", durationMinutes: 90, location: "Pabellón 1" });
+    // A aún no ha entrenado: lleva lo de su sesión más próxima, las 17:00 del día 8.
+    expect(defaults[TEAM_A]).toEqual({ time: "17:00", durationMinutes: 60, location: "Pabellón 2" });
+  });
+
+  it("la que empieza justo ahora ya ha empezado", async () => {
+    const now = "2026-10-06T16:30:00.000Z";
+    installDatabase({
+      events: [
+        eventRow("a-now", TEAM_A, "2026-10-06T16:30:00+00:00", "2026-10-06T18:00:00+00:00"),
+        eventRow("a-next", TEAM_A, "2026-10-13T15:00:00+00:00", "2026-10-13T16:00:00+00:00", { location: "Pabellón 1" }),
+      ],
+    });
+
+    expect((await getTeamDefaults(COACH, [A], now))[TEAM_A]).toEqual({
+      time: "18:30",
+      durationMinutes: 90,
+      location: "Pabellón 2",
+    });
   });
 
   it("solo pide lo que usa: el equipo, la franja y el lugar", async () => {
@@ -603,7 +692,10 @@ describe("getTeamDefaults", () => {
 
     await getTeamDefaults(COACH, [A], LATER);
 
-    expect(calls[0]?.select).toBe("team_id, starts_at, ends_at, location");
+    expect(calls.map((call) => call.select)).toEqual([
+      "team_id, starts_at, ends_at, location",
+      "team_id, starts_at, ends_at, location",
+    ]);
   });
 
   it("sin equipos no consulta nada, ni crea el cliente", async () => {
