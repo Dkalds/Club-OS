@@ -41,7 +41,7 @@ jobs:
       # Misma versión que el devDependency `supabase` de package.json: súbelas a la vez.
       - uses: supabase/setup-cli@v3
         with:
-          version: 2.119.0
+          version: 2.122.0
       - run: supabase start
       - run: pnpm test:db
       # Los tipos versionados tienen que ser los que salen de las migraciones. Mismo patrón
@@ -66,7 +66,7 @@ jobs:
       # Misma versión que el devDependency `supabase` de package.json: súbelas a la vez.
       - uses: supabase/setup-cli@v3
         with:
-          version: 2.119.0
+          version: 2.122.0
       - run: supabase start
       - name: Volcar supabase status a .env.local
         run: |
